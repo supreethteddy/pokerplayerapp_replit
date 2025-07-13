@@ -1,9 +1,16 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { dbStorage, db } from "./database";
+import { databaseSync } from "./sync";
 import { insertPlayerSchema, insertPlayerPrefsSchema, insertSeatRequestSchema, insertKycDocumentSchema, players, playerPrefs, seatRequests, kycDocuments } from "@shared/schema";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL!,
+  process.env.VITE_SUPABASE_ANON_KEY!
+);
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Player routes
@@ -28,6 +35,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         gameUpdates: true
       };
       await dbStorage.createPlayerPrefs(defaultPrefs);
+      
+      // Sync to Supabase for admin portal
+      await databaseSync.syncPlayerToSupabase(player.id);
       
       res.json(player);
     } catch (error: any) {
@@ -132,6 +142,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const kycData = insertKycDocumentSchema.parse(req.body);
       const document = await dbStorage.createKycDocument(kycData);
+      
+      // Sync to Supabase for admin portal
+      await databaseSync.syncPlayerToSupabase(document.playerId);
+      
       res.json(document);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -163,12 +177,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Test endpoint to verify Supabase connection
-  app.get("/api/test-supabase/:playerId", async (req, res) => {
+  // Sync all players to Supabase for admin portal
+  app.post("/api/sync-to-supabase", async (req, res) => {
+    try {
+      const success = await databaseSync.syncAllPlayersToSupabase();
+      res.json({ success, message: "All players synced to Supabase" });
+    } catch (error: any) {
+      console.error("Sync error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Sync specific player to Supabase
+  app.post("/api/sync-player/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
-      const supabaseData = await databaseSync.getSupabasePlayerData(playerId);
-      res.json({ supabaseData });
+      
+      // Get player data from our database
+      const player = await dbStorage.getPlayer(playerId);
+      if (!player) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+      
+      // Simple sync attempt - try different column combinations
+      const syncAttempts = [
+        // Try camelCase first
+        { email: player.email, firstName: player.firstName, lastName: player.lastName, phone: player.phone },
+        // Try snake_case
+        { email: player.email, first_name: player.firstName, last_name: player.lastName, phone: player.phone },
+        // Try just name field
+        { email: player.email, name: `${player.firstName} ${player.lastName}`, phone: player.phone }
+      ];
+      
+      for (const attempt of syncAttempts) {
+        const { data, error } = await supabase
+          .from('players')
+          .insert(attempt);
+        
+        if (!error) {
+          return res.json({ success: true, message: `Player ${playerId} synced to Supabase successfully` });
+        }
+        
+        console.log(`Sync attempt failed:`, error.message);
+      }
+      
+      res.json({ success: false, message: `Player ${playerId} sync failed - check admin portal schema` });
+    } catch (error: any) {
+      console.error("Sync error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Test endpoint to verify Supabase connection
+  app.get("/api/test-supabase/:email", async (req, res) => {
+    try {
+      const email = req.params.email;
+      
+      // First test if we can select from the table
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .limit(1);
+      
+      if (error) {
+        return res.json({ error: error.message, data: null });
+      }
+      
+      // Test inserting a simple player record to see what columns work
+      const testInsert = await supabase
+        .from('players')
+        .insert({
+          email: 'test@sync.com',
+          name: 'Test User',
+          phone: '123-456-7890'
+        });
+      
+      res.json({ 
+        selectTest: { data, error },
+        insertTest: testInsert
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
