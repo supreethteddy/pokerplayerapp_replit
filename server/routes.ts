@@ -21,6 +21,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if player already exists
       const existingPlayer = await dbStorage.getPlayerByEmail(playerData.email);
       if (existingPlayer) {
+        console.log(`Registration attempt for existing email: ${playerData.email} (ID: ${existingPlayer.id})`);
         return res.status(409).json({ error: "Account with this email already exists" });
       }
       
