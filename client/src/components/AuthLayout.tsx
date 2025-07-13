@@ -61,6 +61,9 @@ export default function AuthLayout() {
     if (result.success) {
       setShowSignupModal(false);
       setShowKycModal(true);
+    } else {
+      // Reset form on failure to allow user to try again
+      setSignupForm(prev => ({ ...prev, password: "" }));
     }
   };
 

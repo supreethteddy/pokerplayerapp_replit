@@ -79,7 +79,13 @@ export function useAuth() {
         password,
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        // Handle specific Supabase auth errors
+        if (authError.message.includes('already registered')) {
+          throw new Error('This email is already registered. Please sign in instead.');
+        }
+        throw authError;
+      }
 
       // Create player record
       const playerData = {
@@ -112,9 +118,21 @@ export function useAuth() {
       return { success: true };
     } catch (error: any) {
       console.error('Signup error:', error);
+      
+      // Handle specific error cases
+      let errorMessage = "Failed to create account";
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.error) {
+        errorMessage = error.error;
+      }
+      
+      // Clear signup cooldown on error
+      setSignupCooldown(false);
+      
       toast({
         title: "Signup Failed",
-        description: error.message || "Failed to create account",
+        description: errorMessage,
         variant: "destructive",
       });
       return { success: false };

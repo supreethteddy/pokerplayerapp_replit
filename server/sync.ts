@@ -28,11 +28,11 @@ export class DatabaseSync {
           .upsert({
             id: playerData.id,
             email: playerData.email,
-            first_name: playerData.firstName,
-            last_name: playerData.lastName,
+            firstName: playerData.firstName,
+            lastName: playerData.lastName,
             phone: playerData.phone,
-            kyc_status: playerData.kycStatus,
-            created_at: playerData.createdAt
+            kycStatus: playerData.kycStatus,
+            createdAt: playerData.createdAt
           }, { onConflict: 'id' });
         
         if (playerError) {
@@ -45,11 +45,11 @@ export class DatabaseSync {
           const { error: prefsError } = await supabase
             .from('player_prefs')
             .upsert({
-              player_id: prefs[0].playerId,
-              seat_available: prefs[0].seatAvailable,
-              call_time_warning: prefs[0].callTimeWarning,
-              game_updates: prefs[0].gameUpdates
-            }, { onConflict: 'player_id' });
+              playerId: prefs[0].playerId,
+              seatAvailable: prefs[0].seatAvailable,
+              callTimeWarning: prefs[0].callTimeWarning,
+              gameUpdates: prefs[0].gameUpdates
+            }, { onConflict: 'playerId' });
           
           if (prefsError) {
             console.error('Error syncing player prefs to Supabase:', prefsError);
@@ -62,12 +62,12 @@ export class DatabaseSync {
             .from('kyc_documents')
             .upsert({
               id: doc.id,
-              player_id: doc.playerId,
-              document_type: doc.documentType,
-              file_name: doc.fileName,
-              file_url: doc.fileUrl,
+              playerId: doc.playerId,
+              documentType: doc.documentType,
+              fileName: doc.fileName,
+              fileUrl: doc.fileUrl,
               status: doc.status,
-              created_at: doc.createdAt
+              createdAt: doc.createdAt
             }, { onConflict: 'id' });
           
           if (kycError) {
