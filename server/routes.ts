@@ -143,10 +143,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const email = req.params.email;
       
-      // Delete from PostgreSQL database
-      await db.delete(kycDocuments).where(eq(kycDocuments.playerId, db.select({ id: players.id }).from(players).where(eq(players.email, email))));
-      await db.delete(playerPrefs).where(eq(playerPrefs.playerId, db.select({ id: players.id }).from(players).where(eq(players.email, email))));
-      await db.delete(seatRequests).where(eq(seatRequests.playerId, db.select({ id: players.id }).from(players).where(eq(players.email, email))));
+      // First get the player ID
+      const player = await dbStorage.getPlayerByEmail(email);
+      if (!player) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+      
+      // Delete related data first
+      await db.delete(kycDocuments).where(eq(kycDocuments.playerId, player.id));
+      await db.delete(playerPrefs).where(eq(playerPrefs.playerId, player.id));
+      await db.delete(seatRequests).where(eq(seatRequests.playerId, player.id));
+      
+      // Finally delete the player
       await db.delete(players).where(eq(players.email, email));
       
       res.json({ success: true, message: `Player with email ${email} deleted from database` });
