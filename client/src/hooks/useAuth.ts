@@ -10,6 +10,13 @@ export interface AuthUser {
   firstName: string;
   lastName: string;
   kycStatus: string;
+  balance: string;
+  totalDeposits: string;
+  totalWithdrawals: string;
+  totalWinnings: string;
+  totalLosses: string;
+  gamesPlayed: number;
+  hoursPlayed: string;
 }
 
 export function useAuth() {

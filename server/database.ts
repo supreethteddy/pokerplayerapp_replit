@@ -6,6 +6,7 @@ import {
   tables, 
   seatRequests, 
   kycDocuments,
+  transactions,
   type Player, 
   type InsertPlayer,
   type PlayerPrefs,
@@ -14,7 +15,9 @@ import {
   type SeatRequest,
   type InsertSeatRequest,
   type KycDocument,
-  type InsertKycDocument
+  type InsertKycDocument,
+  type Transaction,
+  type InsertTransaction
 } from "@shared/schema";
 import { eq, and } from 'drizzle-orm';
 import type { IStorage } from './storage';
@@ -86,6 +89,70 @@ export class DatabaseStorage implements IStorage {
   // KYC document operations
   async createKycDocument(document: InsertKycDocument): Promise<KycDocument> {
     const result = await db.insert(kycDocuments).values(document).returning();
+    return result[0];
+  }
+
+  // Transaction operations
+  async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
+    const result = await db.insert(transactions).values(transaction).returning();
+    return result[0];
+  }
+
+  async getTransactionsByPlayer(playerId: number): Promise<Transaction[]> {
+    const result = await db.select().from(transactions).where(eq(transactions.playerId, playerId));
+    return result;
+  }
+
+  async updatePlayerBalance(playerId: number, amount: string, type: 'deposit' | 'withdrawal' | 'win' | 'loss', description?: string, staffId?: string): Promise<Player> {
+    const player = await this.getPlayer(playerId);
+    if (!player) {
+      throw new Error('Player not found');
+    }
+
+    const currentBalance = parseFloat(player.balance);
+    const transactionAmount = parseFloat(amount);
+    
+    let newBalance = currentBalance;
+    let updatedStats: any = {};
+
+    switch (type) {
+      case 'deposit':
+        newBalance += transactionAmount;
+        updatedStats.totalDeposits = (parseFloat(player.totalDeposits) + transactionAmount).toFixed(2);
+        break;
+      case 'withdrawal':
+        newBalance -= transactionAmount;
+        updatedStats.totalWithdrawals = (parseFloat(player.totalWithdrawals) + transactionAmount).toFixed(2);
+        break;
+      case 'win':
+        newBalance += transactionAmount;
+        updatedStats.totalWinnings = (parseFloat(player.totalWinnings) + transactionAmount).toFixed(2);
+        break;
+      case 'loss':
+        newBalance -= transactionAmount;
+        updatedStats.totalLosses = (parseFloat(player.totalLosses) + transactionAmount).toFixed(2);
+        break;
+    }
+
+    // Update player balance and stats
+    const result = await db.update(players)
+      .set({
+        balance: newBalance.toFixed(2),
+        ...updatedStats
+      })
+      .where(eq(players.id, playerId))
+      .returning();
+
+    // Record transaction
+    await this.createTransaction({
+      playerId,
+      type,
+      amount: amount,
+      description,
+      staffId,
+      status: 'completed'
+    });
+
     return result[0];
   }
 

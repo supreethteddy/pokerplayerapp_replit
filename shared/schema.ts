@@ -10,6 +10,13 @@ export const players = pgTable("players", {
   lastName: text("last_name").notNull(),
   phone: text("phone").notNull(),
   kycStatus: text("kyc_status").notNull().default("pending"), // pending, approved, rejected
+  balance: text("balance").notNull().default("0.00"), // Current balance
+  totalDeposits: text("total_deposits").notNull().default("0.00"), // Total deposits
+  totalWithdrawals: text("total_withdrawals").notNull().default("0.00"), // Total withdrawals
+  totalWinnings: text("total_winnings").notNull().default("0.00"), // Total winnings
+  totalLosses: text("total_losses").notNull().default("0.00"), // Total losses
+  gamesPlayed: integer("games_played").notNull().default(0), // Games played
+  hoursPlayed: text("hours_played").notNull().default("0.00"), // Hours played
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -53,6 +60,17 @@ export const kycDocuments = pgTable("kyc_documents", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const transactions = pgTable("transactions", {
+  id: serial("id").primaryKey(),
+  playerId: integer("player_id").references(() => players.id),
+  type: text("type").notNull(), // deposit, withdrawal, win, loss
+  amount: text("amount").notNull(),
+  description: text("description"),
+  staffId: text("staff_id"), // For cashier transactions
+  status: text("status").notNull().default("completed"), // completed, pending, cancelled
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const insertPlayerSchema = createInsertSchema(players).omit({
   id: true,
   createdAt: true,
@@ -72,6 +90,11 @@ export const insertKycDocumentSchema = createInsertSchema(kycDocuments).omit({
   createdAt: true,
 });
 
+export const insertTransactionSchema = createInsertSchema(transactions).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type Player = typeof players.$inferSelect;
 export type InsertPlayer = z.infer<typeof insertPlayerSchema>;
 export type PlayerPrefs = typeof playerPrefs.$inferSelect;
@@ -81,3 +104,5 @@ export type SeatRequest = typeof seatRequests.$inferSelect;
 export type InsertSeatRequest = z.infer<typeof insertSeatRequestSchema>;
 export type KycDocument = typeof kycDocuments.$inferSelect;
 export type InsertKycDocument = z.infer<typeof insertKycDocumentSchema>;
+export type Transaction = typeof transactions.$inferSelect;
+export type InsertTransaction = z.infer<typeof insertTransactionSchema>;

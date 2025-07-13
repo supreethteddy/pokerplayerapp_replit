@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Spade, 
   Table, 
@@ -14,12 +15,14 @@ import {
   BarChart3, 
   User, 
   LogOut,
-  Users
+  Users,
+  CreditCard
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import type { Table as TableType, SeatRequest, PlayerPrefs } from "@shared/schema";
+import BalanceManager from "./BalanceManager";
 
 export default function PlayerDashboard() {
   const { user, signOut } = useAuth();
@@ -160,24 +163,41 @@ export default function PlayerDashboard() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Live Tables */}
-          <div className="lg:col-span-2">
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center justify-between">
-                  <div className="flex items-center">
-                    <Table className="w-5 h-5 mr-2 text-emerald-500" />
-                    Live Tables
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                    <span className="text-sm text-slate-400">Live</span>
-                  </div>
-                </CardTitle>
-              </CardHeader>
+        <Tabs defaultValue="tables" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 bg-slate-800 border-slate-700 mb-6">
+            <TabsTrigger value="tables" className="flex items-center gap-2">
+              <Table className="w-4 h-4" />
+              Tables
+            </TabsTrigger>
+            <TabsTrigger value="balance" className="flex items-center gap-2">
+              <CreditCard className="w-4 h-4" />
+              Balance
+            </TabsTrigger>
+            <TabsTrigger value="stats" className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Stats
+            </TabsTrigger>
+          </TabsList>
 
-              <CardContent>
+          <TabsContent value="tables" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Live Tables */}
+              <div className="lg:col-span-2">
+                <Card className="bg-slate-800 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center justify-between">
+                      <div className="flex items-center">
+                        <Table className="w-5 h-5 mr-2 text-emerald-500" />
+                        Live Tables
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                        <span className="text-sm text-slate-400">Live</span>
+                      </div>
+                    </CardTitle>
+                  </CardHeader>
+
+                  <CardContent>
                 {tablesLoading ? (
                   <div className="space-y-4">
                     {[1, 2, 3].map((i) => (
@@ -363,8 +383,20 @@ export default function PlayerDashboard() {
                 </div>
               </CardContent>
             </Card>
+            </div>
           </div>
-        </div>
+        </TabsContent>
+
+        <TabsContent value="balance" className="space-y-6">
+          <BalanceManager />
+        </TabsContent>
+
+        <TabsContent value="stats" className="space-y-6">
+          <div className="text-center text-slate-400">
+            Player statistics and analytics coming soon...
+          </div>
+        </TabsContent>
+      </Tabs>
       </div>
     </div>
   );

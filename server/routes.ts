@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { dbStorage, db } from "./database";
 import { databaseSync } from "./sync";
-import { insertPlayerSchema, insertPlayerPrefsSchema, insertSeatRequestSchema, insertKycDocumentSchema, players, playerPrefs, seatRequests, kycDocuments } from "@shared/schema";
+import { insertPlayerSchema, insertPlayerPrefsSchema, insertSeatRequestSchema, insertKycDocumentSchema, insertTransactionSchema, players, playerPrefs, seatRequests, kycDocuments, transactions } from "@shared/schema";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { createClient } from '@supabase/supabase-js';
@@ -160,6 +160,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(documents);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Transaction routes
+  app.post("/api/transactions", async (req, res) => {
+    try {
+      const transactionData = insertTransactionSchema.parse(req.body);
+      const transaction = await dbStorage.createTransaction(transactionData);
+      res.json(transaction);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/transactions/player/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const transactions = await dbStorage.getTransactionsByPlayer(playerId);
+      res.json(transactions);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Balance management routes
+  app.post("/api/players/:playerId/balance", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const { amount, type, description, staffId } = req.body;
+      
+      if (!amount || !type) {
+        return res.status(400).json({ error: "Amount and type are required" });
+      }
+
+      const player = await dbStorage.updatePlayerBalance(playerId, amount, type, description, staffId);
+      res.json(player);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
     }
   });
 
