@@ -23,10 +23,10 @@ Preferred communication style: Simple, everyday language.
 
 ### Backend Architecture
 - **Framework**: Express.js with TypeScript
-- **Database**: PostgreSQL with Drizzle ORM (fully migrated from in-memory storage)
-- **Storage**: Database-backed persistence with sample data initialization
+- **Database**: Supabase PostgreSQL (unified database for both player and staff portals)
+- **Storage**: Direct Supabase integration for all data operations
 - **API Design**: RESTful endpoints for player management, table operations, and preferences
-- **Data Sync**: Automatic synchronization to Supabase for staff portal integration
+- **Data Sync**: Single source of truth - no synchronization needed
 
 ### Authentication Strategy
 - **Primary**: Supabase Auth for user authentication and session management

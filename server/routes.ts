@@ -1,12 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { dbStorage, db } from "./database";
-import { databaseSync } from "./sync";
-import { players } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { supabaseStorage } from "./supabase-storage";
 import { insertPlayerSchema, insertPlayerPrefsSchema, insertSeatRequestSchema, insertKycDocumentSchema } from "@shared/schema";
 import { z } from "zod";
-import { supabase } from "./supabase";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Player routes
@@ -14,16 +10,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const playerData = insertPlayerSchema.parse(req.body);
       
-      // Check if player already exists in our PostgreSQL database
-      const existingPlayer = await dbStorage.getPlayerByEmail(playerData.email);
+      // Check if player already exists in Supabase
+      const existingPlayer = await supabaseStorage.getPlayerByEmail(playerData.email);
       if (existingPlayer) {
-        return res.status(409).json({ error: "Account with this email already exists. If you deleted it from Supabase, please contact support to clean up the database." });
+        return res.status(409).json({ error: "Account with this email already exists" });
       }
       
-      const player = await dbStorage.createPlayer(playerData);
+      // Create player in Supabase
+      const player = await supabaseStorage.createPlayer(playerData);
       
-      // Sync to Supabase for staff portal integration
-      await databaseSync.syncPlayerToSupabase(player.id);
+      // Create default preferences
+      const defaultPrefs = {
+        playerId: player.id,
+        seatAvailable: true,
+        callTimeWarning: true,
+        gameUpdates: true
+      };
+      await supabaseStorage.createPlayerPrefs(defaultPrefs);
       
       res.json(player);
     } catch (error: any) {
@@ -37,7 +40,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/players/:id", async (req, res) => {
     try {
-      const player = await dbStorage.getPlayer(parseInt(req.params.id));
+      const player = await supabaseStorage.getPlayer(parseInt(req.params.id));
       if (!player) {
         return res.status(404).json({ error: "Player not found" });
       }
@@ -49,7 +52,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/players/email/:email", async (req, res) => {
     try {
-      const player = await dbStorage.getPlayerByEmail(req.params.email);
+      const player = await supabaseStorage.getPlayerByEmail(req.params.email);
       if (!player) {
         return res.status(404).json({ error: "Player not found" });
       }
@@ -63,7 +66,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/player-prefs", async (req, res) => {
     try {
       const prefsData = insertPlayerPrefsSchema.parse(req.body);
-      const prefs = await dbStorage.createPlayerPrefs(prefsData);
+      const prefs = await supabaseStorage.createPlayerPrefs(prefsData);
       res.json(prefs);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -72,7 +75,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/player-prefs/:playerId", async (req, res) => {
     try {
-      const prefs = await dbStorage.getPlayerPrefs(parseInt(req.params.playerId));
+      const prefs = await supabaseStorage.getPlayerPrefs(parseInt(req.params.playerId));
       if (!prefs) {
         return res.status(404).json({ error: "Player preferences not found" });
       }
@@ -86,7 +89,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const playerId = parseInt(req.params.playerId);
       const updates = req.body;
-      const prefs = await dbStorage.updatePlayerPrefs(playerId, updates);
+      const prefs = await supabaseStorage.updatePlayerPrefs(playerId, updates);
       res.json(prefs);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -96,7 +99,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Tables routes
   app.get("/api/tables", async (req, res) => {
     try {
-      const tables = await dbStorage.getTables();
+      const tables = await supabaseStorage.getTables();
       res.json(tables);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -107,7 +110,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/seat-requests", async (req, res) => {
     try {
       const requestData = insertSeatRequestSchema.parse(req.body);
-      const request = await dbStorage.createSeatRequest(requestData);
+      const request = await supabaseStorage.createSeatRequest(requestData);
       res.json(request);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -116,7 +119,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/seat-requests/:playerId", async (req, res) => {
     try {
-      const requests = await dbStorage.getSeatRequestsByPlayer(parseInt(req.params.playerId));
+      const requests = await supabaseStorage.getSeatRequestsByPlayer(parseInt(req.params.playerId));
       res.json(requests);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -127,38 +130,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/kyc-documents", async (req, res) => {
     try {
       const kycData = insertKycDocumentSchema.parse(req.body);
-      const document = await dbStorage.createKycDocument(kycData);
-      
-      // Sync to Supabase for staff portal integration
-      if (document.playerId) {
-        await databaseSync.syncPlayerToSupabase(document.playerId);
-      }
-      
+      const document = await supabaseStorage.createKycDocument(kycData);
       res.json(document);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
   });
 
-  // Admin endpoint to clean up players (for testing)
-  app.delete("/api/players/:email", async (req, res) => {
+  // Initialize sample data if needed
+  app.post("/api/initialize-data", async (req, res) => {
     try {
-      const email = req.params.email;
-      
-      // Delete from PostgreSQL database
-      await db.delete(players).where(eq(players.email, email));
-      
-      res.json({ success: true, message: `Player with email ${email} deleted from database` });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Admin endpoint to sync all data to Supabase
-  app.post("/api/sync-to-supabase", async (req, res) => {
-    try {
-      const success = await databaseSync.syncAllPlayersToSupabase();
-      res.json({ success, message: "Data sync completed" });
+      await supabaseStorage.initializeSampleData();
+      res.json({ success: true, message: "Sample data initialized" });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
