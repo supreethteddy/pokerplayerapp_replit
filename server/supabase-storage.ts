@@ -21,7 +21,7 @@ export class SupabaseStorage implements IStorage {
     
     if (error) return undefined;
     
-    // Map from Supabase schema to our schema
+    // Map from snake_case to camelCase
     return {
       id: data.id,
       email: data.email,
@@ -43,7 +43,7 @@ export class SupabaseStorage implements IStorage {
     
     if (error) return undefined;
     
-    // Map from Supabase schema to our schema
+    // Map from snake_case to camelCase
     return {
       id: data.id,
       email: data.email,
@@ -57,15 +57,15 @@ export class SupabaseStorage implements IStorage {
   }
 
   async createPlayer(player: InsertPlayer): Promise<Player> {
-    // Map the schema to match Supabase column names
+    // Map to snake_case for Supabase
     const supabasePlayer = {
       email: player.email,
       password: player.password,
       first_name: player.firstName,
       last_name: player.lastName,
       phone: player.phone,
-      kyc_status: player.kycStatus,
-      created_at: player.createdAt
+      kyc_status: player.kycStatus || 'pending',
+      created_at: player.createdAt || new Date().toISOString()
     };
     
     const { data, error } = await supabase
@@ -76,7 +76,7 @@ export class SupabaseStorage implements IStorage {
     
     if (error) throw new Error(`Failed to create player: ${error.message}`);
     
-    // Map back to our schema
+    // Map back to camelCase
     return {
       id: data.id,
       email: data.email,
@@ -167,25 +167,29 @@ export class SupabaseStorage implements IStorage {
   }
 
   async initializeSampleData(): Promise<void> {
-    // Check if tables already exist
-    const { data: existingTables } = await supabase
-      .from('tables')
-      .select('id')
-      .limit(1);
-    
-    if (existingTables && existingTables.length > 0) {
-      return; // Sample data already exists
+    try {
+      // Check if tables already exist
+      const { data: existingTables } = await supabase
+        .from('tables')
+        .select('id')
+        .limit(1);
+      
+      if (existingTables && existingTables.length > 0) {
+        return; // Sample data already exists
+      }
+      
+      // Create sample tables with snake_case column names
+      const sampleTables = [
+        { name: "High Stakes Hold'em", game_type: "No Limit Hold'em", stakes: "$5/$10", max_players: 9, current_players: 6, status: "active", is_active: true },
+        { name: "Omaha Action", game_type: "Pot Limit Omaha", stakes: "$2/$5", max_players: 8, current_players: 4, status: "active", is_active: true },
+        { name: "Tournament Final", game_type: "No Limit Hold'em", stakes: "$1/$2", max_players: 6, current_players: 3, status: "active", is_active: true },
+        { name: "Beginners Table", game_type: "No Limit Hold'em", stakes: "$0.50/$1", max_players: 10, current_players: 2, status: "waiting", is_active: true }
+      ];
+      
+      await supabase.from('tables').insert(sampleTables);
+    } catch (error) {
+      console.log('Sample data initialization skipped:', error);
     }
-    
-    // Create sample tables
-    const sampleTables = [
-      { name: "High Stakes Hold'em", gameType: "No Limit Hold'em", stakes: "$5/$10", maxPlayers: 9, currentPlayers: 6, status: "active" },
-      { name: "Omaha Action", gameType: "Pot Limit Omaha", stakes: "$2/$5", maxPlayers: 8, currentPlayers: 4, status: "active" },
-      { name: "Tournament Final", gameType: "No Limit Hold'em", stakes: "$1/$2", maxPlayers: 6, currentPlayers: 3, status: "active" },
-      { name: "Beginners Table", gameType: "No Limit Hold'em", stakes: "$0.50/$1", maxPlayers: 10, currentPlayers: 2, status: "waiting" }
-    ];
-    
-    await supabase.from('tables').insert(sampleTables);
   }
 }
 

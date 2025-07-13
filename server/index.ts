@@ -37,9 +37,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Initialize Supabase with sample data
-  const { supabaseStorage } = await import("./supabase-storage");
-  await supabaseStorage.initializeSampleData();
+  // Initialize database with sample data
+  const { dbStorage } = await import("./database");
+  await dbStorage.initializeSampleData();
   
   const server = await registerRoutes(app);
 
