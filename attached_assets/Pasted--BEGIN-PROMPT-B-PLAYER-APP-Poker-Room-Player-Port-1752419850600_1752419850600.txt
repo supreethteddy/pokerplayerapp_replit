@@ -1,0 +1,85 @@
+# ===================== BEGIN PROMPT B – PLAYER APP ====================
+#  Poker Room – Player Portal   (connects to same DB)
+# =====================================================================
+
+## 0 · Same UI / UX palette
+Uses identical Tailwind config & dark-theme classes defined in Staff App prompt.
+
+---
+
+## 1 · Stack
+React 18 · Vite 5 · TS · Tailwind (dark) · Supabase · zustand · TanStack Query · lucide-react
+
+---
+
+## 2 · `.env`
+```
+VITE_SUPABASE_URL=https://YOUR-REF.supabase.co
+VITE_SUPABASE_ANON_KEY=YOUR-ANON-KEY
+```
+
+---
+
+## 3 · Supabase Client  `src/lib/supabase.ts`
+```ts
+import { createClient } from '@supabase/supabase-js';
+export const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL!,
+  import.meta.env.VITE_SUPABASE_ANON_KEY!
+);
+```
+
+---
+
+## 4 · Auth Hook  `src/hooks/useAuth.ts`
+
+*   `signUp(email,pw)` → Supabase Auth → insert into `players` → insert default row in `player_prefs` → sign in.  
+*   `signIn`, `signOut`.  
+*   `signupCooldown` rate-limit memory timer (60 s).
+
+---
+
+## 5 · Routes
+
+| Path | Component |
+|------|-----------|
+| `/`  | `<AuthLayout />` (login + signup) |
+| `/dashboard` | `<PlayerDashboard />` |
+
+Redirect unauthenticated users from `/dashboard` to `/`.
+
+---
+
+## 6 · Screens
+
+### 6.1 **AuthLayout**
+* Login form  
+* “Create Player” modal (email+pw+name+phone)  
+* Step-2 KYC upload (`id,address,photo → kyc_documents`)  
+* On success → `/dashboard`
+
+### 6.2 **PlayerDashboard**
+* **Live Tables** list (open tables query)  
+  * Join Wait-List → insert into `seat_requests`  
+* **Seat Requests** list (status chips)  
+* **Call-Time Countdown** (if seated) – same badge style as Manager view  
+* **Notification Toggles** (checkboxes → `player_prefs`)  
+* Uses TanStack Query for caching.
+
+---
+
+## 7 · Health Banner
+Copy `components/HealthBanner.tsx` from Staff App.
+
+---
+
+## 8 · Build & Run
+
+```bash
+npm i
+npm run dev
+```
+
+Open `http://localhost:5173`, create a player, upload KYC, and explore dashboard.
+
+# ====================== END PROMPT B – PLAYER APP =====================
