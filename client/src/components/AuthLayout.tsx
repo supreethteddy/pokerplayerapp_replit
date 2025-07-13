@@ -29,6 +29,7 @@ export default function AuthLayout() {
     address: File | null;
     photo: File | null;
   }>({ id: null, address: null, photo: null });
+  const [isSubmittingKyc, setIsSubmittingKyc] = useState(false);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,6 +71,10 @@ export default function AuthLayout() {
   const handleKycSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (isSubmittingKyc) {
+      return; // Prevent multiple submissions
+    }
+    
     const { id, address, photo } = kycFiles;
     if (!id || !address || !photo) {
       toast({
@@ -80,10 +85,26 @@ export default function AuthLayout() {
       return;
     }
 
+    setIsSubmittingKyc(true);
+
     try {
       // Get the currently signed up player by email
       const playerResponse = await apiRequest('GET', `/api/players/email/${signupForm.email}`);
       const player = await playerResponse.json();
+      
+      // Check if KYC documents already exist
+      const existingDocsResponse = await apiRequest('GET', `/api/kyc-documents/player/${player.id}`);
+      if (existingDocsResponse.ok) {
+        const existingDocs = await existingDocsResponse.json();
+        if (existingDocs.length > 0) {
+          toast({
+            title: "Documents Already Submitted",
+            description: "Your KYC documents have already been submitted",
+          });
+          setShowKycModal(false);
+          return;
+        }
+      }
       
       // In a real implementation, you would upload files to Supabase storage
       // and save the URLs to the database
@@ -110,6 +131,8 @@ export default function AuthLayout() {
         description: "Failed to submit KYC documents",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmittingKyc(false);
     }
   };
 
@@ -328,8 +351,12 @@ export default function AuthLayout() {
                   ))}
                 </div>
 
-                <Button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-600">
-                  Submit Documents
+                <Button 
+                  type="submit" 
+                  className="w-full bg-emerald-500 hover:bg-emerald-600"
+                  disabled={isSubmittingKyc}
+                >
+                  {isSubmittingKyc ? "Submitting..." : "Submit Documents"}
                 </Button>
               </form>
             </div>

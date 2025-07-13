@@ -153,6 +153,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/kyc-documents/player/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const documents = await db.select().from(kycDocuments).where(eq(kycDocuments.playerId, playerId));
+      res.json(documents);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Clean up player by email (for testing when deleted from Supabase)
   app.delete("/api/players/:email", async (req, res) => {
     try {
