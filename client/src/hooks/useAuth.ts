@@ -42,9 +42,16 @@ export function useAuth() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchUserData = async (userId: string) => {
+  const fetchUserData = async (supabaseUserId: string) => {
     try {
-      const response = await apiRequest('GET', `/api/players/${userId}`);
+      // Get the user's email from Supabase first
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) {
+        throw new Error('No email found in Supabase user');
+      }
+      
+      // Fetch player data using email instead of Supabase ID
+      const response = await apiRequest('GET', `/api/players/email/${user.email}`);
       const userData = await response.json();
       setUser(userData);
     } catch (error) {
@@ -146,7 +153,18 @@ export function useAuth() {
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Handle specific error cases
+        if (error.message.includes('email_not_confirmed')) {
+          toast({
+            title: "Email Not Confirmed",
+            description: "Please check your email and click the confirmation link",
+            variant: "destructive",
+          });
+          return { success: false };
+        }
+        throw error;
+      }
 
       toast({
         title: "Welcome Back",
