@@ -23,8 +23,8 @@ Preferred communication style: Simple, everyday language.
 
 ### Backend Architecture
 - **Framework**: Express.js with TypeScript
-- **Database**: PostgreSQL with Drizzle ORM
-- **Session Management**: In-memory storage with planned PostgreSQL persistence
+- **Database**: PostgreSQL with Drizzle ORM (fully migrated from in-memory storage)
+- **Storage**: Database-backed persistence with sample data initialization
 - **API Design**: RESTful endpoints for player management, table operations, and preferences
 
 ### Authentication Strategy
@@ -65,7 +65,7 @@ Preferred communication style: Simple, everyday language.
 
 ### Core Services
 - **Supabase**: Authentication, user management, and session handling
-- **Neon Database**: PostgreSQL hosting for application data
+- **PostgreSQL**: Database hosting for application data with full persistence
 - **Drizzle ORM**: Type-safe database operations and migrations
 
 ### UI and Styling

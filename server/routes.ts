@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { dbStorage } from "./database";
 import { insertPlayerSchema, insertPlayerPrefsSchema, insertSeatRequestSchema, insertKycDocumentSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -9,7 +9,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/players", async (req, res) => {
     try {
       const playerData = insertPlayerSchema.parse(req.body);
-      const player = await storage.createPlayer(playerData);
+      const player = await dbStorage.createPlayer(playerData);
       res.json(player);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -18,7 +18,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/players/:id", async (req, res) => {
     try {
-      const player = await storage.getPlayer(parseInt(req.params.id));
+      const player = await dbStorage.getPlayer(parseInt(req.params.id));
       if (!player) {
         return res.status(404).json({ error: "Player not found" });
       }
@@ -32,7 +32,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/player-prefs", async (req, res) => {
     try {
       const prefsData = insertPlayerPrefsSchema.parse(req.body);
-      const prefs = await storage.createPlayerPrefs(prefsData);
+      const prefs = await dbStorage.createPlayerPrefs(prefsData);
       res.json(prefs);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -41,7 +41,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/player-prefs/:playerId", async (req, res) => {
     try {
-      const prefs = await storage.getPlayerPrefs(parseInt(req.params.playerId));
+      const prefs = await dbStorage.getPlayerPrefs(parseInt(req.params.playerId));
       if (!prefs) {
         return res.status(404).json({ error: "Player preferences not found" });
       }
@@ -55,7 +55,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const playerId = parseInt(req.params.playerId);
       const updates = req.body;
-      const prefs = await storage.updatePlayerPrefs(playerId, updates);
+      const prefs = await dbStorage.updatePlayerPrefs(playerId, updates);
       res.json(prefs);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -65,7 +65,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Tables routes
   app.get("/api/tables", async (req, res) => {
     try {
-      const tables = await storage.getTables();
+      const tables = await dbStorage.getTables();
       res.json(tables);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -76,7 +76,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/seat-requests", async (req, res) => {
     try {
       const requestData = insertSeatRequestSchema.parse(req.body);
-      const request = await storage.createSeatRequest(requestData);
+      const request = await dbStorage.createSeatRequest(requestData);
       res.json(request);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -85,7 +85,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/seat-requests/:playerId", async (req, res) => {
     try {
-      const requests = await storage.getSeatRequestsByPlayer(parseInt(req.params.playerId));
+      const requests = await dbStorage.getSeatRequestsByPlayer(parseInt(req.params.playerId));
       res.json(requests);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -96,7 +96,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/kyc-documents", async (req, res) => {
     try {
       const kycData = insertKycDocumentSchema.parse(req.body);
-      const document = await storage.createKycDocument(kycData);
+      const document = await dbStorage.createKycDocument(kycData);
       res.json(document);
     } catch (error: any) {
       res.status(400).json({ error: error.message });

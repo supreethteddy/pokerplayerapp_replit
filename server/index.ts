@@ -37,6 +37,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Initialize database with sample data
+  const { dbStorage } = await import("./database");
+  await dbStorage.initializeSampleData();
+  
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
