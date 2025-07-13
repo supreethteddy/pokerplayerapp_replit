@@ -1,7 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { dbStorage } from "./database";
+import { dbStorage, db } from "./database";
 import { databaseSync } from "./sync";
+import { players } from "@shared/schema";
+import { eq } from "drizzle-orm";
 import { insertPlayerSchema, insertPlayerPrefsSchema, insertSeatRequestSchema, insertKycDocumentSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -11,10 +13,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const playerData = insertPlayerSchema.parse(req.body);
       
-      // Check if player already exists
+      // Check if player already exists in our database
       const existingPlayer = await dbStorage.getPlayerByEmail(playerData.email);
       if (existingPlayer) {
-        return res.status(409).json({ error: "Account with this email already exists" });
+        return res.status(409).json({ error: "Account with this email already exists in player database" });
       }
       
       const player = await dbStorage.createPlayer(playerData);
@@ -134,6 +136,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(document);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Admin endpoint to clean up players (for testing)
+  app.delete("/api/players/:email", async (req, res) => {
+    try {
+      const email = req.params.email;
+      
+      // Delete from PostgreSQL database
+      await db.delete(players).where(eq(players.email, email));
+      
+      res.json({ success: true, message: `Player with email ${email} deleted from database` });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 
