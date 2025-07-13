@@ -90,11 +90,12 @@ export function useAuth() {
         phone,
       };
 
-      await apiRequest('POST', '/api/players', playerData);
+      const playerResponse = await apiRequest('POST', '/api/players', playerData);
+      const createdPlayer = await playerResponse.json();
 
-      // Create default player preferences
+      // Create default player preferences using the created player's ID
       await apiRequest('POST', '/api/player-prefs', {
-        playerId: authData.user?.id,
+        playerId: createdPlayer.id,
       });
 
       toast({
