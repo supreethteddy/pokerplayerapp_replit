@@ -22,17 +22,18 @@ export class DatabaseSync {
         // Sync to Supabase tables (assuming similar schema)
         const playerData = player[0];
         
-        // Insert or update player in Supabase (use snake_case column names)
+        // Insert or update player in Supabase (use actual admin portal schema)
         console.log('Attempting to sync player to Supabase:', playerData.email);
         const { data: supabasePlayer, error: playerError } = await supabase
           .from('players')
-          .insert({
+          .upsert({
             email: playerData.email,
-            first_name: playerData.firstName,
-            last_name: playerData.lastName,
+            full_name: `${playerData.firstName} ${playerData.lastName}`,
             phone: playerData.phone,
-            kyc_status: playerData.kycStatus || 'pending'
-          });
+            kyc_status: playerData.kycStatus || 'pending',
+            created_at: playerData.createdAt,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'email' });
         
         if (playerError) {
           console.error('Error syncing player to Supabase:', playerError);
@@ -47,34 +48,34 @@ export class DatabaseSync {
           .single();
         
         if (syncedPlayer.data) {
-          // Sync player preferences
+          // Sync player preferences with correct column names
           if (prefs.length > 0) {
             const { error: prefsError } = await supabase
               .from('player_prefs')
               .upsert({
-                playerId: syncedPlayer.data.id,
-                seatAvailable: prefs[0].seatAvailable,
-                callTimeWarning: prefs[0].callTimeWarning,
-                gameUpdates: prefs[0].gameUpdates
-              }, { onConflict: 'playerId' });
+                player_id: syncedPlayer.data.id,
+                seat_available: prefs[0].seatAvailable,
+                call_time_warning: prefs[0].callTimeWarning,
+                game_updates: prefs[0].gameUpdates
+              }, { onConflict: 'player_id' });
             
             if (prefsError) {
               console.error('Error syncing player prefs to Supabase:', prefsError);
             }
           }
           
-          // Sync KYC documents
+          // Sync KYC documents with correct column names
           for (const doc of kyc) {
             const { error: kycError } = await supabase
               .from('kyc_documents')
               .upsert({
-                playerId: syncedPlayer.data.id,
-                documentType: doc.documentType,
-                fileName: doc.fileName,
-                fileUrl: doc.fileUrl,
+                player_id: syncedPlayer.data.id,
+                document_type: doc.documentType,
+                file_name: doc.fileName,
+                file_url: doc.fileUrl,
                 status: doc.status,
-                createdAt: doc.createdAt
-              }, { onConflict: 'playerId,documentType' });
+                created_at: doc.createdAt
+              }, { onConflict: 'player_id,document_type' });
             
             if (kycError) {
               console.error('Error syncing KYC document to Supabase:', kycError);

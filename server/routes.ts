@@ -192,43 +192,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/sync-player/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
-      
-      // Get player data from our database
-      const player = await dbStorage.getPlayer(playerId);
-      if (!player) {
-        return res.status(404).json({ error: "Player not found" });
-      }
-      
-      // Simple sync attempt - try different column combinations
-      const syncAttempts = [
-        // Try camelCase first
-        { email: player.email, firstName: player.firstName, lastName: player.lastName, phone: player.phone },
-        // Try snake_case
-        { email: player.email, first_name: player.firstName, last_name: player.lastName, phone: player.phone },
-        // Try just name field
-        { email: player.email, name: `${player.firstName} ${player.lastName}`, phone: player.phone }
-      ];
-      
-      for (const attempt of syncAttempts) {
-        const { data, error } = await supabase
-          .from('players')
-          .insert(attempt);
-        
-        if (!error) {
-          return res.json({ success: true, message: `Player ${playerId} synced to Supabase successfully` });
-        }
-        
-        console.log(`Sync attempt failed:`, error.message);
-      }
-      
-      res.json({ success: false, message: `Player ${playerId} sync failed - check admin portal schema` });
+      const success = await databaseSync.syncPlayerToSupabase(playerId);
+      res.json({ success, message: `Player ${playerId} synced to Supabase` });
     } catch (error: any) {
       console.error("Sync error:", error);
       res.status(500).json({ error: error.message });
     }
   });
 
-  // Test endpoint to verify Supabase connection
+  // Test endpoint to verify Supabase connection and create tables if needed
   app.get("/api/test-supabase/:email", async (req, res) => {
     try {
       const email = req.params.email;
@@ -240,21 +212,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .limit(1);
       
       if (error) {
+        // If table doesn't exist, create it
+        if (error.code === 'PGRST116' || error.message.includes('does not exist')) {
+          console.log('Players table does not exist in Supabase. Creating table...');
+          
+          // Create the players table in Supabase
+          const createTableResult = await supabase.rpc('create_players_table');
+          
+          return res.json({ 
+            message: 'Players table created in Supabase',
+            createResult: createTableResult
+          });
+        }
+        
         return res.json({ error: error.message, data: null });
       }
       
-      // Test inserting a simple player record to see what columns work
-      const testInsert = await supabase
+      // Check if the requested player exists in Supabase
+      const playerCheck = await supabase
         .from('players')
-        .insert({
-          email: 'test@sync.com',
-          name: 'Test User',
-          phone: '123-456-7890'
-        });
+        .select('*')
+        .eq('email', email);
       
       res.json({ 
         selectTest: { data, error },
-        insertTest: testInsert
+        playerCheck: playerCheck
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
