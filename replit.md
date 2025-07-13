@@ -26,6 +26,7 @@ Preferred communication style: Simple, everyday language.
 - **Database**: PostgreSQL with Drizzle ORM (fully migrated from in-memory storage)
 - **Storage**: Database-backed persistence with sample data initialization
 - **API Design**: RESTful endpoints for player management, table operations, and preferences
+- **Data Sync**: Automatic synchronization to Supabase for staff portal integration
 
 ### Authentication Strategy
 - **Primary**: Supabase Auth for user authentication and session management
@@ -101,10 +102,11 @@ The application follows a monorepo structure with shared TypeScript types and sc
 
 ## Admin Dashboard Integration
 
-### Shared Database Strategy
-- **Single Supabase Instance**: Both admin and player portals use the same Supabase project
+### Database Integration Strategy
+- **Primary Database**: Player portal uses PostgreSQL for reliable data storage
+- **Supabase Sync**: Automatic synchronization to Supabase for staff portal integration
 - **Unified Data Models**: Shared schema ensures consistency across both applications
-- **Real-time Sync**: Changes in admin dashboard (table management, player approvals) reflect instantly in player portal
+- **Real-time Sync**: Player data automatically syncs to staff portal for review and management
 - **Cross-Application Features**: Admin can manage player KYC approvals, table assignments, and preferences
 
 ### Integration Benefits

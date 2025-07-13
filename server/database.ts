@@ -19,6 +19,7 @@ import {
 import { eq, and } from 'drizzle-orm';
 import type { IStorage } from './storage';
 
+// Use the original database URL for now
 const connectionString = process.env.DATABASE_URL!;
 const client = postgres(connectionString);
 export const db = drizzle(client);

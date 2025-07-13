@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { dbStorage } from "./database";
+import { databaseSync } from "./sync";
 import { insertPlayerSchema, insertPlayerPrefsSchema, insertSeatRequestSchema, insertKycDocumentSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -10,6 +11,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const playerData = insertPlayerSchema.parse(req.body);
       const player = await dbStorage.createPlayer(playerData);
+      
+      // Sync to Supabase for staff portal integration
+      await databaseSync.syncPlayerToSupabase(player.id);
+      
       res.json(player);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -109,9 +114,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const kycData = insertKycDocumentSchema.parse(req.body);
       const document = await dbStorage.createKycDocument(kycData);
+      
+      // Sync to Supabase for staff portal integration
+      if (document.playerId) {
+        await databaseSync.syncPlayerToSupabase(document.playerId);
+      }
+      
       res.json(document);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Admin endpoint to sync all data to Supabase
+  app.post("/api/sync-to-supabase", async (req, res) => {
+    try {
+      const success = await databaseSync.syncAllPlayersToSupabase();
+      res.json({ success, message: "Data sync completed" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Test endpoint to verify Supabase connection
+  app.get("/api/test-supabase/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const supabaseData = await databaseSync.getSupabasePlayerData(playerId);
+      res.json({ supabaseData });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 
