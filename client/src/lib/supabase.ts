@@ -1,16 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Debug: Check if environment variables are loaded
-console.log('Environment variables:', {
-  url: import.meta.env.VITE_SUPABASE_URL,
-  key: import.meta.env.VITE_SUPABASE_ANON_KEY ? 'Present' : 'Missing'
-});
+// Temporary fix: Use your actual values directly
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://oyhnpnymlezjusnwpjeu.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95aG5wbnltbGV6anVzbndwamV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0MTM1NDIsImV4cCI6MjA2Nzk4OTU0Mn0.aCvrnoSd5pCoz_6zDqwozYF_04XKfm3WuhIc1_lX0FA';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(`Missing Supabase environment variables: URL=${supabaseUrl ? 'Present' : 'Missing'}, Key=${supabaseAnonKey ? 'Present' : 'Missing'}`);
-}
+console.log('Supabase client configured with URL:', supabaseUrl.substring(0, 30) + '...');
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
