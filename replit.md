@@ -6,6 +6,14 @@ This is a React-based player portal for a poker room application that allows pla
 
 This player portal is designed to work alongside an existing admin dashboard, sharing the same Supabase database and authentication system for seamless integration and real-time data synchronization.
 
+## Recent Changes (July 13, 2025)
+
+✅ **Fixed Duplicate Email Issue**: Resolved duplicate email registration validation with proper error handling
+✅ **Database Cleanup**: Implemented comprehensive player cleanup endpoint for email reuse capability  
+✅ **Supabase Sync Fixed**: Updated sync function to match admin portal schema (full_name vs first_name/last_name)
+✅ **Real-time Integration**: Players now automatically appear in admin portal upon registration
+✅ **Schema Mapping**: Correctly mapped all data fields between PostgreSQL and Supabase databases
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
