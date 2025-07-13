@@ -6,6 +6,7 @@ import { players } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { insertPlayerSchema, insertPlayerPrefsSchema, insertSeatRequestSchema, insertKycDocumentSchema } from "@shared/schema";
 import { z } from "zod";
+import { supabase } from "./supabase";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Player routes
@@ -13,10 +14,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const playerData = insertPlayerSchema.parse(req.body);
       
-      // Check if player already exists in our database
+      // Check if player already exists in our PostgreSQL database
       const existingPlayer = await dbStorage.getPlayerByEmail(playerData.email);
       if (existingPlayer) {
-        return res.status(409).json({ error: "Account with this email already exists in player database" });
+        return res.status(409).json({ error: "Account with this email already exists. If you deleted it from Supabase, please contact support to clean up the database." });
       }
       
       const player = await dbStorage.createPlayer(playerData);
