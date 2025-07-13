@@ -28,6 +28,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/players/email/:email", async (req, res) => {
+    try {
+      const player = await dbStorage.getPlayerByEmail(req.params.email);
+      if (!player) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+      res.json(player);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Player preferences routes
   app.post("/api/player-prefs", async (req, res) => {
     try {

@@ -78,12 +78,16 @@ export default function AuthLayout() {
     }
 
     try {
+      // Get the currently signed up player by email
+      const playerResponse = await apiRequest('GET', `/api/players/email/${signupForm.email}`);
+      const player = await playerResponse.json();
+      
       // In a real implementation, you would upload files to Supabase storage
       // and save the URLs to the database
       const kycData = [
-        { documentType: "id", fileName: id.name, fileUrl: `/uploads/${id.name}` },
-        { documentType: "address", fileName: address.name, fileUrl: `/uploads/${address.name}` },
-        { documentType: "photo", fileName: photo.name, fileUrl: `/uploads/${photo.name}` },
+        { playerId: player.id, documentType: "id", fileName: id.name, fileUrl: `/uploads/${id.name}` },
+        { playerId: player.id, documentType: "address", fileName: address.name, fileUrl: `/uploads/${address.name}` },
+        { playerId: player.id, documentType: "photo", fileName: photo.name, fileUrl: `/uploads/${photo.name}` },
       ];
 
       for (const doc of kycData) {
