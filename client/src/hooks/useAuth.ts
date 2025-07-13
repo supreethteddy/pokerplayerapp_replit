@@ -91,6 +91,12 @@ export function useAuth() {
       };
 
       const playerResponse = await apiRequest('POST', '/api/players', playerData);
+      
+      if (!playerResponse.ok) {
+        const errorData = await playerResponse.json();
+        throw new Error(errorData.error || 'Failed to create player account');
+      }
+      
       const createdPlayer = await playerResponse.json();
 
       // Create default player preferences using the created player's ID

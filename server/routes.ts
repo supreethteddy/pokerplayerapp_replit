@@ -10,6 +10,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/players", async (req, res) => {
     try {
       const playerData = insertPlayerSchema.parse(req.body);
+      
+      // Check if player already exists
+      const existingPlayer = await dbStorage.getPlayerByEmail(playerData.email);
+      if (existingPlayer) {
+        return res.status(409).json({ error: "Account with this email already exists" });
+      }
+      
       const player = await dbStorage.createPlayer(playerData);
       
       // Sync to Supabase for staff portal integration
@@ -17,6 +24,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(player);
     } catch (error: any) {
+      // Handle database constraint errors
+      if (error.message.includes('duplicate key value')) {
+        return res.status(409).json({ error: "Account with this email already exists" });
+      }
       res.status(400).json({ error: error.message });
     }
   });
