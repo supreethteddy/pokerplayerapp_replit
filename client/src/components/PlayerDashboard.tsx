@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { 
   Spade, 
   Table, 
@@ -22,6 +23,8 @@ import {
   FileText,
   CheckCircle,
   XCircle,
+  Eye,
+  AlertCircle
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +38,8 @@ export default function PlayerDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [callTime, setCallTime] = useState("02:45");
+  const [selectedDocument, setSelectedDocument] = useState<KycDocument | null>(null);
+  const [showDocumentViewer, setShowDocumentViewer] = useState(false);
 
   // Fetch live tables with reduced frequency
   const { data: tables, isLoading: tablesLoading } = useQuery<TableType[]>({
@@ -175,6 +180,11 @@ export default function PlayerDashboard() {
 
   const handleKycDocumentUpload = (documentType: string, file: File) => {
     uploadKycDocumentMutation.mutate({ documentType, file });
+  };
+
+  const handleViewDocument = (doc: KycDocument) => {
+    setSelectedDocument(doc);
+    setShowDocumentViewer(true);
   };
 
   const getKycDocumentStatus = (documentType: string) => {
@@ -555,28 +565,41 @@ export default function PlayerDashboard() {
                       </div>
                       {/* ID Document */}
                       <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
-                        <div className="flex items-center space-x-3">
+                        <div className="flex items-center space-x-3 flex-1">
                           {getKycStatusIcon(getKycDocumentStatus('id'))}
-                          <div>
+                          <div className="flex-1">
                             <p className="text-sm font-medium text-white">ID Document</p>
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('id')}</p>
                             {kycDocuments?.filter(d => d.documentType === 'id').length > 0 && (
-                              <p className="text-xs text-emerald-400">
+                              <p className="text-xs text-emerald-400 cursor-pointer hover:text-emerald-300"
+                                 onClick={() => handleViewDocument(kycDocuments.filter(d => d.documentType === 'id')[0])}>
                                 {kycDocuments.filter(d => d.documentType === 'id')[0].fileName}
                               </p>
                             )}
                           </div>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => document.getElementById('id-document-upload')?.click()}
-                          disabled={uploadKycDocumentMutation.isPending}
-                          className="border-slate-600 hover:bg-slate-600"
-                        >
-                          <Upload className="w-4 h-4 mr-1" />
-                          {kycDocuments?.filter(d => d.documentType === 'id').length > 0 ? 'Replace' : 'Upload'}
-                        </Button>
+                        <div className="flex items-center space-x-2">
+                          {kycDocuments?.filter(d => d.documentType === 'id').length > 0 && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleViewDocument(kycDocuments.filter(d => d.documentType === 'id')[0])}
+                              className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-slate-600"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => document.getElementById('id-document-upload')?.click()}
+                            disabled={uploadKycDocumentMutation.isPending}
+                            className="border-slate-600 hover:bg-slate-600"
+                          >
+                            <Upload className="w-4 h-4 mr-1" />
+                            {kycDocuments?.filter(d => d.documentType === 'id').length > 0 ? 'Replace' : 'Upload'}
+                          </Button>
+                        </div>
                         <input
                           id="id-document-upload"
                           type="file"
@@ -591,28 +614,41 @@ export default function PlayerDashboard() {
 
                       {/* Address Document */}
                       <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
-                        <div className="flex items-center space-x-3">
+                        <div className="flex items-center space-x-3 flex-1">
                           {getKycStatusIcon(getKycDocumentStatus('address'))}
-                          <div>
+                          <div className="flex-1">
                             <p className="text-sm font-medium text-white">Address Proof</p>
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('address')}</p>
                             {kycDocuments?.filter(d => d.documentType === 'address').length > 0 && (
-                              <p className="text-xs text-emerald-400">
+                              <p className="text-xs text-emerald-400 cursor-pointer hover:text-emerald-300"
+                                 onClick={() => handleViewDocument(kycDocuments.filter(d => d.documentType === 'address')[0])}>
                                 {kycDocuments.filter(d => d.documentType === 'address')[0].fileName}
                               </p>
                             )}
                           </div>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => document.getElementById('address-document-upload')?.click()}
-                          disabled={uploadKycDocumentMutation.isPending}
-                          className="border-slate-600 hover:bg-slate-600"
-                        >
-                          <Upload className="w-4 h-4 mr-1" />
-                          {kycDocuments?.filter(d => d.documentType === 'address').length > 0 ? 'Replace' : 'Upload'}
-                        </Button>
+                        <div className="flex items-center space-x-2">
+                          {kycDocuments?.filter(d => d.documentType === 'address').length > 0 && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleViewDocument(kycDocuments.filter(d => d.documentType === 'address')[0])}
+                              className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-slate-600"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => document.getElementById('address-document-upload')?.click()}
+                            disabled={uploadKycDocumentMutation.isPending}
+                            className="border-slate-600 hover:bg-slate-600"
+                          >
+                            <Upload className="w-4 h-4 mr-1" />
+                            {kycDocuments?.filter(d => d.documentType === 'address').length > 0 ? 'Replace' : 'Upload'}
+                          </Button>
+                        </div>
                         <input
                           id="address-document-upload"
                           type="file"
@@ -627,28 +663,41 @@ export default function PlayerDashboard() {
 
                       {/* Photo Document */}
                       <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
-                        <div className="flex items-center space-x-3">
+                        <div className="flex items-center space-x-3 flex-1">
                           {getKycStatusIcon(getKycDocumentStatus('photo'))}
-                          <div>
+                          <div className="flex-1">
                             <p className="text-sm font-medium text-white">Photo</p>
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('photo')}</p>
                             {kycDocuments?.filter(d => d.documentType === 'photo').length > 0 && (
-                              <p className="text-xs text-emerald-400">
+                              <p className="text-xs text-emerald-400 cursor-pointer hover:text-emerald-300"
+                                 onClick={() => handleViewDocument(kycDocuments.filter(d => d.documentType === 'photo')[0])}>
                                 {kycDocuments.filter(d => d.documentType === 'photo')[0].fileName}
                               </p>
                             )}
                           </div>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => document.getElementById('photo-document-upload')?.click()}
-                          disabled={uploadKycDocumentMutation.isPending}
-                          className="border-slate-600 hover:bg-slate-600"
-                        >
-                          <Upload className="w-4 h-4 mr-1" />
-                          {kycDocuments?.filter(d => d.documentType === 'photo').length > 0 ? 'Replace' : 'Upload'}
-                        </Button>
+                        <div className="flex items-center space-x-2">
+                          {kycDocuments?.filter(d => d.documentType === 'photo').length > 0 && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleViewDocument(kycDocuments.filter(d => d.documentType === 'photo')[0])}
+                              className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-slate-600"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => document.getElementById('photo-document-upload')?.click()}
+                            disabled={uploadKycDocumentMutation.isPending}
+                            className="border-slate-600 hover:bg-slate-600"
+                          >
+                            <Upload className="w-4 h-4 mr-1" />
+                            {kycDocuments?.filter(d => d.documentType === 'photo').length > 0 ? 'Replace' : 'Upload'}
+                          </Button>
+                        </div>
                         <input
                           id="photo-document-upload"
                           type="file"
@@ -676,14 +725,22 @@ export default function PlayerDashboard() {
                           <div className="space-y-2">
                             {kycDocuments.map((doc) => (
                               <div key={doc.id} className="flex items-center justify-between py-2 border-b border-slate-600 last:border-b-0">
-                                <div className="flex items-center space-x-3">
+                                <div className="flex items-center space-x-3 flex-1">
                                   <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                                  <div>
+                                  <div className="flex-1">
                                     <p className="text-xs font-medium text-white capitalize">{doc.documentType} Document</p>
                                     <p className="text-xs text-slate-400">{doc.fileName}</p>
                                   </div>
                                 </div>
                                 <div className="flex items-center space-x-2">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleViewDocument(doc)}
+                                    className="h-6 w-6 p-0 text-slate-400 hover:text-white hover:bg-slate-600"
+                                  >
+                                    <Eye className="w-3 h-3" />
+                                  </Button>
                                   <Badge 
                                     variant={doc.status === 'approved' ? 'default' : doc.status === 'pending' ? 'secondary' : 'destructive'}
                                     className="text-xs"
@@ -758,6 +815,54 @@ export default function PlayerDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Document Viewer Dialog */}
+      <Dialog open={showDocumentViewer} onOpenChange={setShowDocumentViewer}>
+        <DialogContent className="max-w-4xl max-h-[80vh] bg-slate-800 border-slate-700">
+          <DialogHeader>
+            <DialogTitle className="text-white">
+              {selectedDocument ? `${selectedDocument.documentType} Document - ${selectedDocument.fileName}` : 'View Document'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center space-y-4">
+            {selectedDocument && (
+              <>
+                <div className="w-full max-w-2xl">
+                  <img 
+                    src={selectedDocument.fileUrl} 
+                    alt={selectedDocument.fileName}
+                    className="w-full h-auto rounded-lg border border-slate-600"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                  />
+                </div>
+                <div className="text-center space-y-2">
+                  <p className="text-sm text-slate-300">
+                    <strong>Document Type:</strong> {selectedDocument.documentType}
+                  </p>
+                  <p className="text-sm text-slate-300">
+                    <strong>File Name:</strong> {selectedDocument.fileName}
+                  </p>
+                  <p className="text-sm text-slate-300">
+                    <strong>Status:</strong> 
+                    <Badge 
+                      variant={selectedDocument.status === 'approved' ? 'default' : selectedDocument.status === 'pending' ? 'secondary' : 'destructive'}
+                      className="ml-2"
+                    >
+                      {selectedDocument.status}
+                    </Badge>
+                  </p>
+                  <p className="text-sm text-slate-300">
+                    <strong>Uploaded:</strong> {new Date(selectedDocument.createdAt!).toLocaleDateString()}
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
