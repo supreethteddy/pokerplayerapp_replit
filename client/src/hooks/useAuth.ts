@@ -9,6 +9,8 @@ export interface AuthUser {
   email: string;
   firstName: string;
   lastName: string;
+  phone: string;
+  profilePhoto?: string;
   kycStatus: string;
   balance: string;
   totalDeposits: string;
