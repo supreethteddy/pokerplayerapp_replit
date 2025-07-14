@@ -722,6 +722,12 @@ export default function PlayerDashboard() {
                       {kycDocuments && kycDocuments.length > 0 && (
                         <div className="mt-4 p-4 bg-slate-700 rounded-lg">
                           <h4 className="text-sm font-medium text-white mb-3">Document Upload History</h4>
+                          <div className="mb-3 p-2 bg-slate-800 rounded border border-slate-600">
+                            <p className="text-xs text-slate-300">
+                              <strong>Note:</strong> Some older documents may need to be re-uploaded to view them. 
+                              New uploads will be viewable immediately.
+                            </p>
+                          </div>
                           <div className="space-y-2">
                             {kycDocuments.map((doc) => (
                               <div key={doc.id} className="flex items-center justify-between py-2 border-b border-slate-600 last:border-b-0">
@@ -828,15 +834,25 @@ export default function PlayerDashboard() {
             {selectedDocument && (
               <>
                 <div className="w-full max-w-2xl">
-                  <img 
-                    src={selectedDocument.fileUrl} 
-                    alt={selectedDocument.fileName}
-                    className="w-full h-auto rounded-lg border border-slate-600"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                    }}
-                  />
+                  {selectedDocument.fileUrl.startsWith('data:') ? (
+                    <img 
+                      src={selectedDocument.fileUrl} 
+                      alt={selectedDocument.fileName}
+                      className="w-full h-auto rounded-lg border border-slate-600"
+                      onError={(e) => {
+                        console.error('Image load error:', selectedDocument.fileName);
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-64 bg-slate-700 rounded-lg border border-slate-600 flex flex-col items-center justify-center text-slate-400">
+                      <FileText className="w-12 h-12 mb-2" />
+                      <p className="text-sm">Document stored as file path</p>
+                      <p className="text-xs text-slate-500 mt-1">{selectedDocument.fileUrl}</p>
+                      <p className="text-xs text-slate-500 mt-2">Please re-upload this document to view it</p>
+                    </div>
+                  )}
                 </div>
                 <div className="text-center space-y-2">
                   <p className="text-sm text-slate-300">
