@@ -4,7 +4,7 @@ import { dbStorage, db } from "./database";
 import { databaseSync } from "./sync";
 import { insertPlayerSchema, insertPlayerPrefsSchema, insertSeatRequestSchema, insertKycDocumentSchema, insertTransactionSchema, players, playerPrefs, seatRequests, kycDocuments, transactions } from "@shared/schema";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -168,6 +168,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const requests = await dbStorage.getSeatRequestsByPlayer(parseInt(req.params.playerId));
       res.json(requests);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Remove player from waitlist
+  app.delete("/api/seat-requests/:playerId/:tableId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const tableId = parseInt(req.params.tableId);
+      
+      // Delete the seat request
+      await db.delete(seatRequests)
+        .where(and(eq(seatRequests.playerId, playerId), eq(seatRequests.tableId, tableId)));
+      
+      res.json({ success: true, message: "Removed from waitlist" });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

@@ -96,6 +96,11 @@ export function useAuth() {
       clearTimeout(timeoutId);
       
       if (!response.ok) {
+        if (response.status === 401) {
+          // Handle unauthorized gracefully during authentication
+          console.log('Unauthorized during authentication, this is normal');
+          return;
+        }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       

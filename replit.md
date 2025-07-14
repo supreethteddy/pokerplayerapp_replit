@@ -25,6 +25,12 @@ This player portal is designed to work alongside an existing admin dashboard, sh
 ✅ **Added Supabase Service Role Integration**: Proper admin API access for user data synchronization
 ✅ **Performance Optimizations**: Reduced API call frequency to prevent excessive server load
 ✅ **Improved Error Boundaries**: Better handling of authentication failures and network timeouts
+✅ **Added Unjoin Waitlist Feature**: Players can now leave table waitlists with proper API endpoint and UI button
+✅ **Removed Balance Management**: Eliminated add funds and cash out features from player portal per security requirements
+✅ **Enhanced Balance Display**: Created read-only balance view with gaming statistics and financial summary
+✅ **Restricted KYC Document Access**: Removed document viewing and replace options, only allowing reupload functionality
+✅ **Improved Authentication Flow**: Fixed unauthorized errors during login process with better error handling
+✅ **Updated Database Password**: Successfully updated Supabase database connection with new password
 
 ## User Preferences
 
