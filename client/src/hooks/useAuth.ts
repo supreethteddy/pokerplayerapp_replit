@@ -74,21 +74,11 @@ export function useAuth() {
     console.log('Starting fetchUserData for:', supabaseUserId);
     
     try {
-      // Get the user's email from Supabase first
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user?.email) {
-        console.error('No email found in Supabase user');
-        setLoading(false);
-        return;
-      }
-      
-      console.log('Fetching user data for email:', user.email);
-      
-      // Fetch player data using email with timeout
+      // Fetch player data using Supabase ID with timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
       
-      const response = await fetch(`/api/players/email/${user.email}`, {
+      const response = await fetch(`/api/players/supabase/${supabaseUserId}`, {
         signal: controller.signal,
         credentials: 'include'
       });
@@ -111,10 +101,15 @@ export function useAuth() {
         await supabase.auth.signOut();
       } else if (error.name === 'AbortError') {
         console.log('Fetch aborted due to timeout');
+        toast({
+          title: "Connection Timeout",
+          description: "Unable to fetch user data. Please try again.",
+          variant: "destructive",
+        });
       } else {
         toast({
-          title: "Error",
-          description: "Failed to fetch user data",
+          title: "Authentication Error",
+          description: "Failed to fetch user data. Please sign in again.",
           variant: "destructive",
         });
       }

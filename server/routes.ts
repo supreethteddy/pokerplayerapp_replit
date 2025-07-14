@@ -9,7 +9,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
-  process.env.VITE_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -70,6 +70,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json(player);
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get player by Supabase ID - find player by linking through email
+  app.get("/api/players/supabase/:supabaseId", async (req, res) => {
+    try {
+      const supabaseId = req.params.supabaseId;
+      
+      // Get user email from Supabase using the ID
+      const { data: { user }, error } = await supabase.auth.admin.getUserById(supabaseId);
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        return res.status(404).json({ error: "Supabase user not found" });
+      }
+      
+      if (!user?.email) {
+        console.error('No email found for user:', supabaseId);
+        return res.status(404).json({ error: "No email found for user" });
+      }
+      
+      console.log('Found Supabase user email:', user.email);
+      
+      // Find player by email in our database
+      const player = await dbStorage.getPlayerByEmail(user.email);
+      if (!player) {
+        console.error('Player not found in database for email:', user.email);
+        return res.status(404).json({ error: "Player not found in database" });
+      }
+      
+      console.log('Found player in database:', player.id);
+      res.json(player);
+    } catch (error: any) {
+      console.error('Error in /api/players/supabase route:', error);
       res.status(500).json({ error: error.message });
     }
   });
