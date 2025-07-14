@@ -54,6 +54,8 @@ export default function BalanceManager() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/players'] });
       queryClient.invalidateQueries({ queryKey: ['/api/transactions'] });
+      // Refresh user data
+      queryClient.invalidateQueries({ queryKey: [`/api/players/email/${user?.email}`] });
       setShowDepositDialog(false);
       setDepositAmount("");
       setTransactionNote("");
@@ -85,6 +87,8 @@ export default function BalanceManager() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/players'] });
       queryClient.invalidateQueries({ queryKey: ['/api/transactions'] });
+      // Refresh user data
+      queryClient.invalidateQueries({ queryKey: [`/api/players/email/${user?.email}`] });
       setShowWithdrawDialog(false);
       setWithdrawAmount("");
       setTransactionNote("");
@@ -177,25 +181,25 @@ export default function BalanceManager() {
               <div className="text-2xl font-bold text-green-500">
                 {formatCurrency(user?.balance || "0")}
               </div>
-              <div className="text-sm text-gray-500">Current Balance</div>
+              <div className="text-sm text-slate-400">Current Balance</div>
             </div>
             <div className="text-center">
               <div className="text-lg font-semibold text-blue-500">
                 {formatCurrency(user?.totalDeposits || "0")}
               </div>
-              <div className="text-sm text-gray-500">Total Deposits</div>
+              <div className="text-sm text-slate-400">Total Deposits</div>
             </div>
             <div className="text-center">
               <div className="text-lg font-semibold text-red-500">
                 {formatCurrency(user?.totalWithdrawals || "0")}
               </div>
-              <div className="text-sm text-gray-500">Total Withdrawals</div>
+              <div className="text-sm text-slate-400">Total Withdrawals</div>
             </div>
             <div className="text-center">
               <div className="text-lg font-semibold text-green-600">
                 {formatCurrency((parseFloat(user?.totalWinnings || "0") - parseFloat(user?.totalLosses || "0")).toFixed(2))}
               </div>
-              <div className="text-sm text-gray-500">Net Winnings</div>
+              <div className="text-sm text-slate-400">Net Winnings</div>
             </div>
           </div>
         </CardContent>

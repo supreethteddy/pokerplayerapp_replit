@@ -230,7 +230,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/sync-to-supabase", async (req, res) => {
     try {
       const success = await databaseSync.syncAllPlayersToSupabase();
-      res.json({ success, message: "All players synced to Supabase" });
+      const message = success 
+        ? "All players synced to Supabase successfully"
+        : "Some players failed to sync - check logs for details";
+      
+      res.json({ success, message });
     } catch (error: any) {
       console.error("Sync error:", error);
       res.status(500).json({ error: error.message });
@@ -242,7 +246,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const playerId = parseInt(req.params.playerId);
       const success = await databaseSync.syncPlayerToSupabase(playerId);
-      res.json({ success, message: `Player ${playerId} synced to Supabase` });
+      
+      const message = success 
+        ? `Player ${playerId} synced to Supabase successfully`
+        : `Player ${playerId} sync failed - check logs for details`;
+      
+      res.json({ success, message });
     } catch (error: any) {
       console.error("Sync error:", error);
       res.status(500).json({ error: error.message });
@@ -291,6 +300,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: error.message });
     }
   });
+
+  // Initialize sample data
+  try {
+    await dbStorage.initializeSampleData();
+  } catch (error) {
+    console.error('Error initializing sample data:', error);
+  }
 
   const httpServer = createServer(app);
   return httpServer;

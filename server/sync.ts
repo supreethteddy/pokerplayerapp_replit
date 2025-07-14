@@ -24,20 +24,64 @@ export class DatabaseSync {
         
         // Insert or update player in Supabase (use actual admin portal schema)
         console.log('Attempting to sync player to Supabase:', playerData.email);
+        
+        // Try syncing with full schema first, fallback to basic schema if columns don't exist
+        let syncData: any = {
+          email: playerData.email,
+          full_name: `${playerData.firstName} ${playerData.lastName}`,
+          phone: playerData.phone,
+          kyc_status: playerData.kycStatus || 'pending',
+          created_at: playerData.createdAt,
+          updated_at: new Date().toISOString()
+        };
+        
+        // Only add financial fields if they exist in Supabase (we'll handle the error in the upsert)
+        syncData = {
+          ...syncData,
+          balance: playerData.balance || '0.00',
+          total_deposits: playerData.totalDeposits || '0.00',
+          total_withdrawals: playerData.totalWithdrawals || '0.00',
+          total_winnings: playerData.totalWinnings || '0.00',
+          total_losses: playerData.totalLosses || '0.00',
+          games_played: playerData.gamesPlayed || 0,
+          hours_played: playerData.hoursPlayed || '0.00'
+        };
+        
         const { data: supabasePlayer, error: playerError } = await supabase
           .from('players')
-          .upsert({
-            email: playerData.email,
-            full_name: `${playerData.firstName} ${playerData.lastName}`,
-            phone: playerData.phone,
-            kyc_status: playerData.kycStatus || 'pending',
-            created_at: playerData.createdAt,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'email' });
+          .upsert(syncData, { onConflict: 'email' });
         
         if (playerError) {
           console.error('Error syncing player to Supabase:', playerError);
-          return false;
+          
+          // If it's a schema error, try basic sync without financial fields
+          if (playerError.code === 'PGRST204' || playerError.message.includes('column')) {
+            console.log('Retrying sync with basic schema (no financial fields)...');
+            
+            const basicSyncData = {
+              email: playerData.email,
+              full_name: `${playerData.firstName} ${playerData.lastName}`,
+              phone: playerData.phone,
+              kyc_status: playerData.kycStatus || 'pending',
+              created_at: playerData.createdAt,
+              updated_at: new Date().toISOString()
+            };
+            
+            const { error: basicError } = await supabase
+              .from('players')
+              .upsert(basicSyncData, { onConflict: 'email' });
+            
+            if (basicError) {
+              console.error('Basic sync also failed:', basicError);
+              return false;
+            }
+            
+            console.log('Basic sync successful (financial data not synced)');
+          } else {
+            return false;
+          }
+        } else {
+          console.log('Full sync successful with financial data');
         }
         
         // After successful player sync, get the Supabase player ID
