@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
+// Switch removed - preferences section eliminated
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import {
   Spade, 
   Table, 
   Clock, 
-  Settings, 
+  // Settings icon removed - preferences section eliminated 
   BarChart3, 
   User, 
   LogOut,
@@ -28,7 +28,7 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
-import type { Table as TableType, SeatRequest, PlayerPrefs, KycDocument } from "@shared/schema";
+import type { Table as TableType, SeatRequest, KycDocument } from "@shared/schema";
 import BalanceDisplay from "./BalanceDisplay";
 
 
@@ -52,11 +52,7 @@ export default function PlayerDashboard() {
     refetchInterval: 5000, // Refresh every 5 seconds instead of 2
   });
 
-  // Fetch player preferences
-  const { data: preferences, isLoading: prefsLoading } = useQuery<PlayerPrefs>({
-    queryKey: ['/api/player-prefs', user?.id],
-    enabled: !!user?.id,
-  });
+  // Preferences removed as per requirements
 
   // Fetch KYC documents
   const { data: kycDocuments, isLoading: kycLoading } = useQuery<KycDocument[]>({
@@ -111,20 +107,7 @@ export default function PlayerDashboard() {
     },
   });
 
-  // Update preferences mutation
-  const updatePreferencesMutation = useMutation({
-    mutationFn: async (newPrefs: Partial<PlayerPrefs>) => {
-      const response = await apiRequest('PATCH', `/api/player-prefs/${user?.id}`, newPrefs);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/player-prefs'] });
-      toast({
-        title: "Preferences Updated",
-        description: "Your notification preferences have been saved",
-      });
-    },
-  });
+  // Preferences update removed as per requirements
 
   // KYC document upload mutation
   const uploadKycDocumentMutation = useMutation({
@@ -198,9 +181,7 @@ export default function PlayerDashboard() {
     }
   }, [user, callTime]);
 
-  const handlePreferenceChange = (key: keyof PlayerPrefs, value: boolean) => {
-    updatePreferencesMutation.mutate({ [key]: value });
-  };
+  // Preference change handler removed as per requirements
 
   const handleKycDocumentUpload = (documentType: string, file: File) => {
     uploadKycDocumentMutation.mutate({ documentType, file });
@@ -408,57 +389,7 @@ export default function PlayerDashboard() {
                 </CardContent>
               </Card>
 
-              {/* Preferences */}
-              <Card className="bg-slate-800 border-slate-700">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <Settings className="w-5 h-5 mr-2 text-emerald-500" />
-                    Preferences
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {prefsLoading ? (
-                    <div className="space-y-4">
-                      {[1, 2, 3].map((i) => (
-                        <Skeleton key={i} className="h-12 bg-slate-700" />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="sound-notifications" className="text-slate-200">
-                          Sound Notifications
-                        </Label>
-                        <Switch
-                          id="sound-notifications"
-                          checked={preferences?.soundNotifications || false}
-                          onCheckedChange={(checked) => handlePreferenceChange('soundNotifications', checked)}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="email-notifications" className="text-slate-200">
-                          Email Notifications
-                        </Label>
-                        <Switch
-                          id="email-notifications"
-                          checked={preferences?.emailNotifications || false}
-                          onCheckedChange={(checked) => handlePreferenceChange('emailNotifications', checked)}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="auto-rebuy" className="text-slate-200">
-                          Auto Re-buy
-                        </Label>
-                        <Switch
-                          id="auto-rebuy"
-                          checked={preferences?.autoRebuy || false}
-                          onCheckedChange={(checked) => handlePreferenceChange('autoRebuy', checked)}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              {/* Preferences section removed as per requirements */}
             </div>
           </TabsContent>
 

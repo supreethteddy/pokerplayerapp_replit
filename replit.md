@@ -31,6 +31,8 @@ This player portal is designed to work alongside an existing admin dashboard, sh
 ✅ **Restricted KYC Document Access**: Removed document viewing and replace options, only allowing reupload functionality
 ✅ **Improved Authentication Flow**: Fixed unauthorized errors during login process with better error handling
 ✅ **Updated Database Password**: Successfully updated Supabase database connection with new password
+✅ **Removed Preferences Section**: Eliminated sound notifications, email notifications, and auto re-buy options from player portal
+✅ **Maintained Real-time Data Sync**: Ensured continuous synchronization between player portal and all admin portals (cashier/admin/super admin/manager/master admin)
 
 ## User Preferences
 
@@ -71,8 +73,8 @@ Preferred communication style: Simple, everyday language.
 ### Player Dashboard
 - **Live Tables**: Real-time table information with 5-second refresh
 - **Wait List Management**: Join/leave table wait lists with position tracking
-- **Preferences**: Toggle notifications and game settings
-- **Profile Management**: Display player information and KYC status
+- **Balance Display**: Read-only view of financial information and gaming statistics
+- **Profile Management**: Display player information and KYC status with document upload only
 
 ### Data Models
 - **Players**: Core user information with KYC status tracking
