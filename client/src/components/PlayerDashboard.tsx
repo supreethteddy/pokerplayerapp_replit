@@ -549,6 +549,10 @@ export default function PlayerDashboard() {
                     </div>
                   ) : (
                     <div className="space-y-3">
+                      {/* Debug: Show KYC documents count */}
+                      <div className="text-xs text-slate-500 mb-2">
+                        {kycDocuments ? `Found ${kycDocuments.length} documents` : 'No documents found'}
+                      </div>
                       {/* ID Document */}
                       <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
                         <div className="flex items-center space-x-3">
@@ -556,6 +560,11 @@ export default function PlayerDashboard() {
                           <div>
                             <p className="text-sm font-medium text-white">ID Document</p>
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('id')}</p>
+                            {kycDocuments?.filter(d => d.documentType === 'id').length > 0 && (
+                              <p className="text-xs text-emerald-400">
+                                {kycDocuments.filter(d => d.documentType === 'id')[0].fileName}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <Button
@@ -566,7 +575,7 @@ export default function PlayerDashboard() {
                           className="border-slate-600 hover:bg-slate-600"
                         >
                           <Upload className="w-4 h-4 mr-1" />
-                          Upload
+                          {kycDocuments?.filter(d => d.documentType === 'id').length > 0 ? 'Replace' : 'Upload'}
                         </Button>
                         <input
                           id="id-document-upload"
@@ -587,6 +596,11 @@ export default function PlayerDashboard() {
                           <div>
                             <p className="text-sm font-medium text-white">Address Proof</p>
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('address')}</p>
+                            {kycDocuments?.filter(d => d.documentType === 'address').length > 0 && (
+                              <p className="text-xs text-emerald-400">
+                                {kycDocuments.filter(d => d.documentType === 'address')[0].fileName}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <Button
@@ -597,7 +611,7 @@ export default function PlayerDashboard() {
                           className="border-slate-600 hover:bg-slate-600"
                         >
                           <Upload className="w-4 h-4 mr-1" />
-                          Upload
+                          {kycDocuments?.filter(d => d.documentType === 'address').length > 0 ? 'Replace' : 'Upload'}
                         </Button>
                         <input
                           id="address-document-upload"
@@ -618,6 +632,11 @@ export default function PlayerDashboard() {
                           <div>
                             <p className="text-sm font-medium text-white">Photo</p>
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('photo')}</p>
+                            {kycDocuments?.filter(d => d.documentType === 'photo').length > 0 && (
+                              <p className="text-xs text-emerald-400">
+                                {kycDocuments.filter(d => d.documentType === 'photo')[0].fileName}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <Button
@@ -628,7 +647,7 @@ export default function PlayerDashboard() {
                           className="border-slate-600 hover:bg-slate-600"
                         >
                           <Upload className="w-4 h-4 mr-1" />
-                          Upload
+                          {kycDocuments?.filter(d => d.documentType === 'photo').length > 0 ? 'Replace' : 'Upload'}
                         </Button>
                         <input
                           id="photo-document-upload"
@@ -647,6 +666,37 @@ export default function PlayerDashboard() {
                         <div className="flex items-center space-x-2 p-3 bg-slate-700 rounded-lg">
                           <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
                           <span className="text-sm text-slate-300">Uploading document...</span>
+                        </div>
+                      )}
+
+                      {/* Document Summary */}
+                      {kycDocuments && kycDocuments.length > 0 && (
+                        <div className="mt-4 p-4 bg-slate-700 rounded-lg">
+                          <h4 className="text-sm font-medium text-white mb-3">Document Upload History</h4>
+                          <div className="space-y-2">
+                            {kycDocuments.map((doc) => (
+                              <div key={doc.id} className="flex items-center justify-between py-2 border-b border-slate-600 last:border-b-0">
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                                  <div>
+                                    <p className="text-xs font-medium text-white capitalize">{doc.documentType} Document</p>
+                                    <p className="text-xs text-slate-400">{doc.fileName}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Badge 
+                                    variant={doc.status === 'approved' ? 'default' : doc.status === 'pending' ? 'secondary' : 'destructive'}
+                                    className="text-xs"
+                                  >
+                                    {doc.status}
+                                  </Badge>
+                                  <span className="text-xs text-slate-500">
+                                    {new Date(doc.createdAt!).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
