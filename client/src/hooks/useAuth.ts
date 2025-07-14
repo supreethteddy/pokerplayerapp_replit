@@ -29,6 +29,7 @@ export function useAuth() {
   useEffect(() => {
     // Check current session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session check:', session?.user ? 'User found' : 'No user');
       if (session?.user) {
         fetchUserData(session.user.id);
       } else {
@@ -38,11 +39,13 @@ export function useAuth() {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user ? 'User present' : 'No user');
       if (event === 'SIGNED_IN' && session?.user) {
         await fetchUserData(session.user.id);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         queryClient.clear();
+        setLoading(false);
       }
     });
 
@@ -54,20 +57,33 @@ export function useAuth() {
       // Get the user's email from Supabase first
       const { data: { user } } = await supabase.auth.getUser();
       if (!user?.email) {
-        throw new Error('No email found in Supabase user');
+        console.error('No email found in Supabase user');
+        setLoading(false);
+        return;
       }
+      
+      console.log('Fetching user data for email:', user.email);
       
       // Fetch player data using email instead of Supabase ID
       const response = await apiRequest('GET', `/api/players/email/${user.email}`);
       const userData = await response.json();
+      
+      console.log('User data fetched successfully:', userData);
       setUser(userData);
     } catch (error) {
       console.error('Error fetching user data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch user data",
-        variant: "destructive",
-      });
+      
+      // If the player doesn't exist in our database, sign them out
+      if (error.message && error.message.includes('404')) {
+        console.log('Player not found in database, signing out');
+        await supabase.auth.signOut();
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to fetch user data",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
