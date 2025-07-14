@@ -191,7 +191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/kyc-documents/player/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
-      const documents = await db.select().from(kycDocuments).where(eq(kycDocuments.playerId, playerId));
+      const documents = await dbStorage.getKycDocumentsByPlayer(playerId);
       res.json(documents);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

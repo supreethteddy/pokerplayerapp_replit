@@ -35,6 +35,7 @@ export interface IStorage {
   
   // KYC document operations
   createKycDocument(document: InsertKycDocument): Promise<KycDocument>;
+  getKycDocumentsByPlayer(playerId: number): Promise<KycDocument[]>;
   
   // Transaction operations
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;

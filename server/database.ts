@@ -92,6 +92,11 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  async getKycDocumentsByPlayer(playerId: number): Promise<KycDocument[]> {
+    const result = await db.select().from(kycDocuments).where(eq(kycDocuments.playerId, playerId));
+    return result;
+  }
+
   // Transaction operations
   async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
     const result = await db.insert(transactions).values(transaction).returning();
