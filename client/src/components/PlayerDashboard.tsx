@@ -178,8 +178,15 @@ export default function PlayerDashboard() {
   };
 
   const getKycDocumentStatus = (documentType: string) => {
-    const doc = kycDocuments?.find(d => d.documentType === documentType);
-    return doc ? doc.status : 'missing';
+    // Find the latest document for this type (by createdAt date)
+    const docs = kycDocuments?.filter(d => d.documentType === documentType);
+    if (!docs || docs.length === 0) return 'missing';
+    
+    const latestDoc = docs.reduce((latest, current) => {
+      return new Date(current.createdAt!) > new Date(latest.createdAt!) ? current : latest;
+    });
+    
+    return latestDoc.status;
   };
 
   const getKycStatusIcon = (status: string) => {

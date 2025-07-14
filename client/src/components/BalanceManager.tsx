@@ -301,7 +301,7 @@ export default function BalanceManager() {
 
         <Dialog open={showTransactionHistory} onOpenChange={setShowTransactionHistory}>
           <DialogTrigger asChild>
-            <Button variant="outline">
+            <Button variant="outline" className="border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">
               <History className="w-4 h-4 mr-2" />
               Transaction History
             </Button>
