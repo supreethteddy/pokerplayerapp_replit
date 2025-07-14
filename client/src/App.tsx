@@ -18,6 +18,7 @@ function AppContent() {
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white font-medium">Loading...</p>
+          <p className="text-slate-500 text-sm mt-2">If this takes too long, try refreshing the page</p>
         </div>
       </div>
     );

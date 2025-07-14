@@ -27,8 +27,20 @@ export function useAuth() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    let mounted = true;
+
+    // Force loading to false after 5 seconds to prevent infinite loading
+    const forceTimeout = setTimeout(() => {
+      if (mounted) {
+        console.log('Force timeout - ending loading state');
+        setLoading(false);
+      }
+    }, 5000);
+
     // Check current session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      
       console.log('Initial session check:', session?.user ? 'User found' : 'No user');
       if (session?.user) {
         fetchUserData(session.user.id);
@@ -39,6 +51,8 @@ export function useAuth() {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+      
       console.log('Auth state changed:', event, session?.user ? 'User present' : 'No user');
       if (event === 'SIGNED_IN' && session?.user) {
         await fetchUserData(session.user.id);
@@ -49,7 +63,11 @@ export function useAuth() {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+      clearTimeout(forceTimeout);
+    };
   }, []);
 
   const fetchUserData = async (supabaseUserId: string) => {
@@ -66,10 +84,22 @@ export function useAuth() {
       
       console.log('Fetching user data for email:', user.email);
       
-      // Fetch player data using email
-      const response = await apiRequest('GET', `/api/players/email/${user.email}`);
-      const userData = await response.json();
+      // Fetch player data using email with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
       
+      const response = await fetch(`/api/players/email/${user.email}`, {
+        signal: controller.signal,
+        credentials: 'include'
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const userData = await response.json();
       console.log('User data fetched successfully:', userData);
       setUser(userData);
     } catch (error) {
@@ -79,6 +109,8 @@ export function useAuth() {
       if (error.message && error.message.includes('404')) {
         console.log('Player not found in database, signing out');
         await supabase.auth.signOut();
+      } else if (error.name === 'AbortError') {
+        console.log('Fetch aborted due to timeout');
       } else {
         toast({
           title: "Error",
