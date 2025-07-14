@@ -6,7 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "./hooks/useAuth";
 import AuthLayout from "./components/AuthLayout";
 import PlayerDashboard from "./components/PlayerDashboard";
-import HealthBanner from "./components/HealthBanner";
+
 import NotFound from "@/pages/not-found";
 
 function AppContent() {
@@ -26,7 +26,6 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-slate-900 dark">
-      <HealthBanner />
       <Switch>
         <Route path="/">
           {user ? <Redirect to="/dashboard" /> : <AuthLayout />}
