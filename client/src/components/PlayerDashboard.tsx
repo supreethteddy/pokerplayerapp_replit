@@ -32,17 +32,17 @@ export default function PlayerDashboard() {
   const queryClient = useQueryClient();
   const [callTime, setCallTime] = useState("02:45");
 
-  // Fetch live tables
+  // Fetch live tables with reduced frequency
   const { data: tables, isLoading: tablesLoading } = useQuery<TableType[]>({
     queryKey: ['/api/tables'],
-    refetchInterval: 5000, // Refresh every 5 seconds
+    refetchInterval: 10000, // Refresh every 10 seconds instead of 5
   });
 
-  // Fetch seat requests
+  // Fetch seat requests with reduced frequency
   const { data: seatRequests, isLoading: requestsLoading } = useQuery<SeatRequest[]>({
     queryKey: ['/api/seat-requests', user?.id],
     enabled: !!user?.id,
-    refetchInterval: 2000, // Refresh every 2 seconds
+    refetchInterval: 5000, // Refresh every 5 seconds instead of 2
   });
 
   // Fetch player preferences

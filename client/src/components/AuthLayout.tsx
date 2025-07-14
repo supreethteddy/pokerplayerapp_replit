@@ -13,7 +13,7 @@ import { apiRequest } from "@/lib/queryClient";
 export default function AuthLayout() {
   const { signIn, signUp, signupCooldown } = useAuth();
   const { toast } = useToast();
-  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [loginForm, setLoginForm] = useState({ email: "", password: "", loading: false });
   const [signupForm, setSignupForm] = useState({
     email: "",
     password: "",
@@ -33,9 +33,32 @@ export default function AuthLayout() {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    const result = await signIn(loginForm.email, loginForm.password);
-    if (result.success) {
-      // Redirect will be handled by auth state change
+    
+    if (!loginForm.email || !loginForm.password) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter both email and password",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoginForm(prev => ({ ...prev, loading: true }));
+
+    try {
+      const result = await signIn(loginForm.email, loginForm.password);
+      if (result.success) {
+        setLoginForm({ email: "", password: "", loading: false });
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      toast({
+        title: "Login Error",
+        description: "Unable to sign in. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoginForm(prev => ({ ...prev, loading: false }));
     }
   };
 
@@ -187,8 +210,12 @@ export default function AuthLayout() {
                 />
               </div>
 
-              <Button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-600">
-                Sign In
+              <Button 
+                type="submit" 
+                className="w-full bg-emerald-500 hover:bg-emerald-600"
+                disabled={loginForm.loading}
+              >
+                {loginForm.loading ? "Signing In..." : "Sign In"}
               </Button>
             </form>
 
