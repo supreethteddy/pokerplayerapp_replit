@@ -53,6 +53,8 @@ export function useAuth() {
   }, []);
 
   const fetchUserData = async (supabaseUserId: string) => {
+    console.log('Starting fetchUserData for:', supabaseUserId);
+    
     try {
       // Get the user's email from Supabase first
       const { data: { user } } = await supabase.auth.getUser();
@@ -64,7 +66,7 @@ export function useAuth() {
       
       console.log('Fetching user data for email:', user.email);
       
-      // Fetch player data using email instead of Supabase ID
+      // Fetch player data using email
       const response = await apiRequest('GET', `/api/players/email/${user.email}`);
       const userData = await response.json();
       

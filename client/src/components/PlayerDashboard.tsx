@@ -16,13 +16,15 @@ import {
   User, 
   LogOut,
   Users,
-  CreditCard
+  CreditCard,
+  Activity
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import type { Table as TableType, SeatRequest, PlayerPrefs } from "@shared/schema";
 import BalanceManager from "./BalanceManager";
+import HealthMonitor from "./HealthMonitor";
 
 export default function PlayerDashboard() {
   const { user, signOut } = useAuth();
@@ -164,7 +166,7 @@ export default function PlayerDashboard() {
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         <Tabs defaultValue="tables" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 bg-slate-800 border-slate-700 mb-6">
+          <TabsList className="grid w-full grid-cols-4 bg-slate-800 border-slate-700 mb-6">
             <TabsTrigger value="tables" className="flex items-center gap-2">
               <Table className="w-4 h-4" />
               Tables
@@ -176,6 +178,10 @@ export default function PlayerDashboard() {
             <TabsTrigger value="stats" className="flex items-center gap-2">
               <BarChart3 className="w-4 h-4" />
               Stats
+            </TabsTrigger>
+            <TabsTrigger value="health" className="flex items-center gap-2">
+              <Activity className="w-4 h-4" />
+              Health
             </TabsTrigger>
           </TabsList>
 
@@ -395,6 +401,10 @@ export default function PlayerDashboard() {
           <div className="text-center text-slate-400">
             Player statistics and analytics coming soon...
           </div>
+        </TabsContent>
+
+        <TabsContent value="health" className="space-y-6">
+          <HealthMonitor />
         </TabsContent>
       </Tabs>
       </div>

@@ -308,6 +308,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.error('Error initializing sample data:', error);
   }
 
+  // Health check endpoint
+  app.get("/api/health", async (req, res) => {
+    try {
+      const health = {
+        api: true,
+        database: false,
+        supabase: false,
+        lastCheck: new Date().toISOString()
+      };
+
+      // Test database connection
+      try {
+        await dbStorage.getTables();
+        health.database = true;
+      } catch (error) {
+        console.error('Database health check failed:', error);
+      }
+
+      // Test Supabase connection
+      try {
+        const { data, error } = await supabase
+          .from('players')
+          .select('id')
+          .limit(1);
+        
+        if (!error) {
+          health.supabase = true;
+        }
+      } catch (error) {
+        console.error('Supabase health check failed:', error);
+      }
+
+      res.json(health);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Restart database connection
+  app.post("/api/restart-db", async (req, res) => {
+    try {
+      await dbStorage.initializeSampleData();
+      res.json({ success: true, message: "Database restarted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
