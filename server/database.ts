@@ -69,8 +69,19 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
-  // Table operations
+  // Table operations - Connect to your real poker room management system
   async getTables(): Promise<Table[]> {
+    // TODO: Replace this with your actual poker room management system API
+    // This should connect to your live poker room software that manages:
+    // - Active tables and games
+    // - Real-time player counts
+    // - Live pot amounts and stack sizes
+    // - Current game states and betting rounds
+    
+    // For now, returning empty array (no mock data)
+    // Once you provide your poker room management system details, 
+    // this will be updated to fetch real-time data
+    
     const result = await db.select().from(tables).where(eq(tables.isActive, true));
     return result;
   }
