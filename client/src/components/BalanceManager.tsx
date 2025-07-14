@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { 
-  DollarSign, 
+  IndianRupee, 
   Plus, 
   Minus, 
   TrendingUp, 
@@ -61,7 +61,7 @@ export default function BalanceManager() {
       setTransactionNote("");
       toast({
         title: "Deposit Successful",
-        description: `$${depositAmount} has been added to your account`,
+        description: `₹${depositAmount} has been added to your account`,
       });
     },
     onError: (error: any) => {
@@ -94,7 +94,7 @@ export default function BalanceManager() {
       setTransactionNote("");
       toast({
         title: "Withdrawal Successful",
-        description: `$${withdrawAmount} has been withdrawn from your account`,
+        description: `₹${withdrawAmount} has been withdrawn from your account`,
       });
     },
     onError: (error: any) => {
@@ -144,9 +144,9 @@ export default function BalanceManager() {
   };
 
   const formatCurrency = (amount: string) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-IN', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'INR',
     }).format(parseFloat(amount));
   };
 
@@ -161,7 +161,7 @@ export default function BalanceManager() {
       case 'loss':
         return <TrendingDown className="w-4 h-4 text-red-500" />;
       default:
-        return <DollarSign className="w-4 h-4 text-gray-500" />;
+        return <IndianRupee className="w-4 h-4 text-gray-500" />;
     }
   };
 
@@ -220,7 +220,7 @@ export default function BalanceManager() {
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="deposit-amount">Amount ($)</Label>
+                <Label htmlFor="deposit-amount">Amount (₹)</Label>
                 <Input
                   id="deposit-amount"
                   type="number"
@@ -267,7 +267,7 @@ export default function BalanceManager() {
                 Available Balance: {formatCurrency(user?.balance || "0")}
               </div>
               <div>
-                <Label htmlFor="withdraw-amount">Amount ($)</Label>
+                <Label htmlFor="withdraw-amount">Amount (₹)</Label>
                 <Input
                   id="withdraw-amount"
                   type="number"

@@ -63,46 +63,8 @@ export class MemStorage implements IStorage {
   }
 
   private initializeTables() {
-    const sampleTables: Table[] = [
-      {
-        id: 1,
-        name: "Table 1",
-        gameType: "No Limit Hold'em",
-        stakes: "$1/$2",
-        maxPlayers: 9,
-        currentPlayers: 7,
-        pot: 142,
-        avgStack: 380,
-        isActive: true,
-      },
-      {
-        id: 2,
-        name: "Table 2",
-        gameType: "Pot Limit Omaha",
-        stakes: "$2/$5",
-        maxPlayers: 6,
-        currentPlayers: 5,
-        pot: 89,
-        avgStack: 650,
-        isActive: true,
-      },
-      {
-        id: 3,
-        name: "Table 3",
-        gameType: "Texas Hold'em",
-        stakes: "$5/$10",
-        maxPlayers: 9,
-        currentPlayers: 8,
-        pot: 420,
-        avgStack: 1250,
-        isActive: true,
-      },
-    ];
-
-    sampleTables.forEach(table => {
-      this.tables.set(table.id, table);
-      this.currentTableId = Math.max(this.currentTableId, table.id + 1);
-    });
+    // Clean initialization - no mock data
+    // Tables will be populated by the poker room management system
   }
 
   // Player operations

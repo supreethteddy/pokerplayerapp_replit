@@ -158,44 +158,8 @@ export class DatabaseStorage implements IStorage {
 
   // Initialize with sample data
   async initializeSampleData(): Promise<void> {
-    // Check if tables already exist
-    const existingTables = await db.select().from(tables);
-    
-    if (existingTables.length === 0) {
-      // Insert sample tables
-      await db.insert(tables).values([
-        {
-          name: "Table 1",
-          gameType: "No Limit Hold'em",
-          stakes: "$1/$2",
-          maxPlayers: 9,
-          currentPlayers: 7,
-          pot: 142,
-          avgStack: 380,
-          isActive: true,
-        },
-        {
-          name: "Table 2",
-          gameType: "Pot Limit Omaha",
-          stakes: "$2/$5",
-          maxPlayers: 6,
-          currentPlayers: 5,
-          pot: 89,
-          avgStack: 650,
-          isActive: true,
-        },
-        {
-          name: "Table 3",
-          gameType: "Texas Hold'em",
-          stakes: "$5/$10",
-          maxPlayers: 9,
-          currentPlayers: 8,
-          pot: 420,
-          avgStack: 1250,
-          isActive: true,
-        },
-      ]);
-    }
+    // Clean initialization - no mock data
+    // Tables will be populated by the poker room management system
   }
 }
 

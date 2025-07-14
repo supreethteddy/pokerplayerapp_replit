@@ -140,6 +140,8 @@ export default function PlayerDashboard() {
               <h1 className="text-xl font-bold text-white">Player Dashboard</h1>
               <p className="text-sm text-slate-400">
                 Welcome back, <span className="text-emerald-400">{user?.firstName} {user?.lastName}</span>
+                <span className="ml-2 text-slate-500">|</span>
+                <span className="ml-2 text-emerald-400">Balance: ₹{parseFloat(user?.balance || "0").toFixed(2)}</span>
               </p>
             </div>
           </div>
@@ -238,11 +240,11 @@ export default function PlayerDashboard() {
                           <div className="flex items-center space-x-4">
                             <div className="text-sm">
                               <span className="text-slate-400">Pot:</span>
-                              <span className="text-emerald-400 font-semibold ml-1">${table.pot}</span>
+                              <span className="text-emerald-400 font-semibold ml-1">₹{table.pot}</span>
                             </div>
                             <div className="text-sm">
                               <span className="text-slate-400">Avg. Stack:</span>
-                              <span className="text-white font-semibold ml-1">${table.avgStack}</span>
+                              <span className="text-white font-semibold ml-1">₹{table.avgStack}</span>
                             </div>
                           </div>
                           <Button 
@@ -371,19 +373,23 @@ export default function PlayerDashboard() {
               <CardContent>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-emerald-400">+$245</div>
-                    <div className="text-xs text-slate-400">Today's P&L</div>
+                    <div className="text-2xl font-bold text-emerald-400">
+                      ₹{((parseFloat(user?.totalWinnings || "0") - parseFloat(user?.totalLosses || "0")) || 0).toFixed(2)}
+                    </div>
+                    <div className="text-xs text-slate-400">Net P&L</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-white">3h 22m</div>
+                    <div className="text-2xl font-bold text-white">{user?.hoursPlayed || "0.00"}h</div>
                     <div className="text-xs text-slate-400">Time Played</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-white">24</div>
-                    <div className="text-xs text-slate-400">Hands Won</div>
+                    <div className="text-2xl font-bold text-white">{user?.gamesPlayed || 0}</div>
+                    <div className="text-xs text-slate-400">Games Played</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-white">72%</div>
+                    <div className="text-2xl font-bold text-white">
+                      {user?.gamesPlayed ? ((parseFloat(user?.totalWinnings || "0") / user.gamesPlayed) * 100).toFixed(1) : "0.0"}%
+                    </div>
                     <div className="text-xs text-slate-400">Win Rate</div>
                   </div>
                 </div>
