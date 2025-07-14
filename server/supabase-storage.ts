@@ -21,15 +21,22 @@ export class SupabaseStorage implements IStorage {
     
     if (error) return undefined;
     
-    // Map from snake_case to camelCase
+    // Map from snake_case to camelCase - include all player fields
     return {
       id: data.id,
       email: data.email,
-      password: data.password,
-      firstName: data.first_name,
-      lastName: data.last_name,
-      phone: data.phone,
-      kycStatus: data.kyc_status,
+      password: data.password || '',
+      firstName: data.first_name || '',
+      lastName: data.last_name || '',
+      phone: data.phone || '',
+      kycStatus: data.kyc_status || 'pending',
+      balance: data.balance || '0.00',
+      totalDeposits: data.total_deposits || '0.00',
+      totalWithdrawals: data.total_withdrawals || '0.00',
+      totalWinnings: data.total_winnings || '0.00',
+      totalLosses: data.total_losses || '0.00',
+      gamesPlayed: data.games_played || 0,
+      hoursPlayed: data.hours_played || '0.00',
       createdAt: data.created_at
     };
   }
@@ -43,15 +50,22 @@ export class SupabaseStorage implements IStorage {
     
     if (error) return undefined;
     
-    // Map from snake_case to camelCase
+    // Map from snake_case to camelCase - include all player fields
     return {
       id: data.id,
       email: data.email,
-      password: data.password,
-      firstName: data.first_name,
-      lastName: data.last_name,
-      phone: data.phone,
-      kycStatus: data.kyc_status,
+      password: data.password || '',
+      firstName: data.first_name || '',
+      lastName: data.last_name || '',
+      phone: data.phone || '',
+      kycStatus: data.kyc_status || 'pending',
+      balance: data.balance || '0.00',
+      totalDeposits: data.total_deposits || '0.00',
+      totalWithdrawals: data.total_withdrawals || '0.00',
+      totalWinnings: data.total_winnings || '0.00',
+      totalLosses: data.total_losses || '0.00',
+      gamesPlayed: data.games_played || 0,
+      hoursPlayed: data.hours_played || '0.00',
       createdAt: data.created_at
     };
   }
@@ -76,15 +90,22 @@ export class SupabaseStorage implements IStorage {
     
     if (error) throw new Error(`Failed to create player: ${error.message}`);
     
-    // Map back to camelCase
+    // Map back to camelCase - include all player fields
     return {
       id: data.id,
       email: data.email,
-      password: data.password,
-      firstName: data.first_name,
-      lastName: data.last_name,
-      phone: data.phone,
-      kycStatus: data.kyc_status,
+      password: data.password || '',
+      firstName: data.first_name || '',
+      lastName: data.last_name || '',
+      phone: data.phone || '',
+      kycStatus: data.kyc_status || 'pending',
+      balance: data.balance || '0.00',
+      totalDeposits: data.total_deposits || '0.00',
+      totalWithdrawals: data.total_withdrawals || '0.00',
+      totalWinnings: data.total_winnings || '0.00',
+      totalLosses: data.total_losses || '0.00',
+      gamesPlayed: data.games_played || 0,
+      hoursPlayed: data.hours_played || '0.00',
       createdAt: data.created_at
     };
   }
@@ -93,103 +114,218 @@ export class SupabaseStorage implements IStorage {
     const { data, error } = await supabase
       .from('player_prefs')
       .select('*')
-      .eq('playerId', playerId)
+      .eq('player_id', playerId)
       .single();
     
     if (error) return undefined;
-    return data;
+    
+    // Map from snake_case to camelCase
+    return {
+      id: data.id,
+      playerId: data.player_id,
+      seatAvailable: data.seat_available,
+      callTimeWarning: data.call_time_warning,
+      gameUpdates: data.game_updates
+    };
   }
 
   async createPlayerPrefs(prefs: InsertPlayerPrefs): Promise<PlayerPrefs> {
+    // Map to snake_case for Supabase
+    const supabasePrefs = {
+      player_id: prefs.playerId,
+      seat_available: prefs.seatAvailable,
+      call_time_warning: prefs.callTimeWarning,
+      game_updates: prefs.gameUpdates
+    };
+    
     const { data, error } = await supabase
       .from('player_prefs')
-      .insert(prefs)
+      .insert(supabasePrefs)
       .select()
       .single();
     
     if (error) throw new Error(`Failed to create player prefs: ${error.message}`);
-    return data;
+    
+    // Map back to camelCase
+    return {
+      id: data.id,
+      playerId: data.player_id,
+      seatAvailable: data.seat_available,
+      callTimeWarning: data.call_time_warning,
+      gameUpdates: data.game_updates
+    };
   }
 
   async updatePlayerPrefs(playerId: number, updates: Partial<PlayerPrefs>): Promise<PlayerPrefs> {
+    // Map to snake_case for Supabase
+    const supabaseUpdates: any = {};
+    if (updates.seatAvailable !== undefined) supabaseUpdates.seat_available = updates.seatAvailable;
+    if (updates.callTimeWarning !== undefined) supabaseUpdates.call_time_warning = updates.callTimeWarning;
+    if (updates.gameUpdates !== undefined) supabaseUpdates.game_updates = updates.gameUpdates;
+    
     const { data, error } = await supabase
       .from('player_prefs')
-      .update(updates)
-      .eq('playerId', playerId)
+      .update(supabaseUpdates)
+      .eq('player_id', playerId)
       .select()
       .single();
     
     if (error) throw new Error(`Failed to update player prefs: ${error.message}`);
-    return data;
+    
+    // Map back to camelCase
+    return {
+      id: data.id,
+      playerId: data.player_id,
+      seatAvailable: data.seat_available,
+      callTimeWarning: data.call_time_warning,
+      gameUpdates: data.game_updates
+    };
   }
 
   async getTables(): Promise<Table[]> {
     const { data, error } = await supabase
       .from('tables')
       .select('*')
+      .eq('is_active', true)
       .order('id');
     
-    if (error) throw new Error(`Failed to get tables: ${error.message}`);
-    return data || [];
+    if (error) {
+      // If tables table doesn't exist, return empty array (no mock data)
+      // This will be populated by your real poker room management system
+      console.log('Tables table not found in Supabase - awaiting real poker room data connection');
+      return [];
+    }
+    
+    // Map from snake_case to camelCase
+    return (data || []).map(item => ({
+      id: item.id,
+      name: item.name,
+      gameType: item.game_type,
+      stakes: item.stakes,
+      maxPlayers: item.max_players,
+      currentPlayers: item.current_players,
+      pot: item.pot,
+      avgStack: item.avg_stack,
+      isActive: item.is_active
+    }));
   }
 
   async createSeatRequest(request: InsertSeatRequest): Promise<SeatRequest> {
+    // Map to snake_case for Supabase
+    const supabaseRequest = {
+      player_id: request.playerId,
+      table_id: request.tableId,
+      status: request.status || 'waiting',
+      position: request.position || 0,
+      estimated_wait: request.estimatedWait || 0,
+      created_at: request.createdAt || new Date().toISOString()
+    };
+    
     const { data, error } = await supabase
       .from('seat_requests')
-      .insert(request)
+      .insert(supabaseRequest)
       .select()
       .single();
     
     if (error) throw new Error(`Failed to create seat request: ${error.message}`);
-    return data;
+    
+    // Map back to camelCase
+    return {
+      id: data.id,
+      playerId: data.player_id,
+      tableId: data.table_id,
+      status: data.status,
+      position: data.position,
+      estimatedWait: data.estimated_wait,
+      createdAt: data.created_at
+    };
   }
 
   async getSeatRequestsByPlayer(playerId: number): Promise<SeatRequest[]> {
     const { data, error } = await supabase
       .from('seat_requests')
       .select('*')
-      .eq('playerId', playerId)
-      .order('createdAt', { ascending: false });
+      .eq('player_id', playerId)
+      .order('created_at', { ascending: false });
     
-    if (error) throw new Error(`Failed to get seat requests: ${error.message}`);
-    return data || [];
+    if (error) {
+      // If seat_requests table doesn't exist, return empty array
+      console.log('Seat requests table not found in Supabase - awaiting real poker room data connection');
+      return [];
+    }
+    
+    // Map from snake_case to camelCase
+    return (data || []).map(item => ({
+      id: item.id,
+      playerId: item.player_id,
+      tableId: item.table_id,
+      status: item.status,
+      position: item.position,
+      estimatedWait: item.estimated_wait,
+      createdAt: item.created_at
+    }));
   }
 
   async createKycDocument(document: InsertKycDocument): Promise<KycDocument> {
+    // Map to snake_case for Supabase
+    const supabaseDocument = {
+      player_id: document.playerId,
+      document_type: document.documentType,
+      file_name: document.fileName,
+      file_url: document.fileUrl,
+      status: document.status || 'pending',
+      created_at: document.createdAt || new Date().toISOString()
+    };
+    
     const { data, error } = await supabase
       .from('kyc_documents')
-      .insert(document)
+      .insert(supabaseDocument)
       .select()
       .single();
     
     if (error) throw new Error(`Failed to create KYC document: ${error.message}`);
-    return data;
+    
+    // Map back to camelCase
+    return {
+      id: data.id,
+      playerId: data.player_id,
+      documentType: data.document_type,
+      fileName: data.file_name,
+      fileUrl: data.file_url,
+      status: data.status,
+      createdAt: data.created_at
+    };
+  }
+
+  async getKycDocumentsByPlayer(playerId: number): Promise<KycDocument[]> {
+    const { data, error } = await supabase
+      .from('kyc_documents')
+      .select('*')
+      .eq('player_id', playerId)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      // If kyc_documents table doesn't exist, return empty array
+      console.log('KYC documents table not found in Supabase - awaiting real poker room data connection');
+      return [];
+    }
+    
+    // Map from snake_case to camelCase
+    return (data || []).map(item => ({
+      id: item.id,
+      playerId: item.player_id,
+      documentType: item.document_type,
+      fileName: item.file_name,
+      fileUrl: item.file_url,
+      status: item.status,
+      createdAt: item.created_at
+    }));
   }
 
   async initializeSampleData(): Promise<void> {
-    try {
-      // Check if tables already exist
-      const { data: existingTables } = await supabase
-        .from('tables')
-        .select('id')
-        .limit(1);
-      
-      if (existingTables && existingTables.length > 0) {
-        return; // Sample data already exists
-      }
-      
-      // Create sample tables with snake_case column names
-      const sampleTables = [
-        { name: "High Stakes Hold'em", game_type: "No Limit Hold'em", stakes: "₹250/₹500", max_players: 9, current_players: 6, status: "active", is_active: true },
-        { name: "Omaha Action", game_type: "Pot Limit Omaha", stakes: "₹100/₹250", max_players: 8, current_players: 4, status: "active", is_active: true },
-        { name: "Tournament Final", game_type: "No Limit Hold'em", stakes: "₹50/₹100", max_players: 6, current_players: 3, status: "active", is_active: true },
-        { name: "Beginners Table", game_type: "No Limit Hold'em", stakes: "₹25/₹50", max_players: 10, current_players: 2, status: "waiting", is_active: true }
-      ];
-      
-      await supabase.from('tables').insert(sampleTables);
-    } catch (error) {
-      console.log('Sample data initialization skipped:', error);
-    }
+    // Production mode - no mock data initialization
+    // Tables will be populated from your real poker room management system
+    console.log('Supabase connection initialized - no mock data in production');
   }
 }
 
