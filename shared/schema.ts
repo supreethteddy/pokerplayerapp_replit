@@ -9,7 +9,7 @@ export const players = pgTable("players", {
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   phone: text("phone").notNull(),
-  profilePhoto: text("profile_photo"), // URL to uploaded profile photo
+
   kycStatus: text("kyc_status").notNull().default("pending"), // pending, approved, rejected
   balance: text("balance").notNull().default("0.00"), // Current balance
   totalDeposits: text("total_deposits").notNull().default("0.00"), // Total deposits

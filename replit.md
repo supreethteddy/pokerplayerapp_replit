@@ -19,6 +19,7 @@ This player portal is designed to work alongside an existing admin dashboard, sh
 ✅ **Simplified Player Interface**: Removed health monitoring tab from player portal while keeping underlying connections intact
 ✅ **Mobile-Optimized Interface**: Created responsive design optimized for Android and iPhone with proper viewport scaling
 ✅ **Profile Photo Upload**: Added profile photo upload functionality with database schema updates
+✅ **Profile Photo Removal**: Removed profile photo feature per user request while maintaining all other functionality
 ✅ **Mobile App Integration**: Added mobile app connection section with QR code and app store links
 ✅ **Fixed Critical Authentication Bugs**: Resolved timeout errors, unhandled promise rejections, and API loop issues
 ✅ **Added Supabase Service Role Integration**: Proper admin API access for user data synchronization

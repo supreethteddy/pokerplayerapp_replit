@@ -495,23 +495,6 @@ export default function PlayerDashboard() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {/* Profile Photo */}
-                  <div className="flex flex-col items-center mb-6">
-                    <div className="relative">
-                      <div className="w-20 h-20 bg-slate-700 rounded-full flex items-center justify-center">
-                        {user?.profilePhoto ? (
-                          <img src={user.profilePhoto} alt="Profile" className="w-full h-full rounded-full object-cover" />
-                        ) : (
-                          <User className="w-8 h-8 text-slate-400" />
-                        )}
-                      </div>
-                      <button className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center hover:bg-emerald-600 transition-colors">
-                        <span className="text-white text-xs">+</span>
-                      </button>
-                    </div>
-                    <p className="text-sm text-slate-400 mt-2">Click + to upload photo</p>
-                  </div>
-
                   {/* Profile Details */}
                   <div className="space-y-3">
                     <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">

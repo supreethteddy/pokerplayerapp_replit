@@ -198,34 +198,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Profile photo upload endpoint
-  app.post("/api/players/:playerId/profile-photo", async (req, res) => {
-    try {
-      const playerId = parseInt(req.params.playerId);
-      const { photoUrl } = req.body;
-      
-      if (!photoUrl) {
-        return res.status(400).json({ error: "Photo URL is required" });
-      }
 
-      // Update player profile photo
-      const updatedPlayer = await db.update(players)
-        .set({ profilePhoto: photoUrl })
-        .where(eq(players.id, playerId))
-        .returning();
-
-      if (updatedPlayer.length === 0) {
-        return res.status(404).json({ error: "Player not found" });
-      }
-
-      // Sync to Supabase for admin portal
-      await databaseSync.syncPlayerToSupabase(playerId);
-
-      res.json(updatedPlayer[0]);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
 
   // Transaction routes
   app.post("/api/transactions", async (req, res) => {
