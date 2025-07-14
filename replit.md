@@ -14,7 +14,7 @@ This player portal is designed to work alongside an existing admin dashboard, sh
 ✅ **Created Health Dashboard**: Added dedicated Health tab with real-time system status monitoring
 ✅ **Improved Loading States**: Added fallback mechanisms to prevent infinite loading scenarios
 ✅ **Added Auto-Fix Functionality**: System can now automatically restart services when issues are detected
-✅ **Converted to Indian Rupees**: Updated all currency displays from USD ($) to INR (₹)
+✅ **Converted to Indian Rupees**: Updated all currency displays from USD ($) to INR (₹) including table stakes, pot sizes, and stack amounts
 ✅ **Removed Mock Data**: Eliminated all placeholder/sample data for clean production environment
 ✅ **Fixed Critical Authentication Bugs**: Resolved timeout errors, unhandled promise rejections, and API loop issues
 ✅ **Added Supabase Service Role Integration**: Proper admin API access for user data synchronization

@@ -180,10 +180,10 @@ export class SupabaseStorage implements IStorage {
       
       // Create sample tables with snake_case column names
       const sampleTables = [
-        { name: "High Stakes Hold'em", game_type: "No Limit Hold'em", stakes: "$5/$10", max_players: 9, current_players: 6, status: "active", is_active: true },
-        { name: "Omaha Action", game_type: "Pot Limit Omaha", stakes: "$2/$5", max_players: 8, current_players: 4, status: "active", is_active: true },
-        { name: "Tournament Final", game_type: "No Limit Hold'em", stakes: "$1/$2", max_players: 6, current_players: 3, status: "active", is_active: true },
-        { name: "Beginners Table", game_type: "No Limit Hold'em", stakes: "$0.50/$1", max_players: 10, current_players: 2, status: "waiting", is_active: true }
+        { name: "High Stakes Hold'em", game_type: "No Limit Hold'em", stakes: "₹250/₹500", max_players: 9, current_players: 6, status: "active", is_active: true },
+        { name: "Omaha Action", game_type: "Pot Limit Omaha", stakes: "₹100/₹250", max_players: 8, current_players: 4, status: "active", is_active: true },
+        { name: "Tournament Final", game_type: "No Limit Hold'em", stakes: "₹50/₹100", max_players: 6, current_players: 3, status: "active", is_active: true },
+        { name: "Beginners Table", game_type: "No Limit Hold'em", stakes: "₹25/₹50", max_players: 10, current_players: 2, status: "waiting", is_active: true }
       ];
       
       await supabase.from('tables').insert(sampleTables);
