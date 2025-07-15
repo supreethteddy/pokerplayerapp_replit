@@ -262,16 +262,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // KYC documents routes
+  // File upload tracking system
+  const uploadTracker = new Map();
+  const uploadHistory = [];
+  
   app.post("/api/kyc-documents", async (req, res) => {
+    const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const timestamp = new Date().toISOString();
+    
     try {
-      const kycData = insertKycDocumentSchema.parse(req.body);
+      // Initialize upload tracking
+      uploadTracker.set(uploadId, {
+        uploadId,
+        status: 'started',
+        timestamp,
+        steps: [],
+        requestBody: {
+          playerId: req.body.playerId,
+          documentType: req.body.documentType,
+          fileName: req.body.fileName,
+          fileSize: req.body.fileUrl?.length || 0
+        }
+      });
+      
+      const addStep = (step: string, data?: any) => {
+        const tracker = uploadTracker.get(uploadId);
+        if (tracker) {
+          tracker.steps.push({ step, timestamp: new Date().toISOString(), data });
+          uploadTracker.set(uploadId, tracker);
+        }
+      };
+      
+      addStep('validation_start', { contentLength: req.headers['content-length'] });
+      console.log(`[${timestamp}] Upload started - ID: ${uploadId}, Player: ${req.body.playerId}, Type: ${req.body.documentType}`);
+      
+      // Parse and validate request body
+      let kycData;
+      try {
+        kycData = insertKycDocumentSchema.parse(req.body);
+        addStep('schema_validation_passed');
+      } catch (error) {
+        addStep('schema_validation_failed', { error: error.message });
+        return res.status(400).json({ 
+          error: "Invalid request data",
+          details: error.message,
+          uploadId
+        });
+      }
       
       // Server-side file type validation
       if (!validateFileType(kycData.fileName, kycData.fileUrl)) {
+        addStep('file_type_validation_failed', { fileName: kycData.fileName });
         return res.status(400).json({ 
-          error: "Invalid file type. Only JPG, PNG, and PDF files are allowed." 
+          error: "Invalid file type. Only JPG, PNG, and PDF files are allowed.",
+          uploadId
         });
       }
+      
+      addStep('file_type_validation_passed');
       
       // Validate file size if it's a data URL
       if (kycData.fileUrl.startsWith('data:')) {
@@ -279,50 +327,173 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const sizeInBytes = (base64Data.length * 3) / 4;
         const maxSize = 5 * 1024 * 1024; // 5MB
         
+        addStep('size_calculation', { sizeInBytes, maxSize });
+        
         if (sizeInBytes > maxSize) {
+          addStep('size_validation_failed', { sizeInBytes, maxSize });
           return res.status(400).json({ 
-            error: "File size too large. Maximum file size is 5MB." 
+            error: "File size too large. Maximum file size is 5MB.",
+            fileSize: sizeInBytes,
+            uploadId
           });
         }
+        
+        addStep('size_validation_passed');
         
         // Save the file to uploads directory
         const uploadsDir = path.join(process.cwd(), 'uploads');
         if (!fs.existsSync(uploadsDir)) {
           fs.mkdirSync(uploadsDir, { recursive: true });
+          addStep('directory_created', { uploadsDir });
         }
         
         // Create unique filename with timestamp
-        const timestamp = Date.now();
+        const fileTimestamp = Date.now();
         const fileExtension = path.extname(kycData.fileName);
         const baseFileName = path.basename(kycData.fileName, fileExtension);
-        const uniqueFileName = `${baseFileName}_${timestamp}${fileExtension}`;
+        const uniqueFileName = `${baseFileName}_${fileTimestamp}${fileExtension}`;
         const filePath = path.join(uploadsDir, uniqueFileName);
         
+        addStep('filename_generated', { uniqueFileName, filePath });
+        
         // Convert data URL to buffer and save file
-        const buffer = Buffer.from(base64Data, 'base64');
-        fs.writeFileSync(filePath, buffer);
-        
-        console.log('File saved successfully:', {
-          originalName: kycData.fileName,
-          savedAs: uniqueFileName,
-          size: buffer.length,
-          path: filePath
-        });
-        
-        // Update the file URL to point to the saved file
-        kycData.fileUrl = `/uploads/${uniqueFileName}`;
+        try {
+          const buffer = Buffer.from(base64Data, 'base64');
+          fs.writeFileSync(filePath, buffer);
+          
+          addStep('file_saved', {
+            originalName: kycData.fileName,
+            savedAs: uniqueFileName,
+            size: buffer.length,
+            path: filePath
+          });
+          
+          console.log(`[${timestamp}] File saved successfully - Upload ID: ${uploadId}`, {
+            originalName: kycData.fileName,
+            savedAs: uniqueFileName,
+            size: buffer.length,
+            path: filePath
+          });
+          
+          // Update the file URL to point to the saved file
+          kycData.fileUrl = `/uploads/${uniqueFileName}`;
+        } catch (error) {
+          addStep('file_save_failed', { error: error.message });
+          console.error(`[${timestamp}] File save failed - Upload ID: ${uploadId}:`, error);
+          return res.status(500).json({ 
+            error: "Failed to save file",
+            uploadId
+          });
+        }
       }
       
       // Create KYC document directly in Supabase using dbStorage
-      const document = await dbStorage.createKycDocument(kycData);
-      
-      console.log('KYC document created successfully:', document);
-      res.json(document);
+      try {
+        const document = await dbStorage.createKycDocument(kycData);
+        
+        addStep('database_record_created', { documentId: document.id });
+        
+        // Mark upload as successful
+        const tracker = uploadTracker.get(uploadId);
+        if (tracker) {
+          tracker.status = 'completed';
+          tracker.documentId = document.id;
+          tracker.completedAt = new Date().toISOString();
+          uploadTracker.set(uploadId, tracker);
+        }
+        
+        // Add to history
+        uploadHistory.push({
+          uploadId,
+          playerId: kycData.playerId,
+          documentType: kycData.documentType,
+          fileName: kycData.fileName,
+          status: 'completed',
+          timestamp,
+          documentId: document.id
+        });
+        
+        // Keep only last 100 uploads in history
+        if (uploadHistory.length > 100) {
+          uploadHistory.shift();
+        }
+        
+        console.log(`[${timestamp}] Upload completed successfully - ID: ${uploadId}, Document ID: ${document.id}`);
+        
+        res.json({
+          ...document,
+          uploadId,
+          uploadStatus: 'completed'
+        });
+      } catch (error: any) {
+        addStep('database_error', { error: error.message });
+        console.error(`[${timestamp}] Database error - Upload ID: ${uploadId}:`, error);
+        res.status(500).json({ 
+          error: "Database operation failed",
+          details: error.message,
+          uploadId
+        });
+      }
     } catch (error: any) {
-      console.error('KYC document creation error:', error);
-      res.status(400).json({ error: error.message });
+      // Mark upload as failed
+      const tracker = uploadTracker.get(uploadId);
+      if (tracker) {
+        tracker.status = 'failed';
+        tracker.error = error.message;
+        tracker.failedAt = new Date().toISOString();
+        uploadTracker.set(uploadId, tracker);
+      }
+      
+      console.error(`[${timestamp}] Upload failed - ID: ${uploadId}:`, error);
+      res.status(500).json({ 
+        error: "Upload failed",
+        details: error.message,
+        uploadId
+      });
     }
   });
+
+  // Upload tracking endpoints for debugging
+  app.get("/api/upload-tracker/:uploadId", (req, res) => {
+    const uploadId = req.params.uploadId;
+    const tracker = uploadTracker.get(uploadId);
+    
+    if (!tracker) {
+      return res.status(404).json({ error: "Upload not found" });
+    }
+    
+    res.json(tracker);
+  });
+
+  app.get("/api/upload-history", (req, res) => {
+    res.json({
+      totalUploads: uploadHistory.length,
+      recentUploads: uploadHistory.slice(-20), // Last 20 uploads
+      activeUploads: Array.from(uploadTracker.entries()).map(([id, data]) => ({ id, ...data })),
+      stats: {
+        completed: uploadHistory.filter(u => u.status === 'completed').length,
+        failed: uploadHistory.filter(u => u.status === 'failed').length,
+        activeCount: uploadTracker.size
+      }
+    });
+  });
+
+  // Clean up old upload tracking data (run every hour)
+  setInterval(() => {
+    const oneHourAgo = Date.now() - (60 * 60 * 1000);
+    let cleanedCount = 0;
+    
+    for (const [uploadId, tracker] of uploadTracker.entries()) {
+      if (new Date(tracker.timestamp).getTime() < oneHourAgo) {
+        uploadTracker.delete(uploadId);
+        cleanedCount++;
+      }
+    }
+    
+    if (cleanedCount > 0) {
+      console.log(`[${new Date().toISOString()}] Cleaned up ${cleanedCount} old upload tracking records`);
+    }
+  }, 60 * 60 * 1000);
 
   app.get("/api/kyc-documents/player/:playerId", async (req, res) => {
     try {
