@@ -207,8 +207,11 @@ export default function PlayerDashboard() {
   };
 
   const handleKycDocumentUpload = (documentType: string, file: File) => {
+    console.log('Starting file upload:', { documentType, fileName: file.name, fileSize: file.size, fileType: file.type });
+    
     // Validate file type
     if (!validateFileType(file)) {
+      console.log('File type validation failed:', { type: file.type, name: file.name });
       toast({
         title: "Invalid File Type",
         description: "Please upload JPG, PNG, or PDF files only",
@@ -219,6 +222,7 @@ export default function PlayerDashboard() {
 
     // Validate file size
     if (!validateFileSize(file)) {
+      console.log('File size validation failed:', { size: file.size, maxSize: 5 * 1024 * 1024 });
       toast({
         title: "File Too Large",
         description: "File size must be less than 5MB",
@@ -227,6 +231,7 @@ export default function PlayerDashboard() {
       return;
     }
 
+    console.log('File validation passed, starting upload');
     uploadKycDocumentMutation.mutate({ documentType, file });
   };
 
@@ -634,7 +639,12 @@ export default function PlayerDashboard() {
                           className="hidden"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
-                            if (file) handleKycDocumentUpload('id', file);
+                            console.log('File input changed for ID:', { file: file?.name, hasFile: !!file });
+                            if (file) {
+                              handleKycDocumentUpload('id', file);
+                              // Reset the input value to allow re-uploading same file
+                              e.target.value = '';
+                            }
                           }}
                         />
                       </div>
@@ -709,7 +719,12 @@ export default function PlayerDashboard() {
                           className="hidden"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
-                            if (file) handleKycDocumentUpload('address', file);
+                            console.log('File input changed for Address:', { file: file?.name, hasFile: !!file });
+                            if (file) {
+                              handleKycDocumentUpload('address', file);
+                              // Reset the input value to allow re-uploading same file
+                              e.target.value = '';
+                            }
                           }}
                         />
                       </div>
@@ -784,7 +799,12 @@ export default function PlayerDashboard() {
                           className="hidden"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
-                            if (file) handleKycDocumentUpload('photo', file);
+                            console.log('File input changed for Photo:', { file: file?.name, hasFile: !!file });
+                            if (file) {
+                              handleKycDocumentUpload('photo', file);
+                              // Reset the input value to allow re-uploading same file
+                              e.target.value = '';
+                            }
                           }}
                         />
                       </div>
