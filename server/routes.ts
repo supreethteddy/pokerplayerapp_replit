@@ -32,15 +32,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const playerData = insertPlayerSchema.parse(req.body);
       
-      // Check if player already exists
-      const existingPlayer = await supabaseStorage.getPlayerByEmail(playerData.email);
+      // Check if player already exists in Neon database
+      const existingPlayer = await dbStorage.getPlayerByEmail(playerData.email);
       if (existingPlayer) {
         console.log(`Registration attempt for existing email: ${playerData.email} (ID: ${existingPlayer.id})`);
         return res.status(409).json({ error: "Account with this email already exists" });
       }
       
-      // Create player in Supabase
-      const player = await supabaseStorage.createPlayer(playerData);
+      // Create player in Neon database
+      const player = await dbStorage.createPlayer(playerData);
       
       // Create default preferences
       const defaultPrefs = {
@@ -49,7 +49,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         callTimeWarning: true,
         gameUpdates: true
       };
-      await supabaseStorage.createPlayerPrefs(defaultPrefs);
+      await dbStorage.createPlayerPrefs(defaultPrefs);
       
       // Sync to Supabase for admin portal
       await databaseSync.syncPlayerToSupabase(player.id);
@@ -111,8 +111,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log('Found Supabase user email:', user.email);
       
-      // Find player by email in PostgreSQL database (not Supabase)
-      const player = await dbStorage.getPlayerByEmail(user.email);
+      // Find player by email in Supabase
+      const player = await supabaseStorage.getPlayerByEmail(user.email);
       if (!player) {
         console.error('Player not found in database for email:', user.email);
         return res.status(404).json({ error: "Player not found in database" });

@@ -9,6 +9,9 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
+console.log('Supabase connection initialized - URL:', supabaseUrl);
+console.log('Service role key exists:', !!supabaseServiceRoleKey);
+
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 export class SupabaseStorage implements IStorage {

@@ -22,8 +22,8 @@ import {
 import { eq, and } from 'drizzle-orm';
 import type { IStorage } from './storage';
 
-// Use the original database URL for now
-const connectionString = process.env.DATABASE_URL!;
+// Use the Supabase database URL with updated credentials
+const connectionString = "postgresql://postgres:Shetty1234%21%40%23-@aws-0-ap-south-1.pooler.supabase.com:6543/postgres";
 const client = postgres(connectionString);
 export const db = drizzle(client);
 
