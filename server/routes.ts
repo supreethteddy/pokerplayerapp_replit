@@ -235,10 +235,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // File type validation utility
+  const validateFileType = (fileName: string, fileUrl: string): boolean => {
+    const allowedTypes = [
+      'image/jpeg',
+      'image/jpg', 
+      'image/png',
+      'application/pdf'
+    ];
+    
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.pdf'];
+    const fileExtension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+    
+    // Check file extension
+    if (!allowedExtensions.includes(fileExtension)) {
+      return false;
+    }
+    
+    // Check data URL MIME type if it's a data URL
+    if (fileUrl.startsWith('data:')) {
+      const mimeType = fileUrl.split(',')[0].split(':')[1].split(';')[0];
+      return allowedTypes.includes(mimeType);
+    }
+    
+    return true;
+  };
+
   // KYC documents routes
   app.post("/api/kyc-documents", async (req, res) => {
     try {
       const kycData = insertKycDocumentSchema.parse(req.body);
+      
+      // Server-side file type validation
+      if (!validateFileType(kycData.fileName, kycData.fileUrl)) {
+        return res.status(400).json({ 
+          error: "Invalid file type. Only JPG, PNG, and PDF files are allowed." 
+        });
+      }
+      
+      // Validate file size if it's a data URL
+      if (kycData.fileUrl.startsWith('data:')) {
+        const base64Data = kycData.fileUrl.split(',')[1];
+        const sizeInBytes = (base64Data.length * 3) / 4;
+        const maxSize = 5 * 1024 * 1024; // 5MB
+        
+        if (sizeInBytes > maxSize) {
+          return res.status(400).json({ 
+            error: "File size too large. Maximum file size is 5MB." 
+          });
+        }
+      }
       
       // Create KYC document directly in Supabase using dbStorage
       const document = await dbStorage.createKycDocument(kycData);

@@ -159,9 +159,51 @@ export default function AuthLayout() {
     }
   };
 
+  // File type validation
+  const validateFileType = (file: File): boolean => {
+    const allowedTypes = [
+      'image/jpeg',
+      'image/jpg', 
+      'image/png',
+      'application/pdf'
+    ];
+    
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.pdf'];
+    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    
+    return allowedTypes.includes(file.type) && allowedExtensions.includes(fileExtension);
+  };
+
+  const validateFileSize = (file: File): boolean => {
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    return file.size <= maxSize;
+  };
+
   const handleFileUpload = (type: 'id' | 'address' | 'photo') => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Validate file type
+      if (!validateFileType(file)) {
+        toast({
+          title: "Invalid File Type",
+          description: "Please upload JPG, PNG, or PDF files only",
+          variant: "destructive",
+        });
+        e.target.value = ''; // Clear the input
+        return;
+      }
+
+      // Validate file size
+      if (!validateFileSize(file)) {
+        toast({
+          title: "File Too Large",
+          description: "File size must be less than 5MB",
+          variant: "destructive",
+        });
+        e.target.value = ''; // Clear the input
+        return;
+      }
+
       setKycFiles(prev => ({ ...prev, [type]: file }));
     }
   };
@@ -362,10 +404,11 @@ export default function AuthLayout() {
                     <div key={type} className="border-2 border-dashed border-slate-600 rounded-lg p-6 text-center hover:border-emerald-500 transition-colors">
                       <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
                       <p className="text-sm text-slate-300 mb-1">{label}</p>
-                      <p className="text-xs text-slate-500 mb-2">{description}</p>
+                      <p className="text-xs text-slate-500 mb-1">{description}</p>
+                      <p className="text-xs text-slate-400 mb-2">Allowed: JPG, PNG, PDF (max 5MB)</p>
                       <Input
                         type="file"
-                        accept="image/*"
+                        accept=".jpg,.jpeg,.png,.pdf"
                         onChange={handleFileUpload(type)}
                         className="bg-slate-700 border-slate-600 text-white"
                       />

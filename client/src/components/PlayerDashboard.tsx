@@ -186,7 +186,47 @@ export default function PlayerDashboard() {
 
   // Preference change handler removed as per requirements
 
+  // File type validation
+  const validateFileType = (file: File): boolean => {
+    const allowedTypes = [
+      'image/jpeg',
+      'image/jpg', 
+      'image/png',
+      'application/pdf'
+    ];
+    
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.pdf'];
+    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    
+    return allowedTypes.includes(file.type) && allowedExtensions.includes(fileExtension);
+  };
+
+  const validateFileSize = (file: File): boolean => {
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    return file.size <= maxSize;
+  };
+
   const handleKycDocumentUpload = (documentType: string, file: File) => {
+    // Validate file type
+    if (!validateFileType(file)) {
+      toast({
+        title: "Invalid File Type",
+        description: "Please upload JPG, PNG, or PDF files only",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size
+    if (!validateFileSize(file)) {
+      toast({
+        title: "File Too Large",
+        description: "File size must be less than 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
     uploadKycDocumentMutation.mutate({ documentType, file });
   };
 
@@ -511,6 +551,15 @@ export default function PlayerDashboard() {
                     </div>
                   ) : (
                     <div className="space-y-3">
+                      {/* File type information */}
+                      <div className="mb-4 p-3 bg-slate-700 rounded-lg">
+                        <p className="text-xs text-slate-300 mb-1">
+                          <strong>Supported file types:</strong> JPG, PNG, PDF (max 5MB each)
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          Upload clear, high-quality images of your documents for faster verification
+                        </p>
+                      </div>
                       {/* Debug: Show KYC documents count */}
                       <div className="text-xs text-slate-500 mb-2">
                         {kycDocuments ? `Found ${kycDocuments.length} documents` : 'No documents found'}
@@ -581,7 +630,7 @@ export default function PlayerDashboard() {
                         <input
                           id="id-document-upload"
                           type="file"
-                          accept="image/*,.pdf"
+                          accept=".jpg,.jpeg,.png,.pdf"
                           className="hidden"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
@@ -656,7 +705,7 @@ export default function PlayerDashboard() {
                         <input
                           id="address-document-upload"
                           type="file"
-                          accept="image/*,.pdf"
+                          accept=".jpg,.jpeg,.png,.pdf"
                           className="hidden"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
@@ -731,7 +780,7 @@ export default function PlayerDashboard() {
                         <input
                           id="photo-document-upload"
                           type="file"
-                          accept="image/*"
+                          accept=".jpg,.jpeg,.png,.pdf"
                           className="hidden"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
