@@ -456,6 +456,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Serve KYC document files
+  app.get("/uploads/kyc/:filename", async (req, res) => {
+    try {
+      const filename = req.params.filename;
+      
+      // For demonstration, serve a placeholder image since actual file storage isn't implemented
+      // In production, this would serve actual uploaded files
+      const placeholderSvg = `
+        <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100%" height="100%" fill="#1e293b"/>
+          <text x="50%" y="40%" dominant-baseline="middle" text-anchor="middle" fill="#64748b" font-family="Arial, sans-serif" font-size="16">
+            KYC Document
+          </text>
+          <text x="50%" y="60%" dominant-baseline="middle" text-anchor="middle" fill="#94a3b8" font-family="Arial, sans-serif" font-size="12">
+            ${filename}
+          </text>
+          <text x="50%" y="80%" dominant-baseline="middle" text-anchor="middle" fill="#475569" font-family="Arial, sans-serif" font-size="10">
+            Document preview placeholder
+          </text>
+        </svg>
+      `;
+      
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.send(placeholderSvg);
+    } catch (error: any) {
+      res.status(404).json({ error: "Document not found" });
+    }
+  });
+
+  // Serve general uploads (legacy path for existing documents)
+  app.get("/uploads/:filename", async (req, res) => {
+    try {
+      const filename = req.params.filename;
+      
+      // For demonstration, serve a placeholder image since actual file storage isn't implemented
+      // In production, this would serve actual uploaded files
+      const placeholderSvg = `
+        <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100%" height="100%" fill="#1e293b"/>
+          <text x="50%" y="40%" dominant-baseline="middle" text-anchor="middle" fill="#64748b" font-family="Arial, sans-serif" font-size="16">
+            KYC Document
+          </text>
+          <text x="50%" y="60%" dominant-baseline="middle" text-anchor="middle" fill="#94a3b8" font-family="Arial, sans-serif" font-size="12">
+            ${filename}
+          </text>
+          <text x="50%" y="80%" dominant-baseline="middle" text-anchor="middle" fill="#475569" font-family="Arial, sans-serif" font-size="10">
+            Document preview placeholder
+          </text>
+        </svg>
+      `;
+      
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.send(placeholderSvg);
+    } catch (error: any) {
+      res.status(404).json({ error: "Document not found" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
