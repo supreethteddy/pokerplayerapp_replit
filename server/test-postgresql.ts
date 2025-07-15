@@ -1,7 +1,7 @@
 import postgres from 'postgres'
 
 async function testPostgreSQL() {
-  const connectionString = process.env.DATABASE_URL || "postgresql://postgres.oyhnpnymlezjusnwpjeu:Shetty1234%21%40%23-@aws-0-ap-south-1.pooler.supabase.com:5432/postgres";
+  const connectionString = "postgresql://postgres.oyhnpnymlezjusnwpjeu:Shetty1234%21%40%23-@aws-0-ap-south-1.pooler.supabase.com:5432/postgres";
   
   console.log('Testing PostgreSQL connection...')
   console.log('Connection string:', connectionString.replace(/:([^@]+)@/, ':***@'))
