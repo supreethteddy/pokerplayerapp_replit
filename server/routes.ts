@@ -1,8 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { supabaseStorage } from "./supabase-storage";
-import { dbStorage, db } from "./database";
-import { databaseSync } from "./sync";
+import { dbStorage } from "./database";
 import { insertPlayerSchema, insertPlayerPrefsSchema, insertSeatRequestSchema, insertKycDocumentSchema, insertTransactionSchema, players, playerPrefs, seatRequests, kycDocuments, transactions } from "@shared/schema";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
@@ -32,14 +31,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const playerData = insertPlayerSchema.parse(req.body);
       
-      // Check if player already exists in Neon database
+      // Check if player already exists in Supabase database
       const existingPlayer = await dbStorage.getPlayerByEmail(playerData.email);
       if (existingPlayer) {
         console.log(`Registration attempt for existing email: ${playerData.email} (ID: ${existingPlayer.id})`);
         return res.status(409).json({ error: "Account with this email already exists" });
       }
       
-      // Create player in Neon database
+      // Create player in Supabase database
       const player = await dbStorage.createPlayer(playerData);
       
       // Create default preferences
@@ -50,9 +49,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         gameUpdates: true
       };
       await dbStorage.createPlayerPrefs(defaultPrefs);
-      
-      // Sync to Supabase for admin portal
-      await databaseSync.syncPlayerToSupabase(player.id);
       
       res.json(player);
     } catch (error: any) {

@@ -12,7 +12,10 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
 console.log('Supabase connection initialized - URL:', supabaseUrl);
 console.log('Service role key exists:', !!supabaseServiceRoleKey);
 
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  db: { schema: 'public' },
+  global: { headers: { 'Prefer': 'return=representation' } }
+});
 
 export class SupabaseStorage implements IStorage {
   async getPlayer(id: number): Promise<Player | undefined> {
@@ -98,6 +101,8 @@ export class SupabaseStorage implements IStorage {
   }
 
   async createPlayer(player: InsertPlayer): Promise<Player> {
+    console.log('SupabaseStorage: Creating player with data:', player);
+    
     // Map to snake_case for Supabase with defaults for all fields
     const supabasePlayer = {
       email: player.email,
@@ -105,16 +110,10 @@ export class SupabaseStorage implements IStorage {
       first_name: player.firstName || '',
       last_name: player.lastName || '',
       phone: player.phone || '',
-      kyc_status: player.kycStatus || 'pending',
-      balance: '0.00',
-      total_deposits: '0.00',
-      total_withdrawals: '0.00',
-      total_winnings: '0.00',
-      total_losses: '0.00',
-      games_played: 0,
-      hours_played: '0.00',
-      created_at: player.createdAt || new Date().toISOString()
+      kyc_status: player.kycStatus || 'pending'
     };
+    
+    console.log('SupabaseStorage: Inserting player data:', supabasePlayer);
     
     const { data, error } = await supabase
       .from('players')
@@ -122,7 +121,12 @@ export class SupabaseStorage implements IStorage {
       .select()
       .single();
     
-    if (error) throw new Error(`Failed to create player: ${error.message}`);
+    if (error) {
+      console.error('SupabaseStorage: Error creating player:', error);
+      throw new Error(`Failed to create player: ${error.message}`);
+    }
+    
+    console.log('SupabaseStorage: Player created successfully:', data);
     
     // Map back to camelCase - include all player fields
     return {
