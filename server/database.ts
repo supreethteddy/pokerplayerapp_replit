@@ -22,8 +22,9 @@ import {
 import { eq, and } from 'drizzle-orm';
 import type { IStorage } from './storage';
 
-// Use the DATABASE_URL environment variable for Supabase connection
+// SUPABASE ONLY - Neon database permanently disabled
 const connectionString = "postgresql://postgres.oyhnpnymlezjusnwpjeu:Shetty1234%21%40%23-@aws-0-ap-south-1.pooler.supabase.com:5432/postgres";
+console.log('🔗 Connected to Supabase database (Neon disabled)');
 const client = postgres(connectionString);
 export const db = drizzle(client);
 
