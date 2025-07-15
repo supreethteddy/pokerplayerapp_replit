@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { supabaseStorage } from "./supabase-storage";
 import { dbStorage } from "./database";
+import { databaseSync } from "./sync";
 import { insertPlayerSchema, insertPlayerPrefsSchema, insertSeatRequestSchema, insertKycDocumentSchema, insertTransactionSchema, players, playerPrefs, seatRequests, kycDocuments, transactions } from "@shared/schema";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
@@ -181,7 +182,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Tables routes
   app.get("/api/tables", async (req, res) => {
     try {
-      const tables = await supabaseStorage.getTables();
+      const tables = await dbStorage.getTables();
       res.json(tables);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -192,7 +193,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/seat-requests", async (req, res) => {
     try {
       const requestData = insertSeatRequestSchema.parse(req.body);
-      const request = await supabaseStorage.createSeatRequest(requestData);
+      const request = await dbStorage.createSeatRequest(requestData);
       res.json(request);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -201,7 +202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/seat-requests/:playerId", async (req, res) => {
     try {
-      const requests = await supabaseStorage.getSeatRequestsByPlayer(parseInt(req.params.playerId));
+      const requests = await dbStorage.getSeatRequestsByPlayer(parseInt(req.params.playerId));
       res.json(requests);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -235,13 +236,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/kyc-documents", async (req, res) => {
     try {
       const kycData = insertKycDocumentSchema.parse(req.body);
-      const document = await supabaseStorage.createKycDocument(kycData);
       
-      // Sync to Supabase for admin portal
-      await databaseSync.syncPlayerToSupabase(document.playerId);
+      // Create KYC document directly in Supabase using dbStorage
+      const document = await dbStorage.createKycDocument(kycData);
       
+      console.log('KYC document created successfully:', document);
       res.json(document);
     } catch (error: any) {
+      console.error('KYC document creation error:', error);
       res.status(400).json({ error: error.message });
     }
   });
@@ -249,7 +251,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/kyc-documents/player/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
-      const documents = await supabaseStorage.getKycDocumentsByPlayer(playerId);
+      const documents = await dbStorage.getKycDocumentsByPlayer(playerId);
       res.json(documents);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
