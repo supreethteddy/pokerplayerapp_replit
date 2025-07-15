@@ -284,6 +284,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
             error: "File size too large. Maximum file size is 5MB." 
           });
         }
+        
+        // Save the file to uploads directory
+        const uploadsDir = path.join(process.cwd(), 'uploads');
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        
+        // Create unique filename with timestamp
+        const timestamp = Date.now();
+        const fileExtension = path.extname(kycData.fileName);
+        const baseFileName = path.basename(kycData.fileName, fileExtension);
+        const uniqueFileName = `${baseFileName}_${timestamp}${fileExtension}`;
+        const filePath = path.join(uploadsDir, uniqueFileName);
+        
+        // Convert data URL to buffer and save file
+        const buffer = Buffer.from(base64Data, 'base64');
+        fs.writeFileSync(filePath, buffer);
+        
+        console.log('File saved successfully:', {
+          originalName: kycData.fileName,
+          savedAs: uniqueFileName,
+          size: buffer.length,
+          path: filePath
+        });
+        
+        // Update the file URL to point to the saved file
+        kycData.fileUrl = `/uploads/${uniqueFileName}`;
       }
       
       // Create KYC document directly in Supabase using dbStorage
@@ -529,6 +556,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Serve KYC document files
+  app.get("/uploads/:filename", async (req, res) => {
+    try {
+      const filename = req.params.filename;
+      const filePath = path.join(process.cwd(), 'uploads', filename);
+      
+      // Check if file exists
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+      
+      // Get file stats
+      const stats = fs.statSync(filePath);
+      
+      // Set proper headers based on file extension
+      const extension = path.extname(filename).toLowerCase();
+      let contentType = 'application/octet-stream';
+      
+      switch (extension) {
+        case '.png':
+          contentType = 'image/png';
+          break;
+        case '.jpg':
+        case '.jpeg':
+          contentType = 'image/jpeg';
+          break;
+        case '.pdf':
+          contentType = 'application/pdf';
+          break;
+      }
+      
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Length', stats.size);
+      
+      // Stream the file
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
+      
+    } catch (error: any) {
+      console.error('Error serving file:', error);
+      res.status(500).json({ error: 'Failed to serve file' });
+    }
+  });
+
+  // Legacy route for backwards compatibility
   app.get("/uploads/kyc/:filename", async (req, res) => {
     try {
       const filename = req.params.filename;
