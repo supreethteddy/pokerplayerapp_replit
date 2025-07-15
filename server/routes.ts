@@ -555,19 +555,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Serve KYC document files
+  // Document access tracker for debugging
+  const documentAccessTracker = new Map();
+
+  // Serve KYC document files with comprehensive error handling
   app.get("/uploads/:filename", async (req, res) => {
+    const filename = req.params.filename;
+    const timestamp = new Date().toISOString();
+    
+    // Track access attempts
+    documentAccessTracker.set(filename, {
+      lastAccess: timestamp,
+      attempts: (documentAccessTracker.get(filename)?.attempts || 0) + 1,
+      userAgent: req.headers['user-agent'] || 'Unknown'
+    });
+    
+    console.log(`[${timestamp}] Document access attempt: ${filename}`);
+    
     try {
-      const filename = req.params.filename;
       const filePath = path.join(process.cwd(), 'uploads', filename);
       
       // Check if file exists
       if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: 'File not found' });
+        console.error(`[${timestamp}] File not found: ${filePath}`);
+        
+        // Return a proper HTML error page instead of JSON for better UX
+        const errorHtml = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Document Not Found</title>
+            <style>
+              body { 
+                font-family: Arial, sans-serif; 
+                background: #0f172a; 
+                color: #e2e8f0; 
+                padding: 2rem; 
+                margin: 0; 
+              }
+              .container { 
+                max-width: 600px; 
+                margin: 0 auto; 
+                text-align: center; 
+                background: #1e293b; 
+                padding: 2rem; 
+                border-radius: 8px; 
+              }
+              h1 { color: #ef4444; }
+              .info { background: #374151; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+              .button { 
+                background: #3b82f6; 
+                color: white; 
+                padding: 0.5rem 1rem; 
+                border: none; 
+                border-radius: 4px; 
+                text-decoration: none; 
+                display: inline-block; 
+                margin: 1rem 0;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>Document Not Found</h1>
+              <p>The requested document "${filename}" could not be found.</p>
+              <div class="info">
+                <strong>Possible Solutions:</strong><br>
+                • The document may have been moved or deleted<br>
+                • Try uploading the document again<br>
+                • Contact support if the issue persists
+              </div>
+              <a href="javascript:window.close()" class="button">Close Window</a>
+            </div>
+          </body>
+          </html>
+        `;
+        
+        res.status(404).set('Content-Type', 'text/html').send(errorHtml);
+        return;
       }
       
       // Get file stats
       const stats = fs.statSync(filePath);
+      console.log(`[${timestamp}] Serving file: ${filename}, Size: ${stats.size} bytes`);
       
       // Set proper headers based on file extension
       const extension = path.extname(filename).toLowerCase();
@@ -586,17 +656,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
           break;
       }
       
+      // Add caching headers for better performance
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Length', stats.size);
+      res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hour cache
+      res.setHeader('Last-Modified', stats.mtime.toUTCString());
       
       // Stream the file
       const fileStream = fs.createReadStream(filePath);
+      
+      fileStream.on('error', (error) => {
+        console.error(`[${timestamp}] Error streaming file ${filename}:`, error);
+        if (!res.headersSent) {
+          res.status(500).send('Error reading file');
+        }
+      });
+      
+      fileStream.on('end', () => {
+        console.log(`[${timestamp}] Successfully served file: ${filename}`);
+      });
+      
       fileStream.pipe(res);
       
     } catch (error: any) {
-      console.error('Error serving file:', error);
-      res.status(500).json({ error: 'Failed to serve file' });
+      console.error(`[${timestamp}] Error serving file ${filename}:`, error);
+      
+      const errorHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Server Error</title>
+          <style>
+            body { 
+              font-family: Arial, sans-serif; 
+              background: #0f172a; 
+              color: #e2e8f0; 
+              padding: 2rem; 
+              margin: 0; 
+            }
+            .container { 
+              max-width: 600px; 
+              margin: 0 auto; 
+              text-align: center; 
+              background: #1e293b; 
+              padding: 2rem; 
+              border-radius: 8px; 
+            }
+            h1 { color: #ef4444; }
+            .button { 
+              background: #3b82f6; 
+              color: white; 
+              padding: 0.5rem 1rem; 
+              border: none; 
+              border-radius: 4px; 
+              text-decoration: none; 
+              display: inline-block; 
+              margin: 1rem 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>Server Error</h1>
+            <p>An error occurred while trying to serve the document.</p>
+            <a href="javascript:window.close()" class="button">Close Window</a>
+          </div>
+        </body>
+        </html>
+      `;
+      
+      res.status(500).set('Content-Type', 'text/html').send(errorHtml);
     }
+  });
+
+  // Document access tracker endpoint for debugging
+  app.get("/api/document-access-tracker", (req, res) => {
+    const tracker = {};
+    for (const [filename, info] of documentAccessTracker.entries()) {
+      tracker[filename] = info;
+    }
+    res.json(tracker);
   });
 
   // Legacy route for backwards compatibility

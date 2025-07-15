@@ -588,9 +588,19 @@ export default function PlayerDashboard() {
                                   onClick={() => {
                                     const doc = kycDocuments.filter(d => d.documentType === 'id')[0];
                                     if (doc && doc.fileUrl) {
-                                      window.open(doc.fileUrl, '_blank');
+                                      // Ensure we use the full URL path
+                                      const fullUrl = doc.fileUrl.startsWith('http') 
+                                        ? doc.fileUrl 
+                                        : `${window.location.origin}${doc.fileUrl}`;
+                                      console.log('Opening document:', fullUrl);
+                                      window.open(fullUrl, '_blank');
                                     } else {
                                       console.error('No ID document found');
+                                      toast({
+                                        title: "Document Not Found",
+                                        description: "Please upload an ID document first",
+                                        variant: "destructive",
+                                      });
                                     }
                                   }}
                                 >
@@ -668,9 +678,19 @@ export default function PlayerDashboard() {
                                   onClick={() => {
                                     const doc = kycDocuments.filter(d => d.documentType === 'address')[0];
                                     if (doc && doc.fileUrl) {
-                                      window.open(doc.fileUrl, '_blank');
+                                      // Ensure we use the full URL path
+                                      const fullUrl = doc.fileUrl.startsWith('http') 
+                                        ? doc.fileUrl 
+                                        : `${window.location.origin}${doc.fileUrl}`;
+                                      console.log('Opening document:', fullUrl);
+                                      window.open(fullUrl, '_blank');
                                     } else {
                                       console.error('No Address document found');
+                                      toast({
+                                        title: "Document Not Found",
+                                        description: "Please upload an address document first",
+                                        variant: "destructive",
+                                      });
                                     }
                                   }}
                                 >
@@ -748,9 +768,19 @@ export default function PlayerDashboard() {
                                   onClick={() => {
                                     const doc = kycDocuments.filter(d => d.documentType === 'photo')[0];
                                     if (doc && doc.fileUrl) {
-                                      window.open(doc.fileUrl, '_blank');
+                                      // Ensure we use the full URL path
+                                      const fullUrl = doc.fileUrl.startsWith('http') 
+                                        ? doc.fileUrl 
+                                        : `${window.location.origin}${doc.fileUrl}`;
+                                      console.log('Opening document:', fullUrl);
+                                      window.open(fullUrl, '_blank');
                                     } else {
                                       console.error('No Photo document found');
+                                      toast({
+                                        title: "Document Not Found",
+                                        description: "Please upload a photo document first",
+                                        variant: "destructive",
+                                      });
                                     }
                                   }}
                                 >
