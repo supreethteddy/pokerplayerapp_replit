@@ -34,10 +34,10 @@ export default function BalanceManager() {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [transactionNote, setTransactionNote] = useState("");
 
-  // Fetch transactions
+  // Fetch transactions - disabled for Supabase production (not implemented)
   const { data: transactions, isLoading: transactionsLoading } = useQuery<Transaction[]>({
     queryKey: ['/api/transactions/player', user?.id],
-    enabled: !!user?.id,
+    enabled: false, // Disabled - transactions not available in Supabase yet
   });
 
   // Deposit mutation
@@ -311,38 +311,13 @@ export default function BalanceManager() {
               <DialogTitle>Transaction History</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 max-h-96 overflow-y-auto">
-              {transactionsLoading ? (
-                <div className="text-center py-4">Loading transactions...</div>
-              ) : transactions && transactions.length > 0 ? (
-                transactions.map((transaction) => (
-                  <div key={transaction.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      {getTransactionIcon(transaction.type)}
-                      <div>
-                        <div className="font-medium capitalize">{transaction.type}</div>
-                        <div className="text-sm text-gray-500">
-                          {new Date(transaction.createdAt!).toLocaleString()}
-                        </div>
-                        {transaction.description && (
-                          <div className="text-sm text-gray-600">{transaction.description}</div>
-                        )}
-                      </div>
-                    </div>
-                    <div className={`font-semibold ${
-                      transaction.type === 'deposit' || transaction.type === 'win' 
-                        ? 'text-green-600' 
-                        : 'text-red-600'
-                    }`}>
-                      {transaction.type === 'deposit' || transaction.type === 'win' ? '+' : '-'}
-                      {formatCurrency(transaction.amount)}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  No transactions yet
+              <div className="text-center py-8 text-gray-500">
+                <div className="text-amber-500 font-medium mb-2">Transaction History Coming Soon</div>
+                <div className="text-sm">
+                  Transaction history will be available once your poker room management system is connected.
+                  For now, you can see your current balance and gaming statistics above.
                 </div>
-              )}
+              </div>
             </div>
           </DialogContent>
         </Dialog>

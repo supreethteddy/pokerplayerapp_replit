@@ -3,82 +3,113 @@ import type { IStorage } from './storage';
 import type { Player, InsertPlayer, PlayerPrefs, InsertPlayerPrefs, Table, SeatRequest, InsertSeatRequest, KycDocument, InsertKycDocument } from '@shared/schema';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
+if (!supabaseUrl || !supabaseServiceRoleKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 export class SupabaseStorage implements IStorage {
   async getPlayer(id: number): Promise<Player | undefined> {
-    const { data, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('id', id)
-      .single();
+    console.log('SupabaseStorage: Searching for player with ID:', id);
     
-    if (error) return undefined;
-    
-    // Map from snake_case to camelCase - include all player fields
-    return {
-      id: data.id,
-      email: data.email,
-      password: data.password || '',
-      firstName: data.first_name || '',
-      lastName: data.last_name || '',
-      phone: data.phone || '',
-      kycStatus: data.kyc_status || 'pending',
-      balance: data.balance || '0.00',
-      totalDeposits: data.total_deposits || '0.00',
-      totalWithdrawals: data.total_withdrawals || '0.00',
-      totalWinnings: data.total_winnings || '0.00',
-      totalLosses: data.total_losses || '0.00',
-      gamesPlayed: data.games_played || 0,
-      hoursPlayed: data.hours_played || '0.00',
-      createdAt: data.created_at
-    };
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        console.error('SupabaseStorage: Error fetching player by ID:', error);
+        return undefined;
+      }
+      
+      console.log('SupabaseStorage: Found player by ID:', data);
+      
+      // Map from snake_case to camelCase - include all player fields
+      return {
+        id: data.id,
+        email: data.email,
+        password: data.password || '',
+        firstName: data.first_name || '',
+        lastName: data.last_name || '',
+        phone: data.phone || '',
+        kycStatus: data.kyc_status || 'pending',
+        balance: data.balance || '0.00',
+        totalDeposits: data.total_deposits || '0.00',
+        totalWithdrawals: data.total_withdrawals || '0.00',
+        totalWinnings: data.total_winnings || '0.00',
+        totalLosses: data.total_losses || '0.00',
+        gamesPlayed: data.games_played || 0,
+        hoursPlayed: data.hours_played || '0.00',
+        createdAt: data.created_at
+      };
+    } catch (error) {
+      console.error('SupabaseStorage: Exception in getPlayer:', error);
+      return undefined;
+    }
   }
 
   async getPlayerByEmail(email: string): Promise<Player | undefined> {
-    const { data, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('email', email)
-      .single();
+    console.log('SupabaseStorage: Searching for player with email:', email);
     
-    if (error) return undefined;
-    
-    // Map from snake_case to camelCase - include all player fields
-    return {
-      id: data.id,
-      email: data.email,
-      password: data.password || '',
-      firstName: data.first_name || '',
-      lastName: data.last_name || '',
-      phone: data.phone || '',
-      kycStatus: data.kyc_status || 'pending',
-      balance: data.balance || '0.00',
-      totalDeposits: data.total_deposits || '0.00',
-      totalWithdrawals: data.total_withdrawals || '0.00',
-      totalWinnings: data.total_winnings || '0.00',
-      totalLosses: data.total_losses || '0.00',
-      gamesPlayed: data.games_played || 0,
-      hoursPlayed: data.hours_played || '0.00',
-      createdAt: data.created_at
-    };
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .eq('email', email)
+        .single();
+      
+      if (error) {
+        console.error('SupabaseStorage: Error fetching player by email:', error);
+        return undefined;
+      }
+      
+      console.log('SupabaseStorage: Found player data:', data);
+      
+      // Map from snake_case to camelCase - include all player fields
+      return {
+        id: data.id,
+        email: data.email,
+        password: data.password || '',
+        firstName: data.first_name || '',
+        lastName: data.last_name || '',
+        phone: data.phone || '',
+        kycStatus: data.kyc_status || 'pending',
+        balance: data.balance || '0.00',
+        totalDeposits: data.total_deposits || '0.00',
+        totalWithdrawals: data.total_withdrawals || '0.00',
+        totalWinnings: data.total_winnings || '0.00',
+        totalLosses: data.total_losses || '0.00',
+        gamesPlayed: data.games_played || 0,
+        hoursPlayed: data.hours_played || '0.00',
+        createdAt: data.created_at
+      };
+    } catch (error) {
+      console.error('SupabaseStorage: Exception in getPlayerByEmail:', error);
+      return undefined;
+    }
   }
 
   async createPlayer(player: InsertPlayer): Promise<Player> {
-    // Map to snake_case for Supabase
+    // Map to snake_case for Supabase with defaults for all fields
     const supabasePlayer = {
       email: player.email,
-      password: player.password,
-      first_name: player.firstName,
-      last_name: player.lastName,
-      phone: player.phone,
+      password: player.password || '',
+      first_name: player.firstName || '',
+      last_name: player.lastName || '',
+      phone: player.phone || '',
       kyc_status: player.kycStatus || 'pending',
+      balance: '0.00',
+      total_deposits: '0.00',
+      total_withdrawals: '0.00',
+      total_winnings: '0.00',
+      total_losses: '0.00',
+      games_played: 0,
+      hours_played: '0.00',
       created_at: player.createdAt || new Date().toISOString()
     };
     

@@ -14,6 +14,19 @@ const supabase = createClient(
 );
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Test endpoint to verify Supabase connection
+  app.get("/api/test-supabase", async (req, res) => {
+    try {
+      const { data, error } = await supabase.from('players').select('*').limit(1);
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+      res.json({ success: true, data });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Player routes
   app.post("/api/players", async (req, res) => {
     try {
@@ -53,7 +66,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/players/:id", async (req, res) => {
     try {
-      const player = await supabaseStorage.getPlayer(parseInt(req.params.id));
+      const player = await dbStorage.getPlayer(parseInt(req.params.id));
       if (!player) {
         return res.status(404).json({ error: "Player not found" });
       }
@@ -65,12 +78,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/players/email/:email", async (req, res) => {
     try {
-      const player = await supabaseStorage.getPlayerByEmail(req.params.email);
+      console.log('Route: Getting player by email:', req.params.email);
+      const player = await dbStorage.getPlayerByEmail(req.params.email);
+      console.log('Route: Player result:', player);
       if (!player) {
         return res.status(404).json({ error: "Player not found" });
       }
       res.json(player);
     } catch (error: any) {
+      console.error('Route: Error getting player by email:', error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -95,8 +111,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log('Found Supabase user email:', user.email);
       
-      // Find player by email in Supabase
-      const player = await supabaseStorage.getPlayerByEmail(user.email);
+      // Find player by email in PostgreSQL database (not Supabase)
+      const player = await dbStorage.getPlayerByEmail(user.email);
       if (!player) {
         console.error('Player not found in database for email:', user.email);
         return res.status(404).json({ error: "Player not found in database" });

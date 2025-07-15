@@ -36,8 +36,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPlayerByEmail(email: string): Promise<Player | undefined> {
-    const result = await db.select().from(players).where(eq(players.email, email));
-    return result[0];
+    console.log('DatabaseStorage: Searching for player with email:', email);
+    try {
+      const result = await db.select().from(players).where(eq(players.email, email));
+      console.log('DatabaseStorage: Found player:', result[0]);
+      return result[0];
+    } catch (error) {
+      console.error('DatabaseStorage: Error fetching player by email:', error);
+      return undefined;
+    }
   }
 
   async createPlayer(player: InsertPlayer): Promise<Player> {
