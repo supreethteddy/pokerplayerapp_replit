@@ -57,9 +57,9 @@ export default function PlayerDashboard() {
 
   // Preferences removed as per requirements
 
-  // Fetch KYC documents
+  // Fetch KYC documents using new system
   const { data: kycDocuments, isLoading: kycLoading } = useQuery<KycDocument[]>({
-    queryKey: [`/api/kyc-documents/player/${user?.id}`],
+    queryKey: [`/api/documents/player/${user?.id}`],
     enabled: !!user?.id,
   });
 
@@ -112,7 +112,7 @@ export default function PlayerDashboard() {
 
   // Preferences update removed as per requirements
 
-  // KYC document upload mutation
+  // KYC document upload mutation using new system
   const uploadKycDocumentMutation = useMutation({
     mutationFn: async ({ documentType, file }: { documentType: string; file: File }) => {
       const reader = new FileReader();
@@ -120,7 +120,7 @@ export default function PlayerDashboard() {
         reader.onload = async (event) => {
           const dataUrl = event.target?.result as string;
           try {
-            const response = await apiRequest('POST', '/api/kyc-documents', {
+            const response = await apiRequest('POST', '/api/documents/upload', {
               playerId: user?.id,
               documentType,
               fileName: file.name,
@@ -136,7 +136,7 @@ export default function PlayerDashboard() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/kyc-documents/player/${user?.id}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/documents/player/${user?.id}`] });
       queryClient.invalidateQueries({ queryKey: ['/api/players/supabase'] });
       toast({
         title: "Document Uploaded",

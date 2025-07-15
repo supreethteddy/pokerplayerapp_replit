@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { supabaseStorage } from "./supabase-storage";
 import { dbStorage } from "./database";
 import { databaseSync } from "./sync";
+import { documentStorage } from "./document-storage";
 import { insertPlayerSchema, insertPlayerPrefsSchema, insertSeatRequestSchema, insertKycDocumentSchema, insertTransactionSchema, players, playerPrefs, seatRequests, kycDocuments, transactions } from "@shared/schema";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
@@ -261,7 +262,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return true;
   };
 
-  // KYC documents routes
+  // New document storage system
+  app.post("/api/documents/upload", async (req, res) => {
+    try {
+      console.log(`[NewDocumentSystem] Upload request - Player: ${req.body.playerId}, Type: ${req.body.documentType}`);
+      
+      const { playerId, documentType, fileName, fileUrl } = req.body;
+      
+      // Validate required fields
+      if (!playerId || !documentType || !fileName || !fileUrl) {
+        return res.status(400).json({ 
+          error: "Missing required fields: playerId, documentType, fileName, fileUrl" 
+        });
+      }
+      
+      // Validate file type
+      const allowedTypes = ['jpg', 'jpeg', 'png', 'pdf'];
+      const fileExtension = fileName.split('.').pop()?.toLowerCase();
+      if (!fileExtension || !allowedTypes.includes(fileExtension)) {
+        return res.status(400).json({ 
+          error: "Invalid file type. Only JPG, PNG, and PDF files are allowed." 
+        });
+      }
+      
+      // Use the new document storage system
+      const document = await documentStorage.uploadDocument(playerId, documentType, fileName, fileUrl);
+      
+      console.log(`[NewDocumentSystem] Upload successful - Document ID: ${document.id}`);
+      
+      res.json({
+        id: document.id,
+        playerId: document.playerId,
+        documentType: document.documentType,
+        fileName: document.fileName,
+        fileUrl: `/api/documents/${document.id}`, // Use new endpoint
+        status: document.status,
+        createdAt: document.createdAt
+      });
+      
+    } catch (error: any) {
+      console.error(`[NewDocumentSystem] Upload failed:`, error);
+      res.status(500).json({ 
+        error: error.message || "Failed to upload document"
+      });
+    }
+  });
+
+  // Get documents by player
+  app.get("/api/documents/player/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const documents = await documentStorage.getPlayerDocuments(playerId);
+      
+      // Transform to match expected format
+      const transformedDocs = documents.map(doc => ({
+        id: doc.id,
+        playerId: doc.playerId,
+        documentType: doc.documentType,
+        fileName: doc.fileName,
+        fileUrl: `/api/documents/${doc.id}`,
+        status: doc.status,
+        createdAt: doc.createdAt
+      }));
+      
+      res.json(transformedDocs);
+    } catch (error: any) {
+      console.error(`[NewDocumentSystem] Get documents failed:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Serve document files
+  app.get("/api/documents/:docId", async (req, res) => {
+    try {
+      const docId = req.params.docId;
+      const result = await documentStorage.getDocumentFile(docId);
+      
+      if (!result) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
+      // Set proper headers
+      res.set({
+        'Content-Type': result.mimeType,
+        'Content-Length': result.buffer.length,
+        'Content-Disposition': `inline; filename="${result.fileName}"`,
+        'Cache-Control': 'public, max-age=3600'
+      });
+      
+      res.send(result.buffer);
+    } catch (error: any) {
+      console.error(`[NewDocumentSystem] Serve document failed:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // KYC documents routes (legacy)
   // File upload tracking system
   const uploadTracker = new Map();
   const uploadHistory = [];
