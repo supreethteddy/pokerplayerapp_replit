@@ -78,10 +78,12 @@ export function useAuth() {
   }, []);
 
   const fetchUserData = async (supabaseUserId: string) => {
-    // Prevent multiple simultaneous fetches
-    if (!loading) return;
-    
     console.log('Starting fetchUserData for:', supabaseUserId);
+    
+    // Set loading state if not already set
+    if (!loading) {
+      setLoading(true);
+    }
     
     try {
       // Fetch player data using Supabase ID with extended timeout
@@ -107,6 +109,7 @@ export function useAuth() {
       const userData = await response.json();
       console.log('User data fetched successfully:', userData);
       setUser(userData);
+      console.log('User state updated, current loading state:', loading);
     } catch (error) {
       console.error('Error fetching user data:', error);
       
