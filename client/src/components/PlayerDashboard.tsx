@@ -23,7 +23,10 @@ import {
   FileText,
   CheckCircle,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Eye,
+  AlertTriangle,
+  Phone
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -478,6 +481,8 @@ export default function PlayerDashboard() {
                       <div className="flex items-center">
                         {user?.kycStatus === 'approved' ? (
                           <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">Verified</Badge>
+                        ) : user?.kycStatus === 'verified' ? (
+                          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">Verified</Badge>
                         ) : user?.kycStatus === 'pending' ? (
                           <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30">Pending</Badge>
                         ) : (
@@ -518,23 +523,56 @@ export default function PlayerDashboard() {
                             <p className="text-sm font-medium text-white">ID Document</p>
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('id')}</p>
                             {kycDocuments?.filter(d => d.documentType === 'id').length > 0 && (
-                              <p className="text-xs text-emerald-400">
-                                {kycDocuments.filter(d => d.documentType === 'id')[0].fileName}
-                              </p>
+                              <div className="flex items-center space-x-2 mt-1">
+                                <p className="text-xs text-emerald-400">
+                                  {kycDocuments.filter(d => d.documentType === 'id')[0].fileName}
+                                </p>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="text-xs h-6 px-2 border-slate-600 text-slate-400 hover:bg-slate-700"
+                                  onClick={() => {
+                                    const doc = kycDocuments.filter(d => d.documentType === 'id')[0];
+                                    window.open(doc.fileUrl, '_blank');
+                                  }}
+                                >
+                                  <Eye className="w-3 h-3 mr-1" />
+                                  View
+                                </Button>
+                              </div>
                             )}
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => document.getElementById('id-document-upload')?.click()}
-                            disabled={uploadKycDocumentMutation.isPending}
-                            className="border-slate-600 hover:bg-slate-600"
-                          >
-                            <Upload className="w-4 h-4 mr-1" />
-                            {kycDocuments?.filter(d => d.documentType === 'id').length > 0 ? 'Reupload' : 'Upload'}
-                          </Button>
+                          {/* Only show upload/reupload if not approved or if no documents */}
+                          {(getKycDocumentStatus('id') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'id').length === 0) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => document.getElementById('id-document-upload')?.click()}
+                              disabled={uploadKycDocumentMutation.isPending}
+                              className="border-slate-600 hover:bg-slate-600"
+                            >
+                              <Upload className="w-4 h-4 mr-1" />
+                              {kycDocuments?.filter(d => d.documentType === 'id').length > 0 ? 'Reupload' : 'Upload'}
+                            </Button>
+                          )}
+                          
+                          {/* Show request change button if approved */}
+                          {getKycDocumentStatus('id') === 'approved' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                // TODO: Implement request change functionality
+                                alert('Request change functionality will be implemented');
+                              }}
+                              className="border-amber-600 text-amber-400 hover:bg-amber-600/20"
+                            >
+                              <AlertTriangle className="w-4 h-4 mr-1" />
+                              Request Change
+                            </Button>
+                          )}
                         </div>
                         <input
                           id="id-document-upload"
@@ -556,23 +594,56 @@ export default function PlayerDashboard() {
                             <p className="text-sm font-medium text-white">Address Proof</p>
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('address')}</p>
                             {kycDocuments?.filter(d => d.documentType === 'address').length > 0 && (
-                              <p className="text-xs text-emerald-400">
-                                {kycDocuments.filter(d => d.documentType === 'address')[0].fileName}
-                              </p>
+                              <div className="flex items-center space-x-2 mt-1">
+                                <p className="text-xs text-emerald-400">
+                                  {kycDocuments.filter(d => d.documentType === 'address')[0].fileName}
+                                </p>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="text-xs h-6 px-2 border-slate-600 text-slate-400 hover:bg-slate-700"
+                                  onClick={() => {
+                                    const doc = kycDocuments.filter(d => d.documentType === 'address')[0];
+                                    window.open(doc.fileUrl, '_blank');
+                                  }}
+                                >
+                                  <Eye className="w-3 h-3 mr-1" />
+                                  View
+                                </Button>
+                              </div>
                             )}
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => document.getElementById('address-document-upload')?.click()}
-                            disabled={uploadKycDocumentMutation.isPending}
-                            className="border-slate-600 hover:bg-slate-600"
-                          >
-                            <Upload className="w-4 h-4 mr-1" />
-                            {kycDocuments?.filter(d => d.documentType === 'address').length > 0 ? 'Reupload' : 'Upload'}
-                          </Button>
+                          {/* Only show upload/reupload if not approved or if no documents */}
+                          {(getKycDocumentStatus('address') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'address').length === 0) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => document.getElementById('address-document-upload')?.click()}
+                              disabled={uploadKycDocumentMutation.isPending}
+                              className="border-slate-600 hover:bg-slate-600"
+                            >
+                              <Upload className="w-4 h-4 mr-1" />
+                              {kycDocuments?.filter(d => d.documentType === 'address').length > 0 ? 'Reupload' : 'Upload'}
+                            </Button>
+                          )}
+                          
+                          {/* Show request change button if approved */}
+                          {getKycDocumentStatus('address') === 'approved' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                // TODO: Implement request change functionality
+                                alert('Request change functionality will be implemented');
+                              }}
+                              className="border-amber-600 text-amber-400 hover:bg-amber-600/20"
+                            >
+                              <AlertTriangle className="w-4 h-4 mr-1" />
+                              Request Change
+                            </Button>
+                          )}
                         </div>
                         <input
                           id="address-document-upload"
@@ -594,23 +665,56 @@ export default function PlayerDashboard() {
                             <p className="text-sm font-medium text-white">Photo</p>
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('photo')}</p>
                             {kycDocuments?.filter(d => d.documentType === 'photo').length > 0 && (
-                              <p className="text-xs text-emerald-400">
-                                {kycDocuments.filter(d => d.documentType === 'photo')[0].fileName}
-                              </p>
+                              <div className="flex items-center space-x-2 mt-1">
+                                <p className="text-xs text-emerald-400">
+                                  {kycDocuments.filter(d => d.documentType === 'photo')[0].fileName}
+                                </p>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  className="text-xs h-6 px-2 border-slate-600 text-slate-400 hover:bg-slate-700"
+                                  onClick={() => {
+                                    const doc = kycDocuments.filter(d => d.documentType === 'photo')[0];
+                                    window.open(doc.fileUrl, '_blank');
+                                  }}
+                                >
+                                  <Eye className="w-3 h-3 mr-1" />
+                                  View
+                                </Button>
+                              </div>
                             )}
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => document.getElementById('photo-document-upload')?.click()}
-                            disabled={uploadKycDocumentMutation.isPending}
-                            className="border-slate-600 hover:bg-slate-600"
-                          >
-                            <Upload className="w-4 h-4 mr-1" />
-                            {kycDocuments?.filter(d => d.documentType === 'photo').length > 0 ? 'Reupload' : 'Upload'}
-                          </Button>
+                          {/* Only show upload/reupload if not approved or if no documents */}
+                          {(getKycDocumentStatus('photo') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'photo').length === 0) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => document.getElementById('photo-document-upload')?.click()}
+                              disabled={uploadKycDocumentMutation.isPending}
+                              className="border-slate-600 hover:bg-slate-600"
+                            >
+                              <Upload className="w-4 h-4 mr-1" />
+                              {kycDocuments?.filter(d => d.documentType === 'photo').length > 0 ? 'Reupload' : 'Upload'}
+                            </Button>
+                          )}
+                          
+                          {/* Show request change button if approved */}
+                          {getKycDocumentStatus('photo') === 'approved' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                // TODO: Implement request change functionality
+                                alert('Request change functionality will be implemented');
+                              }}
+                              className="border-amber-600 text-amber-400 hover:bg-amber-600/20"
+                            >
+                              <AlertTriangle className="w-4 h-4 mr-1" />
+                              Request Change
+                            </Button>
+                          )}
                         </div>
                         <input
                           id="photo-document-upload"
