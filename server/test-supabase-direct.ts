@@ -1,47 +1,46 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-  throw new Error('Missing Supabase environment variables');
-}
-
-console.log('Testing Supabase connection...');
-console.log('URL:', supabaseUrl);
-console.log('Service role key exists:', !!supabaseServiceRoleKey);
-
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+import { createClient } from '@supabase/supabase-js'
 
 async function testSupabase() {
+  const supabaseUrl = 'https://oyhnpnymlezjusnwpjeu.supabase.co'
+  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95aG5wbnltbGV6anVzbndwamV1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MjQxMzU0MiwiZXhwIjoyMDY3OTg5NTQyfQ.Vb6zPUdDtPLvTgwfkYSzqQdZQnGIHnABNiNJo6ZW4JY'
+  
+  console.log('Testing Supabase direct connection...')
+  
   try {
+    const supabase = createClient(supabaseUrl, supabaseKey)
+    
     // Test basic connection
-    console.log('Testing basic connection...');
-    const { data, error } = await supabase.from('players').select('*');
+    const { data, error } = await supabase.from('players').select('count').limit(1)
     
     if (error) {
-      console.error('Error:', error);
+      console.error('Supabase connection error:', error)
     } else {
-      console.log('Success! Found', data.length, 'players');
-      console.log('First player:', data[0]);
+      console.log('Supabase connection successful!')
+      console.log('Query result:', data)
     }
     
-    // Test specific email query
-    console.log('\nTesting specific email query...');
-    const { data: emailData, error: emailError } = await supabase
+    // Try to create a player directly
+    const { data: newPlayer, error: insertError } = await supabase
       .from('players')
-      .select('*')
-      .eq('email', 'test@example.com');
+      .insert({
+        email: 'direct.supabase.test@example.com',
+        password: 'password123',
+        first_name: 'Direct',
+        last_name: 'Test',
+        phone: '9999999999',
+        kyc_status: 'pending'
+      })
+      .select()
     
-    if (emailError) {
-      console.error('Email query error:', emailError);
+    if (insertError) {
+      console.error('Insert error:', insertError)
     } else {
-      console.log('Email query success:', emailData);
+      console.log('Player created successfully via Supabase:', newPlayer)
     }
     
   } catch (error) {
-    console.error('Exception:', error);
+    console.error('Supabase test failed:', error)
   }
 }
 
-testSupabase();
+testSupabase()

@@ -23,7 +23,7 @@ import { eq, and } from 'drizzle-orm';
 import type { IStorage } from './storage';
 
 // Use the DATABASE_URL environment variable for Supabase connection
-const connectionString = process.env.DATABASE_URL || "postgresql://postgres:Shetty1234%21%40%23-@db.oyhnpnymlezjusnwpjeu.supabase.co:5432/postgres";
+const connectionString = "postgresql://postgres.oyhnpnymlezjusnwpjeu:Shetty1234%21%40%23-@aws-0-ap-south-1.pooler.supabase.com:5432/postgres";
 const client = postgres(connectionString);
 export const db = drizzle(client);
 
