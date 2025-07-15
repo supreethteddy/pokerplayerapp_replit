@@ -347,10 +347,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           addStep('directory_created', { uploadsDir });
         }
         
-        // Create unique filename with timestamp
+        // Create unique filename with timestamp (sanitize filename)
         const fileTimestamp = Date.now();
         const fileExtension = path.extname(kycData.fileName);
-        const baseFileName = path.basename(kycData.fileName, fileExtension);
+        const baseFileName = path.basename(kycData.fileName, fileExtension)
+          .replace(/[^a-zA-Z0-9\-_\.]/g, '_') // Replace special characters with underscores
+          .replace(/_{2,}/g, '_') // Replace multiple underscores with single
+          .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
         const uniqueFileName = `${baseFileName}_${fileTimestamp}${fileExtension}`;
         const filePath = path.join(uploadsDir, uniqueFileName);
         
@@ -731,7 +734,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Serve KYC document files with comprehensive error handling
   app.get("/uploads/:filename", async (req, res) => {
-    const filename = req.params.filename;
+    const encodedFilename = req.params.filename;
+    const filename = decodeURIComponent(encodedFilename);
     const timestamp = new Date().toISOString();
     
     // Track access attempts
@@ -741,7 +745,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       userAgent: req.headers['user-agent'] || 'Unknown'
     });
     
-    console.log(`[${timestamp}] Document access attempt: ${filename}`);
+    console.log(`[${timestamp}] Document access attempt: ${filename} (encoded: ${encodedFilename})`);
     
     try {
       const filePath = path.join(process.cwd(), 'uploads', filename);
@@ -1080,57 +1084,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Serve general uploads - return actual files, not formatted previews
-  app.get("/uploads/:filename", async (req, res) => {
-    try {
-      const filename = req.params.filename;
-      const filePath = path.join(process.cwd(), 'uploads', filename);
-      
-      // Check if file exists
-      if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: 'File not found' });
-      }
-
-      // Determine the correct MIME type based on file extension
-      const ext = path.extname(filename).toLowerCase();
-      let contentType = 'application/octet-stream';
-      
-      switch (ext) {
-        case '.jpg':
-        case '.jpeg':
-          contentType = 'image/jpeg';
-          break;
-        case '.png':
-          contentType = 'image/png';
-          break;
-        case '.gif':
-          contentType = 'image/gif';
-          break;
-        case '.pdf':
-          contentType = 'application/pdf';
-          break;
-        case '.doc':
-          contentType = 'application/msword';
-          break;
-        case '.docx':
-          contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-          break;
-        default:
-          contentType = 'application/octet-stream';
-      }
-
-      // Set the appropriate content type and serve the actual file
-      res.setHeader('Content-Type', contentType);
-      res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-      
-      // Stream the actual file content
-      const fileStream = fs.createReadStream(filePath);
-      fileStream.pipe(res);
-    } catch (error: any) {
-      console.error('Error serving file:', error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
+  // Remove duplicate - this route is already handled above with comprehensive tracking
 
   const httpServer = createServer(app);
   return httpServer;
