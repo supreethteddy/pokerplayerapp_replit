@@ -59,7 +59,7 @@ export default function PlayerDashboard() {
 
   // Fetch KYC documents
   const { data: kycDocuments, isLoading: kycLoading } = useQuery<KycDocument[]>({
-    queryKey: ['/api/kyc-documents/player', user?.id],
+    queryKey: [`/api/kyc-documents/player/${user?.id}`],
     enabled: !!user?.id,
   });
 
@@ -136,7 +136,7 @@ export default function PlayerDashboard() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/kyc-documents/player'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/kyc-documents/player/${user?.id}`] });
       queryClient.invalidateQueries({ queryKey: ['/api/players/supabase'] });
       toast({
         title: "Document Uploaded",
