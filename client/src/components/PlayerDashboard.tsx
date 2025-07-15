@@ -533,7 +533,11 @@ export default function PlayerDashboard() {
                                   className="text-xs h-6 px-2 border-slate-600 text-slate-400 hover:bg-slate-700"
                                   onClick={() => {
                                     const doc = kycDocuments.filter(d => d.documentType === 'id')[0];
-                                    window.open(doc.fileUrl, '_blank');
+                                    if (doc && doc.fileUrl) {
+                                      window.open(doc.fileUrl, '_blank');
+                                    } else {
+                                      console.error('No ID document found');
+                                    }
                                   }}
                                 >
                                   <Eye className="w-3 h-3 mr-1" />
@@ -604,7 +608,11 @@ export default function PlayerDashboard() {
                                   className="text-xs h-6 px-2 border-slate-600 text-slate-400 hover:bg-slate-700"
                                   onClick={() => {
                                     const doc = kycDocuments.filter(d => d.documentType === 'address')[0];
-                                    window.open(doc.fileUrl, '_blank');
+                                    if (doc && doc.fileUrl) {
+                                      window.open(doc.fileUrl, '_blank');
+                                    } else {
+                                      console.error('No Address document found');
+                                    }
                                   }}
                                 >
                                   <Eye className="w-3 h-3 mr-1" />
@@ -675,7 +683,11 @@ export default function PlayerDashboard() {
                                   className="text-xs h-6 px-2 border-slate-600 text-slate-400 hover:bg-slate-700"
                                   onClick={() => {
                                     const doc = kycDocuments.filter(d => d.documentType === 'photo')[0];
-                                    window.open(doc.fileUrl, '_blank');
+                                    if (doc && doc.fileUrl) {
+                                      window.open(doc.fileUrl, '_blank');
+                                    } else {
+                                      console.error('No Photo document found');
+                                    }
                                   }}
                                 >
                                   <Eye className="w-3 h-3 mr-1" />

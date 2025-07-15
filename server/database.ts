@@ -112,8 +112,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getKycDocumentsByPlayer(playerId: number): Promise<KycDocument[]> {
-    const result = await db.select().from(kycDocuments).where(eq(kycDocuments.playerId, playerId));
-    return result;
+    console.log('DatabaseStorage: Getting KYC documents for player ID:', playerId);
+    try {
+      const result = await db.select().from(kycDocuments).where(eq(kycDocuments.playerId, playerId));
+      console.log('DatabaseStorage: Found KYC documents:', result);
+      return result;
+    } catch (error) {
+      console.error('DatabaseStorage: Error getting KYC documents:', error);
+      return [];
+    }
   }
 
   // Transaction operations

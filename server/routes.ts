@@ -133,8 +133,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log('Found Supabase user email:', user.email);
       
-      // Find player by email in Supabase
-      const player = await supabaseStorage.getPlayerByEmail(user.email);
+      // Find player by email in database
+      const player = await dbStorage.getPlayerByEmail(user.email);
       if (!player) {
         console.error('Player not found in database for email:', user.email);
         return res.status(404).json({ error: "Player not found in database" });
@@ -357,6 +357,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success, message });
     } catch (error: any) {
       console.error("Sync error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Test endpoint to verify database connection
+  app.get("/api/test-db/:email", async (req, res) => {
+    try {
+      const email = req.params.email;
+      
+      // Test direct database query 
+      const directResult = await db.select().from(players).where(eq(players.email, email));
+      
+      // Test supabase query
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .eq('email', email);
+      
+      res.json({ 
+        directQuery: directResult,
+        supabaseQuery: { data, error }
+      });
+    } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
