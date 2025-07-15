@@ -26,6 +26,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test endpoint to create via Supabase client
+  app.post("/api/test-supabase-insert", async (req, res) => {
+    try {
+      const { email, firstName, lastName } = req.body;
+      const { data, error } = await supabase.from('players').insert({
+        email: email,
+        password: 'password123',
+        first_name: firstName,
+        last_name: lastName,
+        phone: '1234567890',
+        kyc_status: 'pending'
+      }).select();
+      
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+      res.json({ success: true, data });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Player routes
   app.post("/api/players", async (req, res) => {
     try {
