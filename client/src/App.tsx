@@ -8,6 +8,7 @@ import AuthLayout from "./components/AuthLayout";
 import PlayerDashboard from "./components/PlayerDashboard";
 
 import NotFound from "@/pages/not-found";
+import ThankYou from "@/pages/thank-you";
 
 function AppContent() {
   const { user, loading } = useAuth();
@@ -32,6 +33,9 @@ function AppContent() {
         </Route>
         <Route path="/dashboard">
           {user ? <PlayerDashboard /> : <Redirect to="/" />}
+        </Route>
+        <Route path="/thank-you">
+          <ThankYou />
         </Route>
         <Route component={NotFound} />
       </Switch>
