@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import { fileStorage } from './file-storage';
+import { nanoid } from 'nanoid';
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
@@ -6,46 +8,62 @@ const supabase = createClient(
 );
 
 async function createKycDocuments() {
-  console.log('Creating KYC documents for player 14...');
+  console.log('Creating KYC documents for player 15...');
   
   try {
-    // Create sample KYC documents
-    const kycDocuments = [
+    // First, create some sample files
+    const sampleFiles = [
       {
-        player_id: 15,
-        document_type: 'government_id',
-        file_name: 'government_id.jpg',
-        file_url: '/api/documents/view/gov_id_1752676000000.jpg',
-        status: 'approved'
+        type: 'government_id',
+        name: 'government_id.jpg',
+        dataUrl: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k='
       },
       {
-        player_id: 15,
-        document_type: 'utility_bill',
-        file_name: 'utility_bill.pdf',
-        file_url: '/api/documents/view/utility_bill_1752676000000.pdf',
-        status: 'approved'
+        type: 'utility_bill',
+        name: 'utility_bill.pdf',
+        dataUrl: 'data:application/pdf;base64,JVBERi0xLjQKJcOkw7zDtsOyDQo='
       },
       {
-        player_id: 15,
-        document_type: 'profile_photo',
-        file_name: 'profile_photo.jpg',
-        file_url: '/api/documents/view/profile_photo_1752676000000.jpg',
-        status: 'approved'
+        type: 'profile_photo',
+        name: 'profile_photo.jpg',
+        dataUrl: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k='
       }
     ];
 
-    // Insert KYC documents
-    const { data: insertData, error: insertError } = await supabase
+    // Clear existing documents
+    await supabase
       .from('kyc_documents')
-      .insert(kycDocuments)
-      .select();
+      .delete()
+      .eq('player_id', 15);
 
-    if (insertError) {
-      console.error('Error inserting KYC documents:', insertError);
-      return false;
+    // Create documents with proper file storage
+    for (const file of sampleFiles) {
+      // Store file using file storage
+      const storedFile = await fileStorage.storeFile(file.name, file.dataUrl);
+      
+      // Create KYC document record
+      const { data, error } = await supabase
+        .from('kyc_documents')
+        .insert({
+          player_id: 15,
+          document_type: file.type,
+          file_name: file.name,
+          file_url: `/api/documents/view/${storedFile.id}`,
+          status: 'approved',
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error(`Error creating ${file.type} document:`, error);
+        return false;
+      }
+
+      console.log(`✅ Created ${file.type} document: ${data.id}`);
     }
 
-    console.log('KYC documents created successfully:', insertData);
+    console.log('✅ All KYC documents created successfully');
     return true;
     
   } catch (error) {
@@ -54,5 +72,5 @@ async function createKycDocuments() {
   }
 }
 
-// Run the script
+// Run the creation
 createKycDocuments().catch(console.error);

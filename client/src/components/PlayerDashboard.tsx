@@ -238,8 +238,17 @@ export default function PlayerDashboard() {
   // Document viewing removed as per requirements
 
   const getKycDocumentStatus = (documentType: string) => {
+    // Map display types to actual database types
+    const typeMap: { [key: string]: string } = {
+      'id': 'government_id',
+      'utility': 'utility_bill',
+      'photo': 'profile_photo'
+    };
+    
+    const actualType = typeMap[documentType] || documentType;
+    
     // Find the latest document for this type (by createdAt date), using both Supabase and local URLs
-    const docs = kycDocuments?.filter(d => d.documentType === documentType && d.fileUrl);
+    const docs = kycDocuments?.filter(d => d.documentType === actualType && d.fileUrl);
     if (!docs || docs.length === 0) return 'missing';
     
     const latestDoc = docs.reduce((latest, current) => {
@@ -576,36 +585,30 @@ export default function PlayerDashboard() {
                           <div className="flex-1">
                             <p className="text-sm font-medium text-white">ID Document</p>
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('id')}</p>
-                            {kycDocuments?.filter(d => d.documentType === 'id' && d.fileUrl).length > 0 && (
+                            {kycDocuments?.filter(d => d.documentType === 'government_id' && d.fileUrl).length > 0 && (
                               <div className="flex items-center space-x-2 mt-1">
                                 <p className="text-xs text-emerald-400">
-                                  {kycDocuments.filter(d => d.documentType === 'id' && d.fileUrl)[0].fileName}
+                                  {kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0].fileName}
                                 </p>
                                 <Button 
                                   size="sm" 
                                   variant="outline" 
                                   className="text-xs h-6 px-2 border-slate-600 text-slate-400 hover:bg-slate-700"
                                   onClick={() => {
-                                    const doc = kycDocuments.filter(d => d.documentType === 'id' && d.fileUrl)[0];
+                                    const doc = kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0];
                                     if (doc && doc.fileUrl) {
                                       try {
-                                        console.log('Opening document:', doc.fileUrl);
-                                        window.open(doc.fileUrl, '_blank');
+                                        // Create full URL for document viewing
+                                        const fullUrl = `${window.location.origin}${doc.fileUrl}`;
+                                        window.open(fullUrl, '_blank');
                                       } catch (error) {
                                         console.error('Error opening document:', error);
                                         toast({
-                                          title: "Error Opening Document",
-                                          description: "Unable to open the document. Please try again.",
+                                          title: "Error",
+                                          description: "Unable to open document",
                                           variant: "destructive",
                                         });
                                       }
-                                    } else {
-                                      console.error('No ID document found');
-                                      toast({
-                                        title: "Document Not Found",
-                                        description: "Please upload an ID document first",
-                                        variant: "destructive",
-                                      });
                                     }
                                   }}
                                 >
@@ -618,7 +621,7 @@ export default function PlayerDashboard() {
                         </div>
                         <div className="flex items-center space-x-2">
                           {/* Only show upload/reupload if not approved or if no documents */}
-                          {(getKycDocumentStatus('id') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'id' && d.fileUrl).length === 0) && (
+                          {(getKycDocumentStatus('id') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'government_id' && d.fileUrl).length === 0) && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -627,7 +630,7 @@ export default function PlayerDashboard() {
                               className="border-slate-600 hover:bg-slate-600"
                             >
                               <Upload className="w-4 h-4 mr-1" />
-                              {kycDocuments?.filter(d => d.documentType === 'id' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
+                              {kycDocuments?.filter(d => d.documentType === 'government_id' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
                             </Button>
                           )}
                           
@@ -656,7 +659,7 @@ export default function PlayerDashboard() {
                             const file = e.target.files?.[0];
                             console.log('File input changed for ID:', { file: file?.name, hasFile: !!file });
                             if (file) {
-                              handleKycDocumentUpload('id', file);
+                              handleKycDocumentUpload('government_id', file);
                               // Reset the input value to allow re-uploading same file
                               e.target.value = '';
                             }
@@ -667,35 +670,33 @@ export default function PlayerDashboard() {
                       {/* Address Document */}
                       <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
                         <div className="flex items-center space-x-3 flex-1">
-                          {getKycStatusIcon(getKycDocumentStatus('address'))}
+                          {getKycStatusIcon(getKycDocumentStatus('utility'))}
                           <div className="flex-1">
                             <p className="text-sm font-medium text-white">Address Proof</p>
-                            <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('address')}</p>
-                            {kycDocuments?.filter(d => d.documentType === 'address').length > 0 && (
+                            <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('utility')}</p>
+                            {kycDocuments?.filter(d => d.documentType === 'utility_bill' && d.fileUrl).length > 0 && (
                               <div className="flex items-center space-x-2 mt-1">
                                 <p className="text-xs text-emerald-400">
-                                  {kycDocuments.filter(d => d.documentType === 'address')[0].fileName}
+                                  {kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl)[0].fileName}
                                 </p>
                                 <Button 
                                   size="sm" 
                                   variant="outline" 
                                   className="text-xs h-6 px-2 border-slate-600 text-slate-400 hover:bg-slate-700"
                                   onClick={() => {
-                                    const doc = kycDocuments.filter(d => d.documentType === 'address')[0];
+                                    const doc = kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl)[0];
                                     if (doc && doc.fileUrl) {
-                                      // Ensure we use the full URL path
-                                      const fullUrl = doc.fileUrl.startsWith('http') 
-                                        ? doc.fileUrl 
-                                        : `${window.location.origin}${doc.fileUrl}`;
-                                      console.log('Opening document:', fullUrl);
-                                      window.open(fullUrl, '_blank');
-                                    } else {
-                                      console.error('No Address document found');
-                                      toast({
-                                        title: "Document Not Found",
-                                        description: "Please upload an address document first",
-                                        variant: "destructive",
-                                      });
+                                      try {
+                                        const fullUrl = `${window.location.origin}${doc.fileUrl}`;
+                                        window.open(fullUrl, '_blank');
+                                      } catch (error) {
+                                        console.error('Error opening document:', error);
+                                        toast({
+                                          title: "Error",
+                                          description: "Unable to open document",
+                                          variant: "destructive",
+                                        });
+                                      }
                                     }
                                   }}
                                 >
@@ -708,7 +709,7 @@ export default function PlayerDashboard() {
                         </div>
                         <div className="flex items-center space-x-2">
                           {/* Only show upload/reupload if not approved or if no documents */}
-                          {(getKycDocumentStatus('address') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'address').length === 0) && (
+                          {(getKycDocumentStatus('utility') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'utility_bill' && d.fileUrl).length === 0) && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -717,12 +718,12 @@ export default function PlayerDashboard() {
                               className="border-slate-600 hover:bg-slate-600"
                             >
                               <Upload className="w-4 h-4 mr-1" />
-                              {kycDocuments?.filter(d => d.documentType === 'address').length > 0 ? 'Reupload' : 'Upload'}
+                              {kycDocuments?.filter(d => d.documentType === 'utility_bill' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
                             </Button>
                           )}
                           
                           {/* Show request change button if approved */}
-                          {getKycDocumentStatus('address') === 'approved' && (
+                          {getKycDocumentStatus('utility') === 'approved' && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -746,7 +747,7 @@ export default function PlayerDashboard() {
                             const file = e.target.files?.[0];
                             console.log('File input changed for Address:', { file: file?.name, hasFile: !!file });
                             if (file) {
-                              handleKycDocumentUpload('address', file);
+                              handleKycDocumentUpload('utility_bill', file);
                               // Reset the input value to allow re-uploading same file
                               e.target.value = '';
                             }
@@ -761,31 +762,29 @@ export default function PlayerDashboard() {
                           <div className="flex-1">
                             <p className="text-sm font-medium text-white">Photo</p>
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('photo')}</p>
-                            {kycDocuments?.filter(d => d.documentType === 'photo').length > 0 && (
+                            {kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 && (
                               <div className="flex items-center space-x-2 mt-1">
                                 <p className="text-xs text-emerald-400">
-                                  {kycDocuments.filter(d => d.documentType === 'photo')[0].fileName}
+                                  {kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0].fileName}
                                 </p>
                                 <Button 
                                   size="sm" 
                                   variant="outline" 
                                   className="text-xs h-6 px-2 border-slate-600 text-slate-400 hover:bg-slate-700"
                                   onClick={() => {
-                                    const doc = kycDocuments.filter(d => d.documentType === 'photo')[0];
+                                    const doc = kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0];
                                     if (doc && doc.fileUrl) {
-                                      // Ensure we use the full URL path
-                                      const fullUrl = doc.fileUrl.startsWith('http') 
-                                        ? doc.fileUrl 
-                                        : `${window.location.origin}${doc.fileUrl}`;
-                                      console.log('Opening document:', fullUrl);
-                                      window.open(fullUrl, '_blank');
-                                    } else {
-                                      console.error('No Photo document found');
-                                      toast({
-                                        title: "Document Not Found",
-                                        description: "Please upload a photo document first",
-                                        variant: "destructive",
-                                      });
+                                      try {
+                                        const fullUrl = `${window.location.origin}${doc.fileUrl}`;
+                                        window.open(fullUrl, '_blank');
+                                      } catch (error) {
+                                        console.error('Error opening document:', error);
+                                        toast({
+                                          title: "Error",
+                                          description: "Unable to open document",
+                                          variant: "destructive",
+                                        });
+                                      }
                                     }
                                   }}
                                 >
@@ -798,7 +797,7 @@ export default function PlayerDashboard() {
                         </div>
                         <div className="flex items-center space-x-2">
                           {/* Only show upload/reupload if not approved or if no documents */}
-                          {(getKycDocumentStatus('photo') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'photo').length === 0) && (
+                          {(getKycDocumentStatus('photo') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length === 0) && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -807,7 +806,7 @@ export default function PlayerDashboard() {
                               className="border-slate-600 hover:bg-slate-600"
                             >
                               <Upload className="w-4 h-4 mr-1" />
-                              {kycDocuments?.filter(d => d.documentType === 'photo').length > 0 ? 'Reupload' : 'Upload'}
+                              {kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
                             </Button>
                           )}
                           
@@ -836,7 +835,7 @@ export default function PlayerDashboard() {
                             const file = e.target.files?.[0];
                             console.log('File input changed for Photo:', { file: file?.name, hasFile: !!file });
                             if (file) {
-                              handleKycDocumentUpload('photo', file);
+                              handleKycDocumentUpload('profile_photo', file);
                               // Reset the input value to allow re-uploading same file
                               e.target.value = '';
                             }
