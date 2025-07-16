@@ -30,13 +30,13 @@ export function useAuth() {
   useEffect(() => {
     let mounted = true;
 
-    // Force loading to false after 10 seconds to prevent infinite loading
+    // Force loading to false after 5 seconds to prevent infinite loading
     const forceTimeout = setTimeout(() => {
       if (mounted) {
         console.log('Force timeout - ending loading state');
         setLoading(false);
       }
-    }, 10000);
+    }, 5000);
 
     // Check current session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -88,13 +88,14 @@ export function useAuth() {
     }
     
     try {
-      // Fetch player data using Supabase ID with extended timeout
+      // Fetch player data using Supabase ID with shorter timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       
       const response = await fetch(`/api/players/supabase/${supabaseUserId}`, {
         signal: controller.signal,
-        credentials: 'include'
+        credentials: 'include',
+        cache: 'no-cache'
       });
       
       clearTimeout(timeoutId);
@@ -115,8 +116,10 @@ export function useAuth() {
     } catch (error) {
       console.error('Error fetching user data:', error);
       
-      // If the player doesn't exist in our database, sign them out
-      if (error?.message && error.message.includes('404')) {
+      // Handle different error types
+      if (error?.name === 'AbortError') {
+        console.log('Fetch aborted due to timeout');
+      } else if (error?.message && error.message.includes('404')) {
         console.log('Player not found in database, signing out');
         try {
           await supabase.auth.signOut();

@@ -45,7 +45,9 @@ export default function PlayerDashboard() {
   // Fetch live tables with reduced frequency
   const { data: tables, isLoading: tablesLoading } = useQuery<TableType[]>({
     queryKey: ['/api/tables'],
-    refetchInterval: 10000, // Refresh every 10 seconds instead of 5
+    refetchInterval: 2000, // Refresh every 2 seconds for live data sync
+    refetchOnWindowFocus: true, // Refresh when window gains focus
+    staleTime: 0, // Always consider data stale for fresh updates
   });
 
   // Fetch seat requests with reduced frequency

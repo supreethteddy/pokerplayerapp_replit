@@ -102,6 +102,11 @@ This player portal is designed to work alongside an existing admin dashboard, sh
 ✅ **Authentic File Serving**: All document types (government_id, utility_bill, profile_photo) now serve actual uploaded files
 ✅ **Legacy Document Support**: Enhanced document viewing to handle legacy URL formats and file timestamp mapping
 ✅ **Staff Portal KYC Review**: Staff can now view all player KYC documents with approval/rejection capabilities and real-time sync
+✅ **ENHANCED LIVE TABLE SYNC**: Fixed table synchronization to fetch directly from Supabase with 2-second refresh intervals
+✅ **Direct Supabase Table Queries**: Bypassed intermediate storage layers for real-time table data from staff portal
+✅ **Improved Authentication System**: Reduced timeout issues and added better error handling for login/session management
+✅ **Document Viewing Popup Handling**: Added fallback mechanisms when browser blocks new tab document viewing
+✅ **Real-Time Data Sync**: All table data now refreshes every 2 seconds ensuring live updates from staff portal changes
 
 ## User Preferences
 

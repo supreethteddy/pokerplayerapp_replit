@@ -376,9 +376,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Tables routes
   app.get("/api/tables", async (req, res) => {
     try {
-      const tables = await supabaseOnlyStorage.getTables();
-      res.json(tables);
+      console.log('[TABLES] Fetching live tables from Supabase');
+      
+      // Direct Supabase query to ensure real-time data
+      const { data: tables, error } = await supabase
+        .from('tables')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('[TABLES] Error fetching tables:', error);
+        return res.status(500).json({ error: error.message });
+      }
+      
+      // Transform the data to match frontend expectations
+      const transformedTables = tables?.map(table => ({
+        id: table.id,
+        name: table.name,
+        gameType: table.game_type,
+        stakes: table.stakes,
+        maxPlayers: table.max_players,
+        currentPlayers: table.current_players || 0,
+        pot: table.pot || 0,
+        avgStack: table.avg_stack || 0,
+        isActive: table.is_active,
+        createdAt: table.created_at
+      })) || [];
+      
+      console.log(`[TABLES] Returning ${transformedTables.length} active tables`);
+      res.json(transformedTables);
     } catch (error: any) {
+      console.error('[TABLES] Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
