@@ -38,6 +38,8 @@ export class SupabaseOnlyStorage implements IStorage {
 
   async getPlayerByEmail(email: string): Promise<Player | undefined> {
     console.log('SupabaseOnlyStorage: Searching for player with email:', email);
+    
+    // Force fresh data without cache
     const { data, error } = await supabase
       .from('players')
       .select('*')
@@ -49,6 +51,7 @@ export class SupabaseOnlyStorage implements IStorage {
       return undefined;
     }
     
+    console.log('SupabaseOnlyStorage: Raw data from DB:', data);
     const player = this.transformPlayerFromSupabase(data);
     console.log('SupabaseOnlyStorage: Found player:', player);
     return player;
@@ -309,7 +312,8 @@ export class SupabaseOnlyStorage implements IStorage {
 
   // Transform functions to convert between Supabase snake_case and camelCase
   private transformPlayerFromSupabase(data: any): Player {
-    return {
+    console.log('SupabaseOnlyStorage: transformPlayerFromSupabase input:', data);
+    const transformed = {
       id: data.id,
       email: data.email,
       password: data.password,
@@ -326,6 +330,8 @@ export class SupabaseOnlyStorage implements IStorage {
       hoursPlayed: data.hours_played,
       createdAt: new Date(data.created_at)
     };
+    console.log('SupabaseOnlyStorage: transformPlayerFromSupabase output:', transformed);
+    return transformed;
   }
 
   private transformPlayerToSupabase(player: any): any {
