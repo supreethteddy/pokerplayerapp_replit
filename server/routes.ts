@@ -55,6 +55,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Cache Management - Fix orphaned player
+  app.post("/api/fix-orphaned-player/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      console.log('🔧 Route: Fixing orphaned player:', playerId);
+      
+      const { cacheManager } = await import('./cache-management');
+      const result = await cacheManager.fixPlayerWithMissingSupabaseId(playerId);
+      
+      if (result.success) {
+        res.json({ success: true, supabaseId: result.supabaseId });
+      } else {
+        res.status(400).json({ error: 'Failed to fix player' });
+      }
+    } catch (error: any) {
+      console.error('🔧 Route: Error fixing orphaned player:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Cache Management - Delete orphaned player
+  app.delete("/api/orphaned-player/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      console.log('🗑️ Route: Deleting orphaned player:', playerId);
+      
+      // Import database
+      const { db } = await import('./db');
+      const { players } = await import('../shared/schema');
+      const { eq } = await import('drizzle-orm');
+      
+      // Delete from database
+      await db.delete(players).where(eq(players.id, playerId));
+      
+      res.json({ success: true, message: 'Orphaned player deleted' });
+    } catch (error: any) {
+      console.error('🗑️ Route: Error deleting orphaned player:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Cache Management - Check cache status
+  app.get("/api/cache-status", async (req, res) => {
+    try {
+      console.log('📊 Route: Checking cache status');
+      
+      const { cacheManager } = await import('./cache-management');
+      const { dbStorage } = await import('./database');
+      
+      // Get all players
+      const allPlayers = await dbStorage.getAllPlayers();
+      
+      // Check for orphaned players
+      let orphanedCount = 0;
+      let validCount = 0;
+      
+      for (const player of allPlayers) {
+        if (!player.supabaseId) {
+          orphanedCount++;
+        } else {
+          const supabaseExists = await cacheManager.verifySupabaseUserExists(player.supabaseId);
+          if (!supabaseExists) {
+            orphanedCount++;
+          } else {
+            validCount++;
+          }
+        }
+      }
+      
+      res.json({
+        totalPlayers: allPlayers.length,
+        validPlayers: validCount,
+        orphanedPlayers: orphanedCount,
+        cacheSystemStatus: 'active',
+        lastChecked: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error('📊 Route: Error checking cache status:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Test endpoint to create via Supabase client
   app.post("/api/test-supabase-insert", async (req, res) => {
     try {
@@ -77,17 +159,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Player routes - Updated to use unified player system
+  // Player routes - Updated to use unified player system with cache management
   app.post("/api/players", async (req, res) => {
     try {
       const playerData = insertPlayerSchema.parse(req.body);
       
       console.log('🆔 Route: Creating player with unified system:', playerData);
       
-      // Check if player already exists
-      const existingPlayer = await unifiedPlayerSystem.getPlayerByEmail(playerData.email);
-      if (existingPlayer) {
-        console.log(`🆔 Registration attempt for existing email: ${playerData.email} (ID: ${existingPlayer.id})`);
+      // Import cache manager
+      const { cacheManager } = await import('./cache-management');
+      
+      // Check if email is available using cache management
+      const isAvailable = await cacheManager.isEmailAvailable(playerData.email);
+      if (!isAvailable) {
+        console.log(`🆔 Registration blocked - email not available: ${playerData.email}`);
         return res.status(409).json({ error: "Account with this email already exists" });
       }
       

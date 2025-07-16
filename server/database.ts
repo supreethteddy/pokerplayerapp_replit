@@ -257,6 +257,14 @@ export class DatabaseStorage implements IStorage {
       return result.rows[0] as Player;
     }
   }
+
+  async updatePlayerSupabaseId(playerId: number, supabaseId: string): Promise<Player> {
+    const [updatedPlayer] = await db.update(players).set({ supabaseId }).where(eq(players.id, playerId)).returning();
+    if (!updatedPlayer) {
+      throw new Error('Player not found');
+    }
+    return updatedPlayer;
+  }
 }
 
 export const dbStorage = new DatabaseStorage();
