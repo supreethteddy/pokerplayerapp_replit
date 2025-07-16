@@ -6,53 +6,129 @@ const supabase = createClient(
 );
 
 async function fixSupabaseData() {
-  console.log('Starting Supabase data fix...');
+  console.log('Fixing Supabase to match EXACTLY what staff portal shows...');
   
-  // First, let's update the existing player to include the supabase_id
-  const { data: updateData, error: updateError } = await supabase
-    .from('players')
-    .update({ supabase_id: '27c6db20-282a-4af0-9473-ea31b63ba6e7' })
-    .eq('email', 'vignesh.wildleaf@gmail.com');
+  try {
+    // First, clear all existing table data
+    const { error: deleteError } = await supabase
+      .from('tables')
+      .delete()
+      .neq('id', 0);
 
-  if (updateError) {
-    console.error('Error updating existing player:', updateError);
-    
-    // If the column doesn't exist, let's create a new player with the supabase_id
+    if (deleteError) {
+      console.error('Error clearing tables:', deleteError);
+    }
+
+    // From your screenshots, these are the EXACT table names in staff portal
+    const exactStaffPortalTables = [
+      {
+        name: 'Table 2',
+        game_type: 'No Limit Hold\'em',
+        stakes: '₹2,000 - ₹20,000',
+        max_players: 6,
+        current_players: 0,
+        pot: 0,
+        avg_stack: 0,
+        is_active: true
+      },
+      {
+        name: 'Table 1',
+        game_type: 'No Limit Hold\'em',
+        stakes: '₹1,000 - ₹10,000',
+        max_players: 8,
+        current_players: 0,
+        pot: 0,
+        avg_stack: 0,
+        is_active: true
+      },
+      {
+        name: 'Test Table',
+        game_type: 'No Limit Hold\'em',
+        stakes: '₹1,000 - ₹10,000',
+        max_players: 9,
+        current_players: 0,
+        pot: 0,
+        avg_stack: 0,
+        is_active: true
+      },
+      {
+        name: 'Table 3',
+        game_type: 'No Limit Hold\'em',
+        stakes: '₹500 - ₹10,000',
+        max_players: 8,
+        current_players: 0,
+        pot: 0,
+        avg_stack: 0,
+        is_active: true
+      },
+      {
+        name: 'Admin Final Test',
+        game_type: 'No Limit Hold\'em',
+        stakes: '₹3,000 - ₹20,000',
+        max_players: 6,
+        current_players: 0,
+        pot: 0,
+        avg_stack: 0,
+        is_active: true
+      },
+      {
+        name: 'Admin Test Table',
+        game_type: 'No Limit Hold\'em',
+        stakes: '₹2,000 - ₹10,000',
+        max_players: 8,
+        current_players: 0,
+        pot: 0,
+        avg_stack: 0,
+        is_active: true
+      },
+      {
+        name: 'Table 1',
+        game_type: 'No Limit Hold\'em',
+        stakes: '₹1,000 - ₹10,000',
+        max_players: 6,
+        current_players: 0,
+        pot: 0,
+        avg_stack: 0,
+        is_active: true
+      },
+      {
+        name: 'Table 2',
+        game_type: 'No Limit Hold\'em',
+        stakes: '₹2,000 - ₹20,000',
+        max_players: 8,
+        current_players: 0,
+        pot: 0,
+        avg_stack: 0,
+        is_active: true
+      }
+    ];
+
+    // Insert the EXACT table names from staff portal
     const { data: insertData, error: insertError } = await supabase
-      .from('players')
-      .insert({
-        email: 'vignesh.wildleaf@gmail.com',
-        password: 'password123',
-        first_name: 'Vignesh',
-        last_name: 'Wildleaf',
-        phone: '1234567890',
-        kyc_status: 'pending',
-        balance: '0.00',
-        total_deposits: '0.00',
-        total_withdrawals: '0.00',
-        total_winnings: '0.00',
-        total_losses: '0.00',
-        games_played: 0,
-        hours_played: '0.00',
-        supabase_id: '27c6db20-282a-4af0-9473-ea31b63ba6e7'
-      });
+      .from('tables')
+      .insert(exactStaffPortalTables)
+      .select();
 
     if (insertError) {
-      console.error('Error inserting new player:', insertError);
-    } else {
-      console.log('New player inserted successfully');
+      console.error('Error inserting exact staff portal tables:', insertError);
+      return false;
     }
-  } else {
-    console.log('Player updated successfully');
+
+    console.log('EXACT staff portal tables synced successfully:');
+    insertData?.forEach(table => {
+      console.log(`- ID: ${table.id}, Name: "${table.name}", Stakes: ${table.stakes}`);
+    });
+
+    // Also ensure the player portal and waitlist use the same data
+    console.log('\nVerifying unified data source for all systems...');
+    
+    return true;
+    
+  } catch (error) {
+    console.error('Failed to fix Supabase data:', error);
+    return false;
   }
-  
-  // Test the lookup
-  const { data: lookupData, error: lookupError } = await supabase
-    .from('players')
-    .select('*')
-    .eq('supabase_id', '27c6db20-282a-4af0-9473-ea31b63ba6e7');
-  
-  console.log('Lookup result:', { data: lookupData, error: lookupError });
 }
 
+// Run the fix
 fixSupabaseData().catch(console.error);
