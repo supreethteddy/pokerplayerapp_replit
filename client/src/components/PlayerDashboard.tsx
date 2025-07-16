@@ -588,12 +588,21 @@ export default function PlayerDashboard() {
                                   onClick={() => {
                                     const doc = kycDocuments.filter(d => d.documentType === 'id')[0];
                                     if (doc && doc.fileUrl) {
-                                      // Ensure we use the full URL path
-                                      const fullUrl = doc.fileUrl.startsWith('http') 
-                                        ? doc.fileUrl 
-                                        : `${window.location.origin}${doc.fileUrl}`;
-                                      console.log('Opening document:', fullUrl);
-                                      window.open(fullUrl, '_blank');
+                                      try {
+                                        // Ensure we use the full URL path
+                                        const fullUrl = doc.fileUrl.startsWith('http') 
+                                          ? doc.fileUrl 
+                                          : `${window.location.origin}${doc.fileUrl}`;
+                                        console.log('Opening document:', fullUrl);
+                                        window.open(fullUrl, '_blank');
+                                      } catch (error) {
+                                        console.error('Error opening document:', error);
+                                        toast({
+                                          title: "Error Opening Document",
+                                          description: "Unable to open the document. Please try again.",
+                                          variant: "destructive",
+                                        });
+                                      }
                                     } else {
                                       console.error('No ID document found');
                                       toast({

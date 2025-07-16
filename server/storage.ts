@@ -41,6 +41,7 @@ export interface IStorage {
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
   getTransactionsByPlayer(playerId: number): Promise<Transaction[]>;
   updatePlayerBalance(playerId: number, amount: string, type: 'deposit' | 'withdrawal' | 'win' | 'loss', description?: string, staffId?: string): Promise<Player>;
+  updatePlayerKycStatus(playerId: number, kycStatus: string): Promise<Player>;
 }
 
 export class MemStorage implements IStorage {
@@ -233,6 +234,18 @@ export class MemStorage implements IStorage {
       status: 'completed'
     });
 
+    return updatedPlayer;
+  }
+
+  async updatePlayerKycStatus(playerId: number, kycStatus: string): Promise<Player> {
+    const player = await this.getPlayer(playerId);
+    if (!player) {
+      throw new Error('Player not found');
+    }
+
+    const updatedPlayer = { ...player, kycStatus };
+    this.players.set(playerId, updatedPlayer);
+    
     return updatedPlayer;
   }
 }

@@ -57,11 +57,13 @@ export function useAuth() {
       console.log('Auth state changed:', event, session?.user ? 'User present' : 'No user');
       
       try {
-        if (event === 'SIGNED_IN' && session?.user) {
+        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
           await fetchUserData(session.user.id);
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
           queryClient.clear();
+          setLoading(false);
+        } else if (event === 'INITIAL_SESSION' && !session?.user) {
           setLoading(false);
         }
       } catch (error) {

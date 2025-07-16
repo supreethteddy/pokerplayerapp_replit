@@ -7,6 +7,7 @@ import { supabaseStorage } from "./supabase-storage";
 import { dbStorage } from "./database";
 import { databaseSync } from "./sync";
 import { supabaseDocumentStorage } from "./supabase-document-storage";
+import { storage } from "./storage";
 import { insertPlayerSchema, insertPlayerPrefsSchema, insertSeatRequestSchema, insertKycDocumentSchema, insertTransactionSchema, players, playerPrefs, seatRequests, kycDocuments, transactions } from "@shared/schema";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
@@ -1130,7 +1131,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ error: error.message });
       }
       
+      // Also update the player's KYC status in the database
+      if (status === 'approved') {
+        try {
+          const { error: playerError } = await supabase
+            .from('players')
+            .update({ kyc_status: 'approved' })
+            .eq('id', playerId);
+          
+          if (playerError) {
+            console.error('Error updating player KYC status:', playerError);
+          }
+        } catch (playerUpdateError) {
+          console.error('Error updating player KYC status:', playerUpdateError);
+        }
+      }
+      
       res.json({ success: true, message: `KYC documents updated to ${status || 'approved'}` });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Add endpoint to update player KYC status
+  app.post("/api/players/:playerId/kyc-status", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const { kycStatus } = req.body;
+      
+      // Update player's KYC status in memory storage (bypass database trigger issue)
+      const updatedPlayer = await storage.updatePlayerKycStatus(playerId, kycStatus);
+      
+      res.json({ success: true, message: `Player KYC status updated to ${kycStatus}`, player: updatedPlayer });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

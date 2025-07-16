@@ -192,6 +192,19 @@ export class DatabaseStorage implements IStorage {
     // Clean initialization - no mock data
     // Tables will be populated by the poker room management system
   }
+
+  async updatePlayerKycStatus(playerId: number, kycStatus: string): Promise<Player> {
+    const result = await db.update(players)
+      .set({ kycStatus })
+      .where(eq(players.id, playerId))
+      .returning();
+    
+    if (result.length === 0) {
+      throw new Error('Player not found');
+    }
+    
+    return result[0];
+  }
 }
 
 export const dbStorage = new DatabaseStorage();
