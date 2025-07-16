@@ -340,7 +340,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/player-prefs", async (req, res) => {
     try {
       const prefsData = insertPlayerPrefsSchema.parse(req.body);
-      const prefs = await supabaseOnlyStorage.createPlayerPrefs(prefsData);
+      const { dbStorage } = await import('./database');
+      const prefs = await dbStorage.createPlayerPrefs(prefsData);
       res.json(prefs);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
