@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import { nanoid } from 'nanoid';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -12,7 +11,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export interface SupabaseDocumentRecord {
-  id: string;
+  id: number;
   playerId: number;
   documentType: string;
   fileName: string;
@@ -55,9 +54,10 @@ export class SupabaseDocumentStorage {
 
   async uploadDocument(playerId: number, documentType: string, fileName: string, dataUrl: string): Promise<SupabaseDocumentRecord> {
     try {
-      // Generate unique file name
+      // Generate unique file name using timestamp
       const fileExtension = fileName.split('.').pop();
-      const uniqueFileName = `${playerId}/${documentType}/${nanoid()}.${fileExtension}`;
+      const timestamp = Date.now();
+      const uniqueFileName = `${playerId}/${documentType}/${timestamp}.${fileExtension}`;
 
       // Convert data URL to file buffer
       const base64Data = dataUrl.split(',')[1];
@@ -81,30 +81,18 @@ export class SupabaseDocumentStorage {
         .from(this.bucketName)
         .getPublicUrl(uniqueFileName);
 
-      // Create document record in database
-      const documentId = nanoid();
-      const document: SupabaseDocumentRecord = {
-        id: documentId,
-        playerId,
-        documentType,
-        fileName,
-        fileUrl: urlData.publicUrl,
-        status: 'pending',
-        createdAt: new Date()
-      };
-
-      // Store document metadata in Supabase database
-      const { error: dbError } = await supabase
+      // Store document metadata in Supabase database (ID will be auto-generated)
+      const { data: dbData, error: dbError } = await supabase
         .from('kyc_documents')
         .insert({
-          id: documentId,
           player_id: playerId,
           document_type: documentType,
           file_name: fileName,
           file_url: urlData.publicUrl,
-          status: 'pending',
-          created_at: new Date().toISOString()
-        });
+          status: 'pending'
+        })
+        .select()
+        .single();
 
       if (dbError) {
         // If database insert fails, clean up the uploaded file
@@ -114,7 +102,18 @@ export class SupabaseDocumentStorage {
         throw new Error(`Failed to save document metadata: ${dbError.message}`);
       }
 
-      console.log(`✅ Document uploaded to Supabase: ${documentId}`);
+      // Create document record with auto-generated ID
+      const document: SupabaseDocumentRecord = {
+        id: dbData.id,
+        playerId: dbData.player_id,
+        documentType: dbData.document_type,
+        fileName: dbData.file_name,
+        fileUrl: dbData.file_url,
+        status: dbData.status,
+        createdAt: new Date(dbData.created_at)
+      };
+
+      console.log(`✅ Document uploaded to Supabase: ${dbData.id}`);
       return document;
 
     } catch (error: any) {
