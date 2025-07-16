@@ -399,10 +399,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Parse and validate request body
       let kycData;
       try {
+        console.log('📋 [KYC Upload] Request body:', JSON.stringify(req.body, null, 2));
         kycData = insertKycDocumentSchema.parse(req.body);
         addStep('schema_validation_passed');
+        console.log('📋 [KYC Upload] Schema validation passed for:', { playerId: kycData.playerId, documentType: kycData.documentType });
       } catch (error) {
         addStep('schema_validation_failed', { error: error.message });
+        console.error('📋 [KYC Upload] Schema validation failed:', error);
         return res.status(400).json({ 
           error: "Invalid request data",
           details: error.message,
@@ -443,6 +446,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create KYC document directly in Supabase using dbStorage
       try {
+        console.log('📋 [KYC Upload] Calling uploadDocument with:', { 
+          playerId: kycData.playerId, 
+          documentType: kycData.documentType, 
+          fileName: kycData.fileName, 
+          fileUrlLength: kycData.fileUrl?.length || 0
+        });
         const document = await supabaseDocumentStorage.uploadDocument(kycData.playerId, kycData.documentType, kycData.fileName, kycData.fileUrl);
         
         addStep('database_record_created', { documentId: document.id });
