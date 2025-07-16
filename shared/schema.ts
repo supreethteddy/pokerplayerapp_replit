@@ -5,6 +5,7 @@ import { z } from "zod";
 export const players = pgTable("players", {
   id: serial("id").primaryKey(),
   supabaseId: text("supabase_id").notNull().unique(), // Link to Supabase auth.users.id
+  universalId: text("universal_id").unique(), // Enterprise-grade universal ID for cross-portal sync
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   firstName: text("first_name").notNull(),
@@ -44,6 +45,7 @@ export const tables = pgTable("tables", {
 
 export const seatRequests = pgTable("seat_requests", {
   id: serial("id").primaryKey(),
+  universalId: text("universal_id").unique(), // Enterprise-grade universal ID
   playerId: integer("player_id").references(() => players.id),
   tableId: integer("table_id").references(() => tables.id),
   status: text("status").notNull().default("waiting"), // waiting, approved, rejected
@@ -64,12 +66,24 @@ export const kycDocuments = pgTable("kyc_documents", {
 
 export const transactions = pgTable("transactions", {
   id: serial("id").primaryKey(),
+  universalId: text("universal_id").unique(), // Enterprise-grade universal ID
   playerId: integer("player_id").references(() => players.id),
   type: text("type").notNull(), // deposit, withdrawal, win, loss
   amount: text("amount").notNull(),
   description: text("description"),
   staffId: text("staff_id"), // For cashier transactions
   status: text("status").notNull().default("completed"), // completed, pending, cancelled
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Enterprise-grade sync activity log for cross-portal integration
+export const syncActivityLog = pgTable("sync_activity_log", {
+  id: serial("id").primaryKey(),
+  entityType: text("entity_type").notNull(), // player, transaction, seat_request, etc.
+  action: text("action").notNull(), // create, update, delete, sync
+  entityUniversalId: text("entity_universal_id"),
+  entityData: jsonb("entity_data"),
+  portalOrigin: text("portal_origin").notNull().default("player_portal"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -99,6 +113,11 @@ export const insertTransactionSchema = createInsertSchema(transactions).omit({
   createdAt: true,
 });
 
+export const insertSyncActivityLogSchema = createInsertSchema(syncActivityLog).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type Player = typeof players.$inferSelect;
 export type InsertPlayer = z.infer<typeof insertPlayerSchema>;
 export type PlayerPrefs = typeof playerPrefs.$inferSelect;
@@ -110,3 +129,5 @@ export type KycDocument = typeof kycDocuments.$inferSelect;
 export type InsertKycDocument = z.infer<typeof insertKycDocumentSchema>;
 export type Transaction = typeof transactions.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
+export type SyncActivityLog = typeof syncActivityLog.$inferSelect;
+export type InsertSyncActivityLog = z.infer<typeof insertSyncActivityLogSchema>;

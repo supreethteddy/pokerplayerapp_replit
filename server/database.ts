@@ -52,12 +52,13 @@ export class DatabaseStorage implements IStorage {
     console.log('DatabaseStorage: Creating player with data:', player);
     
     try {
-      const [newPlayer] = await db
-        .insert(players)
-        .values(player)
-        .returning();
+      // Import universal system for enterprise-grade ID management
+      const { universalSystem } = await import('./universal-system');
       
-      console.log('DatabaseStorage: Player created successfully:', newPlayer);
+      // Create player with universal ID system
+      const newPlayer = await universalSystem.createPlayerWithUniversalId(player);
+      
+      console.log('DatabaseStorage: Player created successfully with universal ID:', newPlayer);
       return newPlayer;
     } catch (error: any) {
       console.error('DatabaseStorage: Error creating player:', error);
@@ -130,8 +131,19 @@ export class DatabaseStorage implements IStorage {
 
   // Seat request operations
   async createSeatRequest(request: InsertSeatRequest): Promise<SeatRequest> {
-    const result = await db.insert(seatRequests).values(request).returning();
-    return result[0];
+    try {
+      // Import universal system for enterprise-grade ID management
+      const { universalSystem } = await import('./universal-system');
+      
+      // Create seat request with universal ID system
+      const newRequest = await universalSystem.createSeatRequestWithUniversalId(request);
+      
+      console.log('DatabaseStorage: Seat request created with universal ID:', newRequest);
+      return newRequest;
+    } catch (error: any) {
+      console.error('DatabaseStorage: Error creating seat request:', error);
+      throw error;
+    }
   }
 
   async getSeatRequestsByPlayer(playerId: number): Promise<SeatRequest[]> {
@@ -159,8 +171,19 @@ export class DatabaseStorage implements IStorage {
 
   // Transaction operations
   async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
-    const result = await db.insert(transactions).values(transaction).returning();
-    return result[0];
+    try {
+      // Import universal system for enterprise-grade ID management
+      const { universalSystem } = await import('./universal-system');
+      
+      // Create transaction with universal ID system
+      const newTransaction = await universalSystem.createTransactionWithUniversalId(transaction);
+      
+      console.log('DatabaseStorage: Transaction created with universal ID:', newTransaction);
+      return newTransaction;
+    } catch (error: any) {
+      console.error('DatabaseStorage: Error creating transaction:', error);
+      throw error;
+    }
   }
 
   async getTransactionsByPlayer(playerId: number): Promise<Transaction[]> {

@@ -55,6 +55,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Universal System - Enterprise-grade health check
+  app.get("/api/universal-health", async (req, res) => {
+    try {
+      console.log('🌐 Route: Checking universal system health');
+      
+      const { universalSystem } = await import('./universal-system');
+      const healthStatus = await universalSystem.checkUniversalHealth();
+      
+      res.json(healthStatus);
+    } catch (error: any) {
+      console.error('🌐 Route: Error checking universal health:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Universal System - Migration utility
+  app.post("/api/migrate-universal-ids", async (req, res) => {
+    try {
+      console.log('🔄 Route: Starting universal ID migration');
+      
+      const { universalSystem } = await import('./universal-system');
+      await universalSystem.migrateExistingRecords();
+      
+      res.json({ success: true, message: 'Universal ID migration completed' });
+    } catch (error: any) {
+      console.error('🔄 Route: Error migrating universal IDs:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Universal System - Get player by universal ID
+  app.get("/api/players/universal/:universalId", async (req, res) => {
+    try {
+      console.log('🔍 Route: Getting player by universal ID:', req.params.universalId);
+      
+      const { universalSystem } = await import('./universal-system');
+      const player = await universalSystem.getPlayerByUniversalId(req.params.universalId);
+      
+      if (!player) {
+        return res.status(404).json({ error: 'Player not found' });
+      }
+      
+      res.json(player);
+    } catch (error: any) {
+      console.error('🔍 Route: Error getting player by universal ID:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Cache Management - Fix orphaned player
   app.post("/api/fix-orphaned-player/:playerId", async (req, res) => {
     try {
@@ -183,14 +232,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create player with unified system
       const player = await unifiedPlayerSystem.createPlayer(supabaseId, playerData);
       
-      // Create default preferences
+      // Create default preferences using database storage
+      const { dbStorage } = await import('./database');
       const defaultPrefs = {
         playerId: player.id,
         seatAvailable: true,
         callTimeWarning: true,
         gameUpdates: true
       };
-      await supabaseOnlyStorage.createPlayerPrefs(defaultPrefs);
+      await dbStorage.createPlayerPrefs(defaultPrefs);
       
       console.log('🆔 Route: Player created successfully - App ID:', player.id, 'Supabase ID:', player.supabaseId);
       res.json(player);
