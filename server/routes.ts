@@ -376,14 +376,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Tables routes
   app.get("/api/tables", async (req, res) => {
     try {
-      console.log('[TABLES] Fetching live tables from Supabase');
+      // console.log('[TABLES] Fetching live tables from Supabase'); // Reduced logging for performance
       
       // Direct Supabase query to ensure real-time data
       const { data: tables, error } = await supabase
         .from('tables')
         .select('*')
         .eq('is_active', true)
-        .order('created_at', { ascending: false });
+        .order('id', { ascending: false });
       
       if (error) {
         console.error('[TABLES] Error fetching tables:', error);
@@ -401,10 +401,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pot: table.pot || 0,
         avgStack: table.avg_stack || 0,
         isActive: table.is_active,
-        createdAt: table.created_at
+        createdAt: new Date().toISOString()
       })) || [];
       
-      console.log(`[TABLES] Returning ${transformedTables.length} active tables`);
+      // console.log(`[TABLES] Returning ${transformedTables.length} active tables`); // Reduced logging for performance
       res.json(transformedTables);
     } catch (error: any) {
       console.error('[TABLES] Error:', error);

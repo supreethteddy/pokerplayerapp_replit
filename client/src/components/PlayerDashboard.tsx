@@ -42,19 +42,23 @@ export default function PlayerDashboard() {
   const [callTime, setCallTime] = useState("02:45");
   // Document viewer removed as per requirements
 
-  // Fetch live tables with reduced frequency
+  // Fetch live tables with optimized settings
   const { data: tables, isLoading: tablesLoading } = useQuery<TableType[]>({
     queryKey: ['/api/tables'],
-    refetchInterval: 2000, // Refresh every 2 seconds for live data sync
+    refetchInterval: 1500, // Refresh every 1.5 seconds for ultra-fast sync
     refetchOnWindowFocus: true, // Refresh when window gains focus
+    refetchOnMount: true, // Always refetch on mount
     staleTime: 0, // Always consider data stale for fresh updates
+    cacheTime: 0, // Don't cache old data
   });
 
   // Fetch seat requests with reduced frequency
   const { data: seatRequests, isLoading: requestsLoading } = useQuery<SeatRequest[]>({
     queryKey: ['/api/seat-requests', user?.id],
     enabled: !!user?.id,
-    refetchInterval: 5000, // Refresh every 5 seconds instead of 2
+    refetchInterval: 1500, // Refresh every 1.5 seconds for ultra-fast sync
+    refetchOnWindowFocus: true,
+    staleTime: 0, // Always get fresh data
   });
 
   // Preferences removed as per requirements
