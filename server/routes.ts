@@ -256,7 +256,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/players/:id", async (req, res) => {
     try {
-      const player = await supabaseOnlyStorage.getPlayer(parseInt(req.params.id));
+      const { dbStorage } = await import('./database');
+      const player = await dbStorage.getPlayer(parseInt(req.params.id));
       if (!player) {
         return res.status(404).json({ error: "Player not found" });
       }
