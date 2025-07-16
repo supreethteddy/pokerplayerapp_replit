@@ -360,6 +360,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test endpoint to debug tables data
+  app.get("/api/test-supabase-tables", async (req, res) => {
+    try {
+      const { data, error } = await supabase.from('tables').select('*');
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+      res.json({ success: true, data });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Tables routes
   app.get("/api/tables", async (req, res) => {
     try {

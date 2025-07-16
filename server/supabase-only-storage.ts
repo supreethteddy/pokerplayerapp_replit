@@ -432,14 +432,13 @@ export class SupabaseOnlyStorage implements IStorage {
       id: data.id,
       name: data.name,
       gameType: data.game_type,
-      minBuyIn: data.min_buy_in,
-      maxBuyIn: data.max_buy_in,
-      smallBlind: data.small_blind,
-      bigBlind: data.big_blind,
+      stakes: data.stakes,
       maxPlayers: data.max_players,
       currentPlayers: data.current_players,
+      pot: data.pot,
+      avgStack: data.avg_stack,
       isActive: data.is_active,
-      createdAt: new Date(data.created_at)
+      createdAt: data.created_at ? new Date(data.created_at) : new Date()
     };
   }
 
