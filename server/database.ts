@@ -22,9 +22,9 @@ import {
 import { eq, and, sql } from 'drizzle-orm';
 import type { IStorage } from './storage';
 
-// SUPABASE ONLY - Neon database permanently disabled
-const connectionString = "postgresql://postgres.oyhnpnymlezjusnwpjeu:Shetty1234%21%40%23-@aws-0-ap-south-1.pooler.supabase.com:5432/postgres";
-console.log('🔗 Connected to Supabase database (Neon disabled)');
+// SUPABASE ONLY - Single source of truth
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres.oyhnpnymlezjusnwpjeu:Shetty1234%21%40%23-@aws-0-ap-south-1.pooler.supabase.com:5432/postgres";
+console.log('🔗 Connected to Supabase database (single source of truth)');
 const client = postgres(connectionString);
 export const db = drizzle(client);
 
@@ -51,6 +51,10 @@ export class DatabaseStorage implements IStorage {
   async createPlayer(player: InsertPlayer): Promise<Player> {
     const result = await db.insert(players).values(player).returning();
     return result[0];
+  }
+
+  async getAllPlayers(): Promise<Player[]> {
+    return await db.select().from(players);
   }
 
   // Player preferences operations
