@@ -769,12 +769,166 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }, 60 * 60 * 1000);
 
+  // Real-time KYC document sync endpoint for Staff Portal integration
+  app.get("/api/staff/kyc-documents/player/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      console.log(`[STAFF-KYC] Getting documents for player: ${playerId}`);
+      
+      // Get documents from database with enhanced staff info
+      const { data: documents, error } = await supabase
+        .from('kyc_documents')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error(`[STAFF-KYC] Database error:`, error);
+        return res.status(500).json({ error: error.message });
+      }
+      
+      // Get player info for context
+      const { data: player } = await supabase
+        .from('players')
+        .select('first_name, last_name, email, kyc_status')
+        .eq('id', playerId)
+        .single();
+      
+      // Transform documents with staff-specific information
+      const transformedDocuments = documents?.map(doc => ({
+        id: doc.id,
+        playerId: doc.player_id,
+        documentType: doc.document_type,
+        fileName: doc.file_name,
+        fileUrl: doc.file_url,
+        status: doc.status,
+        createdAt: doc.created_at,
+        reviewedBy: doc.reviewed_by,
+        reviewedAt: doc.reviewed_at,
+        // Add staff-specific fields
+        canApprove: doc.status === 'pending',
+        canReject: doc.status === 'pending',
+        canReview: true
+      })) || [];
+      
+      console.log(`[STAFF-KYC] Found ${transformedDocuments.length} documents for player ${playerId}`);
+      
+      res.json({
+        player: player,
+        documents: transformedDocuments,
+        summary: {
+          totalDocuments: transformedDocuments.length,
+          approvedDocuments: transformedDocuments.filter(d => d.status === 'approved').length,
+          pendingDocuments: transformedDocuments.filter(d => d.status === 'pending').length,
+          rejectedDocuments: transformedDocuments.filter(d => d.status === 'rejected').length,
+          overallKycStatus: player?.kyc_status || 'pending'
+        }
+      });
+    } catch (error: any) {
+      console.error(`[STAFF-KYC] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Unified KYC document endpoint for both Player Portal and Staff Portal
   app.get("/api/kyc-documents/player/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
-      const documents = await supabaseDocumentStorage.getPlayerDocuments(playerId);
-      res.json(documents);
+      console.log(`[KYC-API] Getting documents for player: ${playerId}`);
+      
+      // Get documents from database
+      const { data: documents, error } = await supabase
+        .from('kyc_documents')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error(`[KYC-API] Database error:`, error);
+        return res.status(500).json({ error: error.message });
+      }
+      
+      // Transform documents to match the expected format
+      const transformedDocuments = documents?.map(doc => ({
+        id: doc.id,
+        playerId: doc.player_id,
+        documentType: doc.document_type,
+        fileName: doc.file_name,
+        fileUrl: doc.file_url,
+        status: doc.status,
+        createdAt: doc.created_at
+      })) || [];
+      
+      console.log(`[KYC-API] Found ${transformedDocuments.length} documents for player ${playerId}`);
+      res.json(transformedDocuments);
     } catch (error: any) {
+      console.error(`[KYC-API] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Staff Portal KYC approval endpoint
+  app.patch("/api/kyc-documents/:docId/status", async (req, res) => {
+    try {
+      const docId = parseInt(req.params.docId);
+      const { status, reviewedBy } = req.body;
+      
+      console.log(`[KYC-API] Updating document ${docId} status to: ${status}`);
+      
+      if (!['pending', 'approved', 'rejected'].includes(status)) {
+        return res.status(400).json({ error: 'Invalid status' });
+      }
+      
+      // Update document status in database
+      const { data: document, error } = await supabase
+        .from('kyc_documents')
+        .update({ 
+          status: status,
+          reviewed_by: reviewedBy,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('id', docId)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error(`[KYC-API] Error updating document:`, error);
+        return res.status(500).json({ error: error.message });
+      }
+      
+      // If all documents are approved, update player KYC status
+      if (status === 'approved') {
+        const { data: allDocs } = await supabase
+          .from('kyc_documents')
+          .select('status')
+          .eq('player_id', document.player_id);
+        
+        const allApproved = allDocs?.every(doc => doc.status === 'approved');
+        
+        if (allApproved) {
+          await supabase
+            .from('players')
+            .update({ kyc_status: 'approved' })
+            .eq('id', document.player_id);
+          
+          console.log(`[KYC-API] Player ${document.player_id} KYC fully approved`);
+        }
+      }
+      
+      res.json({
+        success: true,
+        document: {
+          id: document.id,
+          playerId: document.player_id,
+          documentType: document.document_type,
+          fileName: document.file_name,
+          fileUrl: document.file_url,
+          status: document.status,
+          createdAt: document.created_at
+        }
+      });
+    } catch (error: any) {
+      console.error(`[KYC-API] Error:`, error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -1002,6 +1156,202 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Document access tracker for debugging
   const documentAccessTracker = new Map();
+
+  // Enhanced document viewing endpoint that works with both portals
+  app.get("/api/documents/view/:docId", async (req, res) => {
+    const docId = req.params.docId;
+    const timestamp = new Date().toISOString();
+    
+    console.log(`[${timestamp}] Document view request: ${docId}`);
+    
+    try {
+      // First, try to get the document from the database
+      const { data: document, error } = await supabase
+        .from('kyc_documents')
+        .select('*')
+        .eq('id', docId)
+        .single();
+      
+      if (error || !document) {
+        console.log(`[${timestamp}] Document not found in database: ${docId}`);
+        
+        // Check if this is a legacy document reference (gov_id_15, utility_bill_15, etc.)
+        if (docId.includes('_')) {
+          const parts = docId.split('_');
+          const playerId = parts[parts.length - 1]; // Get the player ID from the end
+          
+          // Create a more comprehensive type mapping
+          const typeMap = {
+            'gov': 'government_id',
+            'government': 'government_id',
+            'utility': 'utility_bill', 
+            'profile': 'profile_photo',
+            'photo': 'profile_photo'
+          };
+          
+          // Try to determine document type from the beginning of the docId
+          let actualDocType = null;
+          for (const [key, value] of Object.entries(typeMap)) {
+            if (docId.startsWith(key)) {
+              actualDocType = value;
+              break;
+            }
+          }
+          
+          if (actualDocType) {
+            console.log(`[${timestamp}] Looking for legacy document: player ${playerId}, type ${actualDocType}`);
+            
+            // Try to find by player ID and document type
+            const { data: legacyDoc, error: legacyError } = await supabase
+              .from('kyc_documents')
+              .select('*')
+              .eq('player_id', parseInt(playerId))
+              .eq('document_type', actualDocType)
+              .single();
+          
+            if (legacyDoc) {
+              console.log(`[${timestamp}] Found legacy document: ${legacyDoc.id}`);
+              
+              // Look for the actual file in uploads directory
+              const files = fs.readdirSync('./uploads');
+              console.log(`[${timestamp}] Available files:`, files);
+              
+              const matchingFile = files.find(f => 
+                f.includes(legacyDoc.document_type) || 
+                f.includes(legacyDoc.file_name.split('.')[0]) ||
+                f.includes(actualDocType)
+              );
+              
+              if (matchingFile) {
+                const filePath = path.join(process.cwd(), 'uploads', matchingFile);
+                console.log(`[${timestamp}] Serving legacy file: ${matchingFile}`);
+                
+                // Set proper headers
+                const extension = path.extname(matchingFile).toLowerCase();
+                let contentType = 'application/octet-stream';
+                
+                switch (extension) {
+                  case '.png': contentType = 'image/png'; break;
+                  case '.jpg':
+                  case '.jpeg': contentType = 'image/jpeg'; break;
+                  case '.pdf': contentType = 'application/pdf'; break;
+                }
+                
+                res.setHeader('Content-Type', contentType);
+                res.setHeader('Content-Disposition', `inline; filename="${legacyDoc.file_name}"`);
+                
+                // Stream the file
+                const fileStream = fs.createReadStream(filePath);
+                fileStream.on('error', (err) => {
+                  console.error(`[${timestamp}] Error reading file:`, err);
+                  res.status(500).send('Error reading file');
+                });
+                fileStream.pipe(res);
+                return;
+              } else {
+                console.log(`[${timestamp}] No matching file found for document type: ${actualDocType}`);
+              }
+            } else {
+              console.log(`[${timestamp}] No legacy document found for player ${playerId}, type ${actualDocType}`);
+            }
+          }
+        }
+        
+        // Document not found - return proper error page
+        const errorHtml = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Document Not Found</title>
+            <style>
+              body { 
+                font-family: Arial, sans-serif; 
+                background: #0f172a; 
+                color: #e2e8f0; 
+                padding: 2rem; 
+                margin: 0; 
+              }
+              .container { 
+                max-width: 600px; 
+                margin: 0 auto; 
+                text-align: center; 
+                background: #1e293b; 
+                padding: 2rem; 
+                border-radius: 8px; 
+              }
+              h1 { color: #ef4444; }
+              .info { background: #374151; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+              .button { 
+                background: #3b82f6; 
+                color: white; 
+                padding: 0.5rem 1rem; 
+                border: none; 
+                border-radius: 4px; 
+                text-decoration: none; 
+                display: inline-block; 
+                margin: 1rem 0;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>Document Not Found</h1>
+              <p>The requested document "${docId}" could not be found.</p>
+              <div class="info">
+                <strong>Possible Solutions:</strong><br>
+                • The document may have been moved or deleted<br>
+                • Try uploading the document again<br>
+                • Contact support if the issue persists
+              </div>
+              <a href="javascript:window.close()" class="button">Close Window</a>
+            </div>
+          </body>
+          </html>
+        `;
+        
+        res.status(404).set('Content-Type', 'text/html').send(errorHtml);
+        return;
+      }
+      
+      // Document found in database, now get the actual file
+      const fileUrl = document.file_url;
+      if (fileUrl.startsWith('/uploads/')) {
+        // Direct file reference
+        const filename = fileUrl.replace('/uploads/', '');
+        const filePath = path.join(process.cwd(), 'uploads', filename);
+        
+        if (fs.existsSync(filePath)) {
+          console.log(`[${timestamp}] Serving file: ${filename}`);
+          
+          // Set proper headers
+          const extension = path.extname(filename).toLowerCase();
+          let contentType = 'application/octet-stream';
+          
+          switch (extension) {
+            case '.png': contentType = 'image/png'; break;
+            case '.jpg':
+            case '.jpeg': contentType = 'image/jpeg'; break;
+            case '.pdf': contentType = 'application/pdf'; break;
+          }
+          
+          res.setHeader('Content-Type', contentType);
+          
+          // Stream the file
+          const fileStream = fs.createReadStream(filePath);
+          fileStream.pipe(res);
+          return;
+        }
+      }
+      
+      // If we reach here, the file reference is broken
+      console.error(`[${timestamp}] File reference broken for document ${docId}: ${fileUrl}`);
+      res.status(404).send('File not found');
+      
+    } catch (error) {
+      console.error(`[${timestamp}] Error serving document ${docId}:`, error);
+      res.status(500).send('Internal server error');
+    }
+  });
 
   // Serve KYC document files with comprehensive error handling
   app.get("/uploads/:filename", async (req, res) => {
