@@ -36,7 +36,7 @@ export class SupabaseDocumentStorage {
       if (!bucketExists) {
         // Create bucket if it doesn't exist
         const { error } = await supabase.storage.createBucket(this.bucketName, {
-          public: false,
+          public: true,
           allowedMimeTypes: ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'],
           fileSizeLimit: 5242880 // 5MB
         });
@@ -45,6 +45,17 @@ export class SupabaseDocumentStorage {
           console.error('Error creating Supabase bucket:', error);
         } else {
           console.log('✅ Supabase storage bucket created successfully');
+        }
+      } else {
+        // Update existing bucket to be public
+        const { error } = await supabase.storage.updateBucket(this.bucketName, {
+          public: true
+        });
+
+        if (error) {
+          console.error('Error updating Supabase bucket policy:', error);
+        } else {
+          console.log('✅ Supabase storage bucket updated to public successfully');
         }
       }
     } catch (error) {
