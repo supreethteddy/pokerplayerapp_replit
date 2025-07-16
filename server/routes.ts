@@ -1702,13 +1702,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Also update the player's KYC status in the database
       if (status === 'approved') {
         try {
+          // Use RPC to bypass triggers
           const { error: playerError } = await supabase
-            .from('players')
-            .update({ kyc_status: 'approved' })
-            .eq('id', playerId);
+            .rpc('update_player_kyc_status_simple', {
+              player_id: playerId,
+              new_status: 'approved'
+            });
           
           if (playerError) {
-            console.error('Error updating player KYC status:', playerError);
+            console.error('RPC failed, trying direct update:', playerError);
+            // Fallback to direct update
+            const { error: directError } = await supabase
+              .from('players')
+              .update({ kyc_status: 'approved' })
+              .eq('id', playerId);
+            
+            if (directError) {
+              console.error('Direct update also failed:', directError);
+            } else {
+              console.log(`Successfully updated player ${playerId} KYC status to approved`);
+            }
+          } else {
+            console.log(`Successfully updated player ${playerId} KYC status to approved via RPC`);
           }
         } catch (playerUpdateError) {
           console.error('Error updating player KYC status:', playerUpdateError);

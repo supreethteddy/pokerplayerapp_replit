@@ -600,7 +600,13 @@ export default function PlayerDashboard() {
                                       try {
                                         // Create full URL for document viewing
                                         const fullUrl = `${window.location.origin}${doc.fileUrl}`;
-                                        window.open(fullUrl, '_blank');
+                                        console.log('Opening document:', fullUrl);
+                                        // Try to open in new tab, fallback to current tab
+                                        const newTab = window.open(fullUrl, '_blank', 'noopener,noreferrer');
+                                        if (!newTab) {
+                                          // If popup blocked, open in current tab
+                                          window.location.href = fullUrl;
+                                        }
                                       } catch (error) {
                                         console.error('Error opening document:', error);
                                         toast({
@@ -688,7 +694,13 @@ export default function PlayerDashboard() {
                                     if (doc && doc.fileUrl) {
                                       try {
                                         const fullUrl = `${window.location.origin}${doc.fileUrl}`;
-                                        window.open(fullUrl, '_blank');
+                                        console.log('Opening utility bill document:', fullUrl);
+                                        // Try to open in new tab, fallback to current tab
+                                        const newTab = window.open(fullUrl, '_blank', 'noopener,noreferrer');
+                                        if (!newTab) {
+                                          // If popup blocked, open in current tab
+                                          window.location.href = fullUrl;
+                                        }
                                       } catch (error) {
                                         console.error('Error opening document:', error);
                                         toast({
@@ -776,7 +788,13 @@ export default function PlayerDashboard() {
                                     if (doc && doc.fileUrl) {
                                       try {
                                         const fullUrl = `${window.location.origin}${doc.fileUrl}`;
-                                        window.open(fullUrl, '_blank');
+                                        console.log('Opening profile photo document:', fullUrl);
+                                        // Try to open in new tab, fallback to current tab
+                                        const newTab = window.open(fullUrl, '_blank', 'noopener,noreferrer');
+                                        if (!newTab) {
+                                          // If popup blocked, open in current tab
+                                          window.location.href = fullUrl;
+                                        }
                                       } catch (error) {
                                         console.error('Error opening document:', error);
                                         toast({
