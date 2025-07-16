@@ -362,7 +362,7 @@ export default function PlayerDashboard() {
                             <div className="text-right">
                               <p className="text-sm text-slate-400">Stakes</p>
                               <p className="text-lg font-semibold text-emerald-400">
-                                ₹{table.smallBlind}/{table.bigBlind}
+                                {table.stakes}
                               </p>
                             </div>
                           </div>
@@ -379,14 +379,14 @@ export default function PlayerDashboard() {
                               <div className="w-4 h-4 bg-emerald-500 rounded-full mx-auto mb-1" />
                               <p className="text-xs text-slate-400">Pot</p>
                               <p className="text-sm font-semibold text-emerald-400">
-                                ₹{table.currentPot}
+                                ₹{table.pot}
                               </p>
                             </div>
                             <div className="text-center">
                               <div className="w-4 h-4 bg-amber-500 rounded-full mx-auto mb-1" />
                               <p className="text-xs text-slate-400">Avg Stack</p>
                               <p className="text-sm font-semibold text-amber-400">
-                                ₹{table.averageStack}
+                                ₹{table.avgStack}
                               </p>
                             </div>
                           </div>
@@ -427,7 +427,7 @@ export default function PlayerDashboard() {
                               </Button>
                             )}
                             <Badge variant="secondary" className="bg-slate-600 text-slate-300">
-                              {table.status}
+                              {table.isActive ? 'Active' : 'Inactive'}
                             </Badge>
                           </div>
                         </div>
