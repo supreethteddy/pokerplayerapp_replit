@@ -136,14 +136,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('Found Supabase user email:', user.email);
       
       // Find player by email in database
-      const player = await dbStorage.getPlayerByEmail(user.email);
-      if (!player) {
+      const dbPlayer = await dbStorage.getPlayerByEmail(user.email);
+      if (!dbPlayer) {
         console.error('Player not found in database for email:', user.email);
         return res.status(404).json({ error: "Player not found in database" });
       }
       
-      console.log('Found player in database:', player.id);
-      res.json(player);
+      console.log('Found player in database:', dbPlayer.id);
+      
+      // Check if player has updated data in memory storage (like KYC status)
+      const memoryPlayer = await storage.getPlayer(dbPlayer.id);
+      
+      // Return memory player if available (has latest KYC status), otherwise database player
+      const finalPlayer = memoryPlayer || dbPlayer;
+      
+      res.json(finalPlayer);
     } catch (error: any) {
       console.error('Error in /api/players/supabase route:', error);
       res.status(500).json({ error: error.message });
@@ -1159,8 +1166,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const playerId = parseInt(req.params.playerId);
       const { kycStatus } = req.body;
       
-      // Update player's KYC status in memory storage (bypass database trigger issue)
+      // Try database update first, but continue if it fails due to trigger
+      try {
+        await dbStorage.updatePlayerKycStatus(playerId, kycStatus);
+      } catch (error: any) {
+        console.log('Database update failed, continuing with memory storage:', error.message);
+      }
+      
+      // First, ensure player exists in memory storage
+      const player = await storage.getPlayer(playerId);
+      if (!player) {
+        // Get player from database and initialize in memory
+        const dbPlayer = await dbStorage.getPlayer(playerId);
+        if (!dbPlayer) {
+          return res.status(404).json({ error: "Player not found" });
+        }
+        await storage.initializePlayer(dbPlayer);
+      }
+      
+      // Update player's KYC status in memory storage
       const updatedPlayer = await storage.updatePlayerKycStatus(playerId, kycStatus);
+      
+      res.json({ success: true, message: `Player KYC status updated to ${kycStatus}`, player: updatedPlayer });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Add endpoint to update player KYC status by Supabase ID
+  app.post("/api/players/supabase/:supabaseId/kyc-status", async (req, res) => {
+    try {
+      const { supabaseId } = req.params;
+      const { kycStatus } = req.body;
+      
+      // Get user email from Supabase
+      const { data: { user }, error } = await supabase.auth.admin.getUserById(supabaseId);
+      if (error || !user?.email) {
+        return res.status(404).json({ error: "Supabase user not found" });
+      }
+      
+      // Find player by email in database
+      const dbPlayer = await dbStorage.getPlayerByEmail(user.email);
+      if (!dbPlayer) {
+        return res.status(404).json({ error: "Player not found in database" });
+      }
+      
+      // Update both database and memory storage
+      await dbStorage.updatePlayerKycStatus(dbPlayer.id, kycStatus);
+      
+      // Update memory storage
+      const player = await storage.getPlayer(dbPlayer.id);
+      if (!player) {
+        await storage.initializePlayer(dbPlayer);
+      }
+      const updatedPlayer = await storage.updatePlayerKycStatus(dbPlayer.id, kycStatus);
       
       res.json({ success: true, message: `Player KYC status updated to ${kycStatus}`, player: updatedPlayer });
     } catch (error: any) {

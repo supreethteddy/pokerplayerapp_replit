@@ -248,6 +248,11 @@ export class MemStorage implements IStorage {
     
     return updatedPlayer;
   }
+
+  // Initialize player if not exists
+  async initializePlayer(player: Player): Promise<void> {
+    this.players.set(player.id, player);
+  }
 }
 
 export const storage = new MemStorage();
