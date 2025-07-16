@@ -49,8 +49,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createPlayer(player: InsertPlayer): Promise<Player> {
-    const result = await db.insert(players).values(player).returning();
-    return result[0];
+    console.log('DatabaseStorage: Creating player with data:', player);
+    
+    try {
+      const [newPlayer] = await db
+        .insert(players)
+        .values(player)
+        .returning();
+      
+      console.log('DatabaseStorage: Player created successfully:', newPlayer);
+      return newPlayer;
+    } catch (error: any) {
+      console.error('DatabaseStorage: Error creating player:', error);
+      throw error;
+    }
+  }
+
+  async getPlayerBySupabaseId(supabaseId: string): Promise<Player | undefined> {
+    console.log('DatabaseStorage: Getting player by Supabase ID:', supabaseId);
+    
+    try {
+      const [player] = await db
+        .select()
+        .from(players)
+        .where(eq(players.supabaseId, supabaseId))
+        .limit(1);
+      
+      console.log('DatabaseStorage: Player by Supabase ID result:', player);
+      return player || undefined;
+    } catch (error: any) {
+      console.error('DatabaseStorage: Error getting player by Supabase ID:', error);
+      throw error;
+    }
   }
 
   async getAllPlayers(): Promise<Player[]> {

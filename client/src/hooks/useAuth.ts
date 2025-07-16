@@ -167,13 +167,14 @@ export function useAuth() {
         throw authError;
       }
 
-      // Create player record
+      // Create player record with Supabase ID
       const playerData = {
         email,
         password, // In production, this should be hashed
         firstName,
         lastName,
         phone,
+        supabaseId: authData.user?.id, // Link to Supabase auth user
       };
 
       const playerResponse = await apiRequest('POST', '/api/players', playerData);

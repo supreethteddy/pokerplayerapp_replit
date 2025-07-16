@@ -4,6 +4,7 @@ import { z } from "zod";
 
 export const players = pgTable("players", {
   id: serial("id").primaryKey(),
+  supabaseId: text("supabase_id").notNull().unique(), // Link to Supabase auth.users.id
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   firstName: text("first_name").notNull(),
@@ -75,6 +76,8 @@ export const transactions = pgTable("transactions", {
 export const insertPlayerSchema = createInsertSchema(players).omit({
   id: true,
   createdAt: true,
+}).extend({
+  supabaseId: z.string().optional(),
 });
 
 export const insertPlayerPrefsSchema = createInsertSchema(playerPrefs).omit({

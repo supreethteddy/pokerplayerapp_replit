@@ -5,6 +5,7 @@ import * as path from "path";
 import { fileURLToPath } from 'url';
 import { supabaseOnlyStorage } from "./supabase-only-storage";
 import { supabaseDocumentStorage } from "./supabase-document-storage";
+import { unifiedPlayerSystem } from "./unified-player-system";
 import { insertPlayerSchema, insertPlayerPrefsSchema, insertSeatRequestSchema, insertKycDocumentSchema, insertTransactionSchema, players, playerPrefs, seatRequests, kycDocuments, transactions } from "@shared/schema";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
@@ -25,6 +26,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json({ success: true, data });
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Unified Player System - Sync existing players with Supabase auth
+  app.post("/api/sync-players", async (req, res) => {
+    try {
+      console.log('🆔 Route: Starting player sync with Supabase auth system');
+      await unifiedPlayerSystem.syncExistingPlayers();
+      res.json({ success: true, message: 'Player sync completed' });
+    } catch (error: any) {
+      console.error('🆔 Route: Error syncing players:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Unified Player System - Demonstration endpoint
+  app.post("/api/demo-unified-system", async (req, res) => {
+    try {
+      console.log('🎯 Route: Running unified system demonstration');
+      const { demonstrateUnifiedSystem } = await import('./demo-unified-system');
+      const result = await demonstrateUnifiedSystem();
+      res.json(result);
+    } catch (error: any) {
+      console.error('🎯 Route: Error running demo:', error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -51,20 +77,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Player routes
+  // Player routes - Updated to use unified player system
   app.post("/api/players", async (req, res) => {
     try {
       const playerData = insertPlayerSchema.parse(req.body);
       
-      // Check if player already exists in Supabase database
-      const existingPlayer = await supabaseOnlyStorage.getPlayerByEmail(playerData.email);
+      console.log('🆔 Route: Creating player with unified system:', playerData);
+      
+      // Check if player already exists
+      const existingPlayer = await unifiedPlayerSystem.getPlayerByEmail(playerData.email);
       if (existingPlayer) {
-        console.log(`Registration attempt for existing email: ${playerData.email} (ID: ${existingPlayer.id})`);
+        console.log(`🆔 Registration attempt for existing email: ${playerData.email} (ID: ${existingPlayer.id})`);
         return res.status(409).json({ error: "Account with this email already exists" });
       }
       
-      // Create player in Supabase database
-      const player = await supabaseOnlyStorage.createPlayer(playerData);
+      // Get Supabase user ID from auth context or create with placeholder
+      // This will be updated when user signs in with auth
+      const supabaseId = playerData.supabaseId || `temp_${Date.now()}`;
+      
+      // Create player with unified system
+      const player = await unifiedPlayerSystem.createPlayer(supabaseId, playerData);
       
       // Create default preferences
       const defaultPrefs = {
@@ -75,8 +107,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       await supabaseOnlyStorage.createPlayerPrefs(defaultPrefs);
       
+      console.log('🆔 Route: Player created successfully - App ID:', player.id, 'Supabase ID:', player.supabaseId);
       res.json(player);
     } catch (error: any) {
+      console.error('🆔 Route: Error creating player:', error);
       // Handle database constraint errors
       if (error.message.includes('duplicate key value')) {
         return res.status(409).json({ error: "Account with this email already exists" });
@@ -97,10 +131,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // NEW: Get player by Supabase ID (used by auth system)
+  app.get("/api/players/supabase/:supabaseId", async (req, res) => {
+    try {
+      console.log('🆔 Route: Getting player by Supabase ID:', req.params.supabaseId);
+      const player = await unifiedPlayerSystem.getPlayerBySupabaseId(req.params.supabaseId);
+      
+      if (!player) {
+        console.log('🆔 Route: Player not found for Supabase ID:', req.params.supabaseId);
+        return res.status(404).json({ error: "Player not found" });
+      }
+      
+      console.log('🆔 Route: Player found - App ID:', player.id, 'Supabase ID:', player.supabaseId);
+      res.json(player);
+    } catch (error: any) {
+      console.error('🆔 Route: Error getting player by Supabase ID:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/players/email/:email", async (req, res) => {
     try {
       console.log('Route: Getting player by email:', req.params.email);
-      const player = await supabaseOnlyStorage.getPlayerByEmail(req.params.email);
+      const player = await unifiedPlayerSystem.getPlayerByEmail(req.params.email);
       console.log('Route: Player result:', player);
       if (!player) {
         return res.status(404).json({ error: "Player not found" });

@@ -19,6 +19,7 @@ export interface IStorage {
   // Player operations
   getPlayer(id: number): Promise<Player | undefined>;
   getPlayerByEmail(email: string): Promise<Player | undefined>;
+  getPlayerBySupabaseId(supabaseId: string): Promise<Player | undefined>;
   createPlayer(player: InsertPlayer): Promise<Player>;
   
   // Player preferences operations
