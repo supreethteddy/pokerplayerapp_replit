@@ -78,9 +78,21 @@ export class SupabaseDocumentStorage {
       const uniqueFileName = `${playerId}/${documentType}/${timestamp}.${fileExtension}`;
 
       // Convert data URL to file buffer
-      const base64Data = dataUrl.split(',')[1];
+      let base64Data: string;
       
-      if (!base64Data) {
+      if (dataUrl.startsWith('data:')) {
+        // Handle data URL format (data:image/png;base64,...)
+        const parts = dataUrl.split(',');
+        if (parts.length !== 2) {
+          throw new Error('Invalid data URL format - expected format: data:mime/type;base64,data');
+        }
+        base64Data = parts[1];
+      } else {
+        // Handle direct base64 data
+        base64Data = dataUrl;
+      }
+      
+      if (!base64Data || base64Data.length === 0) {
         throw new Error('Invalid data URL format - missing base64 data');
       }
       

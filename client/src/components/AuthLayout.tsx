@@ -129,12 +129,30 @@ export default function AuthLayout() {
         }
       }
       
-      // In a real implementation, you would upload files to Supabase storage
-      // and save the URLs to the database
+      // Convert files to data URLs for upload
+      const convertFileToDataUrl = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const dataUrl = event.target?.result as string;
+            resolve(dataUrl);
+          };
+          reader.onerror = () => reject(new Error('Failed to read file'));
+          reader.readAsDataURL(file);
+        });
+      };
+
+      // Convert all files to data URLs
+      const [idDataUrl, addressDataUrl, photoDataUrl] = await Promise.all([
+        convertFileToDataUrl(id),
+        convertFileToDataUrl(address),
+        convertFileToDataUrl(photo)
+      ]);
+
       const kycData = [
-        { playerId: player.id, documentType: "id", fileName: id.name, fileUrl: `/uploads/${id.name}` },
-        { playerId: player.id, documentType: "address", fileName: address.name, fileUrl: `/uploads/${address.name}` },
-        { playerId: player.id, documentType: "photo", fileName: photo.name, fileUrl: `/uploads/${photo.name}` },
+        { playerId: player.id, documentType: "id", fileName: id.name, fileUrl: idDataUrl },
+        { playerId: player.id, documentType: "address", fileName: address.name, fileUrl: addressDataUrl },
+        { playerId: player.id, documentType: "photo", fileName: photo.name, fileUrl: photoDataUrl },
       ];
 
       for (const doc of kycData) {

@@ -615,7 +615,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Validate file size if it's a data URL
       if (kycData.fileUrl.startsWith('data:')) {
-        const base64Data = kycData.fileUrl.split(',')[1];
+        const parts = kycData.fileUrl.split(',');
+        if (parts.length !== 2) {
+          addStep('data_url_format_validation_failed', { fileUrl: kycData.fileUrl.substring(0, 100) + '...' });
+          return res.status(400).json({ 
+            error: "Invalid data URL format. Expected format: data:mime/type;base64,data",
+            uploadId
+          });
+        }
+        
+        const base64Data = parts[1];
+        if (!base64Data || base64Data.length === 0) {
+          addStep('base64_data_validation_failed');
+          return res.status(400).json({ 
+            error: "Invalid data URL - missing base64 data",
+            uploadId
+          });
+        }
+        
         const sizeInBytes = (base64Data.length * 3) / 4;
         const maxSize = 5 * 1024 * 1024; // 5MB
         
@@ -631,6 +648,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         addStep('size_validation_passed');
+      } else {
+        // If not a data URL, it should be a valid file path or URL
+        addStep('non_data_url_validation', { fileUrl: kycData.fileUrl });
       }
       
       // Create KYC document directly in Supabase using dbStorage
