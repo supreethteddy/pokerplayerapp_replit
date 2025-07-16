@@ -1,46 +1,51 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js';
 
-async function testSupabase() {
-  const supabaseUrl = 'https://oyhnpnymlezjusnwpjeu.supabase.co'
-  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95aG5wbnltbGV6anVzbndwamV1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MjQxMzU0MiwiZXhwIjoyMDY3OTg5NTQyfQ.Vb6zPUdDtPLvTgwfkYSzqQdZQnGIHnABNiNJo6ZW4JY'
-  
-  console.log('Testing Supabase direct connection...')
-  
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+export async function testSupabaseConnection() {
   try {
-    const supabase = createClient(supabaseUrl, supabaseKey)
+    console.log('Testing Supabase connection...');
+    console.log('URL:', process.env.VITE_SUPABASE_URL);
+    console.log('Service role key exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
     
-    // Test basic connection
-    const { data, error } = await supabase.from('players').select('count').limit(1)
-    
-    if (error) {
-      console.error('Supabase connection error:', error)
-    } else {
-      console.log('Supabase connection successful!')
-      console.log('Query result:', data)
-    }
-    
-    // Try to create a player directly
-    const { data: newPlayer, error: insertError } = await supabase
+    // Test 1: Basic connection
+    const { data: selectData, error: selectError } = await supabase
       .from('players')
-      .insert({
-        email: 'direct.supabase.test@example.com',
-        password: 'password123',
-        first_name: 'Direct',
-        last_name: 'Test',
-        phone: '9999999999',
-        kyc_status: 'pending'
-      })
-      .select()
+      .select('*')
+      .limit(1);
     
-    if (insertError) {
-      console.error('Insert error:', insertError)
-    } else {
-      console.log('Player created successfully via Supabase:', newPlayer)
-    }
+    console.log('Basic select test:', { data: selectData, error: selectError });
+    
+    // Test 2: Check if supabase_id column exists
+    const { data: columnData, error: columnError } = await supabase
+      .from('players')
+      .select('supabase_id')
+      .limit(1);
+    
+    console.log('Column test:', { data: columnData, error: columnError });
+    
+    // Test 3: Look for specific user
+    const { data: userData, error: userError } = await supabase
+      .from('players')
+      .select('*')
+      .eq('supabase_id', '27c6db20-282a-4af0-9473-ea31b63ba6e7');
+    
+    console.log('User lookup test:', { data: userData, error: userError });
+    
+    return {
+      success: true,
+      tests: {
+        basicSelect: { data: selectData, error: selectError },
+        columnCheck: { data: columnData, error: columnError },
+        userLookup: { data: userData, error: userError }
+      }
+    };
     
   } catch (error) {
-    console.error('Supabase test failed:', error)
+    console.error('Test failed:', error);
+    return { success: false, error: error.message };
   }
 }
-
-testSupabase()

@@ -30,6 +30,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test endpoint to debug Supabase connection
+  app.get("/api/debug-supabase", async (req, res) => {
+    try {
+      const { testSupabaseConnection } = await import('./test-supabase-direct');
+      const result = await testSupabaseConnection();
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Fix Supabase schema
+  app.post("/api/fix-supabase-schema", async (req, res) => {
+    try {
+      const { fixSupabaseSchema } = await import('./fix-supabase-schema');
+      const result = await fixSupabaseSchema();
+      res.json({ success: result });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Unified Player System - Sync existing players with Supabase auth
   app.post("/api/sync-players", async (req, res) => {
     try {
@@ -229,18 +251,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // This will be updated when user signs in with auth
       const supabaseId = playerData.supabaseId || `temp_${Date.now()}`;
       
-      // Create player with unified system
-      const player = await unifiedPlayerSystem.createPlayer(supabaseId, playerData);
+      // Create player with Supabase storage only
+      const player = await supabaseOnlyStorage.createPlayer({
+        ...playerData,
+        supabaseId: supabaseId
+      });
       
-      // Create default preferences using database storage
-      const { dbStorage } = await import('./database');
+      // Create default preferences using Supabase storage
       const defaultPrefs = {
         playerId: player.id,
         seatAvailable: true,
         callTimeWarning: true,
         gameUpdates: true
       };
-      await dbStorage.createPlayerPrefs(defaultPrefs);
+      await supabaseOnlyStorage.createPlayerPrefs(defaultPrefs);
       
       console.log('🆔 Route: Player created successfully - App ID:', player.id, 'Supabase ID:', player.supabaseId);
       res.json(player);
@@ -256,8 +280,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/players/:id", async (req, res) => {
     try {
-      const { dbStorage } = await import('./database');
-      const player = await dbStorage.getPlayer(parseInt(req.params.id));
+      const player = await supabaseOnlyStorage.getPlayer(parseInt(req.params.id));
       if (!player) {
         return res.status(404).json({ error: "Player not found" });
       }
@@ -271,7 +294,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/players/supabase/:supabaseId", async (req, res) => {
     try {
       console.log('🆔 Route: Getting player by Supabase ID:', req.params.supabaseId);
-      const player = await unifiedPlayerSystem.getPlayerBySupabaseId(req.params.supabaseId);
+      const player = await supabaseOnlyStorage.getPlayerBySupabaseId(req.params.supabaseId);
       
       if (!player) {
         console.log('🆔 Route: Player not found for Supabase ID:', req.params.supabaseId);
@@ -289,7 +312,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/players/email/:email", async (req, res) => {
     try {
       console.log('Route: Getting player by email:', req.params.email);
-      const player = await unifiedPlayerSystem.getPlayerByEmail(req.params.email);
+      const player = await supabaseOnlyStorage.getPlayerByEmail(req.params.email);
       console.log('Route: Player result:', player);
       if (!player) {
         return res.status(404).json({ error: "Player not found" });
@@ -301,48 +324,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get player by Supabase ID - find player by linking through email
-  app.get("/api/players/supabase/:supabaseId", async (req, res) => {
-    try {
-      const supabaseId = req.params.supabaseId;
-      
-      // Get user email from Supabase using the ID
-      const { data: { user }, error } = await supabase.auth.admin.getUserById(supabaseId);
-      
-      if (error) {
-        console.error('Supabase error:', error);
-        return res.status(404).json({ error: "Supabase user not found" });
-      }
-      
-      if (!user?.email) {
-        console.error('No email found for user:', supabaseId);
-        return res.status(404).json({ error: "No email found for user" });
-      }
-      
-      console.log('Found Supabase user email:', user.email);
-      
-      // Find player by email in Supabase database only
-      const player = await supabaseOnlyStorage.getPlayerByEmail(user.email);
-      if (!player) {
-        console.error('Player not found in Supabase database for email:', user.email);
-        return res.status(404).json({ error: "Player not found in Supabase database" });
-      }
-      
-      console.log('Found player in Supabase database:', player.id);
-      
-      res.json(player);
-    } catch (error: any) {
-      console.error('Error in /api/players/supabase route:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
+
 
   // Player preferences routes
   app.post("/api/player-prefs", async (req, res) => {
     try {
       const prefsData = insertPlayerPrefsSchema.parse(req.body);
-      const { dbStorage } = await import('./database');
-      const prefs = await dbStorage.createPlayerPrefs(prefsData);
+      const prefs = await supabaseOnlyStorage.createPlayerPrefs(prefsData);
       res.json(prefs);
     } catch (error: any) {
       res.status(400).json({ error: error.message });

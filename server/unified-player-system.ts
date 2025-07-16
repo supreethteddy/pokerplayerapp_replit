@@ -1,8 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { dbStorage } from './database';
-import { eq } from 'drizzle-orm';
-import { players } from '@shared/schema';
-import { db } from './db';
+import { supabaseOnlyStorage } from './supabase-only-storage';
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
@@ -50,21 +47,17 @@ export class UnifiedPlayerSystem {
       }
       
       // Check if player exists by email
-      const emailPlayer = await dbStorage.getPlayerByEmail(playerData.email);
+      const emailPlayer = await supabaseOnlyStorage.getPlayerByEmail(playerData.email);
       if (emailPlayer) {
         // Update existing player with Supabase ID
-        const [updatedPlayer] = await db
-          .update(players)
-          .set({ supabaseId: supabaseUserId })
-          .where(eq(players.id, emailPlayer.id))
-          .returning();
+        const updatedPlayer = await supabaseOnlyStorage.updatePlayerSupabaseId(emailPlayer.id, supabaseUserId);
         
         console.log(`🆔 [UnifiedPlayerSystem] Updated existing player ${emailPlayer.id} with Supabase ID`);
         return this.transformToUnifiedPlayer(updatedPlayer);
       }
       
       // Create new player with both IDs
-      const newPlayer = await dbStorage.createPlayer({
+      const newPlayer = await supabaseOnlyStorage.createPlayer({
         ...playerData,
         supabaseId: supabaseUserId
       });
@@ -85,11 +78,7 @@ export class UnifiedPlayerSystem {
     try {
       console.log(`🆔 [UnifiedPlayerSystem] Getting player by Supabase ID: ${supabaseUserId}`);
       
-      const [player] = await db
-        .select()
-        .from(players)
-        .where(eq(players.supabaseId, supabaseUserId))
-        .limit(1);
+      const player = await supabaseOnlyStorage.getPlayerBySupabaseId(supabaseUserId);
       
       if (!player) {
         console.log(`🆔 [UnifiedPlayerSystem] No player found for Supabase ID: ${supabaseUserId}`);
@@ -110,7 +99,7 @@ export class UnifiedPlayerSystem {
    */
   async getPlayerById(playerId: number): Promise<UnifiedPlayer | null> {
     try {
-      const player = await dbStorage.getPlayer(playerId);
+      const player = await supabaseOnlyStorage.getPlayer(playerId);
       if (!player) {
         return null;
       }
@@ -126,7 +115,7 @@ export class UnifiedPlayerSystem {
    */
   async getPlayerByEmail(email: string): Promise<UnifiedPlayer | null> {
     try {
-      const player = await dbStorage.getPlayerByEmail(email);
+      const player = await supabaseOnlyStorage.getPlayerByEmail(email);
       if (!player) {
         return null;
       }

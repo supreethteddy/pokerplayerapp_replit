@@ -57,6 +57,55 @@ export class SupabaseOnlyStorage implements IStorage {
     return player;
   }
 
+  async getPlayerBySupabaseId(supabaseId: string): Promise<Player | undefined> {
+    console.log('SupabaseOnlyStorage: Searching for player with Supabase ID:', supabaseId);
+    
+    // Since supabase_id column doesn't exist in the current schema,
+    // we need to find the player by looking up the email from Supabase auth
+    try {
+      // Get the email from Supabase auth using the ID
+      const { data: { user }, error: authError } = await supabase.auth.admin.getUserById(supabaseId);
+      
+      if (authError || !user?.email) {
+        console.error('SupabaseOnlyStorage: Error getting user from auth:', authError);
+        return undefined;
+      }
+      
+      console.log('SupabaseOnlyStorage: Found email from auth:', user.email);
+      
+      // Now find the player by email
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .eq('email', user.email)
+        .single();
+      
+      if (error) {
+        console.error('SupabaseOnlyStorage: Error fetching player by email:', error);
+        return undefined;
+      }
+      
+      console.log('SupabaseOnlyStorage: Found player by email lookup:', data);
+      return this.transformPlayerFromSupabase(data);
+      
+    } catch (error) {
+      console.error('SupabaseOnlyStorage: Error in getPlayerBySupabaseId:', error);
+      return undefined;
+    }
+  }
+
+  async updatePlayerSupabaseId(playerId: number, supabaseId: string): Promise<Player> {
+    // Since supabase_id column doesn't exist in the current schema,
+    // we'll just return the player as-is since the connection is made via email
+    const player = await this.getPlayer(playerId);
+    if (!player) {
+      throw new Error(`Player not found with ID: ${playerId}`);
+    }
+    
+    console.log('SupabaseOnlyStorage: Supabase ID association handled via email lookup');
+    return player;
+  }
+
   async createPlayer(player: InsertPlayer): Promise<Player> {
     const { data, error } = await supabase
       .from('players')
