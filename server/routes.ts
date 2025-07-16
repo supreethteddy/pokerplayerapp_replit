@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { supabaseStorage } from "./supabase-storage";
 import { dbStorage } from "./database";
 import { databaseSync } from "./sync";
-import { documentStorage } from "./document-storage";
+import { supabaseDocumentStorage } from "./supabase-document-storage";
 import { insertPlayerSchema, insertPlayerPrefsSchema, insertSeatRequestSchema, insertKycDocumentSchema, insertTransactionSchema, players, playerPrefs, seatRequests, kycDocuments, transactions } from "@shared/schema";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
@@ -262,10 +262,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return true;
   };
 
-  // New document storage system
+  // Supabase-exclusive document storage system
   app.post("/api/documents/upload", async (req, res) => {
     try {
-      console.log(`[NewDocumentSystem] Upload request - Player: ${req.body.playerId}, Type: ${req.body.documentType}`);
+      console.log(`[SupabaseDocumentSystem] Upload request - Player: ${req.body.playerId}, Type: ${req.body.documentType}`);
       
       const { playerId, documentType, fileName, fileUrl } = req.body;
       
@@ -285,34 +285,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Use the new document storage system
-      const document = await documentStorage.uploadDocument(playerId, documentType, fileName, fileUrl);
+      // Use the Supabase-exclusive document storage system
+      const document = await supabaseDocumentStorage.uploadDocument(playerId, documentType, fileName, fileUrl);
       
-      console.log(`[NewDocumentSystem] Upload successful - Document ID: ${document.id}`);
+      console.log(`[SupabaseDocumentSystem] Upload successful - Document ID: ${document.id}`);
       
       res.json({
         id: document.id,
         playerId: document.playerId,
         documentType: document.documentType,
         fileName: document.fileName,
-        fileUrl: `/api/documents/${document.id}`, // Use new endpoint
+        fileUrl: document.fileUrl, // Use Supabase public URL directly
         status: document.status,
         createdAt: document.createdAt
       });
       
     } catch (error: any) {
-      console.error(`[NewDocumentSystem] Upload failed:`, error);
+      console.error(`[SupabaseDocumentSystem] Upload failed:`, error);
       res.status(500).json({ 
         error: error.message || "Failed to upload document"
       });
     }
   });
 
-  // Get documents by player
+  // Get documents by player from Supabase
   app.get("/api/documents/player/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
-      const documents = await documentStorage.getPlayerDocuments(playerId);
+      console.log(`[SupabaseDocumentSystem] Fetching documents for player: ${playerId}`);
+      
+      const documents = await supabaseDocumentStorage.getPlayerDocuments(playerId);
       
       // Transform to match expected format
       const transformedDocs = documents.map(doc => ({
@@ -320,23 +322,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         playerId: doc.playerId,
         documentType: doc.documentType,
         fileName: doc.fileName,
-        fileUrl: `/api/documents/${doc.id}`,
+        fileUrl: doc.fileUrl, // Use Supabase public URL directly
         status: doc.status,
         createdAt: doc.createdAt
       }));
       
+      console.log(`[SupabaseDocumentSystem] Found ${transformedDocs.length} documents for player ${playerId}`);
       res.json(transformedDocs);
     } catch (error: any) {
-      console.error(`[NewDocumentSystem] Get documents failed:`, error);
+      console.error(`[SupabaseDocumentSystem] Get documents failed:`, error);
       res.status(500).json({ error: error.message });
     }
   });
 
-  // Serve document files
+  // Serve document files from Supabase
   app.get("/api/documents/:docId", async (req, res) => {
     try {
       const docId = req.params.docId;
-      const result = await documentStorage.getDocumentFile(docId);
+      console.log(`[SupabaseDocumentSystem] Serving document: ${docId}`);
+      
+      const result = await supabaseDocumentStorage.getDocumentFile(docId);
       
       if (!result) {
         return res.status(404).json({ error: "Document not found" });
@@ -352,7 +357,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.send(result.buffer);
     } catch (error: any) {
-      console.error(`[NewDocumentSystem] Serve document failed:`, error);
+      console.error(`[SupabaseDocumentSystem] Serve document failed:`, error);
       res.status(500).json({ error: error.message });
     }
   });
