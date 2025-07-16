@@ -440,60 +440,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         addStep('size_validation_passed');
-        
-        // Save the file to uploads directory
-        const uploadsDir = path.join(process.cwd(), 'uploads');
-        if (!fs.existsSync(uploadsDir)) {
-          fs.mkdirSync(uploadsDir, { recursive: true });
-          addStep('directory_created', { uploadsDir });
-        }
-        
-        // Create unique filename with timestamp (sanitize filename)
-        const fileTimestamp = Date.now();
-        const fileExtension = path.extname(kycData.fileName);
-        const baseFileName = path.basename(kycData.fileName, fileExtension)
-          .replace(/[^a-zA-Z0-9\-_\.]/g, '_') // Replace special characters with underscores
-          .replace(/_{2,}/g, '_') // Replace multiple underscores with single
-          .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
-        const uniqueFileName = `${baseFileName}_${fileTimestamp}${fileExtension}`;
-        const filePath = path.join(uploadsDir, uniqueFileName);
-        
-        addStep('filename_generated', { uniqueFileName, filePath });
-        
-        // Convert data URL to buffer and save file
-        try {
-          const buffer = Buffer.from(base64Data, 'base64');
-          fs.writeFileSync(filePath, buffer);
-          
-          addStep('file_saved', {
-            originalName: kycData.fileName,
-            savedAs: uniqueFileName,
-            size: buffer.length,
-            path: filePath
-          });
-          
-          console.log(`[${timestamp}] File saved successfully - Upload ID: ${uploadId}`, {
-            originalName: kycData.fileName,
-            savedAs: uniqueFileName,
-            size: buffer.length,
-            path: filePath
-          });
-          
-          // Update the file URL to point to the saved file
-          kycData.fileUrl = `/uploads/${uniqueFileName}`;
-        } catch (error) {
-          addStep('file_save_failed', { error: error.message });
-          console.error(`[${timestamp}] File save failed - Upload ID: ${uploadId}:`, error);
-          return res.status(500).json({ 
-            error: "Failed to save file",
-            uploadId
-          });
-        }
       }
       
       // Create KYC document directly in Supabase using dbStorage
       try {
-        const document = await dbStorage.createKycDocument(kycData);
+        const document = await supabaseDocumentStorage.uploadDocument(kycData.playerId, kycData.documentType, kycData.fileName, kycData.fileUrl);
         
         addStep('database_record_created', { documentId: document.id });
         
@@ -602,7 +553,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/kyc-documents/player/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
-      const documents = await dbStorage.getKycDocumentsByPlayer(playerId);
+      const documents = await supabaseDocumentStorage.getPlayerDocuments(playerId);
       res.json(documents);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
