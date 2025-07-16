@@ -79,18 +79,20 @@ export class CacheManager {
         supabaseId: existingPlayer.supabaseId
       });
       
-      // If player has no supabaseId, they're orphaned
+      // If player has no supabaseId, they're orphaned - auto-cleanup
       if (!existingPlayer.supabaseId) {
-        console.log('🗑️ [CacheManager] Player has no supabaseId - checking if should be cleaned up');
-        return false; // Still exists in database
+        console.log('🗑️ [CacheManager] Player has no supabaseId - auto-cleaning up');
+        await this.cleanupOrphanedPlayer(existingPlayer.id);
+        return true; // Email now available after cleanup
       }
       
       // Check if Supabase user actually exists
       const supabaseExists = await this.verifySupabaseUserExists(existingPlayer.supabaseId);
       
       if (!supabaseExists) {
-        console.log('🗑️ [CacheManager] Supabase user deleted but database record exists');
-        return false; // Database record exists but Supabase user doesn't
+        console.log('🗑️ [CacheManager] Supabase user deleted - auto-cleaning up orphaned database record');
+        await this.cleanupOrphanedPlayer(existingPlayer.id);
+        return true; // Email now available after cleanup
       }
       
       console.log('❌ [CacheManager] Email not available - active user exists');
@@ -98,6 +100,34 @@ export class CacheManager {
     } catch (error: any) {
       console.error('❌ [CacheManager] Error checking email availability:', error);
       return false; // Err on the side of caution
+    }
+  }
+
+  /**
+   * Clean up orphaned player and related records
+   */
+  private async cleanupOrphanedPlayer(playerId: number): Promise<void> {
+    try {
+      console.log('🧹 [CacheManager] Cleaning up orphaned player:', playerId);
+      
+      // Import database dependencies
+      const { db } = await import('./db');
+      const { players, kycDocuments, seatRequests, transactions, playerPrefs } = await import('../shared/schema');
+      const { eq } = await import('drizzle-orm');
+      
+      // Delete related records first (foreign key constraints)
+      await db.delete(kycDocuments).where(eq(kycDocuments.playerId, playerId));
+      await db.delete(seatRequests).where(eq(seatRequests.playerId, playerId));
+      await db.delete(transactions).where(eq(transactions.playerId, playerId));
+      await db.delete(playerPrefs).where(eq(playerPrefs.playerId, playerId));
+      
+      // Finally delete the player
+      await db.delete(players).where(eq(players.id, playerId));
+      
+      console.log('✅ [CacheManager] Orphaned player cleanup completed:', playerId);
+    } catch (error: any) {
+      console.error('❌ [CacheManager] Error cleaning up orphaned player:', error);
+      throw error;
     }
   }
 
