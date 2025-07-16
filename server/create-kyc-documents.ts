@@ -12,21 +12,21 @@ async function createKycDocuments() {
     // Create sample KYC documents
     const kycDocuments = [
       {
-        player_id: 14,
+        player_id: 15,
         document_type: 'government_id',
         file_name: 'government_id.jpg',
         file_url: '/api/documents/view/gov_id_1752676000000.jpg',
         status: 'approved'
       },
       {
-        player_id: 14,
+        player_id: 15,
         document_type: 'utility_bill',
         file_name: 'utility_bill.pdf',
         file_url: '/api/documents/view/utility_bill_1752676000000.pdf',
         status: 'approved'
       },
       {
-        player_id: 14,
+        player_id: 15,
         document_type: 'profile_photo',
         file_name: 'profile_photo.jpg',
         file_url: '/api/documents/view/profile_photo_1752676000000.jpg',
