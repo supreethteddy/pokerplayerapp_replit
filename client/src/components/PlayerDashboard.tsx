@@ -238,8 +238,8 @@ export default function PlayerDashboard() {
   // Document viewing removed as per requirements
 
   const getKycDocumentStatus = (documentType: string) => {
-    // Find the latest document for this type (by createdAt date)
-    const docs = kycDocuments?.filter(d => d.documentType === documentType);
+    // Find the latest document for this type (by createdAt date), only using valid Supabase URLs
+    const docs = kycDocuments?.filter(d => d.documentType === documentType && d.fileUrl && d.fileUrl.startsWith('http'));
     if (!docs || docs.length === 0) return 'missing';
     
     const latestDoc = docs.reduce((latest, current) => {
@@ -576,25 +576,21 @@ export default function PlayerDashboard() {
                           <div className="flex-1">
                             <p className="text-sm font-medium text-white">ID Document</p>
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('id')}</p>
-                            {kycDocuments?.filter(d => d.documentType === 'id').length > 0 && (
+                            {kycDocuments?.filter(d => d.documentType === 'id' && d.fileUrl && d.fileUrl.startsWith('http')).length > 0 && (
                               <div className="flex items-center space-x-2 mt-1">
                                 <p className="text-xs text-emerald-400">
-                                  {kycDocuments.filter(d => d.documentType === 'id')[0].fileName}
+                                  {kycDocuments.filter(d => d.documentType === 'id' && d.fileUrl && d.fileUrl.startsWith('http'))[0].fileName}
                                 </p>
                                 <Button 
                                   size="sm" 
                                   variant="outline" 
                                   className="text-xs h-6 px-2 border-slate-600 text-slate-400 hover:bg-slate-700"
                                   onClick={() => {
-                                    const doc = kycDocuments.filter(d => d.documentType === 'id')[0];
+                                    const doc = kycDocuments.filter(d => d.documentType === 'id' && d.fileUrl && d.fileUrl.startsWith('http'))[0];
                                     if (doc && doc.fileUrl) {
                                       try {
-                                        // Ensure we use the full URL path
-                                        const fullUrl = doc.fileUrl.startsWith('http') 
-                                          ? doc.fileUrl 
-                                          : `${window.location.origin}${doc.fileUrl}`;
-                                        console.log('Opening document:', fullUrl);
-                                        window.open(fullUrl, '_blank');
+                                        console.log('Opening document:', doc.fileUrl);
+                                        window.open(doc.fileUrl, '_blank');
                                       } catch (error) {
                                         console.error('Error opening document:', error);
                                         toast({
@@ -622,7 +618,7 @@ export default function PlayerDashboard() {
                         </div>
                         <div className="flex items-center space-x-2">
                           {/* Only show upload/reupload if not approved or if no documents */}
-                          {(getKycDocumentStatus('id') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'id').length === 0) && (
+                          {(getKycDocumentStatus('id') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'id' && d.fileUrl && d.fileUrl.startsWith('http')).length === 0) && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -631,7 +627,7 @@ export default function PlayerDashboard() {
                               className="border-slate-600 hover:bg-slate-600"
                             >
                               <Upload className="w-4 h-4 mr-1" />
-                              {kycDocuments?.filter(d => d.documentType === 'id').length > 0 ? 'Reupload' : 'Upload'}
+                              {kycDocuments?.filter(d => d.documentType === 'id' && d.fileUrl && d.fileUrl.startsWith('http')).length > 0 ? 'Reupload' : 'Upload'}
                             </Button>
                           )}
                           
