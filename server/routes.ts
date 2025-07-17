@@ -6,10 +6,11 @@ import { fileURLToPath } from 'url';
 import { supabaseOnlyStorage } from "./supabase-only-storage";
 import { supabaseDocumentStorage } from "./supabase-document-storage";
 import { unifiedPlayerSystem } from "./unified-player-system";
-import { insertPlayerSchema, insertPlayerPrefsSchema, insertSeatRequestSchema, insertKycDocumentSchema, insertTransactionSchema, players, playerPrefs, seatRequests, kycDocuments, transactions } from "@shared/schema";
+// SUPABASE EXCLUSIVE MODE - Using Supabase direct queries instead of schema imports
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
+// SUPABASE EXCLUSIVE MODE - No Drizzle ORM imports needed
 import { createClient } from '@supabase/supabase-js';
+import { debugAllTables } from './debug-tables';
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
@@ -173,7 +174,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('📊 Route: Checking cache status');
       
       const { cacheManager } = await import('./cache-management');
-      const { dbStorage } = await import('./database');
+      // SUPABASE EXCLUSIVE MODE - No legacy database imports needed
       
       // Get all players
       const allPlayers = await dbStorage.getAllPlayers();
@@ -403,11 +404,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('🔄 [TABLES] Fetching ALL tables from Supabase...');
       console.log('🔗 [TABLES] Database URL:', process.env.VITE_SUPABASE_URL?.slice(0, 50) + '...');
       
-      // Direct Supabase query to ensure real-time data - fetch ALL tables
+      // Debug: Check all tables in database
+      await debugAllTables();
+      
+      // SUPABASE EXCLUSIVE MODE - Direct query to fetch ALL tables without any limits
       const { data: tables, error } = await supabase
         .from('tables')
         .select('*')
-        .order('id', { ascending: false });
+        .order('id', { ascending: false })
+        .limit(10000); // Ensure we get ALL tables from Supabase
       
       if (error) {
         console.error('[TABLES] Error fetching tables:', error);

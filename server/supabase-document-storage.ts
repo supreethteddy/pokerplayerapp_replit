@@ -121,7 +121,7 @@ export class SupabaseDocumentStorage {
       
       try {
         // Use the database storage that's already working
-        const { dbStorage } = await import('./database');
+        // SUPABASE EXCLUSIVE MODE - No legacy database imports needed
         
         const insertedDoc = await dbStorage.createKycDocument({
           playerId,
@@ -164,7 +164,7 @@ export class SupabaseDocumentStorage {
       console.log(`🔍 [SupabaseDocumentStorage] Querying kyc_documents for player_id: ${playerId}`);
       
       // Use the same working database backend for consistency
-      const { dbStorage } = await import('./database');
+      // SUPABASE EXCLUSIVE MODE - No legacy database imports needed
       const documents = await dbStorage.getKycDocumentsByPlayer(playerId);
       
       console.log(`📊 [SupabaseDocumentStorage] Found ${documents.length} documents for player ${playerId}`);
