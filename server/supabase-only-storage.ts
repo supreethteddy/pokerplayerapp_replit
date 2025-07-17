@@ -102,24 +102,30 @@ export class SupabaseOnlyStorage implements IStorage {
   }
 
   async getPlayerByEmail(email: string): Promise<Player | undefined> {
-    console.log('SupabaseOnlyStorage: Searching for player with email:', email);
-    
-    // Force fresh data without cache
-    const { data, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('email', email)
-      .single();
-    
-    if (error) {
-      console.error('SupabaseOnlyStorage: Error fetching player by email:', error);
+    try {
+      console.log('🔄 [UNIFIED] SupabaseOnlyStorage: Getting player by email:', email);
+      
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .eq('email', email)
+        .single();
+      
+      if (error) {
+        if (error.code === 'PGRST116') {
+          console.log('🔍 [UNIFIED] SupabaseOnlyStorage: No player found with email:', email);
+          return undefined;
+        }
+        console.error('❌ [UNIFIED] SupabaseOnlyStorage: Error fetching player by email:', error);
+        return undefined;
+      }
+      
+      console.log('✅ [UNIFIED] SupabaseOnlyStorage: Player found by email - ID:', data.id);
+      return this.transformPlayerFromSupabase(data);
+    } catch (error: any) {
+      console.error('❌ [UNIFIED] SupabaseOnlyStorage: Error in getPlayerByEmail:', error);
       return undefined;
     }
-    
-    console.log('SupabaseOnlyStorage: Raw data from DB:', data);
-    const player = this.transformPlayerFromSupabase(data);
-    console.log('SupabaseOnlyStorage: Found player:', player);
-    return player;
   }
 
   async getPlayerBySupabaseId(supabaseId: string): Promise<Player | undefined> {
@@ -172,17 +178,47 @@ export class SupabaseOnlyStorage implements IStorage {
   }
 
   async createPlayer(player: InsertPlayer): Promise<Player> {
-    const { data, error } = await supabase
-      .from('players')
-      .insert(this.transformPlayerToSupabase(player))
-      .select()
-      .single();
-    
-    if (error) {
-      throw new Error(`Failed to create player: ${error.message}`);
+    try {
+      console.log('🔄 [UNIFIED] SupabaseOnlyStorage: Creating player with unified system:', player);
+      
+      // Generate unique IDs for unlimited player scaling
+      const universalId = `unified_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const supabaseId = player.supabaseId || `auth_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Transform player data with unified system fields (avoiding schema cache issues)
+      const playerData = this.transformPlayerToSupabase(player);
+      
+      // Create player without unified fields first, then update via SQL
+      const { data, error } = await supabase
+        .from('players')
+        .insert(playerData)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('❌ [UNIFIED] SupabaseOnlyStorage: Error creating player:', error);
+        throw new Error(`Failed to create player: ${error.message}`);
+      }
+      
+      // Update with unified system fields using raw SQL
+      if (data && !error) {
+        try {
+          await supabase
+            .from('players')
+            .update({ supabase_id: supabaseId, universal_id: universalId })
+            .eq('id', data.id);
+          
+          console.log('✅ [UNIFIED] SupabaseOnlyStorage: Player created successfully - ID:', data.id, 'Universal ID:', universalId);
+        } catch (updateError) {
+          console.log('⚠️ [UNIFIED] Player created but unified fields not updated:', updateError);
+        }
+      }
+      
+      return this.transformPlayerFromSupabase(data);
+    } catch (error: any) {
+      console.error('❌ [UNIFIED] SupabaseOnlyStorage: Error in createPlayer:', error);
+      throw error;
     }
-    
-    return this.transformPlayerFromSupabase(data);
   }
 
   async getAllPlayers(): Promise<Player[]> {

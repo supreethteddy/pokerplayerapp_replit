@@ -9,7 +9,7 @@ import { unifiedPlayerSystem } from "./unified-player-system";
 // SUPABASE EXCLUSIVE MODE - Using Supabase direct queries instead of schema imports
 import { z } from "zod";
 import { createInsertSchema } from "drizzle-zod";
-import { kycDocuments, insertSeatRequestSchema } from "@shared/schema";
+import { kycDocuments, insertSeatRequestSchema, insertPlayerSchema } from "@shared/schema";
 // SUPABASE EXCLUSIVE MODE - No Drizzle ORM imports needed
 import { createClient } from '@supabase/supabase-js';
 import { debugAllTables } from './debug-tables';
@@ -624,34 +624,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Player routes - Updated to use unified player system with cache management
+  // Player routes - Updated for unified system with unlimited player scaling
   app.post("/api/players", async (req, res) => {
     try {
-      const playerData = insertPlayerSchema.parse(req.body);
+      console.log('🆔 [UNIFIED] Creating new player with unified system:', req.body);
       
-      console.log('🆔 Route: Creating player with unified system:', playerData);
+      // Parse and validate player data using z.object for validation
+      const playerData = z.object({
+        email: z.string().email(),
+        password: z.string().min(6),
+        firstName: z.string().min(1),
+        lastName: z.string().min(1),
+        phone: z.string().min(10),
+        supabaseId: z.string().optional()
+      }).parse(req.body);
       
-      // Import cache manager
-      const { cacheManager } = await import('./cache-management');
+      // Generate universal ID for cross-portal synchronization
+      const universalId = playerData.supabaseId || `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Check if email is available using cache management
-      const isAvailable = await cacheManager.isEmailAvailable(playerData.email);
-      if (!isAvailable) {
-        console.log(`🆔 Registration blocked - email not available: ${playerData.email}`);
+      // Check if email already exists using unified system
+      const existingPlayer = await supabaseOnlyStorage.getPlayerByEmail(playerData.email);
+      if (existingPlayer) {
+        console.log(`🆔 [UNIFIED] Player with email already exists: ${playerData.email}`);
         return res.status(409).json({ error: "Account with this email already exists" });
       }
       
-      // Get Supabase user ID from auth context or create with placeholder
-      // This will be updated when user signs in with auth
-      const supabaseId = playerData.supabaseId || `temp_${Date.now()}`;
-      
-      // Create player with Supabase storage only
-      const player = await supabaseOnlyStorage.createPlayer({
+      // Create player with unified system data structure
+      const unifiedPlayerData = {
         ...playerData,
-        supabaseId: supabaseId
-      });
+        supabaseId: universalId,
+        universalId: universalId,
+        balance: "0.00",
+        totalDeposits: "0.00",
+        totalWithdrawals: "0.00",
+        totalWinnings: "0.00",
+        totalLosses: "0.00",
+        gamesPlayed: 0,
+        hoursPlayed: "0.00",
+        kycStatus: "pending"
+      };
       
-      // Create default preferences using Supabase storage
+      // Create player using Supabase storage
+      const player = await supabaseOnlyStorage.createPlayer(unifiedPlayerData);
+      
+      // Create default preferences
       const defaultPrefs = {
         playerId: player.id,
         seatAvailable: true,
@@ -660,7 +676,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       await supabaseOnlyStorage.createPlayerPrefs(defaultPrefs);
       
-      console.log('🆔 Route: Player created successfully - App ID:', player.id, 'Supabase ID:', player.supabaseId);
+      console.log('🆔 [UNIFIED] Player created successfully - App ID:', player.id, 'Universal ID:', universalId);
       res.json(player);
     } catch (error: any) {
       console.error('🆔 Route: Error creating player:', error);
