@@ -607,14 +607,16 @@ export default function PlayerDashboard() {
                                     const doc = kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0];
                                     if (doc && doc.fileUrl) {
                                       try {
-                                        // Create full URL for document viewing
-                                        const fullUrl = `${window.location.origin}${doc.fileUrl}`;
-                                        console.log('Opening document:', fullUrl);
+                                        // Use the document URL directly if it's a full URL, otherwise use the API endpoint
+                                        const documentUrl = doc.fileUrl.startsWith('http') 
+                                          ? doc.fileUrl 
+                                          : `/api/documents/view/${doc.id}`;
+                                        console.log('Opening document:', documentUrl);
                                         // Try to open in new tab, fallback to current tab
-                                        const newTab = window.open(fullUrl, '_blank', 'noopener,noreferrer');
+                                        const newTab = window.open(documentUrl, '_blank', 'noopener,noreferrer');
                                         if (!newTab) {
                                           // If popup blocked, open in current tab
-                                          window.location.href = fullUrl;
+                                          window.location.href = documentUrl;
                                         }
                                       } catch (error) {
                                         console.error('Error opening document:', error);
@@ -702,13 +704,16 @@ export default function PlayerDashboard() {
                                     const doc = kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl)[0];
                                     if (doc && doc.fileUrl) {
                                       try {
-                                        const fullUrl = `${window.location.origin}${doc.fileUrl}`;
-                                        console.log('Opening utility bill document:', fullUrl);
+                                        // Use the document URL directly if it's a full URL, otherwise use the API endpoint
+                                        const documentUrl = doc.fileUrl.startsWith('http') 
+                                          ? doc.fileUrl 
+                                          : `/api/documents/view/${doc.id}`;
+                                        console.log('Opening document:', documentUrl);
                                         // Try to open in new tab, fallback to current tab
-                                        const newTab = window.open(fullUrl, '_blank', 'noopener,noreferrer');
+                                        const newTab = window.open(documentUrl, '_blank', 'noopener,noreferrer');
                                         if (!newTab) {
                                           // If popup blocked, open in current tab
-                                          window.location.href = fullUrl;
+                                          window.location.href = documentUrl;
                                         }
                                       } catch (error) {
                                         console.error('Error opening document:', error);
@@ -796,13 +801,16 @@ export default function PlayerDashboard() {
                                     const doc = kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0];
                                     if (doc && doc.fileUrl) {
                                       try {
-                                        const fullUrl = `${window.location.origin}${doc.fileUrl}`;
-                                        console.log('Opening profile photo document:', fullUrl);
+                                        // Use the document URL directly if it's a full URL, otherwise use the API endpoint
+                                        const documentUrl = doc.fileUrl.startsWith('http') 
+                                          ? doc.fileUrl 
+                                          : `/api/documents/view/${doc.id}`;
+                                        console.log('Opening document:', documentUrl);
                                         // Try to open in new tab, fallback to current tab
-                                        const newTab = window.open(fullUrl, '_blank', 'noopener,noreferrer');
+                                        const newTab = window.open(documentUrl, '_blank', 'noopener,noreferrer');
                                         if (!newTab) {
                                           // If popup blocked, open in current tab
-                                          window.location.href = fullUrl;
+                                          window.location.href = documentUrl;
                                         }
                                       } catch (error) {
                                         console.error('Error opening document:', error);
