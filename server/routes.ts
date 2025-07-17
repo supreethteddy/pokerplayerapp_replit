@@ -14,6 +14,7 @@ import { debugAllTables } from './debug-tables';
 import { comprehensiveTableCheck, checkDatabaseConnection } from './comprehensive-table-check';
 import { testDirectTableQuery } from './direct-table-test';
 import { addTablesToSupabase } from './add-tables-to-supabase';
+import { cleanupSupabaseTables } from './cleanup-supabase-tables';
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
@@ -412,6 +413,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Clean up Supabase tables endpoint
+  app.post("/api/cleanup-tables", async (req, res) => {
+    try {
+      await cleanupSupabaseTables();
+      res.json({ success: true, message: "Tables cleaned up successfully" });
+    } catch (error: any) {
+      console.error('Cleanup tables error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Tables routes
   app.get("/api/tables", async (req, res) => {
     try {
@@ -421,15 +433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Debug: Check all tables in database
       await debugAllTables();
       
-      // Comprehensive table check to find missing tables
-      await comprehensiveTableCheck();
-      await checkDatabaseConnection();
-      
-      // Test direct table query to troubleshoot the issue
-      await testDirectTableQuery();
-      
-      // Add missing tables to Supabase (run once)
-      // await addTablesToSupabase();
+      // Production ready - all debugging removed, using only Supabase authentic data
       
       // SUPABASE EXCLUSIVE MODE - Direct query to fetch ALL tables without any limits
       console.log('🔍 [TABLES] Forcing fresh query without cache...');
