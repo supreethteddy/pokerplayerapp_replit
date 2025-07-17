@@ -1,0 +1,104 @@
+Cross-Portal KYC Document Access Setup
+
+
+
+-- Enhanced Cross-Portal KYC Document Access Policies
+
+-- Create a centralized documents metadata table
+CREATE TABLE IF NOT EXISTS public.kyc_documents (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    player_id UUID NOT NULL REFERENCES auth.users(id),
+    document_path TEXT NOT NULL,
+    document_type TEXT NOT NULL, -- e.g., 'government_id', 'proof_of_address'
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    reviewed_at TIMESTAMP WITH TIME ZONE,
+    reviewer_id UUID REFERENCES auth.users(id),
+    
+    UNIQUE(player_id, document_type)
+);
+
+-- Enable RLS on the documents table
+ALTER TABLE public.kyc_documents ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Players can see their own documents
+CREATE POLICY "Players see own documents" 
+ON public.kyc_documents 
+FOR SELECT 
+USING (auth.uid() = player_id);
+
+-- Policy: Staff can see all documents
+CREATE POLICY "Staff view all documents"
+ON public.kyc_documents 
+FOR SELECT 
+USING (
+    (SELECT coalesce((auth.jwt()->>'app_metadata')::jsonb->>'role', 'user')) = 'staff'
+);
+
+-- Policy: Staff can update document status
+CREATE POLICY "Staff can update document status"
+ON public.kyc_documents 
+FOR UPDATE 
+USING (
+    (SELECT coalesce((auth.jwt()->>'app_metadata')::jsonb->>'role', 'user')) = 'staff'
+)
+WITH CHECK (
+    status IN ('pending', 'approved', 'rejected') AND 
+    reviewer_id IS NULL OR reviewer_id = auth.uid()
+);
+
+-- Function to get document details with storage URL
+CREATE OR REPLACE FUNCTION public.get_kyc_document_details(doc_id UUID)
+RETURNS TABLE (
+    id UUID,
+    player_id UUID,
+    document_type TEXT,
+    status TEXT,
+    document_url TEXT,
+    uploaded_at TIMESTAMP WITH TIME ZONE,
+    reviewed_at TIMESTAMP WITH TIME ZONE
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    storage_url TEXT;
+BEGIN
+    storage_url := 'https://' || current_setting('app.supabase_project_id') || '.supabase.co/storage/v1/object/public/kyc-documents/';
+    
+    RETURN QUERY 
+    SELECT 
+        d.id, 
+        d.player_id, 
+        d.document_type, 
+        d.status, 
+        storage_url || d.document_path AS document_url,
+        d.uploaded_at,
+        d.reviewed_at
+    FROM kyc_documents d
+    WHERE d.id = doc_id;
+END;
+$$;
+
+-- Trigger to automatically set reviewer when status changes
+CREATE OR REPLACE FUNCTION public.set_document_reviewer()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    IF NEW.status != OLD.status AND 
+       (SELECT coalesce((auth.jwt()->>'app_metadata')::jsonb->>'role', 'user')) = 'staff' THEN
+        NEW.reviewer_id := auth.uid();
+        NEW.reviewed_at := NOW();
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER update_document_reviewer
+BEFORE UPDATE ON public.kyc_documents
+FOR EACH ROW
+EXECUTE FUNCTION public.set_document_reviewer();
+
+ERROR: operator does not exist: uuid = integer

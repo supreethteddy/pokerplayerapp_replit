@@ -2001,9 +2001,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // If we reach here, the file reference is broken
-      console.error(`[${timestamp}] File reference broken for document ${docId}: ${fileUrl}`);
-      res.status(404).send('File not found');
+      // Document found - redirect to the Supabase Storage URL
+      if (fileUrl) {
+        console.log(`[${timestamp}] Document found, redirecting to: ${fileUrl}`);
+        res.redirect(fileUrl);
+        return;
+      }
+      
+      // No file URL available
+      console.log(`[${timestamp}] No file URL available for document ${docId}`);
+      res.status(404).json({ error: "File URL not available" });
       
     } catch (error) {
       console.error(`[${timestamp}] Error serving document ${docId}:`, error);
