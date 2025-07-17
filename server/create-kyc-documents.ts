@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { fileStorage } from './file-storage';
 import { nanoid } from 'nanoid';
+// REMOVED: fileStorage import - using Supabase Storage directly
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
@@ -36,10 +36,27 @@ async function createKycDocuments() {
       .delete()
       .eq('player_id', 15);
 
-    // Create documents with proper file storage
+    // Create documents with Supabase Storage
     for (const file of sampleFiles) {
-      // Store file using file storage
-      const storedFile = await fileStorage.storeFile(file.name, file.dataUrl);
+      // Store file using Supabase Storage directly
+      const buffer = Buffer.from(file.dataUrl.split(',')[1], 'base64');
+      const fileName = `15/${file.type}/${Date.now()}_${file.name}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('kyc-documents')
+        .upload(fileName, buffer, {
+          contentType: file.type.includes('pdf') ? 'application/pdf' : 'image/jpeg'
+        });
+      
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        continue;
+      }
+      
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('kyc-documents')
+        .getPublicUrl(fileName);
       
       // Create KYC document record
       const { data, error } = await supabase
@@ -48,7 +65,7 @@ async function createKycDocuments() {
           player_id: 15,
           document_type: file.type,
           file_name: file.name,
-          file_url: `/api/documents/view/${storedFile.id}`,
+          file_url: urlData.publicUrl,
           status: 'approved',
           created_at: new Date().toISOString()
         })

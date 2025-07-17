@@ -1,7 +1,7 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
-import { eq } from 'drizzle-orm';
-import { fileStorage } from './file-storage';
+// DEPRECATED - USE SUPABASE-ONLY STORAGE
+// This file is being replaced with supabase-document-storage.ts
+// All functions now use Supabase directly
+import { createClient } from '@supabase/supabase-js';
 
 // Simple in-memory document storage
 export interface DocumentRecord {

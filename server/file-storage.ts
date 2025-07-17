@@ -1,6 +1,7 @@
-import { promises as fs } from 'fs';
-import path from 'path';
-import { nanoid } from 'nanoid';
+// DEPRECATED - REPLACED WITH SUPABASE STORAGE
+// This file has been completely replaced with Supabase Storage
+// All file operations now use supabase-document-storage.ts
+import { createClient } from '@supabase/supabase-js';
 
 export interface StoredFile {
   id: string;
