@@ -171,10 +171,8 @@ export function useAuth() {
       
       const createdPlayer = await playerResponse.json();
 
-      // Create default player preferences using the created player's ID
-      await apiRequest('POST', '/api/player-prefs', {
-        playerId: createdPlayer.id,
-      });
+      // Player preferences are now created automatically during player creation
+      // No need to create them separately
 
       toast({
         title: "Account Created",

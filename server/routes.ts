@@ -9,7 +9,7 @@ import { unifiedPlayerSystem } from "./unified-player-system";
 // SUPABASE EXCLUSIVE MODE - Using Supabase direct queries instead of schema imports
 import { z } from "zod";
 import { createInsertSchema } from "drizzle-zod";
-import { kycDocuments, insertSeatRequestSchema, insertPlayerSchema } from "@shared/schema";
+import { kycDocuments, insertSeatRequestSchema, insertPlayerSchema, insertPlayerPrefsSchema } from "@shared/schema";
 // SUPABASE EXCLUSIVE MODE - No Drizzle ORM imports needed
 import { createClient } from '@supabase/supabase-js';
 import { debugAllTables } from './debug-tables';
@@ -674,7 +674,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         callTimeWarning: true,
         gameUpdates: true
       };
-      await supabaseOnlyStorage.createPlayerPrefs(defaultPrefs);
+      try {
+        await supabaseOnlyStorage.createPlayerPrefs(defaultPrefs);
+        console.log('✅ [UNIFIED] Player preferences created successfully for player:', player.id);
+      } catch (prefsError) {
+        console.error('❌ [UNIFIED] Failed to create player preferences:', prefsError);
+        // Don't fail the entire request, just log the error
+      }
       
       console.log('🆔 [UNIFIED] Player created successfully - App ID:', player.id, 'Universal ID:', universalId);
       res.json(player);

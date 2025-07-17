@@ -529,12 +529,8 @@ export class SupabaseOnlyStorage implements IStorage {
       id: data.id,
       playerId: data.player_id,
       seatAvailable: data.seat_available,
-      soundEnabled: data.sound_enabled,
-      emailNotifications: data.email_notifications,
-      autoRebuy: data.auto_rebuy,
-      rebuyThreshold: data.rebuy_threshold,
-      maxRebuyAmount: data.max_rebuy_amount,
-      createdAt: new Date(data.created_at)
+      callTimeWarning: data.call_time_warning,
+      gameUpdates: data.game_updates
     };
   }
 
@@ -542,11 +538,8 @@ export class SupabaseOnlyStorage implements IStorage {
     return {
       player_id: prefs.playerId,
       seat_available: prefs.seatAvailable,
-      sound_enabled: prefs.soundEnabled,
-      email_notifications: prefs.emailNotifications,
-      auto_rebuy: prefs.autoRebuy,
-      rebuy_threshold: prefs.rebuyThreshold,
-      max_rebuy_amount: prefs.maxRebuyAmount
+      call_time_warning: prefs.callTimeWarning,
+      game_updates: prefs.gameUpdates
     };
   }
 
