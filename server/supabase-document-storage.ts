@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { supabaseOnlyStorage } from './supabase-only-storage.js';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -66,9 +67,11 @@ export class SupabaseDocumentStorage {
   async uploadDocument(playerId: number, documentType: string, fileName: string, dataUrl: string): Promise<SupabaseDocumentRecord> {
     try {
       console.log('📤 [SupabaseDocumentStorage] Starting upload for:', { playerId, documentType, fileName });
+      console.log('📤 [SupabaseDocumentStorage] DataURL type:', typeof dataUrl);
       console.log('📤 [SupabaseDocumentStorage] DataURL length:', dataUrl?.length || 'undefined');
+      console.log('📤 [SupabaseDocumentStorage] DataURL preview:', dataUrl?.substring(0, 50) + '...');
       
-      if (!dataUrl) {
+      if (!dataUrl || dataUrl.length === 0) {
         throw new Error('Data URL is required for file upload');
       }
 
@@ -123,7 +126,7 @@ export class SupabaseDocumentStorage {
         // Use the database storage that's already working
         // SUPABASE EXCLUSIVE MODE - No legacy database imports needed
         
-        const insertedDoc = await dbStorage.createKycDocument({
+        const insertedDoc = await supabaseOnlyStorage.createKycDocument({
           playerId,
           documentType,
           fileName,

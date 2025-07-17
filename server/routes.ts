@@ -8,6 +8,8 @@ import { supabaseDocumentStorage } from "./supabase-document-storage";
 import { unifiedPlayerSystem } from "./unified-player-system";
 // SUPABASE EXCLUSIVE MODE - Using Supabase direct queries instead of schema imports
 import { z } from "zod";
+import { createInsertSchema } from "drizzle-zod";
+import { kycDocuments } from "@shared/schema";
 // SUPABASE EXCLUSIVE MODE - No Drizzle ORM imports needed
 import { createClient } from '@supabase/supabase-js';
 import { debugAllTables } from './debug-tables';
@@ -21,6 +23,17 @@ const supabase = createClient(
   process.env.STAFF_PORTAL_SUPABASE_URL!,
   process.env.STAFF_PORTAL_SUPABASE_SERVICE_KEY!
 );
+
+// Create KYC document schema - omit fileUrl as it's generated during upload
+const insertKycDocumentSchema = createInsertSchema(kycDocuments).omit({ fileUrl: true });
+
+// Create upload request schema for KYC documents
+const kycUploadSchema = z.object({
+  playerId: z.number(),
+  documentType: z.string(),
+  fileName: z.string(),
+  dataUrl: z.string()
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Test endpoint to verify Supabase connection
@@ -436,7 +449,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // SUPABASE EXCLUSIVE MODE - Direct query to fetch ALL tables without any limits
       console.log('🔍 [TABLES] Forcing fresh query without cache...');
       const { data: tables, error, count } = await supabase
-        .from('tables')
+        .from('poker_tables')
         .select('*', { count: 'exact' })
         .order('id', { ascending: false })
         .limit(10000); // Ensure we get ALL tables from Supabase
@@ -459,13 +472,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: table.id,
         name: table.name,
         gameType: table.game_type,
-        stakes: table.stakes,
+        stakes: table.small_blind && table.big_blind ? `₹${table.small_blind}/${table.big_blind}` : "₹10/20",
         maxPlayers: table.max_players,
         currentPlayers: table.current_players || 0,
-        pot: table.pot || 0,
-        avgStack: table.avg_stack || 0,
-        isActive: table.is_active,
-        createdAt: new Date().toISOString()
+        pot: 0, // Not stored in poker_tables
+        avgStack: 0, // Not stored in poker_tables
+        isActive: table.status === 'active',
+        createdAt: table.created_at || new Date().toISOString()
       })) || [];
       
       console.log(`✅ [TABLES] Returning ${transformedTables.length} tables from database`);
@@ -474,7 +487,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Check for total table count in database
       const { count: totalCount, error: countError } = await supabase
-        .from('tables')
+        .from('poker_tables')
         .select('*', { count: 'exact', head: true });
       
       if (countError) {
@@ -697,7 +710,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let kycData;
       try {
         console.log('📋 [KYC Upload] Request body:', JSON.stringify(req.body, null, 2));
-        kycData = insertKycDocumentSchema.parse(req.body);
+        kycData = kycUploadSchema.parse(req.body);
         addStep('schema_validation_passed');
         console.log('📋 [KYC Upload] Schema validation passed for:', { playerId: kycData.playerId, documentType: kycData.documentType });
       } catch (error) {
@@ -711,7 +724,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Server-side file type validation
-      if (!validateFileType(kycData.fileName, kycData.fileUrl)) {
+      if (!validateFileType(kycData.fileName, kycData.dataUrl)) {
         addStep('file_type_validation_failed', { fileName: kycData.fileName });
         return res.status(400).json({ 
           error: "Invalid file type. Only JPG, PNG, and PDF files are allowed.",
@@ -722,10 +735,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       addStep('file_type_validation_passed');
       
       // Validate file size if it's a data URL
-      if (kycData.fileUrl.startsWith('data:')) {
-        const parts = kycData.fileUrl.split(',');
+      if (kycData.dataUrl.startsWith('data:')) {
+        const parts = kycData.dataUrl.split(',');
         if (parts.length !== 2) {
-          addStep('data_url_format_validation_failed', { fileUrl: kycData.fileUrl.substring(0, 100) + '...' });
+          addStep('data_url_format_validation_failed', { fileUrl: kycData.dataUrl.substring(0, 100) + '...' });
           return res.status(400).json({ 
             error: "Invalid data URL format. Expected format: data:mime/type;base64,data",
             uploadId
@@ -758,7 +771,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         addStep('size_validation_passed');
       } else {
         // If not a data URL, it should be a valid file path or URL
-        addStep('non_data_url_validation', { fileUrl: kycData.fileUrl });
+        addStep('non_data_url_validation', { fileUrl: kycData.dataUrl });
       }
       
       // Create KYC document directly in Supabase using dbStorage
@@ -767,9 +780,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           playerId: kycData.playerId, 
           documentType: kycData.documentType, 
           fileName: kycData.fileName, 
-          fileUrlLength: kycData.fileUrl?.length || 0
+          fileUrlLength: kycData.dataUrl?.length || 0
         });
-        const document = await supabaseDocumentStorage.uploadDocument(kycData.playerId, kycData.documentType, kycData.fileName, kycData.fileUrl);
+        const document = await supabaseDocumentStorage.uploadDocument(kycData.playerId, kycData.documentType, kycData.fileName, kycData.dataUrl);
         
         addStep('database_record_created', { documentId: document.id });
         
