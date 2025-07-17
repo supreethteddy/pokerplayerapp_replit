@@ -928,24 +928,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Simple in-memory seat requests (no database constraints)
-  const seatRequestsMemory = new Map<string, any>();
-  let seatRequestIdCounter = 1;
-
+  // UNIFIED WAITLIST SYSTEM - Using 'waitlist' table for cross-portal compatibility
   app.post("/api/seat-requests", async (req, res) => {
     try {
-      console.log('🎯 [SEAT REQUEST ROUTE] Request body:', req.body);
+      console.log('🎯 [WAITLIST ROUTE] Request body:', req.body);
       const requestData = insertSeatRequestSchema.parse(req.body);
-      console.log('🎯 [SEAT REQUEST ROUTE] Parsed data:', requestData);
+      console.log('🎯 [WAITLIST ROUTE] Parsed data:', requestData);
       
       // Get table UUID for validation
       const tableUuid = requestData.tableId;
-      console.log('🔍 [SEAT REQUEST ROUTE] Validating table UUID:', tableUuid);
+      console.log('🔍 [WAITLIST ROUTE] Validating table UUID:', tableUuid);
       
       // Verify table exists in poker_tables
       const { data: tableExists, error: tableError } = await supabase
         .from('poker_tables')
-        .select('id')
+        .select('id, game_type, min_buy_in, max_buy_in')
         .eq('id', tableUuid)
         .single();
       
@@ -953,42 +950,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
         throw new Error(`Table not found: ${tableUuid}`);
       }
       
-      console.log('✅ [SEAT REQUEST ROUTE] Table exists:', tableExists);
+      console.log('✅ [WAITLIST ROUTE] Table exists:', tableExists);
       
-      // Create seat request in Supabase
-      const { data: seatRequest, error: insertError } = await supabase
-        .from('seat_requests')
+      // Get current waitlist count for position
+      const { data: waitlistCount, error: countError } = await supabase
+        .from('waitlist')
+        .select('id')
+        .eq('table_id', tableUuid)
+        .eq('status', 'waiting');
+      
+      const position = (waitlistCount?.length || 0) + 1;
+      
+      // Create waitlist entry in Supabase using proper 'waitlist' table
+      const { data: waitlistEntry, error: insertError } = await supabase
+        .from('waitlist')
         .insert({
           player_id: requestData.playerId,
           table_id: tableUuid,
-          position: requestData.position || 0,
+          game_type: tableExists.game_type || 'Texas Hold\'em',
+          min_buy_in: tableExists.min_buy_in || 1000,
+          max_buy_in: tableExists.max_buy_in || 10000,
+          position: position,
           status: requestData.status || 'waiting',
-          estimated_wait: 0,
-          universal_id: `seat_${Date.now()}_${requestData.playerId}`
+          requested_at: new Date().toISOString(),
+          notes: `Player ${requestData.playerId} joined waitlist`
         })
         .select()
         .single();
       
       if (insertError) {
-        throw new Error(`Failed to create seat request: ${insertError.message}`);
+        throw new Error(`Failed to join waitlist: ${insertError.message}`);
       }
       
       // Transform to camelCase for response
       const transformedRequest = {
-        id: seatRequest.id,
-        playerId: seatRequest.player_id,
-        tableId: seatRequest.table_id,
-        position: seatRequest.position,
-        status: seatRequest.status,
-        estimatedWait: seatRequest.estimated_wait,
-        createdAt: seatRequest.created_at
+        id: waitlistEntry.id,
+        playerId: waitlistEntry.player_id,
+        tableId: waitlistEntry.table_id,
+        gameType: waitlistEntry.game_type,
+        minBuyIn: waitlistEntry.min_buy_in,
+        maxBuyIn: waitlistEntry.max_buy_in,
+        position: waitlistEntry.position,
+        status: waitlistEntry.status,
+        requestedAt: waitlistEntry.requested_at,
+        createdAt: waitlistEntry.created_at
       };
       
-      console.log('✅ [SEAT REQUEST ROUTE] Created in Supabase:', transformedRequest);
+      console.log('✅ [WAITLIST ROUTE] Created in Supabase waitlist:', transformedRequest);
       
       res.json(transformedRequest);
     } catch (error: any) {
-      console.error('❌ [SEAT REQUEST ROUTE] Error:', error);
+      console.error('❌ [WAITLIST ROUTE] Error:', error);
       res.status(400).json({ error: error.message });
     }
   });
@@ -997,15 +1009,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const playerId = parseInt(req.params.playerId);
       
-      // Get seat requests from Supabase
+      // Get waitlist entries from Supabase using proper 'waitlist' table
       const { data: requests, error } = await supabase
-        .from('seat_requests')
+        .from('waitlist')
         .select('*')
         .eq('player_id', playerId)
         .order('created_at', { ascending: false });
       
       if (error) {
-        throw new Error(`Failed to fetch seat requests: ${error.message}`);
+        throw new Error(`Failed to fetch waitlist: ${error.message}`);
       }
       
       // Transform to camelCase for response
@@ -1013,15 +1025,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: req.id,
         playerId: req.player_id,
         tableId: req.table_id,
+        gameType: req.game_type,
+        minBuyIn: req.min_buy_in,
+        maxBuyIn: req.max_buy_in,
         position: req.position,
         status: req.status,
-        estimatedWait: req.estimated_wait,
+        requestedAt: req.requested_at,
+        seatedAt: req.seated_at,
+        notes: req.notes,
         createdAt: req.created_at
       }));
       
-      console.log('📋 [SEAT REQUEST GET] Returning requests for player', playerId, ':', transformedRequests);
+      console.log('📋 [WAITLIST GET] Returning waitlist for player', playerId, ':', transformedRequests);
       res.json(transformedRequests);
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Remove from waitlist (unjoin)
+  app.delete("/api/seat-requests/:playerId/:tableId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const tableId = req.params.tableId;
+      
+      console.log('🚮 [WAITLIST DELETE] Removing player', playerId, 'from table', tableId);
+      
+      // Remove from waitlist
+      const { data: deletedEntry, error } = await supabase
+        .from('waitlist')
+        .delete()
+        .eq('player_id', playerId)
+        .eq('table_id', tableId)
+        .eq('status', 'waiting')
+        .select()
+        .single();
+      
+      if (error) {
+        throw new Error(`Failed to remove from waitlist: ${error.message}`);
+      }
+      
+      console.log('✅ [WAITLIST DELETE] Successfully removed from waitlist:', deletedEntry);
+      res.json({ success: true, removed: deletedEntry });
+    } catch (error: any) {
+      console.error('❌ [WAITLIST DELETE] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get waitlist for a specific table (for Staff Portal)
+  app.get("/api/waitlist/table/:tableId", async (req, res) => {
+    try {
+      const tableId = req.params.tableId;
+      
+      console.log('📋 [WAITLIST TABLE] Getting waitlist for table:', tableId);
+      
+      // Get all waitlist entries for this table
+      const { data: waitlist, error } = await supabase
+        .from('waitlist')
+        .select(`
+          *,
+          players!inner(first_name, last_name, email, phone)
+        `)
+        .eq('table_id', tableId)
+        .eq('status', 'waiting')
+        .order('position', { ascending: true });
+      
+      if (error) {
+        throw new Error(`Failed to fetch table waitlist: ${error.message}`);
+      }
+      
+      // Transform for response
+      const transformedWaitlist = (waitlist || []).map(entry => ({
+        id: entry.id,
+        playerId: entry.player_id,
+        tableId: entry.table_id,
+        gameType: entry.game_type,
+        minBuyIn: entry.min_buy_in,
+        maxBuyIn: entry.max_buy_in,
+        position: entry.position,
+        status: entry.status,
+        requestedAt: entry.requested_at,
+        notes: entry.notes,
+        player: {
+          firstName: entry.players.first_name,
+          lastName: entry.players.last_name,
+          email: entry.players.email,
+          phone: entry.players.phone
+        }
+      }));
+      
+      console.log('✅ [WAITLIST TABLE] Returning', transformedWaitlist.length, 'waitlist entries');
+      res.json(transformedWaitlist);
+    } catch (error: any) {
+      console.error('❌ [WAITLIST TABLE] Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
