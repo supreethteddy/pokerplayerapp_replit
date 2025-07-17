@@ -150,9 +150,9 @@ export default function AuthLayout() {
       ]);
 
       const kycData = [
-        { playerId: player.id, documentType: "id", fileName: id.name, fileUrl: idDataUrl },
-        { playerId: player.id, documentType: "address", fileName: address.name, fileUrl: addressDataUrl },
-        { playerId: player.id, documentType: "photo", fileName: photo.name, fileUrl: photoDataUrl },
+        { playerId: player.id, documentType: "government_id", fileName: id.name, dataUrl: idDataUrl },
+        { playerId: player.id, documentType: "utility_bill", fileName: address.name, dataUrl: addressDataUrl },
+        { playerId: player.id, documentType: "profile_photo", fileName: photo.name, dataUrl: photoDataUrl },
       ];
 
       for (const doc of kycData) {
