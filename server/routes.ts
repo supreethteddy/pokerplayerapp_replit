@@ -373,6 +373,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test Supabase connection endpoint
+  app.get("/api/test-supabase-connection", async (req, res) => {
+    try {
+      const { count, error } = await supabase
+        .from('tables')
+        .select('*', { count: 'exact', head: true });
+      
+      if (error) {
+        console.error('Supabase connection error:', error);
+        return res.status(500).json({ error: error.message, connected: false });
+      }
+      
+      res.json({ 
+        success: true, 
+        connected: true, 
+        tableCount: count || 0,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error('Connection test error:', error);
+      res.status(500).json({ error: error.message, connected: false });
+    }
+  });
+
   // Tables routes
   app.get("/api/tables", async (req, res) => {
     try {

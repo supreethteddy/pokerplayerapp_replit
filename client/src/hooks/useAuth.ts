@@ -82,15 +82,10 @@ export function useAuth() {
   const fetchUserData = async (supabaseUserId: string) => {
     console.log('Starting fetchUserData for:', supabaseUserId);
     
-    // Set loading state if not already set
-    if (!loading) {
-      setLoading(true);
-    }
-    
     try {
-      // Fetch player data using Supabase ID with shorter timeout
+      // Fetch player data using Supabase ID with increased timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // Increased timeout
       
       const response = await fetch(`/api/players/supabase/${supabaseUserId}`, {
         signal: controller.signal,
@@ -102,8 +97,8 @@ export function useAuth() {
       
       if (!response.ok) {
         if (response.status === 401) {
-          // Handle unauthorized gracefully during authentication
           console.log('Unauthorized during authentication, this is normal');
+          setLoading(false);
           return;
         }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -113,31 +108,18 @@ export function useAuth() {
       console.log('User data fetched successfully:', userData);
       setUser(userData);
       console.log('User state updated, current loading state:', loading);
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching user data:', error);
       
-      // Handle different error types
+      // Handle different error types gracefully
       if (error?.name === 'AbortError') {
         console.log('Fetch aborted due to timeout');
       } else if (error?.message && error.message.includes('404')) {
         console.log('Player not found in database, signing out');
-        try {
-          await supabase.auth.signOut();
-        } catch (signOutError) {
-          console.error('Error signing out:', signOutError);
-        }
-      } else if (error?.name === 'AbortError') {
-        console.log('Fetch aborted due to timeout');
-        // Don't show toast for timeout, just set loading to false
-        setLoading(false);
-      } else {
-        toast({
-          title: "Authentication Error",
-          description: "Failed to fetch user data. Please sign in again.",
-          variant: "destructive",
-        });
+        await supabase.auth.signOut();
       }
-    } finally {
+      
       setLoading(false);
     }
   };
