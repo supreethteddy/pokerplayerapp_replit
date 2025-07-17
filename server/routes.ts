@@ -242,6 +242,210 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // UNIVERSAL TRANSACTION SYSTEM - Cross-Portal Cash Management
+  // For Super Admin, Admin, Manager, and Cashier Portals
+  
+  // Universal buy-in system (connected to cashier dashboard)
+  app.post("/api/transactions/universal/buy-in", async (req, res) => {
+    try {
+      const { universalId, amount, tableId, staffId, description } = req.body;
+      console.log(`💰 [UNIVERSAL BUY-IN] Processing buy-in for universal ID: ${universalId}`);
+      
+      // Get player by universal ID
+      const player = await unifiedPlayerSystem.getPlayerByUniversalId(universalId);
+      if (!player) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+      
+      // Create buy-in transaction
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert({
+          player_id: player.id,
+          type: 'buy_in',
+          amount: amount,
+          description: description || `Buy-in for table ${tableId}`,
+          staff_id: staffId,
+          status: 'completed',
+          universal_id: Math.random().toString(36).substring(2, 15)
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        throw new Error(`Failed to create buy-in transaction: ${error.message}`);
+      }
+      
+      // Update player balance
+      await supabase
+        .from('players')
+        .update({ 
+          balance: parseFloat(player.balance) + parseFloat(amount),
+          total_deposits: parseFloat(player.totalDeposits) + parseFloat(amount)
+        })
+        .eq('id', player.id);
+      
+      console.log(`✅ [UNIVERSAL BUY-IN] Buy-in completed for player ${player.id}: ₹${amount}`);
+      res.json({ success: true, transaction: data, newBalance: parseFloat(player.balance) + parseFloat(amount) });
+    } catch (error: any) {
+      console.error(`❌ [UNIVERSAL BUY-IN] Error processing buy-in:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Universal cash-out system (connected to cashier dashboard)
+  app.post("/api/transactions/universal/cash-out", async (req, res) => {
+    try {
+      const { universalId, amount, tableId, staffId, description } = req.body;
+      console.log(`💸 [UNIVERSAL CASH-OUT] Processing cash-out for universal ID: ${universalId}`);
+      
+      // Get player by universal ID
+      const player = await unifiedPlayerSystem.getPlayerByUniversalId(universalId);
+      if (!player) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+      
+      // Check if player has sufficient balance
+      if (parseFloat(player.balance) < parseFloat(amount)) {
+        return res.status(400).json({ error: "Insufficient balance" });
+      }
+      
+      // Create cash-out transaction
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert({
+          player_id: player.id,
+          type: 'cash_out',
+          amount: amount,
+          description: description || `Cash-out from table ${tableId}`,
+          staff_id: staffId,
+          status: 'pending',
+          universal_id: Math.random().toString(36).substring(2, 15)
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        throw new Error(`Failed to create cash-out transaction: ${error.message}`);
+      }
+      
+      // Update player balance
+      await supabase
+        .from('players')
+        .update({ 
+          balance: parseFloat(player.balance) - parseFloat(amount),
+          total_withdrawals: parseFloat(player.totalWithdrawals) + parseFloat(amount)
+        })
+        .eq('id', player.id);
+      
+      console.log(`✅ [UNIVERSAL CASH-OUT] Cash-out pending for player ${player.id}: ₹${amount}`);
+      res.json({ success: true, transaction: data, newBalance: parseFloat(player.balance) - parseFloat(amount) });
+    } catch (error: any) {
+      console.error(`❌ [UNIVERSAL CASH-OUT] Error processing cash-out:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Universal transaction history (for all portals)
+  app.get("/api/transactions/universal/:universalId", async (req, res) => {
+    try {
+      const universalId = req.params.universalId;
+      console.log(`📊 [UNIVERSAL TRANSACTIONS] Getting transactions for universal ID: ${universalId}`);
+      
+      // Get player by universal ID
+      const player = await unifiedPlayerSystem.getPlayerByUniversalId(universalId);
+      if (!player) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+      
+      // Get all transactions for player
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('player_id', player.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        throw new Error(`Failed to get transactions: ${error.message}`);
+      }
+      
+      console.log(`✅ [UNIVERSAL TRANSACTIONS] Found ${data.length} transactions for player ${player.id}`);
+      res.json(data);
+    } catch (error: any) {
+      console.error(`❌ [UNIVERSAL TRANSACTIONS] Error getting transactions:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Universal transaction approval (for super admin portal)
+  app.post("/api/transactions/universal/:transactionId/approve", async (req, res) => {
+    try {
+      const transactionId = req.params.transactionId;
+      const { status, reviewedBy } = req.body;
+      console.log(`✅ [UNIVERSAL TRANSACTION APPROVAL] Approving transaction ${transactionId}: ${status}`);
+      
+      // Update transaction status
+      const { data, error } = await supabase
+        .from('transactions')
+        .update({ 
+          status: status,
+          staff_id: reviewedBy
+        })
+        .eq('id', transactionId)
+        .select()
+        .single();
+      
+      if (error) {
+        throw new Error(`Failed to approve transaction: ${error.message}`);
+      }
+      
+      console.log(`✅ [UNIVERSAL TRANSACTION APPROVAL] Transaction ${transactionId} ${status}`);
+      res.json({ success: true, transaction: data });
+    } catch (error: any) {
+      console.error(`❌ [UNIVERSAL TRANSACTION APPROVAL] Error approving transaction:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Universal table assignment system (for all portals)
+  app.post("/api/tables/universal/:universalId/assign", async (req, res) => {
+    try {
+      const universalId = req.params.universalId;
+      const { tableId, seatPosition, staffId } = req.body;
+      console.log(`🎲 [UNIVERSAL TABLE ASSIGNMENT] Assigning player ${universalId} to table ${tableId}`);
+      
+      // Get player by universal ID
+      const player = await unifiedPlayerSystem.getPlayerByUniversalId(universalId);
+      if (!player) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+      
+      // Create seat request with assignment
+      const { data, error } = await supabase
+        .from('seat_requests')
+        .insert({
+          player_id: player.id,
+          table_id: tableId,
+          seat_position: seatPosition || 1,
+          status: 'assigned',
+          staff_id: staffId,
+          universal_id: Math.random().toString(36).substring(2, 15)
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        throw new Error(`Failed to assign table: ${error.message}`);
+      }
+      
+      console.log(`✅ [UNIVERSAL TABLE ASSIGNMENT] Player ${player.id} assigned to table ${tableId}`);
+      res.json({ success: true, assignment: data });
+    } catch (error: any) {
+      console.error(`❌ [UNIVERSAL TABLE ASSIGNMENT] Error assigning table:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Unified Player System - Sync existing players with Supabase auth
   app.post("/api/sync-players", async (req, res) => {
     try {
