@@ -177,17 +177,23 @@ export class SupabaseOnlyStorage implements IStorage {
     return this.transformPlayerPrefsFromSupabase(data);
   }
 
-  // Table operations
+  // Table operations with forced refresh - fetch ALL tables
   async getTables(): Promise<Table[]> {
+    console.log('🔄 [SupabaseOnlyStorage] Fetching ALL tables from database...');
+    
+    // Force fresh data without any caching or filtering
     const { data, error } = await supabase
       .from('tables')
       .select('*')
-      .eq('is_active', true);
+      .order('id', { ascending: false });
     
     if (error) {
+      console.error('❌ [SupabaseOnlyStorage] Error fetching tables:', error);
       throw new Error(`Failed to fetch tables: ${error.message}`);
     }
     
+    console.log(`✅ [SupabaseOnlyStorage] Successfully fetched ${data?.length || 0} tables from database`);
+    console.log('📋 [SupabaseOnlyStorage] Table names:', data?.map(t => t.name).join(', '));
     return data.map(this.transformTableFromSupabase);
   }
 

@@ -400,13 +400,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Tables routes
   app.get("/api/tables", async (req, res) => {
     try {
-      // console.log('[TABLES] Fetching live tables from Supabase'); // Reduced logging for performance
+      console.log('🔄 [TABLES] Fetching ALL tables from Supabase...');
+      console.log('🔗 [TABLES] Database URL:', process.env.VITE_SUPABASE_URL?.slice(0, 50) + '...');
       
-      // Direct Supabase query to ensure real-time data
+      // Direct Supabase query to ensure real-time data - fetch ALL tables
       const { data: tables, error } = await supabase
         .from('tables')
         .select('*')
-        .eq('is_active', true)
         .order('id', { ascending: false });
       
       if (error) {
@@ -428,7 +428,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdAt: new Date().toISOString()
       })) || [];
       
-      // console.log(`[TABLES] Returning ${transformedTables.length} active tables`); // Reduced logging for performance
+      console.log(`✅ [TABLES] Returning ${transformedTables.length} tables from database`);
+      console.log('📋 [TABLES] Table names:', transformedTables.map(t => t.name).join(', '));
+      console.log('🔢 [TABLES] Table IDs:', transformedTables.map(t => t.id).join(', '));
+      
+      // Check for total table count in database
+      const { count, error: countError } = await supabase
+        .from('tables')
+        .select('*', { count: 'exact', head: true });
+      
+      if (countError) {
+        console.error('❌ [TABLES] Error getting table count:', countError);
+      } else {
+        console.log(`📊 [TABLES] Total tables in database: ${count}`);
+      }
       res.json(transformedTables);
     } catch (error: any) {
       console.error('[TABLES] Error:', error);
