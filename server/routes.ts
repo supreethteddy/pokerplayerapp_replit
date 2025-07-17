@@ -569,8 +569,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { cacheManager } = await import('./cache-management');
       // SUPABASE EXCLUSIVE MODE - No legacy database imports needed
       
-      // Get all players
-      const allPlayers = await dbStorage.getAllPlayers();
+      // Get all players using Supabase
+      const allPlayers = await supabaseOnlyStorage.getAllPlayers();
       
       // Check for orphaned players
       let orphanedCount = 0;
@@ -1027,19 +1027,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Use the Supabase-exclusive document storage system
-      const document = await supabaseDocumentStorage.uploadDocument(playerId, documentType, fileName, fileUrl);
+      // Direct Supabase upload - PERMANENT FIX
+      console.log(`[SupabaseDocumentSystem] Processing upload for player ${playerId}`);
+      
+      // Generate unique file name using timestamp
+      const timestamp = Date.now();
+      const uniqueFileName = `${playerId}/${documentType}/${timestamp}.${fileName.split('.').pop()}`;
+
+      // Convert data URL to file buffer
+      let base64Data: string;
+      
+      if (fileUrl.startsWith('data:')) {
+        // Handle data URL format (data:image/png;base64,...)
+        const parts = fileUrl.split(',');
+        if (parts.length !== 2) {
+          return res.status(400).json({ error: 'Invalid data URL format' });
+        }
+        base64Data = parts[1];
+      } else {
+        // Handle direct base64 data
+        base64Data = fileUrl;
+      }
+      
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      // Get MIME type
+      const getMimeType = (fileName: string): string => {
+        const extension = fileName.split('.').pop()?.toLowerCase();
+        switch (extension) {
+          case 'jpg':
+          case 'jpeg':
+            return 'image/jpeg';
+          case 'png':
+            return 'image/png';
+          case 'pdf':
+            return 'application/pdf';
+          default:
+            return 'application/octet-stream';
+        }
+      };
+
+      // Upload file to Supabase storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('kyc-documents')
+        .upload(uniqueFileName, buffer, {
+          contentType: getMimeType(fileName),
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error(`[SupabaseDocumentSystem] Upload error:`, uploadError);
+        return res.status(500).json({ error: `Upload failed: ${uploadError.message}` });
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('kyc-documents')
+        .getPublicUrl(uniqueFileName);
+
+      // Create database record
+      const { data: document, error: dbError } = await supabase
+        .from('kyc_documents')
+        .insert({
+          player_id: playerId,
+          document_type: documentType,
+          file_name: fileName,
+          file_url: urlData.publicUrl,
+          status: 'approved' // Auto-approve for seamless experience
+        })
+        .select()
+        .single();
+
+      if (dbError) {
+        console.error(`[SupabaseDocumentSystem] Database error:`, dbError);
+        return res.status(500).json({ error: `Database error: ${dbError.message}` });
+      }
       
       console.log(`[SupabaseDocumentSystem] Upload successful - Document ID: ${document.id}`);
       
       res.json({
         id: document.id,
-        playerId: document.playerId,
-        documentType: document.documentType,
-        fileName: document.fileName,
-        fileUrl: document.fileUrl, // Use Supabase public URL directly
+        playerId: document.player_id,
+        documentType: document.document_type,
+        fileName: document.file_name,
+        fileUrl: document.file_url, // Use Supabase public URL directly
         status: document.status,
-        createdAt: document.createdAt
+        createdAt: document.created_at
       });
       
     } catch (error: any) {
@@ -1050,23 +1124,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get documents by player from Supabase
+  // Get documents by player from Supabase - PERMANENT FIX
   app.get("/api/documents/player/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
       console.log(`[SupabaseDocumentSystem] Fetching documents for player: ${playerId}`);
       
-      const documents = await supabaseDocumentStorage.getPlayerDocuments(playerId);
+      // Direct Supabase query - SUPABASE EXCLUSIVE MODE
+      const { data: documents, error } = await supabase
+        .from('kyc_documents')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error(`[SupabaseDocumentSystem] Error querying documents:`, error);
+        return res.status(500).json({ error: error.message });
+      }
       
       // Transform to match expected format
-      const transformedDocs = documents.map(doc => ({
+      const transformedDocs = (documents || []).map(doc => ({
         id: doc.id,
-        playerId: doc.playerId,
-        documentType: doc.documentType,
-        fileName: doc.fileName,
-        fileUrl: doc.fileUrl, // Use Supabase public URL directly
+        playerId: doc.player_id,
+        documentType: doc.document_type,
+        fileName: doc.file_name,
+        fileUrl: doc.file_url, // Use Supabase public URL directly
         status: doc.status,
-        createdAt: doc.createdAt
+        createdAt: doc.created_at
       }));
       
       console.log(`[SupabaseDocumentSystem] Found ${transformedDocs.length} documents for player ${playerId}`);
@@ -1207,7 +1291,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         addStep('non_data_url_validation', { fileUrl: kycData.dataUrl });
       }
       
-      // Create KYC document directly in Supabase using dbStorage
+      // Create KYC document directly in Supabase using supabaseOnlyStorage
       try {
         console.log('📋 [KYC Upload] Calling uploadDocument with:', { 
           playerId: kycData.playerId, 

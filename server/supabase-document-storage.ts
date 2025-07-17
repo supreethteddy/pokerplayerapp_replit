@@ -230,21 +230,29 @@ export class SupabaseDocumentStorage {
     try {
       console.log(`🔍 [SupabaseDocumentStorage] Querying kyc_documents for player_id: ${playerId}`);
       
-      // Use the same working database backend for consistency
-      // SUPABASE EXCLUSIVE MODE - No legacy database imports needed
-      const documents = await dbStorage.getKycDocumentsByPlayer(playerId);
+      // Direct Supabase query - SUPABASE EXCLUSIVE MODE
+      const { data: documents, error } = await supabase
+        .from('kyc_documents')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false });
       
-      console.log(`📊 [SupabaseDocumentStorage] Found ${documents.length} documents for player ${playerId}`);
+      if (error) {
+        console.error(`❌ [SupabaseDocumentStorage] Error querying documents:`, error);
+        throw new Error(`Failed to retrieve documents: ${error.message}`);
+      }
+      
+      console.log(`📊 [SupabaseDocumentStorage] Found ${documents?.length || 0} documents for player ${playerId}`);
       
       // Transform to SupabaseDocumentRecord format
-      const supabaseDocuments: SupabaseDocumentRecord[] = documents.map(doc => ({
+      const supabaseDocuments: SupabaseDocumentRecord[] = (documents || []).map(doc => ({
         id: doc.id,
-        playerId: doc.playerId,
-        documentType: doc.documentType,
-        fileName: doc.fileName,
-        fileUrl: doc.fileUrl,
+        playerId: doc.player_id,
+        documentType: doc.document_type,
+        fileName: doc.file_name,
+        fileUrl: doc.file_url,
         status: doc.status,
-        createdAt: doc.createdAt
+        createdAt: new Date(doc.created_at)
       }));
 
       console.log(`✅ [SupabaseDocumentStorage] Successfully retrieved ${supabaseDocuments.length} documents`);
