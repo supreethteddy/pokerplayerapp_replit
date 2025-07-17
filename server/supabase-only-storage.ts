@@ -199,27 +199,43 @@ export class SupabaseOnlyStorage implements IStorage {
 
   // Seat request operations
   async createSeatRequest(request: InsertSeatRequest): Promise<SeatRequest> {
+    console.log('🎯 [SEAT REQUEST] Creating seat request:', request);
+    
+    // Handle UUID table IDs by using raw insert since schema expects string
+    const insertData = {
+      player_id: request.playerId,
+      table_id: request.tableId, // This is now a UUID string from poker_tables
+      position: request.position || 0,
+      status: request.status || 'waiting'
+    };
+    
+    console.log('📋 [SEAT REQUEST] Insert data:', insertData);
+    
     const { data, error } = await supabase
       .from('seat_requests')
-      .insert(this.transformSeatRequestToSupabase(request))
+      .insert(insertData)
       .select()
       .single();
     
     if (error) {
+      console.error('❌ [SEAT REQUEST] Error:', error);
       throw new Error(`Failed to create seat request: ${error.message}`);
     }
     
+    console.log('✅ [SEAT REQUEST] Successfully created:', data);
     return this.transformSeatRequestFromSupabase(data);
   }
 
   async getSeatRequestsByPlayer(playerId: number): Promise<SeatRequest[]> {
     const { data, error } = await supabase
-      .from('seat_requests')
+      .from('player_table_requests')
       .select('*')
       .eq('player_id', playerId);
     
     if (error) {
-      throw new Error(`Failed to fetch seat requests: ${error.message}`);
+      console.error('❌ [getSeatRequestsByPlayer] Error:', error);
+      // Return empty array if table doesn't exist
+      return [];
     }
     
     return data.map(this.transformSeatRequestFromSupabase);

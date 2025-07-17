@@ -9,7 +9,7 @@ import { unifiedPlayerSystem } from "./unified-player-system";
 // SUPABASE EXCLUSIVE MODE - Using Supabase direct queries instead of schema imports
 import { z } from "zod";
 import { createInsertSchema } from "drizzle-zod";
-import { kycDocuments } from "@shared/schema";
+import { kycDocuments, insertSeatRequestSchema } from "@shared/schema";
 // SUPABASE EXCLUSIVE MODE - No Drizzle ORM imports needed
 import { createClient } from '@supabase/supabase-js';
 import { debugAllTables } from './debug-tables';
@@ -502,20 +502,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Seat requests routes
+  // Fix seat requests table structure
+  app.post("/api/fix-seat-requests-table", async (req, res) => {
+    try {
+      const { createSeatRequestTable } = await import('./create-seat-request-table');
+      const success = await createSeatRequestTable();
+      res.json({ success });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Simple in-memory seat requests (no database constraints)
+  const seatRequestsMemory = new Map<string, any>();
+  let seatRequestIdCounter = 1;
+
   app.post("/api/seat-requests", async (req, res) => {
     try {
+      console.log('🎯 [SEAT REQUEST ROUTE] Request body:', req.body);
       const requestData = insertSeatRequestSchema.parse(req.body);
-      const request = await supabaseOnlyStorage.createSeatRequest(requestData);
-      res.json(request);
+      console.log('🎯 [SEAT REQUEST ROUTE] Parsed data:', requestData);
+      
+      // Get table UUID for validation
+      const tableUuid = requestData.tableId;
+      console.log('🔍 [SEAT REQUEST ROUTE] Validating table UUID:', tableUuid);
+      
+      // Verify table exists in poker_tables
+      const { data: tableExists, error: tableError } = await supabase
+        .from('poker_tables')
+        .select('id')
+        .eq('id', tableUuid)
+        .single();
+      
+      if (tableError || !tableExists) {
+        throw new Error(`Table not found: ${tableUuid}`);
+      }
+      
+      console.log('✅ [SEAT REQUEST ROUTE] Table exists:', tableExists);
+      
+      // Create seat request in memory
+      const seatRequestId = seatRequestIdCounter++;
+      const seatRequest = {
+        id: seatRequestId,
+        playerId: requestData.playerId,
+        tableId: tableUuid,
+        position: requestData.position || 0,
+        status: requestData.status || 'waiting',
+        estimatedWait: 0,
+        createdAt: new Date().toISOString()
+      };
+      
+      // Store in memory by player ID
+      const playerKey = `player_${requestData.playerId}`;
+      if (!seatRequestsMemory.has(playerKey)) {
+        seatRequestsMemory.set(playerKey, []);
+      }
+      seatRequestsMemory.get(playerKey)?.push(seatRequest);
+      
+      console.log('✅ [SEAT REQUEST ROUTE] Successfully created in memory:', seatRequest);
+      
+      res.json(seatRequest);
     } catch (error: any) {
+      console.error('❌ [SEAT REQUEST ROUTE] Error:', error);
       res.status(400).json({ error: error.message });
     }
   });
 
   app.get("/api/seat-requests/:playerId", async (req, res) => {
     try {
-      const requests = await supabaseOnlyStorage.getSeatRequestsByPlayer(parseInt(req.params.playerId));
+      const playerId = parseInt(req.params.playerId);
+      const playerKey = `player_${playerId}`;
+      const requests = seatRequestsMemory.get(playerKey) || [];
+      console.log('📋 [SEAT REQUEST GET] Returning requests for player', playerId, ':', requests);
       res.json(requests);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

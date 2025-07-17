@@ -47,7 +47,7 @@ export const seatRequests = pgTable("seat_requests", {
   id: serial("id").primaryKey(),
   universalId: text("universal_id").unique(), // Enterprise-grade universal ID
   playerId: integer("player_id").references(() => players.id),
-  tableId: integer("table_id").references(() => tables.id),
+  tableId: text("table_id").notNull(), // Changed to text to support UUID table IDs from poker_tables
   status: text("status").notNull().default("waiting"), // waiting, approved, rejected
   position: integer("position").default(0),
   estimatedWait: integer("estimated_wait").default(0), // in minutes
@@ -101,6 +101,8 @@ export const insertPlayerPrefsSchema = createInsertSchema(playerPrefs).omit({
 export const insertSeatRequestSchema = createInsertSchema(seatRequests).omit({
   id: true,
   createdAt: true,
+}).extend({
+  tableId: z.string(), // Override to accept UUID strings from poker_tables
 });
 
 export const insertKycDocumentSchema = createInsertSchema(kycDocuments).omit({
