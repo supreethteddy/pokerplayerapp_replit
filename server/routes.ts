@@ -169,12 +169,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Player not found" });
       }
       
-      // Get seat requests from memory storage
-      const playerKey = `player_${player.id}`;
-      const requests = seatRequestsMemory.get(playerKey) || [];
+      // Get seat requests from Supabase
+      const { data: requests, error } = await supabase
+        .from('seat_requests')
+        .select('*')
+        .eq('player_id', player.id)
+        .order('created_at', { ascending: false });
       
-      console.log(`✅ [UNIVERSAL WAITLIST] Found ${requests.length} seat requests for player ${player.id}`);
-      res.json(requests);
+      if (error) {
+        throw new Error(`Failed to fetch seat requests: ${error.message}`);
+      }
+      
+      // Transform to camelCase for response
+      const transformedRequests = (requests || []).map(req => ({
+        id: req.id,
+        playerId: req.player_id,
+        tableId: req.table_id,
+        position: req.position,
+        status: req.status,
+        estimatedWait: req.estimated_wait,
+        createdAt: req.created_at
+      }));
+      
+      console.log(`✅ [UNIVERSAL WAITLIST] Found ${transformedRequests.length} seat requests for player ${player.id}`);
+      res.json(transformedRequests);
     } catch (error: any) {
       console.error(`❌ [UNIVERSAL WAITLIST] Error getting seat requests:`, error);
       res.status(500).json({ error: error.message });
@@ -937,28 +955,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log('✅ [SEAT REQUEST ROUTE] Table exists:', tableExists);
       
-      // Create seat request in memory
-      const seatRequestId = seatRequestIdCounter++;
-      const seatRequest = {
-        id: seatRequestId,
-        playerId: requestData.playerId,
-        tableId: tableUuid,
-        position: requestData.position || 0,
-        status: requestData.status || 'waiting',
-        estimatedWait: 0,
-        createdAt: new Date().toISOString()
+      // Create seat request in Supabase
+      const { data: seatRequest, error: insertError } = await supabase
+        .from('seat_requests')
+        .insert({
+          player_id: requestData.playerId,
+          table_id: tableUuid,
+          position: requestData.position || 0,
+          status: requestData.status || 'waiting',
+          estimated_wait: 0,
+          universal_id: `seat_${Date.now()}_${requestData.playerId}`
+        })
+        .select()
+        .single();
+      
+      if (insertError) {
+        throw new Error(`Failed to create seat request: ${insertError.message}`);
+      }
+      
+      // Transform to camelCase for response
+      const transformedRequest = {
+        id: seatRequest.id,
+        playerId: seatRequest.player_id,
+        tableId: seatRequest.table_id,
+        position: seatRequest.position,
+        status: seatRequest.status,
+        estimatedWait: seatRequest.estimated_wait,
+        createdAt: seatRequest.created_at
       };
       
-      // Store in memory by player ID
-      const playerKey = `player_${requestData.playerId}`;
-      if (!seatRequestsMemory.has(playerKey)) {
-        seatRequestsMemory.set(playerKey, []);
-      }
-      seatRequestsMemory.get(playerKey)?.push(seatRequest);
+      console.log('✅ [SEAT REQUEST ROUTE] Created in Supabase:', transformedRequest);
       
-      console.log('✅ [SEAT REQUEST ROUTE] Successfully created in memory:', seatRequest);
-      
-      res.json(seatRequest);
+      res.json(transformedRequest);
     } catch (error: any) {
       console.error('❌ [SEAT REQUEST ROUTE] Error:', error);
       res.status(400).json({ error: error.message });
@@ -968,10 +996,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/seat-requests/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
-      const playerKey = `player_${playerId}`;
-      const requests = seatRequestsMemory.get(playerKey) || [];
-      console.log('📋 [SEAT REQUEST GET] Returning requests for player', playerId, ':', requests);
-      res.json(requests);
+      
+      // Get seat requests from Supabase
+      const { data: requests, error } = await supabase
+        .from('seat_requests')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        throw new Error(`Failed to fetch seat requests: ${error.message}`);
+      }
+      
+      // Transform to camelCase for response
+      const transformedRequests = (requests || []).map(req => ({
+        id: req.id,
+        playerId: req.player_id,
+        tableId: req.table_id,
+        position: req.position,
+        status: req.status,
+        estimatedWait: req.estimated_wait,
+        createdAt: req.created_at
+      }));
+      
+      console.log('📋 [SEAT REQUEST GET] Returning requests for player', playerId, ':', transformedRequests);
+      res.json(transformedRequests);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -981,7 +1030,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/seat-requests/:playerId/:tableId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
-      const tableId = parseInt(req.params.tableId);
+      const tableId = req.params.tableId;
       
       // Delete the seat request from Supabase
       const { error } = await supabase
