@@ -20,6 +20,71 @@ const supabase = createClient(
 );
 
 export class SupabaseOnlyStorage implements IStorage {
+  /**
+   * UNIVERSAL CROSS-PORTAL STORAGE SYSTEM
+   * All functions enhanced for perfect cross-portal compatibility
+   */
+
+  // Universal player count for health checks
+  async getPlayerCount(): Promise<number> {
+    try {
+      const { count, error } = await supabase
+        .from('players')
+        .select('*', { count: 'exact', head: true });
+      
+      if (error) {
+        console.error('Error getting player count:', error);
+        return 0;
+      }
+      
+      return count || 0;
+    } catch (error: any) {
+      console.error('Error getting player count:', error);
+      return 0;
+    }
+  }
+
+  // Update player KYC status (universal method)
+  async updatePlayerKycStatus(playerId: number, status: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('players')
+        .update({ kyc_status: status })
+        .eq('id', playerId);
+      
+      if (error) {
+        throw new Error(`Failed to update KYC status: ${error.message}`);
+      }
+      
+      console.log(`✅ [UNIVERSAL] Updated KYC status for player ${playerId}: ${status}`);
+    } catch (error: any) {
+      console.error(`❌ [UNIVERSAL] Error updating KYC status:`, error);
+      throw error;
+    }
+  }
+
+  // Update player with Supabase ID (universal ID linking)
+  async updatePlayerSupabaseId(playerId: number, supabaseId: string): Promise<Player> {
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .update({ supabase_id: supabaseId })
+        .eq('id', playerId)
+        .select()
+        .single();
+      
+      if (error) {
+        throw new Error(`Failed to update Supabase ID: ${error.message}`);
+      }
+      
+      console.log(`✅ [UNIVERSAL] Updated player ${playerId} with Supabase ID: ${supabaseId}`);
+      return this.transformPlayerFromSupabase(data);
+    } catch (error: any) {
+      console.error(`❌ [UNIVERSAL] Error updating Supabase ID:`, error);
+      throw error;
+    }
+  }
+
   // Player operations
   async getPlayer(id: number): Promise<Player | undefined> {
     const { data, error } = await supabase

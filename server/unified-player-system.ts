@@ -1,9 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { supabaseOnlyStorage } from './supabase-only-storage';
 
+// UNIVERSAL CROSS-PORTAL SUPABASE CONNECTION
+// Connect to Staff Portal's Supabase database for unified system
 const supabase = createClient(
-  process.env.VITE_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.STAFF_PORTAL_SUPABASE_URL!,
+  process.env.STAFF_PORTAL_SUPABASE_SERVICE_KEY!
 );
 
 export interface UnifiedPlayer {
@@ -25,6 +27,106 @@ export interface UnifiedPlayer {
 }
 
 export class UnifiedPlayerSystem {
+  /**
+   * UNIVERSAL CROSS-PORTAL SYSTEM
+   * This ensures perfect synchronization across Player Portal, Staff Portal, and Master Admin Portal
+   * All functions use universal IDs for seamless cross-portal functionality
+   */
+
+  /**
+   * Get player by universal ID (works across all portals)
+   */
+  async getPlayerByUniversalId(universalId: string): Promise<UnifiedPlayer | null> {
+    try {
+      console.log(`🔄 [UNIVERSAL] Getting player by universal ID: ${universalId}`);
+      
+      // Try Supabase ID first
+      let player = await supabaseOnlyStorage.getPlayerBySupabaseId(universalId);
+      if (player) {
+        console.log(`✅ [UNIVERSAL] Found player by Supabase ID: ${player.id}`);
+        return this.transformToUnifiedPlayer(player);
+      }
+      
+      // Try email lookup
+      if (universalId.includes('@')) {
+        player = await supabaseOnlyStorage.getPlayerByEmail(universalId);
+        if (player) {
+          console.log(`✅ [UNIVERSAL] Found player by email: ${player.id}`);
+          return this.transformToUnifiedPlayer(player);
+        }
+      }
+      
+      // Try numeric ID
+      if (!isNaN(Number(universalId))) {
+        player = await supabaseOnlyStorage.getPlayer(Number(universalId));
+        if (player) {
+          console.log(`✅ [UNIVERSAL] Found player by numeric ID: ${player.id}`);
+          return this.transformToUnifiedPlayer(player);
+        }
+      }
+      
+      console.log(`❌ [UNIVERSAL] No player found for universal ID: ${universalId}`);
+      return null;
+    } catch (error: any) {
+      console.error(`❌ [UNIVERSAL] Error getting player by universal ID:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Migrate existing players to universal ID system
+   */
+  async migrateToUniversalIds(): Promise<{ migrated: number; errors: number }> {
+    try {
+      console.log(`🔄 [UNIVERSAL] Starting universal ID migration`);
+      
+      let migrated = 0;
+      let errors = 0;
+      
+      // Get all players from Supabase
+      const { data: allPlayers, error } = await supabase
+        .from('players')
+        .select('*');
+      
+      if (error) {
+        throw new Error(`Failed to get players: ${error.message}`);
+      }
+      
+      for (const player of allPlayers) {
+        try {
+          // Ensure player has universal ID fields
+          if (!player.supabase_id) {
+            // Try to find matching Supabase auth user
+            const { data: authUsers } = await supabase.auth.admin.listUsers();
+            const authUser = authUsers.users.find(u => u.email === player.email);
+            
+            if (authUser) {
+              // Update player with Supabase ID
+              await supabase
+                .from('players')
+                .update({ supabase_id: authUser.id })
+                .eq('id', player.id);
+              
+              console.log(`✅ [UNIVERSAL] Updated player ${player.id} with Supabase ID`);
+              migrated++;
+            }
+          } else {
+            migrated++;
+          }
+        } catch (playerError: any) {
+          console.error(`❌ [UNIVERSAL] Error migrating player ${player.id}:`, playerError);
+          errors++;
+        }
+      }
+      
+      console.log(`✅ [UNIVERSAL] Migration completed: ${migrated} migrated, ${errors} errors`);
+      return { migrated, errors };
+    } catch (error: any) {
+      console.error(`❌ [UNIVERSAL] Migration failed:`, error);
+      throw error;
+    }
+  }
+
   /**
    * Create a new player with unified ID system
    * This bridges Supabase auth.users.id with application players table

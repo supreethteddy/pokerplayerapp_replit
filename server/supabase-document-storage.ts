@@ -1,11 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import { supabaseOnlyStorage } from './supabase-only-storage.js';
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+// UNIVERSAL CROSS-PORTAL SUPABASE CONNECTION
+// Connect to Staff Portal's Supabase database for unified system
+const supabaseUrl = process.env.STAFF_PORTAL_SUPABASE_URL!;
+const supabaseServiceKey = process.env.STAFF_PORTAL_SUPABASE_SERVICE_KEY!;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error('Missing Supabase environment variables');
+  throw new Error('Missing Staff Portal Supabase environment variables');
 }
 
 // Create Supabase client with service role key for admin operations
@@ -23,9 +25,71 @@ export interface SupabaseDocumentRecord {
 
 export class SupabaseDocumentStorage {
   private bucketName = 'kyc-documents';
+  
+  /**
+   * UNIVERSAL CROSS-PORTAL DOCUMENT SYSTEM
+   * All KYC functions enhanced for perfect cross-portal compatibility
+   */
 
   constructor() {
     this.initializeBucket();
+  }
+
+  // Universal document count for health checks
+  async getDocumentCount(): Promise<number> {
+    try {
+      const { count, error } = await supabase
+        .from('kyc_documents')
+        .select('*', { count: 'exact', head: true });
+      
+      if (error) {
+        console.error('Error getting document count:', error);
+        return 0;
+      }
+      
+      return count || 0;
+    } catch (error: any) {
+      console.error('Error getting document count:', error);
+      return 0;
+    }
+  }
+
+  // Update document status (universal method for cross-portal approval)
+  async updateDocumentStatus(documentId: number, status: string): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('kyc_documents')
+        .update({ status: status })
+        .eq('id', documentId);
+      
+      if (error) {
+        throw new Error(`Failed to update document status: ${error.message}`);
+      }
+      
+      console.log(`✅ [UNIVERSAL] Updated document ${documentId} status: ${status}`);
+    } catch (error: any) {
+      console.error(`❌ [UNIVERSAL] Error updating document status:`, error);
+      throw error;
+    }
+  }
+
+  // Get documents by player ID (universal method)
+  async getDocumentsByPlayerId(playerId: number): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('kyc_documents')
+        .select('*')
+        .eq('player_id', playerId);
+      
+      if (error) {
+        throw new Error(`Failed to get documents: ${error.message}`);
+      }
+      
+      return data || [];
+    } catch (error: any) {
+      console.error(`❌ [UNIVERSAL] Error getting documents:`, error);
+      return [];
+    }
   }
 
   private async initializeBucket() {

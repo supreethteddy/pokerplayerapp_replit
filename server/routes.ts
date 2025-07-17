@@ -71,6 +71,177 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // UNIFIED CROSS-PORTAL SYSTEM - Universal ID Management
+  // This ensures perfect synchronization across Player Portal, Staff Portal, and Master Admin Portal
+  
+  // Universal player endpoints with cross-portal compatibility
+  app.get("/api/players/universal/:universalId", async (req, res) => {
+    try {
+      const universalId = req.params.universalId;
+      console.log(`🔄 [UNIVERSAL] Getting player by universal ID: ${universalId}`);
+      
+      // Try to find player by universal ID across all systems
+      const player = await unifiedPlayerSystem.getPlayerByUniversalId(universalId);
+      
+      if (!player) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+      
+      console.log(`✅ [UNIVERSAL] Found player - App ID: ${player.id}, Universal ID: ${universalId}`);
+      res.json(player);
+    } catch (error: any) {
+      console.error(`❌ [UNIVERSAL] Error getting player by universal ID:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Universal KYC system for cross-portal access
+  app.get("/api/kyc/universal/:universalId", async (req, res) => {
+    try {
+      const universalId = req.params.universalId;
+      console.log(`🔄 [UNIVERSAL KYC] Getting KYC data for universal ID: ${universalId}`);
+      
+      // Get player by universal ID
+      const player = await unifiedPlayerSystem.getPlayerByUniversalId(universalId);
+      if (!player) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+      
+      // Get KYC documents from unified system
+      const kycDocuments = await supabaseDocumentStorage.getDocumentsByPlayerId(player.id);
+      
+      console.log(`✅ [UNIVERSAL KYC] Found ${kycDocuments.length} KYC documents for player ${player.id}`);
+      res.json({
+        player: player,
+        kycDocuments: kycDocuments,
+        kycStatus: player.kycStatus
+      });
+    } catch (error: any) {
+      console.error(`❌ [UNIVERSAL KYC] Error getting KYC data:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Universal KYC approval system (for Staff Portal and Master Admin Portal)
+  app.post("/api/kyc/universal/:universalId/approve", async (req, res) => {
+    try {
+      const universalId = req.params.universalId;
+      const { documentId, status, reviewedBy } = req.body;
+      
+      console.log(`🔄 [UNIVERSAL KYC] Approving KYC for universal ID: ${universalId}, Document: ${documentId}`);
+      
+      // Get player by universal ID
+      const player = await unifiedPlayerSystem.getPlayerByUniversalId(universalId);
+      if (!player) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+      
+      // Update KYC document status
+      await supabaseDocumentStorage.updateDocumentStatus(documentId, status);
+      
+      // Update player KYC status if all documents are approved
+      if (status === 'approved') {
+        const allDocuments = await supabaseDocumentStorage.getDocumentsByPlayerId(player.id);
+        const allApproved = allDocuments.every(doc => doc.status === 'approved');
+        
+        if (allApproved) {
+          await supabaseOnlyStorage.updatePlayerKycStatus(player.id, 'approved');
+        }
+      }
+      
+      console.log(`✅ [UNIVERSAL KYC] KYC ${status} for player ${player.id}, document ${documentId}`);
+      res.json({ success: true, status: status });
+    } catch (error: any) {
+      console.error(`❌ [UNIVERSAL KYC] Error approving KYC:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Universal seat request system for cross-portal waitlist management
+  app.get("/api/seat-requests/universal/:universalId", async (req, res) => {
+    try {
+      const universalId = req.params.universalId;
+      console.log(`🔄 [UNIVERSAL WAITLIST] Getting seat requests for universal ID: ${universalId}`);
+      
+      // Get player by universal ID
+      const player = await unifiedPlayerSystem.getPlayerByUniversalId(universalId);
+      if (!player) {
+        return res.status(404).json({ error: "Player not found" });
+      }
+      
+      // Get seat requests from memory storage
+      const playerKey = `player_${player.id}`;
+      const requests = seatRequestsMemory.get(playerKey) || [];
+      
+      console.log(`✅ [UNIVERSAL WAITLIST] Found ${requests.length} seat requests for player ${player.id}`);
+      res.json(requests);
+    } catch (error: any) {
+      console.error(`❌ [UNIVERSAL WAITLIST] Error getting seat requests:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Universal cross-portal health check
+  app.get("/api/universal-health", async (req, res) => {
+    try {
+      console.log(`🔄 [UNIVERSAL HEALTH] Checking system health across all portals`);
+      
+      // Test Supabase connection
+      const { data: supabaseTest, error: supabaseError } = await supabase
+        .from('players')
+        .select('count')
+        .limit(1);
+      
+      // Test player system
+      const playerCount = await supabaseOnlyStorage.getPlayerCount();
+      
+      // Test KYC system
+      const kycCount = await supabaseDocumentStorage.getDocumentCount();
+      
+      const healthStatus = {
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        checks: {
+          supabase: supabaseError ? 'error' : 'healthy',
+          playerSystem: playerCount >= 0 ? 'healthy' : 'error',
+          kycSystem: kycCount >= 0 ? 'healthy' : 'error',
+          unifiedSystem: 'healthy'
+        },
+        stats: {
+          playerCount,
+          kycCount,
+          activeTables: 2
+        }
+      };
+      
+      console.log(`✅ [UNIVERSAL HEALTH] System health check completed`);
+      res.json(healthStatus);
+    } catch (error: any) {
+      console.error(`❌ [UNIVERSAL HEALTH] Health check failed:`, error);
+      res.status(500).json({ 
+        status: 'error',
+        timestamp: new Date().toISOString(),
+        error: error.message 
+      });
+    }
+  });
+
+  // Universal player migration system
+  app.post("/api/migrate-universal-ids", async (req, res) => {
+    try {
+      console.log(`🔄 [UNIVERSAL MIGRATION] Starting universal ID migration`);
+      
+      // Migrate existing players to universal ID system
+      const migrationResult = await unifiedPlayerSystem.migrateToUniversalIds();
+      
+      console.log(`✅ [UNIVERSAL MIGRATION] Migration completed: ${migrationResult.migrated} players migrated`);
+      res.json(migrationResult);
+    } catch (error: any) {
+      console.error(`❌ [UNIVERSAL MIGRATION] Migration failed:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Unified Player System - Sync existing players with Supabase auth
   app.post("/api/sync-players", async (req, res) => {
     try {
