@@ -11,6 +11,9 @@ import { z } from "zod";
 // SUPABASE EXCLUSIVE MODE - No Drizzle ORM imports needed
 import { createClient } from '@supabase/supabase-js';
 import { debugAllTables } from './debug-tables';
+import { comprehensiveTableCheck, checkDatabaseConnection } from './comprehensive-table-check';
+import { testDirectTableQuery } from './direct-table-test';
+import { addTablesToSupabase } from './add-tables-to-supabase';
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL!,
@@ -398,6 +401,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add tables to Supabase endpoint
+  app.post("/api/add-tables", async (req, res) => {
+    try {
+      await addTablesToSupabase();
+      res.json({ success: true, message: "Tables added successfully" });
+    } catch (error: any) {
+      console.error('Add tables error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Tables routes
   app.get("/api/tables", async (req, res) => {
     try {
@@ -407,12 +421,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Debug: Check all tables in database
       await debugAllTables();
       
+      // Comprehensive table check to find missing tables
+      await comprehensiveTableCheck();
+      await checkDatabaseConnection();
+      
+      // Test direct table query to troubleshoot the issue
+      await testDirectTableQuery();
+      
+      // Add missing tables to Supabase (run once)
+      // await addTablesToSupabase();
+      
       // SUPABASE EXCLUSIVE MODE - Direct query to fetch ALL tables without any limits
-      const { data: tables, error } = await supabase
+      console.log('🔍 [TABLES] Forcing fresh query without cache...');
+      const { data: tables, error, count } = await supabase
         .from('tables')
-        .select('*')
+        .select('*', { count: 'exact' })
         .order('id', { ascending: false })
         .limit(10000); // Ensure we get ALL tables from Supabase
+        
+      console.log('🔍 [TABLES] Raw query result:', { 
+        tablesCount: tables?.length || 0, 
+        totalCount: count,
+        error: error?.message || null,
+        firstFewIds: tables?.slice(0, 5).map(t => t.id) || [],
+        lastFewIds: tables?.slice(-5).map(t => t.id) || []
+      });
       
       if (error) {
         console.error('[TABLES] Error fetching tables:', error);
@@ -438,14 +471,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('🔢 [TABLES] Table IDs:', transformedTables.map(t => t.id).join(', '));
       
       // Check for total table count in database
-      const { count, error: countError } = await supabase
+      const { count: totalCount, error: countError } = await supabase
         .from('tables')
         .select('*', { count: 'exact', head: true });
       
       if (countError) {
         console.error('❌ [TABLES] Error getting table count:', countError);
       } else {
-        console.log(`📊 [TABLES] Total tables in database: ${count}`);
+        console.log(`📊 [TABLES] Total tables in database: ${totalCount}`);
       }
       res.json(transformedTables);
     } catch (error: any) {
