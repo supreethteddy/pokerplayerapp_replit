@@ -16,9 +16,10 @@ import { testDirectTableQuery } from './direct-table-test';
 import { addTablesToSupabase } from './add-tables-to-supabase';
 import { cleanupSupabaseTables } from './cleanup-supabase-tables';
 
+// Connect to Staff Portal's Supabase database for table synchronization
 const supabase = createClient(
-  process.env.VITE_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.STAFF_PORTAL_SUPABASE_URL!,
+  process.env.STAFF_PORTAL_SUPABASE_SERVICE_KEY!
 );
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -427,13 +428,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Tables routes
   app.get("/api/tables", async (req, res) => {
     try {
-      console.log('🔄 [TABLES] Fetching ALL tables from Supabase...');
-      console.log('🔗 [TABLES] Database URL:', process.env.VITE_SUPABASE_URL?.slice(0, 50) + '...');
+      console.log('🔄 [TABLES] Fetching ALL tables from Staff Portal Supabase...');
+      console.log('🔗 [TABLES] Database URL:', process.env.STAFF_PORTAL_SUPABASE_URL?.slice(0, 50) + '...');
       
-      // Debug: Check all tables in database
-      await debugAllTables();
-      
-      // Production ready - all debugging removed, using only Supabase authentic data
+      // Production ready - Connected to Staff Portal's Supabase database for real-time table sync
       
       // SUPABASE EXCLUSIVE MODE - Direct query to fetch ALL tables without any limits
       console.log('🔍 [TABLES] Forcing fresh query without cache...');
