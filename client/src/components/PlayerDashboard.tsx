@@ -179,6 +179,65 @@ export default function PlayerDashboard() {
     leaveWaitListMutation.mutate(tableId);
   };
 
+  // Credit request state and mutations
+  const [creditAmount, setCreditAmount] = useState("");
+  const [creditNote, setCreditNote] = useState("");
+  const [showCreditForm, setShowCreditForm] = useState(false);
+
+  // Fetch credit requests for player
+  const { data: creditRequests, isLoading: creditRequestsLoading } = useQuery({
+    queryKey: [`/api/credit-requests/${user?.id}`],
+    enabled: !!user?.id,
+    refetchInterval: 2000, // Refresh every 2 seconds
+  });
+
+  // Submit credit request mutation
+  const submitCreditRequestMutation = useMutation({
+    mutationFn: async ({ playerId, requestedAmount, requestNote }: { playerId: number; requestedAmount: number; requestNote: string }) => {
+      const response = await apiRequest('POST', '/api/credit-requests', {
+        playerId,
+        requestedAmount,
+        requestNote,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/credit-requests/${user?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/players/supabase'] });
+      setCreditAmount("");
+      setCreditNote("");
+      setShowCreditForm(false);
+      toast({
+        title: "Credit Request Submitted",
+        description: "Your credit request has been submitted to the Super Admin for approval",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Request Failed",
+        description: error.message || "Could not submit credit request",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCreditRequest = () => {
+    if (!creditAmount || parseFloat(creditAmount) <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid credit amount",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    submitCreditRequestMutation.mutate({
+      playerId: user?.id!,
+      requestedAmount: parseFloat(creditAmount),
+      requestNote: creditNote || `Credit request for ₹${creditAmount}`,
+    });
+  };
+
   // Update call time periodically
   useEffect(() => {
     if (user) {

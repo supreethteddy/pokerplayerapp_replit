@@ -500,6 +500,7 @@ export class SupabaseOnlyStorage implements IStorage {
       totalLosses: data.total_losses,
       gamesPlayed: data.games_played,
       hoursPlayed: data.hours_played,
+      creditApproved: data.credit_approved || false,
       createdAt: new Date(data.created_at)
     };
     console.log('SupabaseOnlyStorage: transformPlayerFromSupabase output:', transformed);

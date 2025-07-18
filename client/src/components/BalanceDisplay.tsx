@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CreditCard, TrendingUp, TrendingDown, Trophy, Target, BarChart3, AlertCircle } from "lucide-react";
+import CreditRequestCard from "./CreditRequestCard";
 
 export default function BalanceDisplay() {
   const { user } = useAuth();
@@ -163,6 +164,9 @@ export default function BalanceDisplay() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Credit Request Card - Only shown if user is credit approved */}
+      <CreditRequestCard />
     </div>
   );
 }

@@ -20,6 +20,7 @@ export const players = pgTable("players", {
   totalLosses: text("total_losses").notNull().default("0.00"), // Total losses
   gamesPlayed: integer("games_played").notNull().default(0), // Games played
   hoursPlayed: text("hours_played").notNull().default("0.00"), // Hours played
+  creditApproved: boolean("credit_approved").default(false), // Credit system approval
   createdAt: timestamp("created_at").defaultNow(),
 });
 

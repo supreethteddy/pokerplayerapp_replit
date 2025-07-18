@@ -24,6 +24,12 @@ const supabase = createClient(
   process.env.STAFF_PORTAL_SUPABASE_SERVICE_KEY!
 );
 
+// Connect to local database for credit requests
+const localSupabase = createClient(
+  process.env.VITE_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
 // Create KYC document schema - omit fileUrl as it's generated during upload
 const insertKycDocumentSchema = createInsertSchema(kycDocuments).omit({ fileUrl: true });
 
@@ -1119,6 +1125,248 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(transformedWaitlist);
     } catch (error: any) {
       console.error('❌ [WAITLIST TABLE] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // UNIFIED CREDIT SYSTEM - Cross-portal credit management
+  
+  // Request credit (Player Portal)
+  app.post("/api/credit-requests", async (req, res) => {
+    try {
+      const { playerId, requestedAmount, requestNote } = req.body;
+      
+      console.log('💳 [CREDIT REQUEST] Creating credit request for player:', playerId, 'Amount:', requestedAmount);
+      
+      // Validate player exists and is credit approved
+      const { data: player, error: playerError } = await supabase
+        .from('players')
+        .select('id, credit_approved, credit_limit, current_credit, balance')
+        .eq('id', playerId)
+        .single();
+      
+      if (playerError || !player) {
+        throw new Error(`Player not found: ${playerId}`);
+      }
+      
+      if (!player.credit_approved) {
+        throw new Error('Player not approved for credit');
+      }
+      
+      // Create credit request
+      const { data: creditRequest, error: insertError } = await localSupabase
+        .from('credit_requests')
+        .insert({
+          player_id: playerId,
+          requested_amount: requestedAmount,
+          current_balance: parseFloat(player.balance) || 0,
+          status: 'pending',
+          request_note: requestNote || `Credit request for ₹${requestedAmount}`,
+          universal_id: `credit_${Date.now()}_${playerId}`
+        })
+        .select()
+        .single();
+      
+      if (insertError) {
+        throw new Error(`Failed to create credit request: ${insertError.message}`);
+      }
+      
+      // Transform response
+      const transformedRequest = {
+        id: creditRequest.id,
+        playerId: creditRequest.player_id,
+        requestedAmount: creditRequest.requested_amount,
+        currentBalance: creditRequest.current_balance,
+        status: creditRequest.status,
+        requestNote: creditRequest.request_note,
+        createdAt: creditRequest.created_at,
+        universalId: creditRequest.universal_id
+      };
+      
+      console.log('✅ [CREDIT REQUEST] Created successfully:', transformedRequest);
+      res.json(transformedRequest);
+    } catch (error: any) {
+      console.error('❌ [CREDIT REQUEST] Error:', error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Get credit requests for player
+  app.get("/api/credit-requests/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      
+      console.log('📋 [CREDIT REQUESTS] Getting requests for player:', playerId);
+      
+      const { data: requests, error } = await localSupabase
+        .from('credit_requests')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        throw new Error(`Failed to fetch credit requests: ${error.message}`);
+      }
+      
+      // Transform response
+      const transformedRequests = (requests || []).map(req => ({
+        id: req.id,
+        playerId: req.player_id,
+        requestedAmount: req.requested_amount,
+        currentBalance: req.current_balance,
+        status: req.status,
+        requestNote: req.request_note,
+        adminNote: req.admin_note,
+        approvedBy: req.approved_by,
+        approvedAt: req.approved_at,
+        rejectedReason: req.rejected_reason,
+        createdAt: req.created_at,
+        universalId: req.universal_id
+      }));
+      
+      console.log('✅ [CREDIT REQUESTS] Returning', transformedRequests.length, 'requests');
+      res.json(transformedRequests);
+    } catch (error: any) {
+      console.error('❌ [CREDIT REQUESTS] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get all credit requests (Staff Portal / Super Admin)
+  app.get("/api/credit-requests", async (req, res) => {
+    try {
+      const { status } = req.query;
+      
+      console.log('📋 [ALL CREDIT REQUESTS] Getting all requests, status filter:', status);
+      
+      let query = localSupabase
+        .from('credit_requests')
+        .select(`
+          *,
+          players!inner(first_name, last_name, email, phone, credit_limit, current_credit)
+        `)
+        .order('created_at', { ascending: false });
+      
+      if (status) {
+        query = query.eq('status', status);
+      }
+      
+      const { data: requests, error } = await query;
+      
+      if (error) {
+        throw new Error(`Failed to fetch credit requests: ${error.message}`);
+      }
+      
+      // Transform response with player details
+      const transformedRequests = (requests || []).map(req => ({
+        id: req.id,
+        playerId: req.player_id,
+        requestedAmount: req.requested_amount,
+        currentBalance: req.current_balance,
+        status: req.status,
+        requestNote: req.request_note,
+        adminNote: req.admin_note,
+        approvedBy: req.approved_by,
+        approvedAt: req.approved_at,
+        rejectedReason: req.rejected_reason,
+        createdAt: req.created_at,
+        universalId: req.universal_id,
+        player: {
+          firstName: req.players.first_name,
+          lastName: req.players.last_name,
+          email: req.players.email,
+          phone: req.players.phone,
+          creditLimit: req.players.credit_limit,
+          currentCredit: req.players.current_credit
+        }
+      }));
+      
+      console.log('✅ [ALL CREDIT REQUESTS] Returning', transformedRequests.length, 'requests');
+      res.json(transformedRequests);
+    } catch (error: any) {
+      console.error('❌ [ALL CREDIT REQUESTS] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Approve/Reject credit request (Super Admin)
+  app.patch("/api/credit-requests/:requestId/status", async (req, res) => {
+    try {
+      const requestId = req.params.requestId;
+      const { status, adminNote, rejectedReason, approvedBy } = req.body;
+      
+      console.log('🔄 [CREDIT STATUS] Updating request:', requestId, 'Status:', status);
+      
+      // Get current request
+      const { data: currentRequest, error: fetchError } = await localSupabase
+        .from('credit_requests')
+        .select('*')
+        .eq('id', requestId)
+        .single();
+      
+      if (fetchError || !currentRequest) {
+        throw new Error(`Credit request not found: ${requestId}`);
+      }
+      
+      // Update request status
+      const updateData: any = {
+        status: status,
+        admin_note: adminNote,
+        updated_at: new Date().toISOString()
+      };
+      
+      if (status === 'approved') {
+        updateData.approved_by = approvedBy;
+        updateData.approved_at = new Date().toISOString();
+      } else if (status === 'rejected') {
+        updateData.rejected_reason = rejectedReason;
+      }
+      
+      const { data: updatedRequest, error: updateError } = await localSupabase
+        .from('credit_requests')
+        .update(updateData)
+        .eq('id', requestId)
+        .select()
+        .single();
+      
+      if (updateError) {
+        throw new Error(`Failed to update credit request: ${updateError.message}`);
+      }
+      
+      // If approved, update player's credit and balance
+      if (status === 'approved') {
+        const { data: player, error: playerError } = await supabase
+          .from('players')
+          .select('current_credit, balance')
+          .eq('id', currentRequest.player_id)
+          .single();
+        
+        if (playerError) {
+          throw new Error(`Failed to get player data: ${playerError.message}`);
+        }
+        
+        const newCredit = parseFloat(player.current_credit) + parseFloat(currentRequest.requested_amount);
+        const newBalance = parseFloat(player.balance) + parseFloat(currentRequest.requested_amount);
+        
+        const { error: creditUpdateError } = await supabase
+          .from('players')
+          .update({
+            current_credit: newCredit.toFixed(2),
+            balance: newBalance.toFixed(2)
+          })
+          .eq('id', currentRequest.player_id);
+        
+        if (creditUpdateError) {
+          throw new Error(`Failed to update player credit: ${creditUpdateError.message}`);
+        }
+        
+        console.log('✅ [CREDIT STATUS] Player credit updated - New Credit:', newCredit, 'New Balance:', newBalance);
+      }
+      
+      console.log('✅ [CREDIT STATUS] Request updated successfully');
+      res.json({ success: true, request: updatedRequest });
+    } catch (error: any) {
+      console.error('❌ [CREDIT STATUS] Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
