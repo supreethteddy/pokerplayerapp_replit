@@ -1,41 +1,78 @@
 /* Mobile-first responsive optimizations for Poker Room Player Portal */
 
-/* Ensure proper viewport settings */
-html {
-  -webkit-text-size-adjust: 100%;
-  -ms-text-size-adjust: 100%;
+/* Global responsive settings */
+* {
+  box-sizing: border-box;
 }
 
-/* Mobile-optimized button sizing */
+html, body {
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+}
+
+/* Prevent horizontal scrolling on all devices */
+.container, .w-full, .max-w-full {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Mobile-optimized styling */
 @media (max-width: 640px) {
+  /* Prevent any horizontal overflow */
+  * {
+    max-width: 100vw !important;
+    overflow-x: hidden;
+  }
+
+  /* Ensure proper container sizing */
+  .min-h-screen {
+    width: 100vw;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
   /* Ensure all buttons are properly sized for touch */
   button {
     min-height: 44px;
-    min-width: 44px;
     touch-action: manipulation;
+    word-wrap: break-word;
   }
 
   /* Optimize tab navigation for mobile */
   [data-tabs-list] {
-    overflow-x: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
+    width: 100%;
+    max-width: 100%;
   }
 
   /* Ensure cards stack properly on mobile */
   .grid {
     grid-template-columns: 1fr !important;
+    width: 100%;
+    max-width: 100%;
   }
 
   /* Optimize form inputs for mobile */
   input, select, textarea {
     font-size: 16px; /* Prevents zoom on iOS */
     min-height: 44px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   /* Ensure text is readable on mobile */
   body {
     font-size: 14px;
     line-height: 1.5;
+    width: 100vw;
+    max-width: 100vw;
+    overflow-x: hidden;
   }
 
   /* Optimize spacing for mobile */
@@ -50,17 +87,39 @@ html {
   /* Ensure proper touch targets */
   a, button, [role="button"] {
     min-height: 44px;
-    min-width: 44px;
+    word-wrap: break-word;
   }
 
   /* Optimize table cards for mobile */
   .table-card {
     padding: 0.75rem;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
-  /* Ensure proper scrolling */
+  /* Ensure proper scrolling - vertical only */
   .overflow-auto {
     -webkit-overflow-scrolling: touch;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  /* Fix text overflow issues */
+  .truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+
+  /* Tab button responsiveness */
+  [role="tab"] {
+    font-size: 12px;
+    padding: 6px 4px;
+    text-align: center;
+    word-wrap: break-word;
+    hyphens: auto;
   }
 }
 

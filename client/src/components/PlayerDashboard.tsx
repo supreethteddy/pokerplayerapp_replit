@@ -636,72 +636,73 @@ export default function PlayerDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 p-2 sm:p-4 lg:p-6">
-      {/* Header - Responsive */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 space-y-2 sm:space-y-0">
-        <div className="w-full sm:w-auto">
-          <h1 className="text-xl sm:text-2xl font-bold text-white">Player Dashboard</h1>
-          <p className="text-slate-400 text-sm sm:text-base">Welcome back, {user?.firstName}!</p>
+    <div className="min-h-screen bg-slate-900 w-full overflow-x-hidden">
+      <div className="max-w-full px-3 py-2 sm:px-4 sm:py-4 lg:px-6 lg:py-6">
+        {/* Header - Responsive */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 space-y-2 sm:space-y-0">
+          <div className="w-full sm:w-auto min-w-0">
+            <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-white truncate">Player Dashboard</h1>
+            <p className="text-slate-400 text-xs sm:text-sm lg:text-base truncate">Welcome back, {user?.firstName}!</p>
+          </div>
+          <Button
+            onClick={signOut}
+            variant="outline"
+            size="sm"
+            className="border-slate-600 text-slate-400 hover:bg-slate-700 hover:text-white w-full sm:w-auto flex-shrink-0"
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
+          </Button>
         </div>
-        <Button
-          onClick={signOut}
-          variant="outline"
-          size="sm"
-          className="border-slate-600 text-slate-400 hover:bg-slate-700 hover:text-white w-full sm:w-auto"
-        >
-          <LogOut className="h-4 w-4 mr-2" />
-          Sign Out
-        </Button>
-      </div>
 
-      {/* Navigation Tabs */}
-      <Tabs defaultValue="game" className="w-full">
-        <TabsList className="flex w-full justify-between mb-6 bg-slate-800 border border-slate-700 rounded-lg p-1">
-          <TabsTrigger 
-            value="game" 
-            className="flex-1 px-3 py-2 text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center"
-          >
-            <Spade className="w-4 h-4 mr-2" />
-            Game
-          </TabsTrigger>
-          <TabsTrigger 
-            value="balance" 
-            className="flex-1 px-3 py-2 text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center"
-          >
-            <CreditCard className="w-4 h-4 mr-2" />
-            Offers
-          </TabsTrigger>
-          <TabsTrigger 
-            value="stats" 
-            className="flex-1 px-3 py-2 text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center"
-          >
-            <BarChart3 className="w-4 h-4 mr-2" />
-            My Stats
-          </TabsTrigger>
-          <TabsTrigger 
-            value="profile" 
-            className="flex-1 px-3 py-2 text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center"
-          >
-            <User className="w-4 h-4 mr-2" />
-            Profile
-          </TabsTrigger>
-        </TabsList>
+        {/* Navigation Tabs */}
+        <Tabs defaultValue="game" className="w-full max-w-full">
+          <TabsList className="flex w-full justify-between mb-3 sm:mb-4 bg-slate-800 border border-slate-700 rounded-lg p-1 overflow-hidden">
+            <TabsTrigger 
+              value="game" 
+              className="flex-1 px-1 sm:px-2 lg:px-3 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+            >
+              <Spade className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
+              <span className="truncate">Game</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="balance" 
+              className="flex-1 px-1 sm:px-2 lg:px-3 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+            >
+              <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
+              <span className="truncate">Offers</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="stats" 
+              className="flex-1 px-1 sm:px-2 lg:px-3 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+            >
+              <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
+              <span className="truncate">My Stats</span>
+            </TabsTrigger>
+            <TabsTrigger 
+              value="profile" 
+              className="flex-1 px-1 sm:px-2 lg:px-3 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+            >
+              <User className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
+              <span className="truncate">Profile</span>
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Tab Content Areas */}
-        <div className="mt-6">
+          {/* Tab Content Areas */}
+          <div className="w-full max-w-full overflow-hidden">
 
-          {/* Game Tab */}
-          <TabsContent value="game" className="space-y-4">
-            {/* Staff-Managed Offer Carousel */}
-            <OfferCarousel onOfferClick={(offerId) => {
-              // Switch to offers tab when carousel item is clicked
-              const offersTab = document.querySelector('[value="balance"]') as HTMLElement;
-              if (offersTab) offersTab.click();
-            }} />
-            
-            <div className="grid grid-cols-1 gap-4 sm:gap-6">
-              {/* Live Tables */}
-              <Card className="bg-slate-800 border-slate-700">
+            {/* Game Tab */}
+            <TabsContent value="game" className="space-y-3 sm:space-y-4 w-full max-w-full">
+              {/* Staff-Managed Offer Carousel */}
+              <OfferCarousel onOfferClick={(offerId) => {
+                // Switch to offers tab when carousel item is clicked
+                const offersTab = document.querySelector('[value="balance"]') as HTMLElement;
+                if (offersTab) offersTab.click();
+              }} />
+              
+              <div className="w-full max-w-full space-y-3 sm:space-y-4">
+                {/* Live Tables */}
+                <Card className="bg-slate-800 border-slate-700 w-full max-w-full overflow-hidden">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center">
                     <Table className="w-5 h-5 mr-2 text-emerald-500" />
@@ -1583,10 +1584,11 @@ export default function PlayerDashboard() {
                   </div>
                 </CardContent>
               </Card>
-            </div>
-          </TabsContent>
-        </div>
-      </Tabs>
+              </div>
+            </TabsContent>
+          </div>
+        </Tabs>
+      </div>
     </div>
   );
 }
