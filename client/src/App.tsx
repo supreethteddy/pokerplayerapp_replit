@@ -8,6 +8,7 @@ import AuthLayout from "./components/AuthLayout";
 import PlayerDashboard from "./components/PlayerDashboard";
 import VipShop from "./pages/VipShop";
 import LoadingScreen from "./components/LoadingScreen";
+import PushNotificationManager from "./components/PushNotificationManager";
 import { useState, useEffect } from "react";
 
 import NotFound from "@/pages/not-found";
@@ -57,6 +58,9 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-slate-900 dark">
+      {/* Global Push Notification Manager - Active when user is logged in */}
+      {user && <PushNotificationManager />}
+      
       <Switch>
         <Route path="/">
           {user ? <Redirect to="/dashboard" /> : <AuthLayout />}

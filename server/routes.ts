@@ -4147,22 +4147,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const playerId = parseInt(req.params.playerId);
       console.log(`📱 [PUSH_NOTIFICATION] Fetching notifications for player: ${playerId}`);
       
-      // Get notifications for this player from local Supabase
-      const { data, error } = await localSupabase
+      // Try Staff Portal Supabase first (where notifications are created)
+      const { data: staffData, error: staffError } = await supabase
         .from('push_notifications')
         .select('*')
         .or(`target_player_id.eq.${playerId},broadcast_to_all.eq.true`)
         .order('created_at', { ascending: false })
         .limit(20);
       
-      if (error) {
-        console.log(`[PUSH_NOTIFICATION] Error fetching notifications:`, error);
+      if (!staffError && staffData) {
+        console.log(`✅ [PUSH_NOTIFICATION] Found ${staffData.length} notifications from Staff Portal for player ${playerId}`);
+        return res.json(staffData);
+      }
+      
+      // Fallback to local database if Staff Portal doesn't have the table
+      const { data: localData, error: localError } = await localSupabase
+        .from('push_notifications')
+        .select('*')
+        .or(`target_player_id.eq.${playerId},broadcast_to_all.eq.true`)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      
+      if (localError) {
+        console.log(`[PUSH_NOTIFICATION] Error fetching notifications:`, localError);
         // Return empty array if table doesn't exist yet
         return res.json([]);
       }
       
-      console.log(`✅ [PUSH_NOTIFICATION] Found ${data?.length || 0} notifications for player ${playerId}`);
-      res.json(data || []);
+      console.log(`✅ [PUSH_NOTIFICATION] Found ${localData?.length || 0} notifications for player ${playerId}`);
+      res.json(localData || []);
     } catch (error: any) {
       console.error(`❌ [PUSH_NOTIFICATION] Error fetching notifications:`, error);
       res.json([]); // Return empty array instead of error to prevent UI issues
