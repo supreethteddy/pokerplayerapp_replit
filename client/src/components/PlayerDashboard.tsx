@@ -46,7 +46,7 @@ import { useLocation } from "wouter";
 import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
-import GreChatDialog from "./GreChatDialog";
+
 
 // Scrollable Offers Display Component
 const ScrollableOffersDisplay = () => {
@@ -342,7 +342,7 @@ export default function PlayerDashboard() {
   const queryClient = useQueryClient();
   const [callTime, setCallTime] = useState("02:45");
   const [location] = useLocation();
-  const [isChatOpen, setIsChatOpen] = useState(false);
+
   
   // Feedback system state
   const [feedbackMessage, setFeedbackMessage] = useState("");
@@ -1781,97 +1781,119 @@ export default function PlayerDashboard() {
               </div>
             </TabsContent>
 
-            {/* Feedback Tab */}
+            {/* Feedback Tab - GRE Chat */}
             <TabsContent value="feedback" className="flex-1 overflow-y-auto">
               <div className="space-y-4">
-                {/* Feedback Form */}
+                {/* Guest Relations Support */}
                 <Card className="bg-slate-800 border-slate-700">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center">
-                      <MessageCircle className="w-5 h-5 mr-2 text-emerald-500" />
-                      Send Feedback to Management
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-white">Message</label>
-                      <textarea
-                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
-                        rows={5}
-                        value={feedbackMessage}
-                        onChange={(e) => setFeedbackMessage(e.target.value)}
-                        placeholder="Share your feedback, suggestions, or concerns with our management team..."
-                        disabled={sendingFeedback}
-                      />
+                  <CardHeader className="pb-4 border-b border-slate-700">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 bg-emerald-500/20 rounded-full">
+                        <MessageCircle className="w-5 h-5 text-emerald-400" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-white text-lg">
+                          Guest Relations Support
+                        </CardTitle>
+                        <div className="flex items-center space-x-2 text-sm text-slate-400">
+                          <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                          <span>Available 24/7</span>
+                        </div>
+                      </div>
                     </div>
-                    <Button 
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
-                      onClick={submitFeedback}
-                      disabled={sendingFeedback || !feedbackMessage.trim()}
-                    >
-                      {sendingFeedback ? (
-                        <div className="animate-spin w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full" />
-                      ) : (
-                        <Send className="w-4 h-4 mr-2" />
-                      )}
-                      {sendingFeedback ? "Sending..." : "Send Feedback"}
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                {/* Chat with our Team (GRE) */}
-                <Card className="bg-slate-800 border-slate-700">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center">
-                      <MessageCircle className="w-5 h-5 mr-2 text-blue-500" />
-                      Chat with our Team
-                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Chat Messages Display */}
-                    <div className="max-h-[300px] overflow-y-auto space-y-3 bg-slate-700 p-3 rounded-lg">
+                    <div className="max-h-[400px] overflow-y-auto space-y-4 bg-slate-900 p-4 rounded-lg">
                       {chatLoading ? (
-                        <div className="space-y-3">
-                          {[1, 2].map((i) => (
-                            <div key={i} className="bg-slate-600 p-3 rounded-lg animate-pulse">
-                              <div className="h-3 bg-slate-500 rounded mb-2"></div>
-                              <div className="h-2 bg-slate-500 rounded w-3/4"></div>
-                            </div>
-                          ))}
+                        <div className="text-center text-slate-400 py-8">
+                          <MessageCircle className="w-8 h-8 mx-auto mb-2 animate-pulse" />
+                          Loading chat history...
                         </div>
                       ) : chatMessages && chatMessages.length > 0 ? (
                         chatMessages.map((message: any, index: number) => (
-                          <div 
+                          <div
                             key={index}
-                            className={`p-3 rounded-lg max-w-[80%] ${
-                              message.sender === 'player' 
-                                ? 'bg-emerald-600 text-white ml-auto' 
-                                : 'bg-slate-600 text-white mr-auto'
+                            className={`flex ${
+                              message.sender === 'player' || message.sender_type === 'player' ? 'justify-end' : 'justify-start'
                             }`}
                           >
-                            <div className="text-sm">{message.message}</div>
-                            <div className="text-xs opacity-70 mt-1">
-                              {message.sender === 'player' ? 'You' : message.senderName || 'Team Member'} • 
-                              {new Date(message.timestamp || message.created_at).toLocaleTimeString()}
+                            <div className="flex items-end space-x-2 max-w-[80%]">
+                              {(message.sender === 'gre' || message.sender_type === 'gre') && (
+                                <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
+                                  <MessageCircle className="w-4 h-4 text-white" />
+                                </div>
+                              )}
+                              <div>
+                                <div
+                                  className={`rounded-lg px-3 py-2 ${
+                                    message.sender === 'player' || message.sender_type === 'player'
+                                      ? 'bg-blue-600 text-white'
+                                      : 'bg-slate-700 text-slate-100'
+                                  }`}
+                                >
+                                  <p className="text-sm">{message.message}</p>
+                                </div>
+                                <div className="flex items-center mt-1 space-x-2">
+                                  <span className="text-xs text-slate-500">
+                                    {new Date(message.timestamp || message.created_at).toLocaleTimeString([], { 
+                                      hour: '2-digit', 
+                                      minute: '2-digit' 
+                                    })}
+                                  </span>
+                                </div>
+                              </div>
+                              {(message.sender === 'player' || message.sender_type === 'player') && (
+                                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                                  <span className="text-xs text-white font-medium">You</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))
                       ) : (
-                        <div className="text-center py-6">
-                          <MessageCircle className="w-8 h-8 text-slate-500 mx-auto mb-2" />
-                          <p className="text-slate-400 text-sm">Start a conversation with our team</p>
-                          <p className="text-slate-500 text-xs">Get instant help from our Guest Relation Executives</p>
+                        <div className="text-center text-slate-400 py-8">
+                          <MessageCircle className="w-12 h-12 mx-auto mb-4 text-slate-600" />
+                          <h3 className="text-lg font-medium text-slate-300 mb-2">
+                            Start a Conversation
+                          </h3>
+                          <p className="text-sm">
+                            Our Guest Relations team is here to help you with any questions or concerns.
+                          </p>
                         </div>
                       )}
                     </div>
 
+                    {/* Quick Actions */}
+                    <div className="space-y-2">
+                      <div className="text-xs text-slate-400 font-medium">Quick Actions:</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          "I need help with my account",
+                          "Technical support",
+                          "Payment history",
+                          "Game assistance"
+                        ].map((quickMessage) => (
+                          <Button
+                            key={quickMessage}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setChatMessage(quickMessage)}
+                            className="text-xs border-slate-600 text-slate-300 hover:bg-slate-700 h-auto py-2 px-3 text-left justify-start"
+                          >
+                            {quickMessage}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
                     {/* Chat Input */}
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 pt-4 border-t border-slate-700">
                       <Input
                         value={chatMessage}
                         onChange={(e) => setChatMessage(e.target.value)}
                         placeholder="Type your message..."
-                        className="flex-1 bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="flex-1 bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                         disabled={sendingChatMessage}
                         onKeyPress={(e) => {
                           if (e.key === 'Enter' && !e.shiftKey) {
@@ -1883,7 +1905,7 @@ export default function PlayerDashboard() {
                       <Button 
                         onClick={sendChatMessage}
                         disabled={sendingChatMessage || !chatMessage.trim()}
-                        className="bg-blue-600/70 hover:bg-blue-700/80 text-white backdrop-blur-sm border border-blue-500/30"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
                       >
                         {sendingChatMessage ? (
                           <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
@@ -1959,22 +1981,7 @@ export default function PlayerDashboard() {
         </Tabs>
       </div>
 
-      {/* Floating GRE Chat Button */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <Button
-          onClick={() => setIsChatOpen(true)}
-          className="w-14 h-14 rounded-full bg-emerald-600 hover:bg-emerald-700 shadow-lg hover:shadow-xl transition-all duration-200"
-          size="lg"
-        >
-          <MessageCircle className="w-6 h-6 text-white" />
-        </Button>
-      </div>
 
-      {/* GRE Chat Dialog */}
-      <GreChatDialog 
-        isOpen={isChatOpen} 
-        onClose={() => setIsChatOpen(false)} 
-      />
     </div>
   );
 }
