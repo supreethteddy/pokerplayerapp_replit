@@ -216,6 +216,10 @@ export default function PlayerDashboard() {
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [sendingFeedback, setSendingFeedback] = useState(false);
   
+  // GRE Chat state variables
+  const [chatMessage, setChatMessage] = useState("");
+  const [sendingChatMessage, setSendingChatMessage] = useState(false);
+  
   // Handle tab navigation from URL parameters
   const getActiveTabFromUrl = () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -428,6 +432,58 @@ export default function PlayerDashboard() {
       setSendingFeedback(false);
     }
   };
+
+  // GRE Chat functionality
+  const sendChatMessage = async () => {
+    if (!chatMessage.trim() || !user?.id) {
+      toast({
+        title: "Error",
+        description: "Please enter a message",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSendingChatMessage(true);
+    try {
+      const response = await apiRequest("POST", "/api/gre-chat", {
+        playerId: user.id,
+        playerName: `${user.firstName} ${user.lastName}`,
+        message: chatMessage.trim(),
+        timestamp: new Date().toISOString()
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        toast({
+          title: "Message Sent",
+          description: "Your message has been sent to our team",
+        });
+        setChatMessage("");
+        // Trigger chat messages refresh
+        queryClient.invalidateQueries({ queryKey: [`/api/gre-chat/messages/${user.id}`] });
+      } else {
+        throw new Error(result.error || "Failed to send message");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send message. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setSendingChatMessage(false);
+    }
+  };
+
+  // Fetch GRE chat messages
+  const { data: chatMessages, isLoading: chatLoading } = useQuery({
+    queryKey: [`/api/gre-chat/messages/${user?.id}`],
+    enabled: !!user?.id,
+    refetchInterval: 2000, // Real-time chat updates
+    refetchOnWindowFocus: true,
+    staleTime: 0
+  });
 
   // Submit credit request mutation
   const submitCreditRequestMutation = useMutation({
@@ -762,13 +818,7 @@ export default function PlayerDashboard() {
             >
               <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
-            <TabsTrigger 
-              value="feedback" 
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
-            >
-              <MessageCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
-              <span className="truncate">Feedback</span>
-            </TabsTrigger>
+
           </TabsList>
 
           {/* Tab Content Areas */}
@@ -1634,6 +1684,82 @@ export default function PlayerDashboard() {
                       )}
                       {sendingFeedback ? "Sending..." : "Send Feedback"}
                     </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Chat with our Team (GRE) */}
+                <Card className="bg-slate-800 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <MessageCircle className="w-5 h-5 mr-2 text-blue-500" />
+                      Chat with our Team
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Chat Messages Display */}
+                    <div className="max-h-[300px] overflow-y-auto space-y-3 bg-slate-700 p-3 rounded-lg">
+                      {chatLoading ? (
+                        <div className="space-y-3">
+                          {[1, 2].map((i) => (
+                            <div key={i} className="bg-slate-600 p-3 rounded-lg animate-pulse">
+                              <div className="h-3 bg-slate-500 rounded mb-2"></div>
+                              <div className="h-2 bg-slate-500 rounded w-3/4"></div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : chatMessages && chatMessages.length > 0 ? (
+                        chatMessages.map((message: any, index: number) => (
+                          <div 
+                            key={index}
+                            className={`p-3 rounded-lg max-w-[80%] ${
+                              message.sender === 'player' 
+                                ? 'bg-emerald-600 text-white ml-auto' 
+                                : 'bg-slate-600 text-white mr-auto'
+                            }`}
+                          >
+                            <div className="text-sm">{message.message}</div>
+                            <div className="text-xs opacity-70 mt-1">
+                              {message.sender === 'player' ? 'You' : message.senderName || 'Team Member'} • 
+                              {new Date(message.timestamp || message.created_at).toLocaleTimeString()}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-6">
+                          <MessageCircle className="w-8 h-8 text-slate-500 mx-auto mb-2" />
+                          <p className="text-slate-400 text-sm">Start a conversation with our team</p>
+                          <p className="text-slate-500 text-xs">Get instant help from our Guest Relation Executives</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Chat Input */}
+                    <div className="flex gap-2">
+                      <Input
+                        value={chatMessage}
+                        onChange={(e) => setChatMessage(e.target.value)}
+                        placeholder="Type your message..."
+                        className="flex-1 bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        disabled={sendingChatMessage}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            sendChatMessage();
+                          }
+                        }}
+                      />
+                      <Button 
+                        onClick={sendChatMessage}
+                        disabled={sendingChatMessage || !chatMessage.trim()}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        {sendingChatMessage ? (
+                          <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
 

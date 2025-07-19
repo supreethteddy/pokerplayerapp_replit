@@ -4141,6 +4141,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GRE Chat System API Endpoints
+  app.post("/api/gre-chat", async (req, res) => {
+    try {
+      const { playerId, playerName, message, timestamp } = req.body;
+      console.log(`💬 [GRE CHAT] Receiving message from player ${playerId}: ${playerName}`);
+      
+      // Insert chat message into local Supabase
+      const { data, error } = await localSupabase
+        .from('gre_chat_messages')
+        .insert({
+          player_id: playerId,
+          player_name: playerName,
+          message: message.trim(),
+          sender: 'player',
+          timestamp: timestamp || new Date().toISOString(),
+          status: 'sent'
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        throw new Error(`Failed to send chat message: ${error.message}`);
+      }
+      
+      console.log(`✅ [GRE CHAT] Message sent successfully - ID: ${data.id}`);
+      res.json({ success: true, message: data });
+    } catch (error: any) {
+      console.error(`❌ [GRE CHAT] Error sending message:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/gre-chat/messages/:playerId", async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      console.log(`💬 [GRE CHAT] Fetching messages for player ${playerId}`);
+      
+      // Fetch chat messages from local Supabase
+      const { data, error } = await localSupabase
+        .from('gre_chat_messages')
+        .select('*')
+        .eq('player_id', parseInt(playerId))
+        .order('timestamp', { ascending: true })
+        .limit(50); // Last 50 messages
+      
+      if (error) {
+        throw new Error(`Failed to fetch chat messages: ${error.message}`);
+      }
+      
+      console.log(`✅ [GRE CHAT] Retrieved ${data?.length || 0} messages for player ${playerId}`);
+      res.json(data || []);
+    } catch (error: any) {
+      console.error(`❌ [GRE CHAT] Error fetching messages:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Push Notifications API Endpoints
   app.get("/api/push-notifications/:playerId", async (req, res) => {
     try {
