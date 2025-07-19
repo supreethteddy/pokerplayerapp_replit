@@ -198,42 +198,20 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
             )}
           </div>
 
-          {/* Content Overlay */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-            <div className="flex justify-between items-end">
-              <div className="flex-1">
-                {currentItem.staff_offers && (
-                  <>
-                    <Badge 
-                      variant="secondary" 
-                      className="bg-emerald-600 text-white border-none mb-2"
-                    >
-                      {currentItem.staff_offers.offer_type}
-                    </Badge>
-                    <h3 className="text-white font-semibold text-lg mb-1">
-                      {currentItem.staff_offers.title}
-                    </h3>
-                    <p className="text-slate-200 text-sm line-clamp-2">
-                      {currentItem.staff_offers.description}
-                    </p>
-                  </>
-                )}
-              </div>
-              <Button
-                onClick={() => handleOfferClick(currentItem)}
-                size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white ml-4"
-              >
-                View Offer
-              </Button>
-            </div>
-          </div>
+          {/* Clickable overlay for entire banner */}
+          <div 
+            className="absolute inset-0 cursor-pointer hover:bg-black/10 transition-colors"
+            onClick={() => handleOfferClick(currentItem)}
+          />
 
           {/* Navigation Controls */}
           {displayItems.length > 1 && (
             <>
               <Button
-                onClick={prevSlide}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  prevSlide();
+                }}
                 size="sm"
                 variant="ghost"
                 className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white border-none"
@@ -241,7 +219,10 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
                 <ChevronLeft className="w-4 h-4" />
               </Button>
               <Button
-                onClick={nextSlide}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  nextSlide();
+                }}
                 size="sm"
                 variant="ghost"
                 className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white border-none"
@@ -251,17 +232,20 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
             </>
           )}
 
-          {/* Dots Indicator */}
+          {/* Dots Indicator - Small dots */}
           {displayItems.length > 1 && (
-            <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex space-x-1">
+            <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex space-x-2">
               {displayItems.map((_, index) => (
                 <button
                   key={index}
-                  onClick={() => setCurrentIndex(index)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentIndex(index);
+                  }}
                   className={`w-2 h-2 rounded-full transition-all duration-200 ${
                     index === currentIndex 
                       ? 'bg-white' 
-                      : 'bg-white/50 hover:bg-white/75'
+                      : 'bg-white/40 hover:bg-white/60'
                   }`}
                 />
               ))}
