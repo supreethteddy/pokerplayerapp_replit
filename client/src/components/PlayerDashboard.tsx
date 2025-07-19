@@ -352,6 +352,9 @@ export default function PlayerDashboard() {
   const [chatMessage, setChatMessage] = useState("");
   const [sendingChatMessage, setSendingChatMessage] = useState(false);
   
+  // Tournament state variables
+  const [tournamentActionLoading, setTournamentActionLoading] = useState(false);
+  
   // Handle tab navigation from URL parameters
   const getActiveTabFromUrl = () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -389,6 +392,76 @@ export default function PlayerDashboard() {
     refetchOnWindowFocus: true,
     staleTime: 0, // Always get fresh data
   });
+
+  // Fetch tournaments from staff portal
+  const { data: tournaments, isLoading: tournamentsLoading } = useQuery({
+    queryKey: ['/api/tournaments'],
+    refetchInterval: 5000, // Refresh every 5 seconds
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  });
+
+  // Tournament Interest Handler - sends to GRE
+  const handleTournamentInterest = async (tournamentId: string) => {
+    if (!user?.id) return;
+    
+    setTournamentActionLoading(true);
+    try {
+      const response = await apiRequest("POST", "/api/gre-chat/send", {
+        playerId: user.id,
+        playerName: `${user.firstName} ${user.lastName}`,
+        message: `Player is interested in Tournament ID: ${tournamentId}`,
+        timestamp: new Date().toISOString()
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Interest Registered",
+          description: "Your interest has been sent to our Guest Relations team",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to register interest. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setTournamentActionLoading(false);
+    }
+  };
+
+  // Tournament Registration Handler - adds to player management system
+  const handleTournamentRegister = async (tournamentId: string) => {
+    if (!user?.id) return;
+    
+    setTournamentActionLoading(true);
+    try {
+      const response = await apiRequest("POST", "/api/tournaments/register", {
+        playerId: user.id,
+        tournamentId,
+        playerName: `${user.firstName} ${user.lastName}`,
+        email: user.email
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Registration Successful",
+          description: "You have been registered for the tournament",
+        });
+        // Refresh tournaments to update registered player count
+        queryClient.invalidateQueries({ queryKey: ['/api/tournaments'] });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Registration Failed",
+        description: error.message || "Failed to register for tournament",
+        variant: "destructive"
+      });
+    } finally {
+      setTournamentActionLoading(false);
+    }
+  };
 
   // Preferences removed as per requirements
 
@@ -966,12 +1039,12 @@ export default function PlayerDashboard() {
               }} />
               
               <div className="w-full max-w-full space-y-3 sm:space-y-4">
-                {/* Live Tables */}
+                {/* Cash Tables */}
                 <Card className="bg-slate-800 border-slate-700 w-full max-w-full overflow-hidden">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center">
                     <Table className="w-5 h-5 mr-2 text-emerald-500" />
-                    Live Tables
+                    Cash Tables
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -1059,6 +1132,115 @@ export default function PlayerDashboard() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Tournaments */}
+              <Card className="bg-slate-800 border-slate-700 w-full max-w-full overflow-hidden">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <Calendar className="w-5 h-5 mr-2 text-yellow-500" />
+                    Tournaments
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {tournamentsLoading ? (
+                    <div className="space-y-4">
+                      {[1, 2, 3].map((i) => (
+                        <Skeleton key={i} className="h-20 bg-slate-700" />
+                      ))}
+                    </div>
+                  ) : tournaments && tournaments.length > 0 ? (
+                    <div className="space-y-4">
+                      {tournaments.map((tournament) => (
+                        <div
+                          key={tournament.id}
+                          className="bg-slate-700 p-4 rounded-lg hover:bg-slate-600 transition-colors"
+                        >
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <h3 className="font-semibold text-white">{tournament.name}</h3>
+                              <p className="text-sm text-slate-400">{tournament.type}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm text-slate-400">Buy-in</p>
+                              <p className="text-lg font-semibold text-yellow-500">
+                                ₹{tournament.buyIn}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-3 gap-4 mb-3">
+                            <div className="text-center">
+                              <Calendar className="w-4 h-4 text-slate-400 mx-auto mb-1" />
+                              <p className="text-xs text-slate-400">Start Date</p>
+                              <p className="text-sm font-semibold text-white">
+                                {new Date(tournament.startDate).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <div className="text-center">
+                              <Clock className="w-4 h-4 text-slate-400 mx-auto mb-1" />
+                              <p className="text-xs text-slate-400">Start Time</p>
+                              <p className="text-sm font-semibold text-white">
+                                {new Date(tournament.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            </div>
+                            <div className="text-center">
+                              <Users className="w-4 h-4 text-slate-400 mx-auto mb-1" />
+                              <p className="text-xs text-slate-400">Players</p>
+                              <p className="text-sm font-semibold text-white">
+                                {tournament.registeredPlayers}/{tournament.maxPlayers}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex justify-between items-center gap-2">
+                            <div className="flex gap-2">
+                              <Button
+                                onClick={() => handleTournamentInterest(tournament.id)}
+                                disabled={tournamentActionLoading}
+                                size="sm"
+                                variant="outline"
+                                className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
+                              >
+                                {tournamentActionLoading ? (
+                                  <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mr-2" />
+                                ) : null}
+                                Interested
+                              </Button>
+                              <Button
+                                onClick={() => handleTournamentRegister(tournament.id)}
+                                disabled={tournamentActionLoading || tournament.registeredPlayers >= tournament.maxPlayers}
+                                size="sm"
+                                className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                              >
+                                {tournamentActionLoading ? (
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                                ) : null}
+                                Register
+                              </Button>
+                            </div>
+                            <Badge 
+                              variant="secondary" 
+                              className={`${
+                                tournament.status === 'upcoming' ? 'bg-green-500/20 text-green-300 border-green-500/30' :
+                                tournament.status === 'ongoing' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' :
+                                'bg-slate-600 text-slate-300'
+                              }`}
+                            >
+                              {tournament.status}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Calendar className="w-12 h-12 text-slate-500 mx-auto mb-3" />
+                      <p className="text-slate-400 text-sm">No tournaments available</p>
+                      <p className="text-slate-500 text-xs">Check back later for upcoming tournaments</p>
                     </div>
                   )}
                 </CardContent>

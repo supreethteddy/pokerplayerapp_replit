@@ -259,6 +259,11 @@ This player portal is designed to work alongside an existing admin dashboard, sh
 ✅ **4 PREDEFINED GRE OPTIONS**: Added "I need help with my account", "Technical support", "Payment history", "Game assistance" options
 ✅ **GUEST RELATIONS SUPPORT LAYOUT**: Professional layout with 24/7 availability indicator and emerald color scheme
 ✅ **RESTORED FEEDBACK TO MANAGEMENT**: Added back the feedback to management functionality while keeping GRE chat integration
+✅ **CASH TABLES RENAMED**: Changed "Live Tables" heading to "Cash Tables" on main dashboard
+✅ **TOURNAMENT SYSTEM IMPLEMENTED**: Added comprehensive tournament section below cash tables with real-time Staff Portal synchronization
+✅ **DUAL TOURNAMENT ACTIONS**: Players can choose "Interested" (sends to GRE) or "Register" (adds to player management system)
+✅ **TOURNAMENT API ENDPOINTS**: Created /api/tournaments (fetch) and /api/tournaments/register (player registration) endpoints
+✅ **STAFF PORTAL TOURNAMENT INTEGRATION**: Tournaments automatically sync from Staff Portal with live player counts and status updates
 
 ## User Preferences
 

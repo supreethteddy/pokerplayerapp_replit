@@ -4893,5 +4893,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Tournament Management API endpoints
+  
+  // Get all tournaments from staff portal
+  app.get("/api/tournaments", async (req, res) => {
+    try {
+      console.log('🏆 [TOURNAMENTS] Fetching tournaments from Staff Portal...');
+      
+      // Fetch tournaments from Staff Portal Supabase
+      const { data: tournaments, error } = await staffPortalSupabase
+        .from('tournaments')
+        .select('*')
+        .order('start_date', { ascending: true });
+      
+      if (error) {
+        console.error('❌ [TOURNAMENTS] Error fetching tournaments:', error);
+        return res.status(500).json({ error: "Failed to fetch tournaments" });
+      }
+      
+      // Transform tournament data for frontend
+      const transformedTournaments = (tournaments || []).map(tournament => ({
+        id: tournament.id,
+        name: tournament.name,
+        type: tournament.type || 'Texas Hold\'em',
+        buyIn: tournament.buy_in || 0,
+        startDate: tournament.start_date,
+        maxPlayers: tournament.max_players || 100,
+        registeredPlayers: tournament.registered_players || 0,
+        status: tournament.status || 'upcoming'
+      }));
+      
+      console.log(`✅ [TOURNAMENTS] Found ${transformedTournaments.length} tournaments`);
+      res.json(transformedTournaments);
+    } catch (error: any) {
+      console.error('❌ [TOURNAMENTS] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Register player for tournament (adds to player management system)
+  app.post("/api/tournaments/register", async (req, res) => {
+    try {
+      const { playerId, tournamentId, playerName, email } = req.body;
+      
+      if (!playerId || !tournamentId) {
+        return res.status(400).json({ error: "Player ID and Tournament ID are required" });
+      }
+      
+      console.log(`🎯 [TOURNAMENT REGISTER] Player ${playerId} registering for tournament ${tournamentId}`);
+      
+      // Add registration to Staff Portal database
+      const { data: registration, error: regError } = await staffPortalSupabase
+        .from('tournament_registrations')
+        .insert({
+          tournament_id: tournamentId,
+          player_id: playerId,
+          player_name: playerName,
+          email: email,
+          registered_at: new Date().toISOString(),
+          status: 'registered'
+        })
+        .select()
+        .single();
+      
+      if (regError) {
+        console.error('❌ [TOURNAMENT REGISTER] Registration error:', regError);
+        return res.status(500).json({ error: "Failed to register for tournament" });
+      }
+      
+      // Update tournament's registered player count
+      const { data: tournament, error: tournamentError } = await staffPortalSupabase
+        .from('tournaments')
+        .select('registered_players')
+        .eq('id', tournamentId)
+        .single();
+      
+      if (!tournamentError && tournament) {
+        await staffPortalSupabase
+          .from('tournaments')
+          .update({ 
+            registered_players: (tournament.registered_players || 0) + 1 
+          })
+          .eq('id', tournamentId);
+      }
+      
+      console.log(`✅ [TOURNAMENT REGISTER] Player ${playerId} successfully registered for tournament ${tournamentId}`);
+      res.json({ 
+        success: true, 
+        message: "Successfully registered for tournament",
+        registration: registration
+      });
+    } catch (error: any) {
+      console.error('❌ [TOURNAMENT REGISTER] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Tournament interest endpoint (sends to GRE) - already handled in GRE chat endpoint
+
   return httpServer;
 }
