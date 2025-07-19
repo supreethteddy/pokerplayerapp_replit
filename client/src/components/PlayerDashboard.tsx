@@ -881,58 +881,27 @@ export default function PlayerDashboard() {
                   </div>
                 </div>
 
-                {/* Redemption Options */}
+                {/* VIP Shop */}
                 <div className="space-y-4">
                   <h4 className="text-lg font-semibold text-white">Redeem Your Points</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card className="bg-slate-700 border-slate-600 hover:border-yellow-500/50 transition-colors cursor-pointer">
-                      <CardContent className="p-4 text-center">
-                        <div className="text-yellow-500 text-lg font-bold">500 Points</div>
-                        <div className="text-white font-medium">Tournament Ticket</div>
-                        <div className="text-sm text-slate-300">Entry to ₹1,000 tournament</div>
-                        <Button 
-                          className="w-full mt-3 bg-yellow-600 hover:bg-yellow-700"
-                          size="sm"
-                          disabled={((user?.gamesPlayed || 0) * 10 + parseFloat(user?.hoursPlayed || "0") * 5) < 500}
-                          onClick={() => handleVipRedeem('Tournament Ticket', 500)}
-                        >
-                          Redeem
-                        </Button>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="bg-slate-700 border-slate-600 hover:border-yellow-500/50 transition-colors cursor-pointer">
-                      <CardContent className="p-4 text-center">
-                        <div className="text-yellow-500 text-lg font-bold">300 Points</div>
-                        <div className="text-white font-medium">Buy-in Discount</div>
-                        <div className="text-sm text-slate-300">10% off next buy-in</div>
-                        <Button 
-                          className="w-full mt-3 bg-yellow-600 hover:bg-yellow-700"
-                          size="sm"
-                          disabled={((user?.gamesPlayed || 0) * 10 + parseFloat(user?.hoursPlayed || "0") * 5) < 300}
-                          onClick={() => handleVipRedeem('Buy-in Discount', 300)}
-                        >
-                          Redeem
-                        </Button>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="bg-slate-700 border-slate-600 hover:border-yellow-500/50 transition-colors cursor-pointer">
-                      <CardContent className="p-4 text-center">
-                        <div className="text-yellow-500 text-lg font-bold">1000 Points</div>
-                        <div className="text-white font-medium">Premium Product</div>
-                        <div className="text-sm text-slate-300">Poker merchandise</div>
-                        <Button 
-                          className="w-full mt-3 bg-yellow-600 hover:bg-yellow-700"
-                          size="sm"
-                          disabled={((user?.gamesPlayed || 0) * 10 + parseFloat(user?.hoursPlayed || "0") * 5) < 1000}
-                          onClick={() => handleVipRedeem('Premium Product', 1000)}
-                        >
-                          Redeem
-                        </Button>
-                      </CardContent>
-                    </Card>
+                  <div className="flex justify-center">
+                    <Button 
+                      className="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white font-semibold py-4 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg"
+                      size="lg"
+                      onClick={() => {
+                        toast({
+                          title: "VIP Shop",
+                          description: "VIP Shop with exclusive rewards coming soon!",
+                        });
+                      }}
+                    >
+                      <Star className="w-5 h-5 mr-2" />
+                      Open VIP Shop
+                    </Button>
                   </div>
+                  <p className="text-center text-sm text-slate-400">
+                    Use your {((user?.gamesPlayed || 0) * 10 + parseFloat(user?.hoursPlayed || "0") * 5).toFixed(0)} points to unlock exclusive rewards and benefits
+                  </p>
                 </div>
 
                 {/* Points History */}
@@ -1080,38 +1049,74 @@ export default function PlayerDashboard() {
                             )}
                           </div>
                         </div>
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                          {/* Only show upload/reupload if not approved or if no documents */}
-                          {(getKycDocumentStatus('id') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'government_id' && d.fileUrl).length === 0) && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => document.getElementById('id-document-upload')?.click()}
-                              disabled={uploadKycDocumentMutation.isPending}
-                              className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
+                        <div className="flex flex-col items-stretch space-y-2">
+                          {/* View button positioned above other buttons */}
+                          {kycDocuments?.filter(d => d.documentType === 'government_id' && d.fileUrl).length > 0 && (
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
+                              onClick={() => {
+                                const doc = kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0];
+                                if (doc && doc.fileUrl) {
+                                  try {
+                                    const documentUrl = doc.fileUrl.startsWith('http') 
+                                      ? doc.fileUrl 
+                                      : `/api/documents/view/${doc.id}`;
+                                    console.log('Opening document:', documentUrl);
+                                    const newTab = window.open(documentUrl, '_blank', 'noopener,noreferrer');
+                                    if (!newTab) {
+                                      window.location.href = documentUrl;
+                                    }
+                                  } catch (error) {
+                                    console.error('Error opening document:', error);
+                                    toast({
+                                      title: "Error",
+                                      description: "Unable to open document",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }
+                              }}
                             >
-                              <Upload className="w-4 h-4 mr-1" />
-                              {kycDocuments?.filter(d => d.documentType === 'government_id' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
+                              <Eye className="w-3 h-3 mr-1" />
+                              View Document
                             </Button>
                           )}
                           
-                          {/* Show request change button if approved */}
-                          {getKycDocumentStatus('id') === 'approved' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                toast({
-                                  title: "Request Change",
-                                  description: "Change request functionality will be available in the next update",
-                                });
-                              }}
-                              className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                            >
-                              <AlertTriangle className="w-4 h-4 mr-1" />
-                              <span className="text-xs sm:text-sm">Request Change</span>
-                            </Button>
-                          )}
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                            {/* Only show upload/reupload if not approved or if no documents */}
+                            {(getKycDocumentStatus('id') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'government_id' && d.fileUrl).length === 0) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => document.getElementById('id-document-upload')?.click()}
+                                disabled={uploadKycDocumentMutation.isPending}
+                                className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
+                              >
+                                <Upload className="w-4 h-4 mr-1" />
+                                {kycDocuments?.filter(d => d.documentType === 'government_id' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
+                              </Button>
+                            )}
+                            
+                            {/* Show request change button if approved */}
+                            {getKycDocumentStatus('id') === 'approved' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  toast({
+                                    title: "Request Change",
+                                    description: "Change request functionality will be available in the next update",
+                                  });
+                                }}
+                                className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
+                              >
+                                <AlertTriangle className="w-4 h-4 mr-1" />
+                                <span className="text-xs sm:text-sm">Request Change</span>
+                              </Button>
+                            )}
+                          </div>
                         </div>
                         <input
                           id="id-document-upload"
@@ -1179,38 +1184,74 @@ export default function PlayerDashboard() {
                             )}
                           </div>
                         </div>
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                          {/* Only show upload/reupload if not approved or if no documents */}
-                          {(getKycDocumentStatus('utility') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'utility_bill' && d.fileUrl).length === 0) && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => document.getElementById('address-document-upload')?.click()}
-                              disabled={uploadKycDocumentMutation.isPending}
-                              className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
+                        <div className="flex flex-col items-stretch space-y-2">
+                          {/* View button positioned above other buttons */}
+                          {kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 && (
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
+                              onClick={() => {
+                                const doc = kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0];
+                                if (doc && doc.fileUrl) {
+                                  try {
+                                    const documentUrl = doc.fileUrl.startsWith('http') 
+                                      ? doc.fileUrl 
+                                      : `/api/documents/view/${doc.id}`;
+                                    console.log('Opening document:', documentUrl);
+                                    const newTab = window.open(documentUrl, '_blank', 'noopener,noreferrer');
+                                    if (!newTab) {
+                                      window.location.href = documentUrl;
+                                    }
+                                  } catch (error) {
+                                    console.error('Error opening document:', error);
+                                    toast({
+                                      title: "Error",
+                                      description: "Unable to open document",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }
+                              }}
                             >
-                              <Upload className="w-4 h-4 mr-1" />
-                              {kycDocuments?.filter(d => d.documentType === 'utility_bill' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
+                              <Eye className="w-3 h-3 mr-1" />
+                              View Document
                             </Button>
                           )}
                           
-                          {/* Show request change button if approved */}
-                          {getKycDocumentStatus('utility') === 'approved' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                toast({
-                                  title: "Request Change",
-                                  description: "Change request functionality will be available in the next update",
-                                });
-                              }}
-                              className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                            >
-                              <AlertTriangle className="w-4 h-4 mr-1" />
-                              <span className="text-xs sm:text-sm">Request Change</span>
-                            </Button>
-                          )}
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                            {/* Only show upload/reupload if not approved or if no documents */}
+                            {(getKycDocumentStatus('photo') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length === 0) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => document.getElementById('photo-document-upload')?.click()}
+                                disabled={uploadKycDocumentMutation.isPending}
+                                className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
+                              >
+                                <Upload className="w-4 h-4 mr-1" />
+                                {kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
+                              </Button>
+                            )}
+                            
+                            {/* Show request change button if approved */}
+                            {getKycDocumentStatus('photo') === 'approved' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  toast({
+                                    title: "Request Change",
+                                    description: "Change request functionality will be available in the next update",
+                                  });
+                                }}
+                                className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
+                              >
+                                <AlertTriangle className="w-4 h-4 mr-1" />
+                                <span className="text-xs sm:text-sm">Request Change</span>
+                              </Button>
+                            )}
+                          </div>
                         </div>
                         <input
                           id="address-document-upload"
@@ -1278,38 +1319,74 @@ export default function PlayerDashboard() {
                             )}
                           </div>
                         </div>
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                          {/* Only show upload/reupload if not approved or if no documents */}
-                          {(getKycDocumentStatus('photo') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length === 0) && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => document.getElementById('photo-document-upload')?.click()}
-                              disabled={uploadKycDocumentMutation.isPending}
-                              className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
+                        <div className="flex flex-col items-stretch space-y-2">
+                          {/* View button positioned above other buttons */}
+                          {kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 && (
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
+                              onClick={() => {
+                                const doc = kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0];
+                                if (doc && doc.fileUrl) {
+                                  try {
+                                    const documentUrl = doc.fileUrl.startsWith('http') 
+                                      ? doc.fileUrl 
+                                      : `/api/documents/view/${doc.id}`;
+                                    console.log('Opening document:', documentUrl);
+                                    const newTab = window.open(documentUrl, '_blank', 'noopener,noreferrer');
+                                    if (!newTab) {
+                                      window.location.href = documentUrl;
+                                    }
+                                  } catch (error) {
+                                    console.error('Error opening document:', error);
+                                    toast({
+                                      title: "Error",
+                                      description: "Unable to open document",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }
+                              }}
                             >
-                              <Upload className="w-4 h-4 mr-1" />
-                              {kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
+                              <Eye className="w-3 h-3 mr-1" />
+                              View Document
                             </Button>
                           )}
                           
-                          {/* Show request change button if approved */}
-                          {getKycDocumentStatus('photo') === 'approved' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                toast({
-                                  title: "Request Change",
-                                  description: "Change request functionality will be available in the next update",
-                                });
-                              }}
-                              className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                            >
-                              <AlertTriangle className="w-4 h-4 mr-1" />
-                              <span className="text-xs sm:text-sm">Request Change</span>
-                            </Button>
-                          )}
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                            {/* Only show upload/reupload if not approved or if no documents */}
+                            {(getKycDocumentStatus('photo') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length === 0) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => document.getElementById('photo-document-upload')?.click()}
+                                disabled={uploadKycDocumentMutation.isPending}
+                                className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
+                              >
+                                <Upload className="w-4 h-4 mr-1" />
+                                {kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
+                              </Button>
+                            )}
+                            
+                            {/* Show request change button if approved */}
+                            {getKycDocumentStatus('photo') === 'approved' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  toast({
+                                    title: "Request Change",
+                                    description: "Change request functionality will be available in the next update",
+                                  });
+                                }}
+                                className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
+                              >
+                                <AlertTriangle className="w-4 h-4 mr-1" />
+                                <span className="text-xs sm:text-sm">Request Change</span>
+                              </Button>
+                            )}
+                          </div>
                         </div>
                         <input
                           id="photo-document-upload"
