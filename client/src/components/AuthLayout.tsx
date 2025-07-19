@@ -235,11 +235,17 @@ export default function AuthLayout() {
 
   return (
     <>
-      <div className="min-h-screen bg-black flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4">
         <div className="max-w-md w-full">
-          <Card className="bg-gray-900 border-gray-800 shadow-2xl">
+          <Card className="bg-white/10 backdrop-blur-md border border-white/20 shadow-2xl">
             <CardContent className="pt-6">
-              <h2 className="text-xl font-semibold mb-6 text-center text-white">Sign In</h2>
+              <div className="text-center mb-6">
+                <div className="flex items-center justify-center mb-4">
+                  <Spade className="w-8 h-8 text-green-500 mr-2" />
+                  <h1 className="text-2xl font-bold text-white">Pokeroom</h1>
+                </div>
+                <h2 className="text-lg font-medium text-gray-300">Player Portal</h2>
+              </div>
               
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div>
@@ -250,7 +256,7 @@ export default function AuthLayout() {
                     placeholder="Enter your email"
                     value={loginForm.email}
                     onChange={(e) => setLoginForm(prev => ({ ...prev, email: e.target.value }))}
-                    className="bg-black border-gray-700 text-white placeholder-gray-500 focus:border-gray-500"
+                    className="bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-green-500 focus:ring-green-500"
                     required
                   />
                 </div>
@@ -263,14 +269,14 @@ export default function AuthLayout() {
                     placeholder="Enter your password"
                     value={loginForm.password}
                     onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
-                    className="bg-black border-gray-700 text-white placeholder-gray-500 focus:border-gray-500"
+                    className="bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-green-500 focus:ring-green-500"
                     required
                   />
                 </div>
 
                 <Button 
                   type="submit" 
-                  className="w-full bg-gray-800 hover:bg-gray-700 text-white border border-gray-600"
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold"
                   disabled={loginForm.loading}
                 >
                   {loginForm.loading ? "Signing In..." : "Sign In"}

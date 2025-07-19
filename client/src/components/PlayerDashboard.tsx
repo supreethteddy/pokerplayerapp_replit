@@ -41,8 +41,8 @@ import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 
-// Dynamic Offers Display Component
-const DynamicOffersDisplay = () => {
+// Scrollable Offers Display Component
+const ScrollableOffersDisplay = () => {
   const { data: offers, isLoading } = useQuery({
     queryKey: ['/api/staff-offers'],
     refetchInterval: 5000, // Refresh every 5 seconds
@@ -53,54 +53,36 @@ const DynamicOffersDisplay = () => {
       apiRequest("POST", "/api/offer-views", { offer_id: offerId }),
   });
 
-  if (isLoading) {
-    return (
-      <Card className="bg-slate-800 border-slate-700">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center">
-            <Gift className="w-5 h-5 mr-2 text-emerald-500" />
-            Special Offers
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="animate-pulse space-y-4">
-            <div className="h-48 bg-slate-700 rounded-lg"></div>
-            <div className="h-4 bg-slate-700 rounded w-3/4"></div>
-            <div className="h-4 bg-slate-700 rounded w-1/2"></div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  // Always show demo offers for testing
+  const demoOffers = [
+    {
+      id: 'demo-welcome',
+      title: 'Welcome Bonus',
+      description: 'Get 100% bonus on your first deposit up to ₹5,000. Join today and double your gaming power with our exclusive welcome package for new players. Start your poker journey with enhanced bankroll.',
+      image_url: '/api/placeholder-welcome-bonus.jpg',
+      offer_type: 'banner',
+      is_active: true
+    },
+    {
+      id: 'demo-weekend',
+      title: 'Weekend Special',
+      description: 'Double loyalty points on all weekend games. Play Friday to Sunday and earn twice the rewards for all your poker sessions with enhanced multipliers and special tournament access.',
+      image_url: '/api/placeholder-weekend-special.jpg',  
+      offer_type: 'carousel',
+      is_active: true
+    },
+    {
+      id: 'demo-tournament',
+      title: 'Free Tournament Entry',
+      description: 'Complimentary entry to our Sunday ₹10,000 guaranteed tournament. No entry fee required for qualified players. Register now to secure your spot in this weekly championship event.',
+      image_url: '/api/placeholder-tournament.jpg',
+      offer_type: 'popup', 
+      is_active: true
+    }
+  ];
 
-  if (!offers || offers.length === 0) {
-    return (
-      <Card className="bg-slate-800 border-slate-700">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center">
-            <Gift className="w-5 h-5 mr-2 text-emerald-500" />
-            Special Offers
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8">
-            <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Gift className="w-8 h-8 text-slate-300" />
-            </div>
-            <h3 className="text-lg font-semibold text-white mb-2">Offers Coming Soon</h3>
-            <p className="text-slate-300 mb-4">
-              Our team is preparing exclusive offers for you. Check back regularly for exciting promotions and bonuses!
-            </p>
-            <div className="bg-slate-700 rounded-lg p-4">
-              <p className="text-sm text-slate-200">
-                Offers are managed by our staff and will appear here automatically when available.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  // Use staff offers if available, otherwise demo offers
+  const displayOffers = (offers && offers.length > 0) ? offers : demoOffers;
 
   return (
     <div className="space-y-4">
@@ -108,14 +90,14 @@ const DynamicOffersDisplay = () => {
         <CardHeader>
           <CardTitle className="text-white flex items-center">
             <Gift className="w-5 h-5 mr-2 text-emerald-500" />
-            Special Offers ({offers.length})
+            Special Offers ({displayOffers.length})
           </CardTitle>
         </CardHeader>
       </Card>
 
       {/* Scrollable offers container */}
-      <div className="max-h-[600px] overflow-y-auto space-y-4 pr-2">
-        {offers.map((offer: any) => (
+      <div className="max-h-[600px] overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
+        {displayOffers.map((offer: any) => (
           <Card 
             key={offer.id} 
             className="bg-slate-800 border-slate-700 hover:border-emerald-500/50 transition-colors"
@@ -694,7 +676,7 @@ export default function PlayerDashboard() {
 
           {/* Offers Tab - Staff Managed */}
           <TabsContent value="balance" className="space-y-4">
-            <DynamicOffersDisplay />
+            <ScrollableOffersDisplay />
           </TabsContent>
 
           {/* Stats Tab */}

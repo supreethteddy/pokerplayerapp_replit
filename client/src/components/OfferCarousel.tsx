@@ -4,8 +4,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiRequest } from "@/lib/queryClient";
-import { ChevronLeft, ChevronRight, Play, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronRight, Play, ExternalLink, Gift } from "lucide-react";
 
 interface CarouselItem {
   id: string;
