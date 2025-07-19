@@ -407,6 +407,7 @@ export default function PlayerDashboard() {
         message: feedbackMessage.trim()
       });
 
+      const result = await response.json();
       if (response.ok) {
         toast({
           title: "Feedback Sent",
@@ -414,12 +415,12 @@ export default function PlayerDashboard() {
         });
         setFeedbackMessage("");
       } else {
-        throw new Error("Failed to send feedback");
+        throw new Error(result.error || "Failed to send feedback");
       }
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to send feedback. Please try again.",
+        description: error.message || "Failed to send feedback. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -729,38 +730,37 @@ export default function PlayerDashboard() {
 
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-full">
-          <TabsList className="flex w-full justify-between mb-3 sm:mb-4 bg-slate-800 border border-slate-700 rounded-lg p-1 overflow-hidden">
+          <TabsList className="flex w-full justify-between mb-3 sm:mb-4 bg-slate-800 border border-slate-700 rounded-lg p-1 overflow-hidden gap-1">
             <TabsTrigger 
               value="game" 
-              className="flex-1 px-1 sm:px-2 lg:px-3 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
             >
               <Spade className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
-              <span className="truncate">Game</span>
+              <span className="truncate">Lobby</span>
             </TabsTrigger>
             <TabsTrigger 
               value="balance" 
-              className="flex-1 px-1 sm:px-2 lg:px-3 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
             >
               <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
               <span className="truncate">Offers</span>
             </TabsTrigger>
             <TabsTrigger 
               value="stats" 
-              className="flex-1 px-1 sm:px-2 lg:px-3 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
             >
               <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
               <span className="truncate">My Stats</span>
             </TabsTrigger>
             <TabsTrigger 
               value="profile" 
-              className="flex-1 px-1 sm:px-2 lg:px-3 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
             >
-              <User className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
-              <span className="truncate">Profile</span>
+              <User className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger 
               value="feedback" 
-              className="flex-1 px-1 sm:px-2 lg:px-3 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
             >
               <MessageCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
               <span className="truncate">Feedback</span>

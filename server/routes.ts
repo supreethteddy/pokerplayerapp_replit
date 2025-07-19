@@ -444,16 +444,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Player not found" });
       }
       
-      // Create seat request with assignment
+      // Create waitlist entry with assignment
       const { data, error } = await supabase
-        .from('seat_requests')
+        .from('waitlist')
         .insert({
           player_id: player.id,
           table_id: tableId,
-          seat_position: seatPosition || 1,
+          game_type: 'Table Assignment',
+          min_buy_in: 0,
+          max_buy_in: 0,
+          position: seatPosition || 1,
           status: 'assigned',
-          staff_id: staffId,
-          universal_id: Math.random().toString(36).substring(2, 15)
+          requested_at: new Date().toISOString(),
+          notes: `Assigned by staff ${staffId}`
         })
         .select()
         .single();
@@ -4109,5 +4112,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+  // Feedback System API Endpoints
+  app.post("/api/feedback", async (req, res) => {
+    try {
+      const { playerId, message } = req.body;
+      console.log(`📬 [FEEDBACK] Receiving feedback from player ${playerId}`);
+      
+      // Insert feedback into local Supabase
+      const { data, error } = await localSupabase
+        .from('player_feedback')
+        .insert({
+          player_id: playerId,
+          message: message.trim(),
+          status: 'unread'
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        throw new Error(`Failed to submit feedback: ${error.message}`);
+      }
+      
+      console.log(`✅ [FEEDBACK] Feedback submitted successfully - ID: ${data.id}`);
+      res.json({ success: true, feedback: data });
+    } catch (error: any) {
+      console.error(`❌ [FEEDBACK] Error submitting feedback:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Push Notifications API Endpoints
+  app.get("/api/push-notifications/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      console.log(`📱 [PUSH_NOTIFICATION] Fetching notifications for player: ${playerId}`);
+      
+      // Get notifications for this player from local Supabase
+      const { data, error } = await localSupabase
+        .from('push_notifications')
+        .select('*')
+        .or(`target_player_id.eq.${playerId},broadcast_to_all.eq.true`)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      
+      if (error) {
+        console.log(`[PUSH_NOTIFICATION] Error fetching notifications:`, error);
+        // Return empty array if table doesn't exist yet
+        return res.json([]);
+      }
+      
+      console.log(`✅ [PUSH_NOTIFICATION] Found ${data?.length || 0} notifications for player ${playerId}`);
+      res.json(data || []);
+    } catch (error: any) {
+      console.error(`❌ [PUSH_NOTIFICATION] Error fetching notifications:`, error);
+      res.json([]); // Return empty array instead of error to prevent UI issues
+    }
+  });
+
+  app.post("/api/push-notifications", async (req, res) => {
+    try {
+      const { 
+        senderId, 
+        senderName, 
+        senderRole, 
+        targetPlayerId, 
+        title, 
+        message, 
+        priority = 'normal',
+        broadcastToAll = false 
+      } = req.body;
+      
+      console.log(`📱 [PUSH_NOTIFICATION] Sending notification: ${title}`);
+      
+      // Insert notification into local Supabase
+      const { data, error } = await localSupabase
+        .from('push_notifications')
+        .insert({
+          sender_id: senderId,
+          sender_name: senderName,
+          sender_role: senderRole,
+          target_player_id: targetPlayerId,
+          title: title,
+          message: message,
+          priority: priority,
+          broadcast_to_all: broadcastToAll,
+          status: 'sent'
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        throw new Error(`Failed to send notification: ${error.message}`);
+      }
+      
+      console.log(`✅ [PUSH_NOTIFICATION] Notification sent successfully - ID: ${data.id}`);
+      res.json({ success: true, notification: data });
+    } catch (error: any) {
+      console.error(`❌ [PUSH_NOTIFICATION] Error sending notification:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }
