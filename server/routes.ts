@@ -4507,44 +4507,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Sample game sessions data
       const sampleSessions = [
-        { buy_in_amount: 5000, rs_played: 8000 },
-        { buy_in_amount: 10000, rs_played: 15000 },
-        { buy_in_amount: 7500, rs_played: 12000 }
+        { buy_in_amount: 5000, hours_played: 2.5 },
+        { buy_in_amount: 10000, hours_played: 4.0 },
+        { buy_in_amount: 7500, hours_played: 3.2 }
       ];
       
       // Sample daily visits (19 days in July)
       const sampleVisitFrequency = 19;
       
-      // Sample total Rs played
-      const sampleTotalRsPlayed = 35000;
+      // Sample total Hours played
+      const sampleTotalHoursPlayed = 15.5;
       
       // Calculate VIP Points using the updated formula
-      // Formula: VIP Points = (Buy-in × 0.1) + (Rs Played × 3) + (Visit Frequency × 5)
+      // Formula: VIP Points = (Buy-in × 0.1) + (Hours Played × 3) + (Visit Frequency × 5)
       
       const avgBuyIn = sampleSessions.length > 0 ? 
         sampleSessions.reduce((sum, s) => sum + s.buy_in_amount, 0) / sampleSessions.length : 0;
-      const totalRsPlayed = sampleTotalRsPlayed;
+      const totalHoursPlayed = sampleTotalHoursPlayed;
       const visitFrequency = sampleVisitFrequency;
       
       const buyInPoints = avgBuyIn * 0.1;
-      const rsPlayedPoints = totalRsPlayed * 3;
+      const hoursPlayedPoints = totalHoursPlayed * 3;
       const frequencyPoints = visitFrequency * 5;
-      const totalVipPoints = buyInPoints + rsPlayedPoints + frequencyPoints;
+      const totalVipPoints = buyInPoints + hoursPlayedPoints + frequencyPoints;
       
       console.log(`✅ [VIP POINTS] Calculated ${totalVipPoints} points for player ${playerId}`);
-      console.log(`📊 [VIP POINTS] Breakdown: BuyIn(${avgBuyIn}×0.1=${buyInPoints}) + Rs(${totalRsPlayed}×3=${rsPlayedPoints}) + Visits(${visitFrequency}×5=${frequencyPoints})`);
+      console.log(`📊 [VIP POINTS] Breakdown: BuyIn(${avgBuyIn}×0.1=${buyInPoints}) + Hours(${totalHoursPlayed}×3=${hoursPlayedPoints}) + Visits(${visitFrequency}×5=${frequencyPoints})`);
       
       res.json({
         success: true,
         calculation: {
           avgBuyIn,
-          totalRsPlayed,
+          totalHoursPlayed,
           visitFrequency,
           buyInPoints,
-          rsPlayedPoints,
+          hoursPlayedPoints,
           frequencyPoints,
           totalVipPoints,
-          formula: 'VIP Points = (Buy-in × 0.1) + (Rs Played × 3) + (Visit Frequency × 5)',
+          formula: 'VIP Points = (Buy-in × 0.1) + (Hours Played × 3) + (Visit Frequency × 5)',
           note: 'Using sample data - connect to Supabase VIP tables for live data'
         }
       });
