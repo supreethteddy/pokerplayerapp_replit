@@ -180,6 +180,7 @@ This player portal is designed to work alongside an existing admin dashboard, sh
 ✅ **Staff Portal Waitlist Management**: Created /api/waitlist/table/{tableId} endpoint for staff to manage table waitlists with player details
 ✅ **Eliminated Table Confusion**: Deprecated seat_requests table to prevent conflicts between Player Portal and Staff Portal systems
 ✅ **Real-Time Waitlist Sync**: All waitlist changes instantly sync across Player Portal, Staff Portal, and all admin portals
+✅ **Enhanced UI Organization**: Moved account management disclaimer from offers page to stats page for better user experience and logical information placement
 
 ## User Preferences
 

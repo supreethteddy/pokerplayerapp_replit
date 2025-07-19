@@ -571,6 +571,22 @@ export default function PlayerDashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Account Management Notice */}
+            <Card className="bg-amber-900/20 border-amber-700/30">
+              <CardContent className="p-4">
+                <div className="flex items-start space-x-3">
+                  <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="text-amber-300 font-medium mb-1">Account Management</div>
+                    <div className="text-amber-200/80 text-sm">
+                      For deposits, withdrawals, and other account transactions, please contact our cashier or support team. 
+                      These operations require staff approval for security purposes.
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Profile Tab */}
