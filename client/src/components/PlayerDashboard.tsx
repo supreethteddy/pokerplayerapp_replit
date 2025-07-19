@@ -691,6 +691,14 @@ export default function PlayerDashboard() {
     staleTime: 0
   });
 
+  // Debug: Log chat messages to console
+  useEffect(() => {
+    if (chatMessages) {
+      console.log('💬 [DEBUG] Chat messages received:', chatMessages);
+      console.log('💬 [DEBUG] Chat messages length:', chatMessages.length);
+    }
+  }, [chatMessages]);
+
   // Submit credit request mutation
   const submitCreditRequestMutation = useMutation({
     mutationFn: async ({ playerId, requestedAmount, requestNote }: { playerId: number; requestedAmount: number; requestNote: string }) => {

@@ -232,12 +232,12 @@ export default function VipShop() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               <div className="text-center p-4 bg-slate-700 rounded-lg">
-                <div className="text-emerald-400 font-bold text-lg">Big Blind</div>
-                <div className="text-slate-300">Play at higher stakes tables to earn more points from big blind amounts</div>
+                <div className="text-emerald-400 font-bold text-lg">Buy-in Amount</div>
+                <div className="text-slate-300">Play at higher stakes tables to earn more points from buy-in amounts</div>
               </div>
               <div className="text-center p-4 bg-slate-700 rounded-lg">
-                <div className="text-blue-400 font-bold text-lg">Rs Played</div>
-                <div className="text-slate-300">The more you play and wager, the more points you accumulate</div>
+                <div className="text-blue-400 font-bold text-lg">HOURS Played</div>
+                <div className="text-slate-300">The more hours you play, the more points you accumulate</div>
               </div>
               <div className="text-center p-4 bg-slate-700 rounded-lg">
                 <div className="text-yellow-400 font-bold text-lg">Daily Visits</div>
