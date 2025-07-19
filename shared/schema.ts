@@ -24,6 +24,8 @@ export const players = pgTable("players", {
   panCardNumber: text("pan_card_number"), // PAN card number (10 characters)
   panCardDocumentUrl: text("pan_card_document_url"), // URL to uploaded PAN card document
   panCardStatus: text("pan_card_status").default("missing"), // missing, pending, approved, rejected
+  panCardVerified: boolean("pan_card_verified").default(false), // PAN card verification status
+  panCardUploadedAt: timestamp("pan_card_uploaded_at"), // PAN card upload timestamp
   createdAt: timestamp("created_at").defaultNow(),
 });
 

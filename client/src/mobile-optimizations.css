@@ -1,0 +1,86 @@
+/* Mobile-first responsive optimizations for Poker Room Player Portal */
+
+/* Ensure proper viewport settings */
+html {
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+}
+
+/* Mobile-optimized button sizing */
+@media (max-width: 640px) {
+  /* Ensure all buttons are properly sized for touch */
+  button {
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+  }
+
+  /* Optimize tab navigation for mobile */
+  [data-tabs-list] {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Ensure cards stack properly on mobile */
+  .grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Optimize form inputs for mobile */
+  input, select, textarea {
+    font-size: 16px; /* Prevents zoom on iOS */
+    min-height: 44px;
+  }
+
+  /* Ensure text is readable on mobile */
+  body {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* Optimize spacing for mobile */
+  .space-y-4 > * + * {
+    margin-top: 0.75rem;
+  }
+
+  .space-y-6 > * + * {
+    margin-top: 1rem;
+  }
+
+  /* Ensure proper touch targets */
+  a, button, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Optimize table cards for mobile */
+  .table-card {
+    padding: 0.75rem;
+  }
+
+  /* Ensure proper scrolling */
+  .overflow-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Landscape mobile optimizations */
+@media (max-width: 768px) and (orientation: landscape) {
+  /* Reduce header height in landscape */
+  .dashboard-header {
+    padding: 0.5rem;
+  }
+}
+
+/* iPhone specific optimizations */
+@supports (-webkit-appearance: none) {
+  /* iOS Safari specific styles */
+  input[type="text"], 
+  input[type="email"], 
+  input[type="password"],
+  select,
+  textarea {
+    -webkit-appearance: none;
+    border-radius: 8px;
+  }
+}
