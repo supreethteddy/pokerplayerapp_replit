@@ -435,6 +435,85 @@ export default function PlayerDashboard() {
     });
   };
 
+  // PAN Card management
+  const [panCardNumber, setPanCardNumber] = useState("");
+  const [showTransactions, setShowTransactions] = useState(false);
+
+  // PAN Card update mutation
+  const updatePanCardMutation = useMutation({
+    mutationFn: async ({ playerId, panCardNumber }: { playerId: number; panCardNumber: string }) => {
+      const response = await apiRequest("POST", `/api/players/${playerId}/pan-card`, { panCardNumber });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "PAN Card Updated",
+        description: "Your PAN card number has been updated successfully",
+      });
+      // Clear the input
+      setPanCardNumber("");
+      // Refresh user data
+      queryClient.invalidateQueries({ queryKey: ["/api/players/supabase", user?.email] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "PAN Card Update Failed",
+        description: error.message || "Failed to update PAN card number",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Transaction history query
+  const { data: transactions, isLoading: transactionsLoading } = useQuery({
+    queryKey: ["/api/players", user?.id, "transactions"],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const response = await fetch(`/api/players/${user.id}/transactions?limit=10`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch transactions');
+      }
+      return response.json();
+    },
+    enabled: !!user?.id && showTransactions,
+  });
+
+  const handlePanCardUpdate = () => {
+    if (!user?.id || !panCardNumber) {
+      toast({
+        title: "Invalid Input",
+        description: "Please enter a valid PAN card number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (panCardNumber.length !== 10) {
+      toast({
+        title: "Invalid PAN Card",
+        description: "PAN card number must be exactly 10 characters",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate PAN card format
+    const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+    if (!panRegex.test(panCardNumber)) {
+      toast({
+        title: "Invalid PAN Card Format",
+        description: "PAN card format should be AAAAA9999A (5 letters, 4 numbers, 1 letter)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updatePanCardMutation.mutate({
+      playerId: user.id,
+      panCardNumber
+    });
+  };
+
   // Update call time periodically
   useEffect(() => {
     if (user) {
@@ -576,21 +655,33 @@ export default function PlayerDashboard() {
 
       {/* Navigation Tabs */}
       <Tabs defaultValue="game" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 bg-slate-800 border-slate-700">
-          <TabsTrigger value="game" className="text-slate-300 data-[state=active]:text-white">
-            <Spade className="w-4 h-4 mr-2" />
+        <TabsList className="grid w-full grid-cols-4 gap-3 p-2 bg-transparent">
+          <TabsTrigger 
+            value="game" 
+            className="px-6 py-3 text-lg font-semibold rounded-xl bg-slate-800 border border-slate-700 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:border-emerald-500 hover:bg-slate-700 transition-all duration-200 text-slate-300"
+          >
+            <Spade className="w-5 h-5 mr-2" />
             Lobby
           </TabsTrigger>
-          <TabsTrigger value="balance" className="text-slate-300 data-[state=active]:text-white">
-            <CreditCard className="w-4 h-4 mr-2" />
+          <TabsTrigger 
+            value="balance" 
+            className="px-6 py-3 text-lg font-semibold rounded-xl bg-slate-800 border border-slate-700 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:border-emerald-500 hover:bg-slate-700 transition-all duration-200 text-slate-300"
+          >
+            <CreditCard className="w-5 h-5 mr-2" />
             Offers
           </TabsTrigger>
-          <TabsTrigger value="stats" className="text-slate-300 data-[state=active]:text-white">
-            <BarChart3 className="w-4 h-4 mr-2" />
+          <TabsTrigger 
+            value="stats" 
+            className="px-6 py-3 text-lg font-semibold rounded-xl bg-slate-800 border border-slate-700 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:border-emerald-500 hover:bg-slate-700 transition-all duration-200 text-slate-300"
+          >
+            <BarChart3 className="w-5 h-5 mr-2" />
             Stats
           </TabsTrigger>
-          <TabsTrigger value="profile" className="text-slate-300 data-[state=active]:text-white">
-            <User className="w-4 h-4 mr-2" />
+          <TabsTrigger 
+            value="profile" 
+            className="px-6 py-3 text-lg font-semibold rounded-xl bg-slate-800 border border-slate-700 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:border-emerald-500 hover:bg-slate-700 transition-all duration-200 text-slate-300"
+          >
+            <User className="w-5 h-5 mr-2" />
             Profile
           </TabsTrigger>
         </TabsList>
@@ -1272,6 +1363,163 @@ export default function PlayerDashboard() {
                       )}
                     </div>
                   )}
+                </CardContent>
+              </Card>
+
+              {/* PAN Card Management */}
+              <Card className="bg-slate-800 border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <CreditCard className="w-5 h-5 mr-2 text-emerald-500" />
+                    PAN Card Verification
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* PAN Card Number Input */}
+                  <div className="space-y-3">
+                    <div className="p-3 bg-slate-700 rounded-lg">
+                      <p className="text-xs text-slate-300 mb-2">
+                        <strong>PAN Card Format:</strong> AAAAA9999A (5 letters, 4 numbers, 1 letter)
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        Your PAN card number must be unique and cannot be used by other players
+                      </p>
+                    </div>
+                    
+                    <div className="flex flex-col space-y-2">
+                      <label htmlFor="pan-number" className="text-sm font-medium text-white">
+                        PAN Card Number
+                      </label>
+                      <input
+                        id="pan-number"
+                        type="text"
+                        placeholder="AAAAA9999A"
+                        maxLength={10}
+                        value={panCardNumber}
+                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        style={{ textTransform: 'uppercase' }}
+                        onChange={(e) => {
+                          setPanCardNumber(e.target.value.toUpperCase());
+                        }}
+                      />
+                    </div>
+                    
+                    <Button 
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                      disabled={updatePanCardMutation.isPending}
+                      onClick={handlePanCardUpdate}
+                    >
+                      {updatePanCardMutation.isPending ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                          Updating...
+                        </>
+                      ) : (
+                        'Update PAN Card Number'
+                      )}
+                    </Button>
+                  </div>
+
+                  {/* PAN Card Document Upload */}
+                  <div className="space-y-3 pt-4 border-t border-slate-600">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-medium text-white">PAN Card Document</h4>
+                        <p className="text-xs text-slate-400">Upload clear image of your PAN card</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => document.getElementById('pan-document-upload')?.click()}
+                        className="border-slate-600 hover:bg-slate-600"
+                      >
+                        <Upload className="w-4 h-4 mr-1" />
+                        Upload
+                      </Button>
+                    </div>
+                    
+                    <input
+                      id="pan-document-upload"
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          // TODO: Add PAN card document upload
+                          console.log('PAN Card Document:', file.name);
+                        }
+                      }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Transaction History */}
+              <Card className="bg-slate-800 border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <FileText className="w-5 h-5 mr-2 text-emerald-500" />
+                    Transaction History
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <select 
+                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      value={showTransactions ? 'view' : ''}
+                      onChange={(e) => {
+                        setShowTransactions(e.target.value === 'view');
+                      }}
+                    >
+                      <option value="">Select action...</option>
+                      <option value="view">View Last 10 Transactions</option>
+                    </select>
+                    
+                    {/* Transaction List */}
+                    {showTransactions && (
+                      <div className="bg-slate-700 rounded-lg p-4">
+                        {transactionsLoading ? (
+                          <div className="flex items-center justify-center py-4">
+                            <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                            <span className="ml-2 text-sm text-slate-300">Loading transactions...</span>
+                          </div>
+                        ) : transactions && transactions.length > 0 ? (
+                          <div className="space-y-2">
+                            <h4 className="text-sm font-medium text-white mb-3">Recent Transactions</h4>
+                            {transactions.map((transaction: any, index: number) => (
+                              <div key={index} className="flex justify-between items-center py-2 border-b border-slate-600 last:border-b-0">
+                                <div>
+                                  <p className="text-sm text-white">{transaction.type}</p>
+                                  <p className="text-xs text-slate-400">
+                                    {new Date(transaction.created_at).toLocaleDateString()} at {new Date(transaction.created_at).toLocaleTimeString()}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className={`text-sm font-medium ${transaction.amount >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    {transaction.amount >= 0 ? '+' : ''}₹{Math.abs(transaction.amount)}
+                                  </p>
+                                  <p className="text-xs text-slate-400">{transaction.status}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-slate-300 text-center">
+                            No transactions found
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    
+                    {!showTransactions && (
+                      <div className="bg-slate-700 rounded-lg p-4">
+                        <p className="text-sm text-slate-300 text-center">
+                          Select "View Last 10 Transactions" to see your recent activity
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
 

@@ -3130,6 +3130,125 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // === PAN CARD MANAGEMENT API ===
+  
+  // Update player PAN card number (with uniqueness validation)
+  app.post("/api/players/:playerId/pan-card", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const { panCardNumber } = req.body;
+      
+      if (!panCardNumber || panCardNumber.length !== 10) {
+        return res.status(400).json({ error: "PAN card number must be exactly 10 characters" });
+      }
+      
+      // Validate PAN card format (AAAAA9999A)
+      const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+      if (!panRegex.test(panCardNumber)) {
+        return res.status(400).json({ error: "Invalid PAN card format. Expected format: AAAAA9999A" });
+      }
+      
+      // Check if PAN card number is already used by another player
+      const { data: existingPlayer, error: checkError } = await supabase
+        .from('players')
+        .select('id, first_name, last_name')
+        .eq('pan_card_number', panCardNumber)
+        .neq('id', playerId)
+        .single();
+      
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows found
+        throw new Error(`Failed to check PAN card uniqueness: ${checkError.message}`);
+      }
+      
+      if (existingPlayer) {
+        return res.status(409).json({ 
+          error: `PAN card number already registered to ${existingPlayer.first_name} ${existingPlayer.last_name}` 
+        });
+      }
+      
+      // Update player's PAN card number
+      const { data: updatedPlayer, error: updateError } = await supabase
+        .from('players')
+        .update({
+          pan_card_number: panCardNumber,
+          pan_card_status: 'pending'
+        })
+        .eq('id', playerId)
+        .select()
+        .single();
+      
+      if (updateError) {
+        throw new Error(`Failed to update PAN card: ${updateError.message}`);
+      }
+      
+      console.log('✅ [PAN CARD] Number updated for player:', playerId, panCardNumber);
+      res.json({ success: true, player: updatedPlayer });
+    } catch (error: any) {
+      console.error('❌ [PAN CARD] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Upload PAN card document
+  app.post("/api/players/:playerId/pan-card/upload", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const { fileUrl, fileName } = req.body;
+      
+      if (!fileUrl || !fileName) {
+        return res.status(400).json({ error: "File URL and filename are required" });
+      }
+      
+      // Update player's PAN card document
+      const { data: updatedPlayer, error: updateError } = await supabase
+        .from('players')
+        .update({
+          pan_card_document_url: fileUrl,
+          pan_card_status: 'pending'
+        })
+        .eq('id', playerId)
+        .select()
+        .single();
+      
+      if (updateError) {
+        throw new Error(`Failed to upload PAN card document: ${updateError.message}`);
+      }
+      
+      console.log('✅ [PAN CARD UPLOAD] Document uploaded for player:', playerId);
+      res.json({ success: true, player: updatedPlayer });
+    } catch (error: any) {
+      console.error('❌ [PAN CARD UPLOAD] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get player transaction history
+  app.get("/api/players/:playerId/transactions", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      console.log('📋 [TRANSACTIONS] Getting transaction history for player:', playerId, 'limit:', limit);
+      
+      const { data: transactions, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      
+      if (error) {
+        throw new Error(`Failed to fetch transactions: ${error.message}`);
+      }
+      
+      console.log('✅ [TRANSACTIONS] Found', transactions?.length || 0, 'transactions');
+      res.json(transactions || []);
+    } catch (error: any) {
+      console.error('❌ [TRANSACTIONS] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
   // Offer Banners API
   app.get('/api/offer-banners', async (req, res) => {
