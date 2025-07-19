@@ -1,5 +1,6 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -885,19 +886,15 @@ export default function PlayerDashboard() {
                 <div className="space-y-4">
                   <h4 className="text-lg font-semibold text-white">Redeem Your Points</h4>
                   <div className="flex justify-center">
-                    <Button 
-                      className="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white font-semibold py-4 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg"
-                      size="lg"
-                      onClick={() => {
-                        toast({
-                          title: "VIP Shop",
-                          description: "VIP Shop with exclusive rewards coming soon!",
-                        });
-                      }}
-                    >
-                      <Star className="w-5 h-5 mr-2" />
-                      Open VIP Shop
-                    </Button>
+                    <Link href="/vip-shop">
+                      <Button 
+                        className="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white font-semibold py-4 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg"
+                        size="lg"
+                      >
+                        <Star className="w-5 h-5 mr-2" />
+                        Open VIP Shop
+                      </Button>
+                    </Link>
                   </div>
                   <p className="text-center text-sm text-slate-400">
                     Use your {((user?.gamesPlayed || 0) * 10 + parseFloat(user?.hoursPlayed || "0") * 5).toFixed(0)} points to unlock exclusive rewards and benefits

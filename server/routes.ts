@@ -3249,7 +3249,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const httpServer = createServer(app);
   // Offer Banners API
   app.get('/api/offer-banners', async (req, res) => {
     try {
@@ -3749,5 +3748,162 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== VIP SHOP API ENDPOINTS ====================
+  
+  // Get VIP Shop Categories
+  app.get("/api/vip-shop/categories", async (req, res) => {
+    try {
+      const { data, error } = await localSupabase
+        .from('vip_shop_categories')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true });
+
+      if (error) {
+        console.error('[VIP SHOP] Error fetching categories:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      res.json(data || []);
+    } catch (error: any) {
+      console.error('[VIP SHOP] Categories error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get VIP Shop Items
+  app.get("/api/vip-shop/items", async (req, res) => {
+    try {
+      const { data, error } = await localSupabase
+        .from('vip_shop_items')
+        .select('*')
+        .eq('is_available', true)
+        .order('display_order', { ascending: true });
+
+      if (error) {
+        console.error('[VIP SHOP] Error fetching items:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      res.json(data || []);
+    } catch (error: any) {
+      console.error('[VIP SHOP] Items error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get VIP Shop Banners
+  app.get("/api/vip-shop/banners", async (req, res) => {
+    try {
+      const { data, error } = await localSupabase
+        .from('vip_shop_banners')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true });
+
+      if (error) {
+        console.error('[VIP SHOP] Error fetching banners:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      res.json(data || []);
+    } catch (error: any) {
+      console.error('[VIP SHOP] Banners error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get VIP Shop Settings
+  app.get("/api/vip-shop/settings", async (req, res) => {
+    try {
+      const { data, error } = await localSupabase
+        .from('vip_shop_settings')
+        .select('*');
+
+      if (error) {
+        console.error('[VIP SHOP] Error fetching settings:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      res.json(data || []);
+    } catch (error: any) {
+      console.error('[VIP SHOP] Settings error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Redeem VIP Shop Item
+  app.post("/api/vip-shop/redeem", async (req, res) => {
+    try {
+      const { item_id, delivery_address, delivery_phone, special_instructions } = req.body;
+      
+      if (!item_id) {
+        return res.status(400).json({ error: "Item ID is required" });
+      }
+
+      // Get the player ID from the request (placeholder - should come from auth session)
+      const playerId = 29; // This should come from authenticated session
+
+      // Get the item details
+      const { data: item, error: itemError } = await localSupabase
+        .from('vip_shop_items')
+        .select('*')
+        .eq('id', item_id)
+        .eq('is_available', true)
+        .single();
+
+      if (itemError || !item) {
+        return res.status(404).json({ error: "Item not found or unavailable" });
+      }
+
+      // Check stock if applicable
+      if (item.stock_quantity !== null && item.stock_quantity <= 0) {
+        return res.status(400).json({ error: "Item out of stock" });
+      }
+
+      // Create redemption record
+      const redemptionCode = `VIP${Date.now()}${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+      
+      const { data: redemption, error: redemptionError } = await localSupabase
+        .from('vip_shop_redemptions')
+        .insert([{
+          player_id: playerId,
+          item_id: item_id,
+          points_spent: item.point_cost,
+          redemption_code: redemptionCode,
+          delivery_address: delivery_address || null,
+          delivery_phone: delivery_phone || null,
+          special_instructions: special_instructions || null,
+          status: 'pending'
+        }])
+        .select()
+        .single();
+
+      if (redemptionError) {
+        console.error('[VIP SHOP] Redemption error:', redemptionError);
+        return res.status(500).json({ error: "Failed to process redemption" });
+      }
+
+      // Update stock if applicable
+      if (item.stock_quantity !== null) {
+        await localSupabase
+          .from('vip_shop_items')
+          .update({ stock_quantity: item.stock_quantity - 1 })
+          .eq('id', item_id);
+      }
+
+      res.json({
+        success: true,
+        redemption_code: redemptionCode,
+        redemption: redemption
+      });
+
+    } catch (error: any) {
+      console.error('[VIP SHOP] Redemption error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  const httpServer = createServer(app);
   return httpServer;
 }

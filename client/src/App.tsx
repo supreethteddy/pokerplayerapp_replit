@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "./hooks/useAuth";
 import AuthLayout from "./components/AuthLayout";
 import PlayerDashboard from "./components/PlayerDashboard";
+import VipShop from "./pages/VipShop";
 import LoadingScreen from "./components/LoadingScreen";
 import { useState, useEffect } from "react";
 
@@ -62,6 +63,9 @@ function AppContent() {
         </Route>
         <Route path="/dashboard">
           {user ? <PlayerDashboard /> : <Redirect to="/" />}
+        </Route>
+        <Route path="/vip-shop">
+          {user ? <VipShop /> : <Redirect to="/" />}
         </Route>
         <Route path="/thank-you">
           <ThankYou />
