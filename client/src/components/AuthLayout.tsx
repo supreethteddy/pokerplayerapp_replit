@@ -235,7 +235,17 @@ export default function AuthLayout() {
 
   return (
     <div className="min-h-screen bg-black flex flex-col">
-      {/* Clean header - no logo on signup page */}
+      {/* Tilt Logo Background Header */}
+      <div 
+        className="relative w-full h-48 bg-center bg-cover bg-no-repeat"
+        style={{
+          backgroundImage: `url(${tiltRoomLogo})`,
+          backgroundSize: 'contain',
+          backgroundPosition: 'center'
+        }}
+      >
+        <div className="absolute inset-0 bg-black bg-opacity-60"></div>
+      </div>
 
       {/* Login Content */}
       <div className="flex-1 flex items-center justify-center p-4 bg-black">

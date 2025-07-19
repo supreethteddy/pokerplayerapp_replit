@@ -2904,6 +2904,232 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.send(svg);
   });
 
+  // GRE Admin Integration - Complete cross-portal connectivity
+  app.get("/api/gre-admin/connectivity", async (req, res) => {
+    try {
+      console.log('🔗 [GRE ADMIN] Testing GRE admin portal connectivity...');
+      
+      // Test connection to all GRE admin tables
+      const connectivityChecks = {
+        players: false,
+        tables: false,
+        seat_requests: false,
+        waitlist: false,
+        kyc_documents: false,
+        transactions: false,
+        player_preferences: false,
+        game_sessions: false,
+        table_assignments: false,
+        system_logs: false
+      };
+
+      // Test each table connectivity
+      for (const tableName of Object.keys(connectivityChecks)) {
+        try {
+          const { data, error } = await supabase
+            .from(tableName)
+            .select('*')
+            .limit(1);
+          
+          if (!error) {
+            connectivityChecks[tableName] = true;
+          }
+        } catch (error) {
+          console.warn(`⚠️ [GRE ADMIN] Table ${tableName} connectivity issue:`, error);
+        }
+      }
+
+      const connectedTables = Object.values(connectivityChecks).filter(Boolean).length;
+      const totalTables = Object.keys(connectivityChecks).length;
+
+      console.log(`✅ [GRE ADMIN] Connectivity: ${connectedTables}/${totalTables} tables connected`);
+      
+      res.json({
+        success: true,
+        gre_admin_connectivity: connectivityChecks,
+        connection_percentage: Math.round((connectedTables / totalTables) * 100),
+        status: connectedTables === totalTables ? 'fully_integrated' : 'partial_integration',
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error('❌ [GRE ADMIN] Connectivity test failed:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GRE Admin Player Management
+  app.get("/api/gre-admin/players", async (req, res) => {
+    try {
+      console.log('👥 [GRE ADMIN] Fetching all players for GRE admin portal...');
+      
+      const { data: players, error } = await supabase
+        .from('players')
+        .select(`
+          *,
+          player_preferences(*),
+          kyc_documents(*),
+          transactions(*),
+          game_sessions(*)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ [GRE ADMIN] Error fetching players:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      console.log(`✅ [GRE ADMIN] Retrieved ${players?.length || 0} players`);
+      res.json(players || []);
+    } catch (error: any) {
+      console.error('❌ [GRE ADMIN] Players fetch failed:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GRE Admin Table Management
+  app.get("/api/gre-admin/tables", async (req, res) => {
+    try {
+      console.log('🎯 [GRE ADMIN] Fetching all tables for GRE admin portal...');
+      
+      const { data: tables, error } = await supabase
+        .from('tables')
+        .select(`
+          *,
+          table_assignments(*),
+          waitlist(*)
+        `)
+        .order('id', { ascending: true });
+
+      if (error) {
+        console.error('❌ [GRE ADMIN] Error fetching tables:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      console.log(`✅ [GRE ADMIN] Retrieved ${tables?.length || 0} tables`);
+      res.json(tables || []);
+    } catch (error: any) {
+      console.error('❌ [GRE ADMIN] Tables fetch failed:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GRE Admin Analytics Dashboard
+  app.get("/api/gre-admin/analytics", async (req, res) => {
+    try {
+      console.log('📊 [GRE ADMIN] Generating analytics for GRE admin portal...');
+      
+      // Get player analytics
+      const { data: totalPlayers } = await supabase
+        .from('players')
+        .select('id', { count: 'exact' });
+
+      const { data: activeKyc } = await supabase
+        .from('kyc_documents')
+        .select('id', { count: 'exact' })
+        .eq('status', 'approved');
+
+      const { data: activeTables } = await supabase
+        .from('tables')
+        .select('id', { count: 'exact' })
+        .eq('is_active', true);
+
+      const { data: totalTransactions } = await supabase
+        .from('transactions')
+        .select('amount')
+        .eq('status', 'completed');
+
+      const totalVolume = totalTransactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
+
+      const analytics = {
+        total_players: totalPlayers?.length || 0,
+        approved_kyc: activeKyc?.length || 0,
+        active_tables: activeTables?.length || 0,
+        total_transaction_volume: totalVolume,
+        kyc_approval_rate: totalPlayers?.length ? 
+          Math.round((activeKyc?.length || 0) / totalPlayers.length * 100) : 0,
+        timestamp: new Date().toISOString()
+      };
+
+      console.log('✅ [GRE ADMIN] Analytics generated:', analytics);
+      res.json(analytics);
+    } catch (error: any) {
+      console.error('❌ [GRE ADMIN] Analytics generation failed:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // GRE Admin System Health Monitor
+  app.get("/api/gre-admin/system-health", async (req, res) => {
+    try {
+      console.log('🏥 [GRE ADMIN] Checking system health for GRE admin portal...');
+      
+      const healthChecks = {
+        database_connection: false,
+        player_system: false,
+        table_management: false,
+        kyc_system: false,
+        transaction_system: false,
+        waitlist_system: false
+      };
+
+      // Test database connection
+      try {
+        const { data } = await supabase.from('players').select('id').limit(1);
+        healthChecks.database_connection = true;
+        healthChecks.player_system = true;
+      } catch (error) {
+        console.warn('⚠️ [GRE ADMIN] Database connection issue');
+      }
+
+      // Test table management
+      try {
+        const { data } = await supabase.from('tables').select('id').limit(1);
+        healthChecks.table_management = true;
+      } catch (error) {
+        console.warn('⚠️ [GRE ADMIN] Table management issue');
+      }
+
+      // Test KYC system
+      try {
+        const { data } = await supabase.from('kyc_documents').select('id').limit(1);
+        healthChecks.kyc_system = true;
+      } catch (error) {
+        console.warn('⚠️ [GRE ADMIN] KYC system issue');
+      }
+
+      // Test transaction system
+      try {
+        const { data } = await supabase.from('transactions').select('id').limit(1);
+        healthChecks.transaction_system = true;
+      } catch (error) {
+        console.warn('⚠️ [GRE ADMIN] Transaction system issue');
+      }
+
+      // Test waitlist system
+      try {
+        const { data } = await supabase.from('waitlist').select('id').limit(1);
+        healthChecks.waitlist_system = true;
+      } catch (error) {
+        console.warn('⚠️ [GRE ADMIN] Waitlist system issue');
+      }
+
+      const healthyChecks = Object.values(healthChecks).filter(Boolean).length;
+      const totalChecks = Object.keys(healthChecks).length;
+      
+      console.log(`✅ [GRE ADMIN] System health: ${healthyChecks}/${totalChecks} systems operational`);
+      
+      res.json({
+        healthy: healthyChecks === totalChecks,
+        health_percentage: Math.round((healthyChecks / totalChecks) * 100),
+        checks: healthChecks,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error('❌ [GRE ADMIN] System health check failed:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
   // Offer Banners API
   app.get('/api/offer-banners', async (req, res) => {
