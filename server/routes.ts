@@ -30,6 +30,12 @@ const localSupabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Connect to Staff Portal Supabase for GRE chat and push notifications
+const staffPortalSupabase = createClient(
+  process.env.STAFF_PORTAL_SUPABASE_URL!,
+  process.env.STAFF_PORTAL_SUPABASE_SERVICE_KEY!
+);
+
 // Create KYC document schema - omit fileUrl as it's generated during upload
 const insertKycDocumentSchema = createInsertSchema(kycDocuments).omit({ fileUrl: true });
 
@@ -4141,70 +4147,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GRE Chat System API Endpoints
-  app.post("/api/gre-chat", async (req, res) => {
+  // GRE Chat System API Endpoints - Send Message
+  app.post("/api/gre-chat/send", async (req, res) => {
     try {
       const { playerId, playerName, message, timestamp } = req.body;
       console.log(`💬 [GRE CHAT] Receiving message from player ${playerId}: ${playerName}`);
       
-      // Check if there's an active chat request for this player
-      let { data: existingRequest } = await localSupabase
-        .from('gre_chat_requests')
+      // Check if there's an active chat session for this player in Staff Portal Supabase
+      let { data: existingSession } = await staffPortalSupabase
+        .from('gre_chat_sessions')
         .select('*')
         .eq('player_id', playerId)
-        .in('status', ['pending', 'assigned', 'active'])
+        .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
       
-      let requestId;
+      let sessionId;
       
-      // If no active request exists, create a new one
-      if (!existingRequest) {
-        const { data: newRequest, error: requestError } = await localSupabase
-          .from('gre_chat_requests')
+      // If no active session exists, create a new one
+      if (!existingSession) {
+        const { data: newSession, error: sessionError } = await staffPortalSupabase
+          .from('gre_chat_sessions')
           .insert({
             player_id: playerId,
             player_name: playerName,
-            status: 'pending',
+            status: 'active',
+            category: 'general',
             priority: 'normal',
-            subject: message.length > 50 ? message.substring(0, 50) + '...' : message
+            created_at: new Date().toISOString(),
+            last_message_at: new Date().toISOString()
           })
           .select()
           .single();
         
-        if (requestError) {
-          throw new Error(`Failed to create chat request: ${requestError.message}`);
+        if (sessionError) {
+          throw new Error(`Failed to create chat session: ${sessionError.message}`);
         }
         
-        requestId = newRequest.id;
-        console.log(`📋 [GRE CHAT] Created new chat request - ID: ${requestId}`);
+        sessionId = newSession.id;
+        console.log(`✅ [GRE CHAT] Created new chat session - ID: ${sessionId}`);
       } else {
-        requestId = existingRequest.id;
-        console.log(`📋 [GRE CHAT] Using existing chat request - ID: ${requestId}`);
+        sessionId = existingSession.id;
+        console.log(`⚡ [GRE CHAT] Using existing chat session - ID: ${sessionId}`);
       }
       
-      // Insert chat message into Staff Portal Supabase
+      // Insert the message into Staff Portal Supabase
       const { data, error } = await staffPortalSupabase
         .from('gre_chat_messages')
         .insert({
+          session_id: sessionId,
           player_id: playerId,
-          player_name: playerName,
           message: message.trim(),
-          sender: 'player',
-          sender_name: playerName,
-          status: 'sent',
-          created_at: new Date().toISOString()
+          sender_type: 'player',
+          created_at: new Date().toISOString(),
+          is_read: false
         })
         .select()
         .single();
       
       if (error) {
-        throw new Error(`Failed to send chat message: ${error.message}`);
+        throw new Error(`Failed to send message: ${error.message}`);
       }
       
+      // Update session last message time
+      await staffPortalSupabase
+        .from('gre_chat_sessions')
+        .update({ 
+          last_message_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', sessionId);
+      
       console.log(`✅ [GRE CHAT] Message sent successfully - ID: ${data.id}`);
-      res.json({ success: true, message: data, requestId });
+      res.json({ success: true, message: data });
     } catch (error: any) {
       console.error(`❌ [GRE CHAT] Error sending message:`, error);
       res.status(500).json({ error: error.message });

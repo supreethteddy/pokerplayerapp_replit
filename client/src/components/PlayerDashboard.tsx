@@ -578,7 +578,7 @@ export default function PlayerDashboard() {
 
     setSendingChatMessage(true);
     try {
-      const response = await apiRequest("POST", "/api/gre-chat", {
+      const response = await apiRequest("POST", "/api/gre-chat/send", {
         playerId: user.id,
         playerName: `${user.firstName} ${user.lastName}`,
         message: chatMessage.trim(),
@@ -1883,7 +1883,7 @@ export default function PlayerDashboard() {
                       <Button 
                         onClick={sendChatMessage}
                         disabled={sendingChatMessage || !chatMessage.trim()}
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        className="bg-blue-600/70 hover:bg-blue-700/80 text-white backdrop-blur-sm border border-blue-500/30"
                       >
                         {sendingChatMessage ? (
                           <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
