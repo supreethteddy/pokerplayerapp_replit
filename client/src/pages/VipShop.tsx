@@ -105,18 +105,18 @@ export default function VipShop() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="bg-slate-700 p-4 rounded-lg text-center">
                         <div className="text-yellow-400 text-2xl font-bold">
-                          {breakdown.bigBlindPoints.toFixed(1)}
+                          {(breakdown.buyInPoints || breakdown.bigBlindPoints || 0).toFixed(1)}
                         </div>
                         <div className="text-slate-300 text-sm">
-                          Big Blind (₹{breakdown.avgBigBlind} × 0.5)
+                          Buy-in (₹{breakdown.avgBuyIn || breakdown.avgBigBlind || 0} × 0.1)
                         </div>
                       </div>
                       <div className="bg-slate-700 p-4 rounded-lg text-center">
                         <div className="text-yellow-400 text-2xl font-bold">
-                          {(breakdown.hoursPlayedPoints || breakdown.rsPlayedPoints || 0).toFixed(1)}
+                          {(breakdown.rsPlayedPoints || breakdown.hoursPlayedPoints || 0).toFixed(1)}
                         </div>
                         <div className="text-slate-300 text-sm">
-                          Hours Played ({breakdown.totalHoursPlayed || breakdown.totalRsPlayed || 0}h × 0.3)
+                          Rs Played (₹{breakdown.totalRsPlayed || breakdown.totalHoursPlayed || 0} × 3)
                         </div>
                       </div>
                       <div className="bg-slate-700 p-4 rounded-lg text-center">
@@ -124,7 +124,7 @@ export default function VipShop() {
                           {breakdown.frequencyPoints.toFixed(1)}
                         </div>
                         <div className="text-slate-300 text-sm">
-                          Visit Frequency ({breakdown.visitFrequency} days × 0.2)
+                          Visit Frequency ({breakdown.visitFrequency} days × 5)
                         </div>
                       </div>
                     </div>
@@ -133,7 +133,7 @@ export default function VipShop() {
 
                 {/* Formula Display */}
                 <div className="text-sm text-slate-400 p-3 bg-slate-900 rounded text-center">
-                  <strong>Formula:</strong> VIP Points = (Big Blind × 0.5) + (Hours Played × 0.3) + (Visit Frequency × 0.2)
+                  <strong>Formula:</strong> VIP Points = (Buy-in × 0.1) + (Rs Played × 3) + (Visit Frequency × 5)
                 </div>
               </div>
             )}
