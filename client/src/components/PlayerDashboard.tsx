@@ -760,6 +760,8 @@ export default function PlayerDashboard() {
           
           if (data.type === 'chat_history') {
             console.log('📋 [WEBSOCKET] Chat history received:', data.messages.length, 'messages');
+            console.log('🔗 [DEBUG] WebSocket Chat messages:', data.messages);
+            console.log('🔗 [DEBUG] WebSocket Chat messages length:', data.messages.length);
             setRealtimeChatMessages(data.messages);
           }
           
@@ -1259,7 +1261,7 @@ export default function PlayerDashboard() {
                                     disabled={leaveWaitListMutation.isPending}
                                     size="sm"
                                     variant="outline"
-                                    className="border-red-500 text-red-400 hover:bg-red-500/10"
+                                    className="bg-gradient-to-r from-red-600/20 to-red-500/20 border border-red-500/50 text-red-300 hover:from-red-500/30 hover:to-red-400/30 hover:border-red-400 hover:text-red-200 transition-all duration-300 shadow-lg hover:shadow-red-500/25 backdrop-blur-sm"
                                   >
                                     {leaveWaitListMutation.isPending ? (
                                       <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin mr-2" />
@@ -1290,7 +1292,7 @@ export default function PlayerDashboard() {
                                 onClick={() => setLocation(`/table/${table.id}`)}
                                 size="sm"
                                 variant="outline"
-                                className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
+                                className="bg-gradient-to-r from-blue-600/20 to-blue-500/20 border border-blue-500/50 text-blue-300 hover:from-blue-500/30 hover:to-blue-400/30 hover:border-blue-400 hover:text-blue-200 transition-all duration-300 shadow-lg hover:shadow-blue-500/25 backdrop-blur-sm"
                               >
                                 <Eye className="w-4 h-4 mr-1" />
                                 View
