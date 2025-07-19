@@ -402,6 +402,39 @@ export default function PlayerDashboard() {
     });
   };
 
+  // VIP Club redemption mutation
+  const vipRedeemMutation = useMutation({
+    mutationFn: async ({ playerId, rewardType, pointsCost }: { playerId: number; rewardType: string; pointsCost: number }) => {
+      const response = await apiRequest("POST", "/api/vip-club/redeem", { playerId, rewardType, pointsCost });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Redemption Successful!",
+        description: `${data.message}. You have ${data.remainingPoints} points remaining.`,
+      });
+      // Refresh user data to update points display
+      queryClient.invalidateQueries({ queryKey: ["/api/players/supabase", user?.email] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Redemption Failed",
+        description: error.message || "Failed to redeem points",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleVipRedeem = (rewardType: string, pointsCost: number) => {
+    if (!user?.id) return;
+    
+    vipRedeemMutation.mutate({
+      playerId: user.id,
+      rewardType,
+      pointsCost
+    });
+  };
+
   // Update call time periodically
   useEffect(() => {
     if (user) {
@@ -681,62 +714,146 @@ export default function PlayerDashboard() {
 
           {/* Stats Tab */}
           <TabsContent value="stats" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Gaming Statistics */}
               <Card className="bg-slate-800 border-slate-700">
                 <CardHeader>
-                  <CardTitle className="text-white">Gaming Stats</CardTitle>
+                  <CardTitle className="text-white flex items-center">
+                    <BarChart3 className="w-5 h-5 mr-2 text-emerald-500" />
+                    Gaming Statistics
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Games Played</span>
-                    <span className="text-white font-semibold">{user.gamesPlayed}</span>
+                    <span className="text-slate-300">Games Played</span>
+                    <span className="text-white font-semibold">{user?.gamesPlayed || 0}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Hours Played</span>
-                    <span className="text-white font-semibold">{user.hoursPlayed}h</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Total Winnings</span>
-                    <span className="text-emerald-500 font-semibold">₹{user.totalWinnings}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Total Losses</span>
-                    <span className="text-red-500 font-semibold">₹{user.totalLosses}</span>
+                    <span className="text-slate-300">Hours Played</span>
+                    <span className="text-white font-semibold">{user?.hoursPlayed || "0.00"} hrs</span>
                   </div>
                 </CardContent>
               </Card>
 
+              {/* Financial Statistics */}
               <Card className="bg-slate-800 border-slate-700">
                 <CardHeader>
-                  <CardTitle className="text-white">Financial Stats</CardTitle>
+                  <CardTitle className="text-white flex items-center">
+                    <CreditCard className="w-5 h-5 mr-2 text-emerald-500" />
+                    Financial Overview
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Current Balance</span>
-                    <span className="text-white font-semibold">₹{user.balance}</span>
+                    <span className="text-slate-300">Current Balance</span>
+                    <span className="text-emerald-500 font-semibold">₹{user?.balance || "0.00"}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Total Deposits</span>
-                    <span className="text-emerald-500 font-semibold">₹{user.totalDeposits}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Total Withdrawals</span>
-                    <span className="text-amber-500 font-semibold">₹{user.totalWithdrawals}</span>
+                    <span className="text-slate-300">Credit Limit</span>
+                    <span className="text-blue-500 font-semibold">
+                      {user?.creditApproved ? "₹50,000" : "Not Approved"}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Account Management Notice */}
-            <Card className="bg-amber-500/20 border-amber-400/30">
-              <CardContent className="p-4">
-                <div className="flex items-start space-x-3">
-                  <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="text-amber-200 font-medium mb-1">Account Management</div>
-                    <div className="text-amber-100 text-opacity-90 text-sm">
-                      For deposits, withdrawals, and other account transactions, please contact our cashier or support team. 
-                      These operations require staff approval for security purposes.
+            {/* VIP Club Loyalty Program */}
+            <Card className="bg-gradient-to-r from-yellow-900/20 to-yellow-800/20 border-yellow-600/30">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center">
+                  <Star className="w-5 h-5 mr-2 text-yellow-500" />
+                  VIP Club - Loyalty Program
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Points Overview */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-slate-800/50 rounded-lg p-4 text-center">
+                    <div className="text-2xl font-bold text-yellow-500">{((user?.gamesPlayed || 0) * 10 + parseFloat(user?.hoursPlayed || "0") * 5).toFixed(0)}</div>
+                    <div className="text-sm text-slate-300">Total Points</div>
+                  </div>
+                  <div className="bg-slate-800/50 rounded-lg p-4 text-center">
+                    <div className="text-2xl font-bold text-emerald-500">{(user?.gamesPlayed || 0) * 10}</div>
+                    <div className="text-sm text-slate-300">Game Points</div>
+                    <div className="text-xs text-slate-400">10 pts per game</div>
+                  </div>
+                  <div className="bg-slate-800/50 rounded-lg p-4 text-center">
+                    <div className="text-2xl font-bold text-blue-500">{(parseFloat(user?.hoursPlayed || "0") * 5).toFixed(0)}</div>
+                    <div className="text-sm text-slate-300">Time Points</div>
+                    <div className="text-xs text-slate-400">5 pts per hour</div>
+                  </div>
+                </div>
+
+                {/* Redemption Options */}
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-white">Redeem Your Points</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card className="bg-slate-700 border-slate-600 hover:border-yellow-500/50 transition-colors cursor-pointer">
+                      <CardContent className="p-4 text-center">
+                        <div className="text-yellow-500 text-lg font-bold">500 Points</div>
+                        <div className="text-white font-medium">Tournament Ticket</div>
+                        <div className="text-sm text-slate-300">Entry to ₹1,000 tournament</div>
+                        <Button 
+                          className="w-full mt-3 bg-yellow-600 hover:bg-yellow-700"
+                          size="sm"
+                          disabled={((user?.gamesPlayed || 0) * 10 + parseFloat(user?.hoursPlayed || "0") * 5) < 500}
+                          onClick={() => handleVipRedeem('Tournament Ticket', 500)}
+                        >
+                          Redeem
+                        </Button>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="bg-slate-700 border-slate-600 hover:border-yellow-500/50 transition-colors cursor-pointer">
+                      <CardContent className="p-4 text-center">
+                        <div className="text-yellow-500 text-lg font-bold">300 Points</div>
+                        <div className="text-white font-medium">Buy-in Discount</div>
+                        <div className="text-sm text-slate-300">10% off next buy-in</div>
+                        <Button 
+                          className="w-full mt-3 bg-yellow-600 hover:bg-yellow-700"
+                          size="sm"
+                          disabled={((user?.gamesPlayed || 0) * 10 + parseFloat(user?.hoursPlayed || "0") * 5) < 300}
+                          onClick={() => handleVipRedeem('Buy-in Discount', 300)}
+                        >
+                          Redeem
+                        </Button>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="bg-slate-700 border-slate-600 hover:border-yellow-500/50 transition-colors cursor-pointer">
+                      <CardContent className="p-4 text-center">
+                        <div className="text-yellow-500 text-lg font-bold">1000 Points</div>
+                        <div className="text-white font-medium">Premium Product</div>
+                        <div className="text-sm text-slate-300">Poker merchandise</div>
+                        <Button 
+                          className="w-full mt-3 bg-yellow-600 hover:bg-yellow-700"
+                          size="sm"
+                          disabled={((user?.gamesPlayed || 0) * 10 + parseFloat(user?.hoursPlayed || "0") * 5) < 1000}
+                          onClick={() => handleVipRedeem('Premium Product', 1000)}
+                        >
+                          Redeem
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+
+                {/* Points History */}
+                <div className="bg-slate-800/30 rounded-lg p-4">
+                  <h5 className="text-white font-medium mb-3">How You Earn Points</h5>
+                  <div className="space-y-2 text-sm text-slate-300">
+                    <div className="flex justify-between">
+                      <span>Complete a game</span>
+                      <span className="text-emerald-500">+10 points</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Play for 1 hour</span>
+                      <span className="text-blue-500">+5 points</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Weekly bonus (coming soon)</span>
+                      <span className="text-yellow-500">+50 points</span>
                     </div>
                   </div>
                 </div>

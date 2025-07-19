@@ -3558,5 +3558,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // VIP Club Loyalty Program API Endpoints
+  app.get('/api/vip-club/points/:playerId', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      const player = await storage.getPlayer(parseInt(playerId));
+      
+      if (!player) {
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      const gamePoints = player.gamesPlayed * 10;
+      const timePoints = Math.floor(parseFloat(player.hoursPlayed || "0") * 5);
+      const totalPoints = gamePoints + timePoints;
+
+      res.json({
+        totalPoints,
+        gamePoints,
+        timePoints,
+        gamesPlayed: player.gamesPlayed,
+        hoursPlayed: player.hoursPlayed
+      });
+    } catch (error: any) {
+      console.error('❌ [VIP CLUB] Error getting points:', error);
+      res.status(500).json({ error: 'Failed to get VIP points' });
+    }
+  });
+
+  app.post('/api/vip-club/redeem', async (req, res) => {
+    try {
+      const { playerId, rewardType, pointsCost } = req.body;
+      
+      const player = await storage.getPlayer(parseInt(playerId));
+      if (!player) {
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      const gamePoints = player.gamesPlayed * 10;
+      const timePoints = Math.floor(parseFloat(player.hoursPlayed || "0") * 5);
+      const totalPoints = gamePoints + timePoints;
+
+      if (totalPoints < pointsCost) {
+        return res.status(400).json({ error: 'Insufficient points' });
+      }
+
+      // For now, just return success - in production this would update a redemption history table
+      console.log(`🎁 [VIP CLUB] Player ${playerId} redeemed ${rewardType} for ${pointsCost} points`);
+      
+      res.json({
+        success: true,
+        message: `Successfully redeemed ${rewardType}`,
+        remainingPoints: totalPoints - pointsCost,
+        rewardType,
+        pointsCost
+      });
+    } catch (error: any) {
+      console.error('❌ [VIP CLUB] Error redeeming points:', error);
+      res.status(500).json({ error: 'Failed to redeem points' });
+    }
+  });
+
+  app.get('/api/vip-club/redemption-history/:playerId', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      
+      // For now return empty array - in production this would query redemption history table
+      res.json([]);
+    } catch (error: any) {
+      console.error('❌ [VIP CLUB] Error getting redemption history:', error);
+      res.status(500).json({ error: 'Failed to get redemption history' });
+    }
+  });
+
   return httpServer;
 }
