@@ -48,6 +48,8 @@ export default function AuthLayout() {
     try {
       const result = await signIn(loginForm.email, loginForm.password);
       if (result.success) {
+        // Set flag to show loading screen after sign-in
+        sessionStorage.setItem('just_signed_in', 'true');
         setLoginForm({ email: "", password: "", loading: false });
       }
     } catch (error) {
@@ -83,6 +85,8 @@ export default function AuthLayout() {
     );
 
     if (result.success) {
+      // Set flag to show loading screen after successful KYC completion
+      sessionStorage.setItem('just_signed_in', 'true');
       setShowSignupModal(false);
       setShowKycModal(true);
     } else {

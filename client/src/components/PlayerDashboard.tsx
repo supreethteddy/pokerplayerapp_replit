@@ -34,6 +34,7 @@ import { useState, useEffect } from "react";
 import type { Table as TableType, SeatRequest, KycDocument } from "@shared/schema";
 import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
+import tiltRoomLogo from "@assets/1_1752926810964.png";
 
 
 export default function PlayerDashboard() {
@@ -365,9 +366,22 @@ export default function PlayerDashboard() {
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Player Dashboard</h1>
-            <p className="text-slate-400">Welcome back, {user.firstName}!</p>
+          <div className="flex items-center space-x-4">
+            {/* Tilt Room Logo */}
+            <div className="flex-shrink-0">
+              <img 
+                src={tiltRoomLogo} 
+                alt="Tilt Room" 
+                className="h-12 w-auto object-contain brightness-110 contrast-110"
+                style={{
+                  filter: 'drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3))'
+                }}
+              />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Player Dashboard</h1>
+              <p className="text-slate-400">Welcome back, {user.firstName}!</p>
+            </div>
           </div>
           <div className="flex items-center space-x-4">
             <div className="text-right">
