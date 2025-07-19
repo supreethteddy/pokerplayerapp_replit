@@ -168,10 +168,10 @@ export default function VipShop() {
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <Link href="/dashboard">
+              <Link href="/dashboard?tab=stats">
                 <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white">
                   <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Dashboard
+                  Back to Stats
                 </Button>
               </Link>
               <div className="flex items-center space-x-2">

@@ -38,6 +38,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import type { Table as TableType, SeatRequest, KycDocument } from "@shared/schema";
+import { useLocation } from "wouter";
 import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
@@ -205,6 +206,22 @@ export default function PlayerDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [callTime, setCallTime] = useState("02:45");
+  const [location] = useLocation();
+  
+  // Handle tab navigation from URL parameters
+  const getActiveTabFromUrl = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tab = urlParams.get('tab');
+    return tab || 'game';
+  };
+  
+  const [activeTab, setActiveTab] = useState(getActiveTabFromUrl());
+  
+  // Update tab when URL changes
+  useEffect(() => {
+    setActiveTab(getActiveTabFromUrl());
+  }, [location]);
+  
   // Document viewer removed as per requirements
 
   // Fetch live tables with optimized settings
@@ -657,7 +674,7 @@ export default function PlayerDashboard() {
         </div>
 
         {/* Navigation Tabs */}
-        <Tabs defaultValue="game" className="w-full max-w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-full">
           <TabsList className="flex w-full justify-between mb-3 sm:mb-4 bg-slate-800 border border-slate-700 rounded-lg p-1 overflow-hidden">
             <TabsTrigger 
               value="game" 
@@ -863,62 +880,17 @@ export default function PlayerDashboard() {
                   VIP Club - Loyalty Program
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Points Overview */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-slate-800/50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-yellow-500">{((user?.gamesPlayed || 0) * 10 + parseFloat(user?.hoursPlayed || "0") * 5).toFixed(0)}</div>
-                    <div className="text-sm text-slate-300">Total Points</div>
-                  </div>
-                  <div className="bg-slate-800/50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-emerald-500">{(user?.gamesPlayed || 0) * 10}</div>
-                    <div className="text-sm text-slate-300">Game Points</div>
-                    <div className="text-xs text-slate-400">10 pts per game</div>
-                  </div>
-                  <div className="bg-slate-800/50 rounded-lg p-4 text-center">
-                    <div className="text-2xl font-bold text-blue-500">{(parseFloat(user?.hoursPlayed || "0") * 5).toFixed(0)}</div>
-                    <div className="text-sm text-slate-300">Time Points</div>
-                    <div className="text-xs text-slate-400">5 pts per hour</div>
-                  </div>
-                </div>
-
-                {/* VIP Shop */}
-                <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-white">Redeem Your Points</h4>
-                  <div className="flex justify-center">
-                    <Link href="/vip-shop">
-                      <Button 
-                        className="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white font-semibold py-4 px-8 rounded-lg transition-all transform hover:scale-105 shadow-lg"
-                        size="lg"
-                      >
-                        <Star className="w-5 h-5 mr-2" />
-                        Open VIP Shop
-                      </Button>
-                    </Link>
-                  </div>
-                  <p className="text-center text-sm text-slate-400">
-                    Use your {((user?.gamesPlayed || 0) * 10 + parseFloat(user?.hoursPlayed || "0") * 5).toFixed(0)} points to unlock exclusive rewards and benefits
-                  </p>
-                </div>
-
-                {/* Points History */}
-                <div className="bg-slate-800/30 rounded-lg p-4">
-                  <h5 className="text-white font-medium mb-3">How You Earn Points</h5>
-                  <div className="space-y-2 text-sm text-slate-300">
-                    <div className="flex justify-between">
-                      <span>Complete a game</span>
-                      <span className="text-emerald-500">+10 points</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Play for 1 hour</span>
-                      <span className="text-blue-500">+5 points</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Weekly bonus (coming soon)</span>
-                      <span className="text-yellow-500">+50 points</span>
-                    </div>
-                  </div>
-                </div>
+              <CardContent className="flex items-center justify-center py-12">
+                {/* VIP Shop Button Only */}
+                <Link href="/vip-shop">
+                  <Button 
+                    className="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white font-bold py-6 px-12 text-xl rounded-xl transition-all transform hover:scale-105 shadow-lg"
+                    size="lg"
+                  >
+                    <Star className="w-8 h-8 mr-3" />
+                    Open VIP Shop
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
           </TabsContent>
