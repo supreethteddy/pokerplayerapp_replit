@@ -4353,6 +4353,273 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // VIP Points Calculation System API Endpoints
+  app.post("/api/vip-points/record-session", async (req, res) => {
+    try {
+      const { playerId, tableId, bigBlindAmount, rsPlayed, sessionDuration } = req.body;
+      console.log(`🏆 [VIP POINTS] Recording session for player ${playerId} - Rs ${rsPlayed} played`);
+      
+      // Record game session
+      const { data: session, error: sessionError } = await localSupabase
+        .from('game_sessions_vip')
+        .insert({
+          player_id: playerId,
+          table_id: tableId,
+          big_blind_amount: bigBlindAmount,
+          rs_played: rsPlayed,
+          session_end: new Date().toISOString()
+        })
+        .select()
+        .single();
+      
+      if (sessionError) {
+        throw new Error(`Failed to record session: ${sessionError.message}`);
+      }
+      
+      // Update player's total Rs played
+      await localSupabase
+        .from('players')
+        .update({
+          total_rs_played: `total_rs_played + ${rsPlayed}`,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', playerId);
+      
+      // Record daily visit
+      const today = new Date().toISOString().split('T')[0];
+      await localSupabase
+        .from('daily_visits')
+        .upsert({
+          player_id: playerId,
+          visit_date: today
+        }, {
+          onConflict: 'player_id,visit_date'
+        });
+      
+      console.log(`✅ [VIP POINTS] Session recorded successfully - ID: ${session.id}`);
+      res.json({ success: true, session });
+    } catch (error: any) {
+      console.error(`❌ [VIP POINTS] Error recording session:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/vip-points/calculate/:playerId", async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      const currentMonth = new Date().toISOString().substring(0, 7); // YYYY-MM format
+      console.log(`🏆 [VIP POINTS] Calculating VIP points for player ${playerId} - Month: ${currentMonth}`);
+      
+      // For demonstration purposes, use realistic sample data until Supabase tables are created
+      // This can be replaced with actual database queries once VIP tables are set up
+      
+      // Sample game sessions data
+      const sampleSessions = [
+        { big_blind_amount: 100, rs_played: 5000 },
+        { big_blind_amount: 200, rs_played: 8000 },
+        { big_blind_amount: 150, rs_played: 12000 }
+      ];
+      
+      // Sample daily visits (19 days in July)
+      const sampleVisitFrequency = 19;
+      
+      // Sample total Rs played
+      const sampleTotalRsPlayed = 25000;
+      
+      // Calculate VIP Points using the exact formula
+      // Formula: VIP Points = (Big Blind × 0.5) + (Rs Played × 0.3) + (Visit Frequency × 0.2)
+      
+      const avgBigBlind = sampleSessions.length > 0 ? 
+        sampleSessions.reduce((sum, s) => sum + s.big_blind_amount, 0) / sampleSessions.length : 0;
+      const totalRsPlayed = sampleTotalRsPlayed;
+      const visitFrequency = sampleVisitFrequency;
+      
+      const bigBlindPoints = avgBigBlind * 0.5;
+      const rsPlayedPoints = totalRsPlayed * 0.3;
+      const frequencyPoints = visitFrequency * 0.2;
+      const totalVipPoints = bigBlindPoints + rsPlayedPoints + frequencyPoints;
+      
+      console.log(`✅ [VIP POINTS] Calculated ${totalVipPoints} points for player ${playerId}`);
+      console.log(`📊 [VIP POINTS] Breakdown: BB(${avgBigBlind}×0.5=${bigBlindPoints}) + Rs(${totalRsPlayed}×0.3=${rsPlayedPoints}) + Visits(${visitFrequency}×0.2=${frequencyPoints})`);
+      
+      res.json({
+        success: true,
+        calculation: {
+          avgBigBlind,
+          totalRsPlayed,
+          visitFrequency,
+          bigBlindPoints,
+          rsPlayedPoints,
+          frequencyPoints,
+          totalVipPoints,
+          formula: 'VIP Points = (Big Blind × 0.5) + (Rs Played × 0.3) + (Visit Frequency × 0.2)',
+          note: 'Using sample data - connect to Supabase VIP tables for live data'
+        }
+      });
+    } catch (error: any) {
+      console.error(`❌ [VIP POINTS] Error calculating points:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // VIP Points Redemption Endpoint
+  app.post("/api/vip-points/redeem", async (req, res) => {
+    try {
+      const { playerId, redemptionType, pointsRequired } = req.body;
+      console.log(`🏆 [VIP REDEMPTION] Player ${playerId} requesting ${redemptionType} for ${pointsRequired} points`);
+      
+      // For demonstration purposes, create a mock redemption request
+      // This would typically save to a database table like 'vip_redemption_requests'
+      const redemptionRequest = {
+        id: `req_${Date.now()}`,
+        playerId,
+        redemptionType,
+        pointsRequired,
+        status: 'pending_approval',
+        requestedAt: new Date().toISOString(),
+        approvedBy: null,
+        approvedAt: null
+      };
+      
+      console.log(`✅ [VIP REDEMPTION] Created redemption request:`, redemptionRequest);
+      
+      res.json({
+        success: true,
+        redemptionRequest,
+        message: `Your ${redemptionType} redemption request has been submitted for approval.`
+      });
+    } catch (error: any) {
+      console.error(`❌ [VIP REDEMPTION] Error processing redemption:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/vip-points/redeem", async (req, res) => {
+    try {
+      const { playerId, redemptionType, pointsRequired } = req.body;
+      console.log(`🎁 [VIP REDEMPTION] Player ${playerId} requesting ${redemptionType} for ${pointsRequired} points`);
+      
+      // Check if player has enough points
+      const { data: player, error: playerError } = await localSupabase
+        .from('players')
+        .select('current_vip_points, first_name, last_name')
+        .eq('id', playerId)
+        .single();
+      
+      if (playerError || !player) {
+        throw new Error(`Player not found: ${playerError?.message || 'Player does not exist'}`);
+      }
+      
+      const currentPoints = parseFloat(player.current_vip_points || '0');
+      if (currentPoints < pointsRequired) {
+        return res.status(400).json({ 
+          error: 'Insufficient VIP points',
+          currentPoints,
+          required: pointsRequired
+        });
+      }
+      
+      // Create redemption request for approval
+      const { data: redemption, error: redemptionError } = await localSupabase
+        .from('vip_redemption_requests')
+        .insert({
+          player_id: playerId,
+          redemption_type: redemptionType,
+          points_required: pointsRequired,
+          points_redeemed: pointsRequired,
+          status: 'pending'
+        })
+        .select()
+        .single();
+      
+      if (redemptionError) {
+        throw new Error(`Failed to create redemption request: ${redemptionError.message}`);
+      }
+      
+      console.log(`✅ [VIP REDEMPTION] Request created - ID: ${redemption.id} (Pending approval)`);
+      res.json({ 
+        success: true, 
+        redemption,
+        message: 'Redemption request sent for approval to Cashier and Admin'
+      });
+    } catch (error: any) {
+      console.error(`❌ [VIP REDEMPTION] Error creating request:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Cashier and Admin approval endpoints
+  app.post("/api/vip-points/approve-cashier/:redemptionId", async (req, res) => {
+    try {
+      const { redemptionId } = req.params;
+      const { cashierId, cashierName } = req.body;
+      console.log(`💰 [CASHIER APPROVAL] Cashier ${cashierName} approving redemption ${redemptionId}`);
+      
+      const { data, error } = await localSupabase
+        .from('vip_redemption_requests')
+        .update({
+          cashier_approved_by: cashierId,
+          cashier_approved_at: new Date().toISOString(),
+          status: 'approved',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', redemptionId)
+        .eq('status', 'pending')
+        .select()
+        .single();
+      
+      if (error || !data) {
+        throw new Error(`Failed to approve redemption: ${error?.message || 'Request not found or already processed'}`);
+      }
+      
+      console.log(`✅ [CASHIER APPROVAL] Redemption ${redemptionId} approved by cashier`);
+      res.json({ success: true, redemption: data });
+    } catch (error: any) {
+      console.error(`❌ [CASHIER APPROVAL] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/vip-points/approve-admin/:redemptionId", async (req, res) => {
+    try {
+      const { redemptionId } = req.params;
+      const { adminId, adminName } = req.body;
+      console.log(`👑 [ADMIN APPROVAL] Admin ${adminName} approving redemption ${redemptionId}`);
+      
+      const { data, error } = await localSupabase
+        .from('vip_redemption_requests')
+        .update({
+          admin_approved_by: adminId,
+          admin_approved_at: new Date().toISOString(),
+          status: 'completed',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', redemptionId)
+        .eq('status', 'approved')
+        .select()
+        .single();
+      
+      if (error || !data) {
+        throw new Error(`Failed to complete redemption: ${error?.message || 'Request not found or not cashier-approved'}`);
+      }
+      
+      // Deduct points from player after final approval
+      await localSupabase
+        .from('players')
+        .update({
+          current_vip_points: `current_vip_points - ${data.points_redeemed}`,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', data.player_id);
+      
+      console.log(`✅ [ADMIN APPROVAL] Redemption ${redemptionId} completed and points deducted`);
+      res.json({ success: true, redemption: data });
+    } catch (error: any) {
+      console.error(`❌ [ADMIN APPROVAL] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Push Notifications API Endpoints
   app.get("/api/push-notifications/:playerId", async (req, res) => {
     try {

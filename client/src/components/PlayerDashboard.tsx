@@ -205,6 +205,136 @@ const ScrollableOffersDisplay = () => {
   );
 };
 
+// VIP Points Display Component
+const VipPointsDisplay = ({ userId }: { userId: number }) => {
+  const { data: vipData, isLoading } = useQuery({
+    queryKey: ['/api/vip-points/calculate', userId],
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  const { toast } = useToast();
+
+  const redeemPoints = useMutation({
+    mutationFn: (redemption: { redemptionType: string; pointsRequired: number }) =>
+      apiRequest("POST", "/api/vip-points/redeem", {
+        playerId: userId,
+        ...redemption
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Redemption Request Sent",
+        description: "Your VIP points redemption request has been sent for approval.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Redemption Failed",
+        description: error.message || "Failed to process redemption request.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <Card className="bg-slate-800 border-slate-700">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center">
+            <Star className="w-5 h-5 mr-2 text-yellow-500" />
+            VIP Points
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-20 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const vipPoints = vipData?.calculation?.totalVipPoints || 0;
+  const breakdown = vipData?.calculation;
+
+  return (
+    <Card className="bg-slate-800 border-slate-700">
+      <CardHeader>
+        <CardTitle className="text-white flex items-center">
+          <Star className="w-5 h-5 mr-2 text-yellow-500" />
+          VIP Points System
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Total Points */}
+        <div className="text-center p-4 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-lg">
+          <div className="text-3xl font-bold text-yellow-400">
+            {vipPoints.toFixed(1)}
+          </div>
+          <div className="text-slate-300 text-sm">Total VIP Points</div>
+        </div>
+
+        {/* Points Breakdown */}
+        {breakdown && (
+          <div className="space-y-2">
+            <div className="text-white font-semibold text-sm">Points Breakdown:</div>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between text-slate-300">
+                <span>Big Blind (₹{breakdown.avgBigBlind} × 0.5)</span>
+                <span className="text-yellow-400">{breakdown.bigBlindPoints.toFixed(1)}</span>
+              </div>
+              <div className="flex justify-between text-slate-300">
+                <span>Rs Played (₹{breakdown.totalRsPlayed} × 0.3)</span>
+                <span className="text-yellow-400">{breakdown.rsPlayedPoints.toFixed(1)}</span>
+              </div>
+              <div className="flex justify-between text-slate-300">
+                <span>Visit Frequency ({breakdown.visitFrequency} days × 0.2)</span>
+                <span className="text-yellow-400">{breakdown.frequencyPoints.toFixed(1)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Redemption Options */}
+        <div className="space-y-2">
+          <div className="text-white font-semibold text-sm">Redeem Points:</div>
+          <div className="grid grid-cols-1 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600"
+              disabled={vipPoints < 500 || redeemPoints.isPending}
+              onClick={() => redeemPoints.mutate({ redemptionType: "Tournament Ticket", pointsRequired: 500 })}
+            >
+              Tournament Ticket (500 pts)
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600"
+              disabled={vipPoints < 300 || redeemPoints.isPending}
+              onClick={() => redeemPoints.mutate({ redemptionType: "Buy-in Discount", pointsRequired: 300 })}
+            >
+              Buy-in Discount (300 pts)
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600"
+              disabled={vipPoints < 1000 || redeemPoints.isPending}
+              onClick={() => redeemPoints.mutate({ redemptionType: "Premium Product", pointsRequired: 1000 })}
+            >
+              Premium Product (1000 pts)
+            </Button>
+          </div>
+        </div>
+
+        {/* Formula Display */}
+        <div className="text-xs text-slate-400 p-2 bg-slate-900 rounded">
+          <strong>Formula:</strong> VIP Points = (Big Blind × 0.5) + (Rs Played × 0.3) + (Visit Frequency × 0.2)
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 export default function PlayerDashboard() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
@@ -987,27 +1117,8 @@ export default function PlayerDashboard() {
               </Card>
             </div>
 
-            {/* VIP Club Loyalty Program */}
-            <Card className="bg-gradient-to-r from-yellow-900/20 to-yellow-800/20 border-yellow-600/30">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center">
-                  <Star className="w-5 h-5 mr-2 text-yellow-500" />
-                  VIP Club - Loyalty Program
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex items-center justify-center py-12">
-                {/* VIP Shop Button Only */}
-                <Link href="/vip-shop">
-                  <Button 
-                    className="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white font-bold py-6 px-12 text-xl rounded-xl transition-all transform hover:scale-105 shadow-lg"
-                    size="lg"
-                  >
-                    <Star className="w-8 h-8 mr-3" />
-                    Open VIP Shop
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+            {/* VIP Points System */}
+            {user?.id && <VipPointsDisplay userId={user.id} />}
           </TabsContent>
 
           {/* Profile Tab */}
