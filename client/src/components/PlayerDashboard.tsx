@@ -35,6 +35,7 @@ import {
   Star,
   Calendar,
   MessageCircle,
+  MessageSquare,
   Send,
   Bell
 } from "lucide-react";
@@ -735,28 +736,31 @@ export default function PlayerDashboard() {
               value="game" 
               className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
             >
-              <Spade className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
-              <span className="truncate">Lobby</span>
+              <Spade className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger 
               value="balance" 
               className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
             >
-              <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
-              <span className="truncate">Offers</span>
+              <Gift className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger 
               value="stats" 
               className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
             >
-              <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
-              <span className="truncate">My Stats</span>
+              <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger 
               value="profile" 
               className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
             >
-              <User className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+              <User className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
+            </TabsTrigger>
+            <TabsTrigger 
+              value="feedback" 
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+            >
+              <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger 
               value="feedback" 
