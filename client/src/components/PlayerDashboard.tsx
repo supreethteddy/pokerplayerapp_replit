@@ -654,36 +654,35 @@ export default function PlayerDashboard() {
         </Button>
       </div>
 
-      {/* Navigation Tabs - Responsive */}
+      {/* Navigation Tabs */}
       <Tabs defaultValue="game" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 sm:gap-3 p-1 sm:p-2 bg-transparent">
+        <TabsList className="grid w-full grid-cols-4 mb-6 bg-slate-800 border border-slate-700 rounded-lg">
           <TabsTrigger 
             value="game" 
-            className="px-2 sm:px-6 py-2 sm:py-3 text-xs sm:text-lg font-semibold rounded-lg sm:rounded-xl bg-slate-800 border border-slate-700 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:border-emerald-500 hover:bg-slate-700 transition-all duration-200 text-slate-300"
+            className="px-4 py-3 text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300"
           >
-            <Spade className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Lobby</span>
-            <span className="sm:hidden">Game</span>
+            <Spade className="w-4 h-4 mr-2" />
+            Game
           </TabsTrigger>
           <TabsTrigger 
             value="balance" 
-            className="px-2 sm:px-6 py-2 sm:py-3 text-xs sm:text-lg font-semibold rounded-lg sm:rounded-xl bg-slate-800 border border-slate-700 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:border-emerald-500 hover:bg-slate-700 transition-all duration-200 text-slate-300"
+            className="px-4 py-3 text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300"
           >
-            <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
+            <CreditCard className="w-4 h-4 mr-2" />
             Offers
           </TabsTrigger>
           <TabsTrigger 
             value="stats" 
-            className="px-2 sm:px-6 py-2 sm:py-3 text-xs sm:text-lg font-semibold rounded-lg sm:rounded-xl bg-slate-800 border border-slate-700 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:border-emerald-500 hover:bg-slate-700 transition-all duration-200 text-slate-300"
+            className="px-4 py-3 text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300"
           >
-            <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
-            Stats
+            <BarChart3 className="w-4 h-4 mr-2" />
+            My Stats
           </TabsTrigger>
           <TabsTrigger 
             value="profile" 
-            className="px-2 sm:px-6 py-2 sm:py-3 text-xs sm:text-lg font-semibold rounded-lg sm:rounded-xl bg-slate-800 border border-slate-700 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:border-emerald-500 hover:bg-slate-700 transition-all duration-200 text-slate-300"
+            className="px-4 py-3 text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300"
           >
-            <User className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
+            <User className="w-4 h-4 mr-2" />
             Profile
           </TabsTrigger>
         </TabsList>
