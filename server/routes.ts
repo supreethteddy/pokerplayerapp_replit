@@ -4247,12 +4247,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .from('gre_chat_sessions')
           .insert({
             player_id: playerId,
-            player_name: playerName,
             status: 'active',
             category: 'general',
             priority: 'normal',
+            started_at: new Date().toISOString(),
+            last_message_at: new Date().toISOString(),
             created_at: new Date().toISOString(),
-            last_message_at: new Date().toISOString()
+            updated_at: new Date().toISOString()
           })
           .select()
           .single();
@@ -4274,10 +4275,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .insert({
           session_id: sessionId,
           player_id: playerId,
+          player_name: playerName,
           message: message.trim(),
-          sender_type: 'player',
+          sender: 'player',
+          sender_name: playerName,
+          timestamp: new Date().toISOString(),
+          status: 'sent',
           created_at: new Date().toISOString(),
-          is_read: false
+          updated_at: new Date().toISOString(),
+          request_id: 0
         })
         .select()
         .single();
@@ -4868,8 +4874,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Enable GRE chat for specific player
   app.post("/api/gre-chat/enable-player/:playerId", async (req, res) => {
+    const { playerId } = req.params;
     try {
-      const { playerId } = req.params;
       console.log(`🔧 [GRE CHAT] Enabling chat for player ${playerId}...`);
       
       // Check if chat session already exists
