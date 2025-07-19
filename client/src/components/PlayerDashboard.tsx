@@ -364,39 +364,40 @@ export default function PlayerDashboard() {
   return (
     <div className="min-h-screen bg-slate-950 pb-20">
       <div className="max-w-4xl mx-auto px-4 py-6">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center space-x-4">
-            {/* Tilt Room Logo */}
-            <div className="flex-shrink-0">
-              <img 
-                src={tiltRoomLogo} 
-                alt="Tilt Room" 
-                className="h-12 w-auto object-contain brightness-110 contrast-110"
-                style={{
-                  filter: 'drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3))'
-                }}
-              />
+        {/* Header with Tilt Room Background */}
+        <div 
+          className="relative mb-6 rounded-lg overflow-hidden"
+          style={{
+            backgroundImage: `url(${tiltRoomLogo})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            minHeight: '120px'
+          }}
+        >
+          {/* Dark overlay for better text readability */}
+          <div className="absolute inset-0 bg-black bg-opacity-40"></div>
+          
+          {/* Header content */}
+          <div className="relative z-10 flex justify-between items-center p-6 h-full">
+            <div className="flex items-center space-x-4">
+              <div>
+                <p className="text-slate-200 text-lg">Welcome back, {user.firstName}!</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Player Dashboard</h1>
-              <p className="text-slate-400">Welcome back, {user.firstName}!</p>
+            <div className="flex items-center space-x-4">
+              <div className="text-right">
+                <p className="text-sm text-slate-300">Current Time</p>
+                <p className="text-lg font-semibold text-white">{callTime}</p>
+              </div>
+              <Button
+                onClick={signOut}
+                className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-600 p-0 flex items-center justify-center"
+                title="Sign Out"
+              >
+                <LogOut className="w-4 h-4 text-slate-300" />
+              </Button>
             </div>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="text-right">
-              <p className="text-sm text-slate-400">Current Time</p>
-              <p className="text-lg font-semibold text-white">{callTime}</p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={signOut}
-              className="border-slate-600 text-slate-400 hover:bg-slate-800"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
-            </Button>
           </div>
         </div>
 
