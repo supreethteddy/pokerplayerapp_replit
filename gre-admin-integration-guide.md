@@ -1,274 +1,175 @@
 # GRE Admin Portal Integration Guide
 
 ## Overview
-Complete integration guide for adding GRE admin functionality to the Staff Portal, ensuring full connectivity with the Player Portal and comprehensive cross-portal functionality.
 
-## Database Setup
+This guide details the integration between the Player Portal and the GRE (Guest Relation Executive) Admin Portal for live chat functionality with multi-GRE assignment capabilities.
 
-### 1. Execute GRE Admin Tables Script
-Run the `gre-admin-integration.sql` script in your Staff Portal Supabase SQL Editor:
+## Database Tables Created
 
+### 1. gre_chat_messages
 ```sql
--- This script creates:
--- - gre_admin_config: Configuration settings for GRE admin portal
--- - gre_admin_permissions: Role-based access control system
--- - gre_admin_activity_logs: Complete audit trail for all admin actions
-```
-
-### 2. Verify Table Creation
-After running the script, verify tables were created:
-```sql
-SELECT table_name 
-FROM information_schema.tables 
-WHERE table_schema = 'public' 
-AND table_name LIKE 'gre_admin%';
-```
-
-## API Integration
-
-### Available GRE Admin Endpoints
-
-#### 1. Connectivity Test
-```
-GET /api/gre-admin/connectivity
-```
-Tests connection to all required tables and returns connectivity status.
-
-#### 2. Player Management  
-```
-GET /api/gre-admin/players
-```
-Retrieves all players with their preferences, KYC documents, transactions, and game sessions.
-
-#### 3. Table Management
-```
-GET /api/gre-admin/tables
-```
-Fetches all tables with assignments and waitlist information.
-
-#### 4. Analytics Dashboard
-```
-GET /api/gre-admin/analytics
-```
-Provides comprehensive analytics including:
-- Total players
-- KYC approval rates
-- Active tables
-- Transaction volumes
-
-#### 5. System Health Monitor
-```
-GET /api/gre-admin/system-health
-```
-Real-time system health checks for all core systems.
-
-## Frontend Integration
-
-### Add GRE Tab to Staff Portal
-
-1. **Add Tab Navigation**
-```jsx
-<TabsTrigger value="gre-admin">GRE Admin</TabsTrigger>
-```
-
-2. **Create GRE Admin Component**
-```jsx
-<TabsContent value="gre-admin" className="space-y-4">
-  <GREAdminDashboard />
-</TabsContent>
-```
-
-3. **Implement GRE Admin Dashboard**
-```jsx
-const GREAdminDashboard = () => {
-  const { data: connectivity } = useQuery({
-    queryKey: ['/api/gre-admin/connectivity'],
-    refetchInterval: 30000
-  });
-
-  const { data: analytics } = useQuery({
-    queryKey: ['/api/gre-admin/analytics'],
-    refetchInterval: 60000
-  });
-
-  const { data: systemHealth } = useQuery({
-    queryKey: ['/api/gre-admin/system-health'],
-    refetchInterval: 15000
-  });
-
-  // Dashboard implementation
-  return (
-    <div className="space-y-6">
-      <ConnectivityStatus data={connectivity} />
-      <AnalyticsDashboard data={analytics} />
-      <SystemHealthMonitor data={systemHealth} />
-      <PlayerManagement />
-      <TableManagement />
-    </div>
-  );
-};
-```
-
-## Permission System
-
-### Default Permissions
-- **PLAYER_MANAGEMENT**: Read/Write access to players, preferences, KYC documents
-- **TABLE_MANAGEMENT**: Full access to tables, assignments, waitlist
-- **TRANSACTION_MONITORING**: Read-only access to transactions and financial data
-- **ANALYTICS_ACCESS**: Read-only access to analytics and reports
-- **SYSTEM_HEALTH**: Read-only access to system monitoring
-
-### Custom Permission Check
-```sql
-SELECT check_gre_admin_permission('admin_id', 'PLAYER_MANAGEMENT', 'write');
-```
-
-## Activity Logging
-
-### Automatic Logging
-All GRE admin actions are automatically logged with:
-- Admin ID
-- Action performed
-- Resource affected
-- Old and new values
-- IP address and user agent
-- Timestamp
-
-### Manual Logging
-```sql
-SELECT log_gre_admin_activity(
-  'admin_id',
-  'PLAYER_KYC_APPROVED',
-  'kyc_documents',
-  'document_id',
-  '{"status": "pending"}'::jsonb,
-  '{"status": "approved"}'::jsonb
+CREATE TABLE gre_chat_messages (
+  id SERIAL PRIMARY KEY,
+  player_id INTEGER NOT NULL,
+  player_name VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  sender VARCHAR(50) NOT NULL CHECK (sender IN ('player', 'gre', 'staff')),
+  sender_name VARCHAR(255), -- Name of the GRE/staff member responding
+  request_id INTEGER REFERENCES gre_chat_requests(id),
+  timestamp TIMESTAMPTZ DEFAULT NOW(),
+  status VARCHAR(50) DEFAULT 'sent' CHECK (status IN ('sent', 'delivered', 'read')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
-## Security Features
-
-### Row Level Security (RLS)
-- All GRE admin tables have RLS enabled
-- Authenticated users can access based on permissions
-- Activity logs are append-only for audit trail
-
-### Data Retention
-- Activity logs retained for 90 days (configurable)
-- Old logs automatically cleaned up
-- Critical actions permanently logged
-
-## Testing Connectivity
-
-### 1. Test API Endpoints
-```bash
-curl http://localhost:5000/api/gre-admin/connectivity
-curl http://localhost:5000/api/gre-admin/system-health
-curl http://localhost:5000/api/gre-admin/analytics
-```
-
-### 2. Verify Database Access
+### 2. gre_chat_requests
 ```sql
--- Test player access
-SELECT COUNT(*) FROM players;
-
--- Test KYC access  
-SELECT COUNT(*) FROM kyc_documents;
-
--- Test table access
-SELECT COUNT(*) FROM tables;
+CREATE TABLE gre_chat_requests (
+  id SERIAL PRIMARY KEY,
+  player_id INTEGER NOT NULL,
+  player_name VARCHAR(255) NOT NULL,
+  status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'assigned', 'active', 'completed', 'closed')),
+  assigned_gre_id INTEGER, -- ID of the GRE who took the request
+  assigned_gre_name VARCHAR(255), -- Name of the assigned GRE
+  priority VARCHAR(50) DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
+  subject VARCHAR(255), -- Optional subject/topic
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  assigned_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 ```
 
-### 3. Check Permissions
-```sql
--- Verify admin permissions
-SELECT * FROM gre_admin_permissions WHERE admin_id = '*';
+## API Endpoints for GRE Portal
 
--- Test permission function
-SELECT check_gre_admin_permission('test_admin', 'PLAYER_MANAGEMENT', 'read');
+### 1. Player Chat Endpoints (Already implemented)
+- `POST /api/gre-chat` - Send message from player
+- `GET /api/gre-chat/messages/:playerId` - Get chat history
+
+### 2. GRE Staff Portal Endpoints
+
+#### Get Chat Requests
+```
+GET /api/gre-chat/requests
+```
+Returns all pending, assigned, and active chat requests for GREs to see and take.
+
+#### Assign Request to GRE
+```
+POST /api/gre-chat/assign/:requestId
+Body: {
+  "greId": 1,
+  "greName": "Sarah Johnson"
+}
+```
+Assigns a pending chat request to a specific GRE. Only works if request is still pending.
+
+#### Send GRE Message
+```
+POST /api/gre-chat/gre-message
+Body: {
+  "requestId": 1,
+  "greId": 1,
+  "greName": "Sarah Johnson",
+  "message": "Hello! How can I help you today?"
+}
 ```
 
-## Cross-Portal Synchronization
+## Chat Request Workflow
 
-### Player Portal Integration
-- Player accounts automatically accessible in GRE admin
-- Real-time updates between portals
-- Unified player identification system
+1. **Player starts chat**: When player sends first message, system automatically creates a chat request
+2. **Request appears in GRE portal**: All available GREs can see pending requests
+3. **GRE takes request**: One GRE clicks "Take Request" - system assigns request to that GRE
+4. **Active conversation**: GRE and player can exchange messages
+5. **Other GREs blocked**: Once assigned, other GREs cannot take the same request
 
-### Staff Portal Integration  
-- GRE admin tab seamlessly integrated
-- Shared authentication and session management
-- Consistent UI/UX with existing portal design
+## Multi-GRE Assignment System
 
-### Master Admin Integration
-- Complete visibility into GRE admin activities
-- Override capabilities for critical operations
-- Comprehensive audit trail access
+### Features
+- **Conflict Prevention**: Only one GRE can take each request
+- **Real-time Updates**: Request status updates immediately when taken
+- **Queue Management**: Pending requests visible to all GREs
+- **Assignment Tracking**: Full audit trail of who took which request when
 
-## Configuration Options
+### GRE Portal Implementation
 
-### GRE Admin Settings
-Available in `gre_admin_config` table:
-- `gre_admin_enabled`: Enable/disable GRE admin access
-- `player_management_enabled`: Control player management features
-- `table_management_enabled`: Control table management features
-- `kyc_approval_enabled`: Control KYC approval capabilities
-- `max_concurrent_admins`: Limit concurrent admin sessions
-- `session_timeout_minutes`: Session timeout configuration
+For the GRE Admin Portal, implement these components:
 
-### Update Configuration
-```sql
-UPDATE gre_admin_config 
-SET config_value = 'true' 
-WHERE config_key = 'gre_admin_enabled';
+1. **Chat Request Queue**
+```javascript
+// Fetch pending requests
+fetch('/api/gre-chat/requests')
+  .then(res => res.json())
+  .then(requests => {
+    // Display requests with "Take Request" button
+  });
 ```
 
-## Troubleshooting
-
-### Common Issues
-
-1. **Connectivity Test Fails**
-   - Verify Supabase connection
-   - Check table existence
-   - Validate permissions
-
-2. **Permission Denied Errors**
-   - Check RLS policies
-   - Verify admin permissions
-   - Update permission settings
-
-3. **Analytics Not Loading**
-   - Verify data existence
-   - Check query performance
-   - Review error logs
-
-### Support Commands
-```bash
-# Test all endpoints
-curl http://localhost:5000/api/gre-admin/connectivity
-curl http://localhost:5000/api/gre-admin/players
-curl http://localhost:5000/api/gre-admin/tables
-curl http://localhost:5000/api/gre-admin/analytics
-curl http://localhost:5000/api/gre-admin/system-health
+2. **Take Request Function**
+```javascript
+function takeRequest(requestId) {
+  fetch(`/api/gre-chat/assign/${requestId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      greId: currentGreId,
+      greName: currentGreName
+    })
+  }).then(res => {
+    if (res.status === 409) {
+      alert('Request already taken by another GRE');
+    } else {
+      // Open chat interface
+    }
+  });
+}
 ```
 
-## Implementation Checklist
+3. **Send Message Function**
+```javascript
+function sendGreMessage(requestId, message) {
+  fetch('/api/gre-chat/gre-message', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      requestId,
+      greId: currentGreId,
+      greName: currentGreName,
+      message
+    })
+  });
+}
+```
 
-- [ ] Execute gre-admin-integration.sql script
-- [ ] Verify all GRE admin tables created
-- [ ] Test API endpoint connectivity
-- [ ] Add GRE tab to Staff Portal navigation
-- [ ] Implement GRE Admin Dashboard component
-- [ ] Configure permissions for admin users
-- [ ] Test cross-portal player connectivity
-- [ ] Verify activity logging functionality
-- [ ] Set up monitoring and alerts
-- [ ] Document admin procedures
+## Request Status Flow
 
-## Support
+- **pending**: New request, available for any GRE to take
+- **assigned**: GRE has taken the request but hasn't sent first message yet
+- **active**: Active conversation between GRE and player
+- **completed**: Chat resolved, marked complete by GRE
+- **closed**: Conversation ended
 
-For technical support or questions about GRE admin integration:
-1. Check API endpoint responses for error details
-2. Review activity logs for debugging information
-3. Verify database connectivity and permissions
-4. Test with sample data before production deployment
+## Integration Benefits
+
+1. **No Chat Conflicts**: Multiple GREs can work simultaneously without taking same requests
+2. **Efficient Queue Management**: Clear visibility of pending requests
+3. **Audit Trail**: Complete tracking of assignments and conversations
+4. **Real-time Updates**: Instant updates when requests are taken or messages sent
+5. **Scalable**: Supports unlimited number of GREs working together
+
+## Chatbot Integration
+
+The system is ready for chatbot integration in the GRE Portal:
+- Chatbot can monitor pending requests
+- Automatically assign requests to chatbot or human GREs
+- Seamless handoff between chatbot and human agents
+- Message format compatible with both human and AI responses
+
+## Database Connection
+
+Both portals use the same Supabase database:
+- URL: `process.env.VITE_SUPABASE_URL`
+- Service Key: `process.env.SUPABASE_SERVICE_ROLE_KEY`
+
+The GRE Portal should use identical connection settings for real-time synchronization.

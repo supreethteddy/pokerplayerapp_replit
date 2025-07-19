@@ -1763,7 +1763,7 @@ export default function PlayerDashboard() {
                   </CardContent>
                 </Card>
 
-                {/* Push Notifications */}
+                {/* Notifications from Management */}
                 <Card className="bg-slate-800 border-slate-700">
                   <CardHeader>
                     <CardTitle className="text-white flex items-center">

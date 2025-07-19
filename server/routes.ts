@@ -4147,7 +4147,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { playerId, playerName, message, timestamp } = req.body;
       console.log(`💬 [GRE CHAT] Receiving message from player ${playerId}: ${playerName}`);
       
-      // Insert chat message into local Supabase
+      // Check if there's an active chat request for this player
+      let { data: existingRequest } = await localSupabase
+        .from('gre_chat_requests')
+        .select('*')
+        .eq('player_id', playerId)
+        .in('status', ['pending', 'assigned', 'active'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      let requestId;
+      
+      // If no active request exists, create a new one
+      if (!existingRequest) {
+        const { data: newRequest, error: requestError } = await localSupabase
+          .from('gre_chat_requests')
+          .insert({
+            player_id: playerId,
+            player_name: playerName,
+            status: 'pending',
+            priority: 'normal',
+            subject: message.length > 50 ? message.substring(0, 50) + '...' : message
+          })
+          .select()
+          .single();
+        
+        if (requestError) {
+          throw new Error(`Failed to create chat request: ${requestError.message}`);
+        }
+        
+        requestId = newRequest.id;
+        console.log(`📋 [GRE CHAT] Created new chat request - ID: ${requestId}`);
+      } else {
+        requestId = existingRequest.id;
+        console.log(`📋 [GRE CHAT] Using existing chat request - ID: ${requestId}`);
+      }
+      
+      // Insert chat message linked to the request
       const { data, error } = await localSupabase
         .from('gre_chat_messages')
         .insert({
@@ -4155,6 +4192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           player_name: playerName,
           message: message.trim(),
           sender: 'player',
+          request_id: requestId,
           timestamp: timestamp || new Date().toISOString(),
           status: 'sent'
         })
@@ -4166,7 +4204,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       console.log(`✅ [GRE CHAT] Message sent successfully - ID: ${data.id}`);
-      res.json({ success: true, message: data });
+      res.json({ success: true, message: data, requestId });
     } catch (error: any) {
       console.error(`❌ [GRE CHAT] Error sending message:`, error);
       res.status(500).json({ error: error.message });
@@ -4187,13 +4225,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .limit(50); // Last 50 messages
       
       if (error) {
-        throw new Error(`Failed to fetch chat messages: ${error.message}`);
+        console.log(`❌ [GRE CHAT] Error fetching messages:`, error);
+        // Return empty array if table doesn't exist yet
+        return res.json([]);
       }
       
       console.log(`✅ [GRE CHAT] Retrieved ${data?.length || 0} messages for player ${playerId}`);
       res.json(data || []);
     } catch (error: any) {
       console.error(`❌ [GRE CHAT] Error fetching messages:`, error);
+      res.json([]); // Return empty array instead of error to prevent UI issues
+    }
+  });
+
+  // GRE Staff Portal API Endpoints
+  app.get("/api/gre-chat/requests", async (req, res) => {
+    try {
+      console.log(`📋 [GRE REQUESTS] Fetching all pending chat requests`);
+      
+      // Fetch all pending/unassigned chat requests
+      const { data, error } = await localSupabase
+        .from('gre_chat_requests')
+        .select('*')
+        .in('status', ['pending', 'assigned', 'active'])
+        .order('created_at', { ascending: false })
+        .limit(20);
+      
+      if (error) {
+        throw new Error(`Failed to fetch chat requests: ${error.message}`);
+      }
+      
+      console.log(`✅ [GRE REQUESTS] Retrieved ${data?.length || 0} chat requests`);
+      res.json(data || []);
+    } catch (error: any) {
+      console.error(`❌ [GRE REQUESTS] Error fetching requests:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/gre-chat/assign/:requestId", async (req, res) => {
+    try {
+      const { requestId } = req.params;
+      const { greId, greName } = req.body;
+      console.log(`👤 [GRE ASSIGN] GRE ${greName} (${greId}) taking request ${requestId}`);
+      
+      // Assign the request to the GRE
+      const { data, error } = await localSupabase
+        .from('gre_chat_requests')
+        .update({
+          status: 'assigned',
+          assigned_gre_id: greId,
+          assigned_gre_name: greName,
+          assigned_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', requestId)
+        .eq('status', 'pending') // Only assign if still pending
+        .select()
+        .single();
+      
+      if (error) {
+        throw new Error(`Failed to assign chat request: ${error.message}`);
+      }
+      
+      if (!data) {
+        return res.status(409).json({ error: 'Request already assigned to another GRE' });
+      }
+      
+      console.log(`✅ [GRE ASSIGN] Request ${requestId} assigned to ${greName}`);
+      res.json({ success: true, request: data });
+    } catch (error: any) {
+      console.error(`❌ [GRE ASSIGN] Error assigning request:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/gre-chat/gre-message", async (req, res) => {
+    try {
+      const { requestId, greId, greName, message } = req.body;
+      console.log(`💬 [GRE MESSAGE] GRE ${greName} sending message for request ${requestId}`);
+      
+      // Get request details
+      const { data: request, error: requestError } = await localSupabase
+        .from('gre_chat_requests')
+        .select('*')
+        .eq('id', requestId)
+        .single();
+      
+      if (requestError || !request) {
+        throw new Error(`Chat request not found: ${requestError?.message || 'Request does not exist'}`);
+      }
+      
+      // Insert GRE message
+      const { data, error } = await localSupabase
+        .from('gre_chat_messages')
+        .insert({
+          player_id: request.player_id,
+          player_name: request.player_name,
+          message: message.trim(),
+          sender: 'gre',
+          sender_name: greName,
+          request_id: requestId,
+          timestamp: new Date().toISOString(),
+          status: 'sent'
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        throw new Error(`Failed to send GRE message: ${error.message}`);
+      }
+      
+      // Update request status to active
+      await localSupabase
+        .from('gre_chat_requests')
+        .update({
+          status: 'active',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', requestId);
+      
+      console.log(`✅ [GRE MESSAGE] Message sent successfully - ID: ${data.id}`);
+      res.json({ success: true, message: data });
+    } catch (error: any) {
+      console.error(`❌ [GRE MESSAGE] Error sending message:`, error);
       res.status(500).json({ error: error.message });
     }
   });
