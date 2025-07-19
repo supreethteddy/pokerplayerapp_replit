@@ -1,6 +1,6 @@
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +42,6 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
 import type { Table as TableType, SeatRequest, KycDocument } from "@shared/schema";
-import { useLocation } from "wouter";
 import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
@@ -1059,7 +1058,8 @@ export default function PlayerDashboard() {
                       {tables?.map((table) => (
                         <div
                           key={table.id}
-                          className="bg-slate-700 p-4 rounded-lg hover:bg-slate-600 transition-colors"
+                          className="bg-slate-700 p-4 rounded-lg hover:bg-slate-600 transition-colors cursor-pointer"
+                          onClick={() => setLocation(`/table/${table.id}`)}
                         >
                           <div className="flex justify-between items-start mb-3">
                             <div>
@@ -1091,7 +1091,7 @@ export default function PlayerDashboard() {
                             </div>
                           </div>
 
-                          <div className="flex justify-between items-center">
+                          <div className="flex justify-between items-center" onClick={(e) => e.stopPropagation()}>
                             {isTableJoined(table.id) ? (
                               <div className="flex items-center space-x-2">
                                 <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
@@ -1101,7 +1101,10 @@ export default function PlayerDashboard() {
                                   Position: {getWaitListPosition(table.id)}
                                 </span>
                                 <Button
-                                  onClick={() => handleLeaveWaitList(table.id)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleLeaveWaitList(table.id);
+                                  }}
                                   disabled={leaveWaitListMutation.isPending}
                                   size="sm"
                                   variant="outline"
@@ -1115,7 +1118,10 @@ export default function PlayerDashboard() {
                               </div>
                             ) : (
                               <Button
-                                onClick={() => handleJoinWaitList(table.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleJoinWaitList(table.id);
+                                }}
                                 disabled={joinWaitListMutation.isPending}
                                 size="sm"
                                 className="bg-emerald-500 hover:bg-emerald-600 text-white"
@@ -1157,7 +1163,8 @@ export default function PlayerDashboard() {
                       {tournaments.map((tournament) => (
                         <div
                           key={tournament.id}
-                          className="bg-slate-700 p-4 rounded-lg hover:bg-slate-600 transition-colors"
+                          className="bg-slate-700 p-4 rounded-lg hover:bg-slate-600 transition-colors cursor-pointer"
+                          onClick={() => setLocation(`/table/${tournament.id}`)}
                         >
                           <div className="flex justify-between items-start mb-3">
                             <div>
@@ -1196,10 +1203,13 @@ export default function PlayerDashboard() {
                             </div>
                           </div>
 
-                          <div className="flex justify-between items-center gap-2">
+                          <div className="flex justify-between items-center gap-2" onClick={(e) => e.stopPropagation()}>
                             <div className="flex gap-2">
                               <Button
-                                onClick={() => handleTournamentInterest(tournament.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleTournamentInterest(tournament.id);
+                                }}
                                 disabled={tournamentActionLoading}
                                 size="sm"
                                 variant="outline"
@@ -1211,7 +1221,10 @@ export default function PlayerDashboard() {
                                 Interested
                               </Button>
                               <Button
-                                onClick={() => handleTournamentRegister(tournament.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleTournamentRegister(tournament.id);
+                                }}
                                 disabled={tournamentActionLoading || tournament.registeredPlayers >= tournament.maxPlayers}
                                 size="sm"
                                 className="bg-yellow-600 hover:bg-yellow-700 text-white"

@@ -7,6 +7,7 @@ import { useAuth } from "./hooks/useAuth";
 import AuthLayout from "./components/AuthLayout";
 import PlayerDashboard from "./components/PlayerDashboard";
 import VipShop from "./pages/VipShop";
+import TableView from "./pages/TableView";
 import LoadingScreen from "./components/LoadingScreen";
 import PushNotificationManager from "./components/PushNotificationManager";
 import { useState, useEffect } from "react";
@@ -70,6 +71,9 @@ function AppContent() {
         </Route>
         <Route path="/vip-shop">
           {user ? <VipShop /> : <Redirect to="/" />}
+        </Route>
+        <Route path="/table/:tableId">
+          {user ? <TableView /> : <Redirect to="/" />}
         </Route>
         <Route path="/thank-you">
           <ThankYou />
