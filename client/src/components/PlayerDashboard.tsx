@@ -1781,9 +1781,44 @@ export default function PlayerDashboard() {
               </div>
             </TabsContent>
 
-            {/* Feedback Tab - GRE Chat */}
+            {/* Feedback Tab */}
             <TabsContent value="feedback" className="flex-1 overflow-y-auto">
               <div className="space-y-4">
+                {/* Feedback to Management */}
+                <Card className="bg-slate-800 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <MessageCircle className="w-5 h-5 mr-2 text-emerald-500" />
+                      Send Feedback to Management
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-white">Message</label>
+                      <textarea
+                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
+                        rows={5}
+                        value={feedbackMessage}
+                        onChange={(e) => setFeedbackMessage(e.target.value)}
+                        placeholder="Share your feedback, suggestions, or concerns with our management team..."
+                        disabled={sendingFeedback}
+                      />
+                    </div>
+                    <Button 
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
+                      onClick={submitFeedback}
+                      disabled={sendingFeedback || !feedbackMessage.trim()}
+                    >
+                      {sendingFeedback ? (
+                        <div className="animate-spin w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full" />
+                      ) : (
+                        <Send className="w-4 h-4 mr-2" />
+                      )}
+                      {sendingFeedback ? "Sending..." : "Send Feedback"}
+                    </Button>
+                  </CardContent>
+                </Card>
+
                 {/* Guest Relations Support */}
                 <Card className="bg-slate-800 border-slate-700">
                   <CardHeader className="pb-4 border-b border-slate-700">
