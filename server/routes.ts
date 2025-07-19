@@ -2990,6 +2990,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create sample offers directly (assuming tables exist in Staff Portal Supabase)
+  app.post("/api/create-sample-offers", async (req, res) => {
+    try {
+      console.log('🔧 [CREATE SAMPLE OFFERS] Creating sample offers in Staff Portal Supabase...');
+
+      // Insert sample offers
+      const { data: offers, error: insertOffersError } = await supabase
+        .from('staff_offers')
+        .insert([
+          {
+            title: 'Welcome Bonus',
+            description: 'Get 100% bonus on your first deposit up to ₹5,000',
+            offer_type: 'banner',
+            is_active: true
+          },
+          {
+            title: 'Weekend Special',
+            description: 'Double loyalty points on all weekend games',
+            offer_type: 'carousel',
+            is_active: true
+          },
+          {
+            title: 'Free Tournament Entry',
+            description: 'Complimentary entry to our Sunday ₹10,000 guaranteed tournament',
+            offer_type: 'popup',
+            is_active: true
+          }
+        ])
+        .select();
+
+      if (insertOffersError) {
+        console.error('❌ [CREATE SAMPLE OFFERS] Error inserting offers:', insertOffersError);
+        return res.status(500).json({ 
+          error: 'Failed to create offers - tables may not exist in Staff Portal Supabase',
+          details: insertOffersError.message
+        });
+      }
+
+      console.log('✅ [CREATE SAMPLE OFFERS] Created', offers?.length || 0, 'sample offers');
+      res.json({ 
+        success: true, 
+        message: 'Sample offers created in Staff Portal Supabase',
+        offers: offers
+      });
+    } catch (error: any) {
+      console.error('❌ [CREATE SAMPLE OFFERS] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get active staff offers
   app.get("/api/staff-offers", async (req, res) => {
     console.log('📋 [OFFERS] Getting active staff offers...');
@@ -3002,6 +3052,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (error) {
         console.error('❌ [OFFERS] Supabase error:', error);
+        
+        // If table doesn't exist, return empty array instead of error
+        if (error.code === '42P01') {
+          console.log('📋 [OFFERS] Table does not exist, returning empty array');
+          return res.json([]);
+        }
+        
         throw error;
       }
 
