@@ -2957,5 +2957,205 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // === OFFER MANAGEMENT ENDPOINTS ===
+  
+  // Get active carousel items for player portal
+  app.get("/api/carousel-items", async (req, res) => {
+    console.log('🎠 [CAROUSEL] Getting active carousel items...');
+    try {
+      const { data: carouselItems, error } = await supabase
+        .from('carousel_items')
+        .select(`
+          *,
+          staff_offers (
+            id,
+            title,
+            description,
+            offer_type
+          )
+        `)
+        .eq('is_active', true)
+        .order('position', { ascending: true });
+
+      if (error) {
+        console.error('❌ [CAROUSEL] Supabase error:', error);
+        throw error;
+      }
+
+      console.log('✅ [CAROUSEL] Found', carouselItems?.length || 0, 'active carousel items');
+      res.json(carouselItems || []);
+    } catch (error: any) {
+      console.error('❌ [CAROUSEL] Error fetching carousel items:', error.message);
+      res.status(500).json({ error: 'Failed to fetch carousel items' });
+    }
+  });
+
+  // Get active staff offers
+  app.get("/api/staff-offers", async (req, res) => {
+    console.log('📋 [OFFERS] Getting active staff offers...');
+    try {
+      const { data: offers, error } = await supabase
+        .from('staff_offers')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ [OFFERS] Supabase error:', error);
+        throw error;
+      }
+
+      // Filter by date if start_date and end_date are set
+      const now = new Date();
+      const filteredOffers = offers?.filter(offer => {
+        if (offer.start_date && new Date(offer.start_date) > now) return false;
+        if (offer.end_date && new Date(offer.end_date) < now) return false;
+        return true;
+      });
+
+      console.log('✅ [OFFERS] Found', filteredOffers?.length || 0, 'active offers');
+      res.json(filteredOffers || []);
+    } catch (error: any) {
+      console.error('❌ [OFFERS] Error fetching staff offers:', error.message);
+      res.status(500).json({ error: 'Failed to fetch offers' });
+    }
+  });
+
+  // Track offer view
+  app.post("/api/offer-views", async (req, res) => {
+    console.log('👁️ [OFFER VIEW] Tracking offer view...');
+    try {
+      const { offer_id, view_type = 'carousel' } = req.body;
+      
+      if (!offer_id) {
+        return res.status(400).json({ error: 'offer_id is required' });
+      }
+
+      // Get player ID from auth if available
+      let playerId = null;
+      if (req.user) {
+        playerId = req.user.id;
+      }
+
+      const { data: view, error } = await supabase
+        .from('offer_views')
+        .insert({
+          offer_id,
+          player_id: playerId,
+          view_type,
+          viewed_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ [OFFER VIEW] Supabase error:', error);
+        throw error;
+      }
+
+      console.log('✅ [OFFER VIEW] Tracked view for offer:', offer_id, 'type:', view_type);
+      res.json({ success: true, view_id: view.id });
+    } catch (error: any) {
+      console.error('❌ [OFFER VIEW] Error tracking view:', error.message);
+      res.status(500).json({ error: 'Failed to track offer view' });
+    }
+  });
+
+  // Get offer analytics (for staff portal)
+  app.get("/api/offer-analytics/:offerId", async (req, res) => {
+    console.log('📊 [ANALYTICS] Getting offer analytics...');
+    try {
+      const { offerId } = req.params;
+
+      const { data: views, error } = await supabase
+        .from('offer_views')
+        .select('*')
+        .eq('offer_id', offerId);
+
+      if (error) {
+        console.error('❌ [ANALYTICS] Supabase error:', error);
+        throw error;
+      }
+
+      const analytics = {
+        total_views: views?.length || 0,
+        carousel_views: views?.filter(v => v.view_type === 'carousel').length || 0,
+        offers_page_views: views?.filter(v => v.view_type === 'offers_page').length || 0,
+        unique_viewers: new Set(views?.map(v => v.player_id).filter(Boolean)).size,
+        latest_view: views?.length ? Math.max(...views.map(v => new Date(v.viewed_at).getTime())) : null
+      };
+
+      console.log('✅ [ANALYTICS] Analytics for offer', offerId, ':', analytics);
+      res.json(analytics);
+    } catch (error: any) {
+      console.error('❌ [ANALYTICS] Error fetching analytics:', error.message);
+      res.status(500).json({ error: 'Failed to fetch offer analytics' });
+    }
+  });
+
+  // Health check for offer system
+  app.get("/api/offer-system-health", async (req, res) => {
+    console.log('🔍 [OFFER HEALTH] Checking offer system health...');
+    try {
+      const checks = {
+        staff_offers_table: false,
+        carousel_items_table: false,
+        offer_views_table: false,
+        active_offers: 0,
+        active_carousel_items: 0,
+        total_views_today: 0
+      };
+
+      // Check staff_offers table
+      const { data: offers, error: offersError } = await supabase
+        .from('staff_offers')
+        .select('id')
+        .eq('is_active', true)
+        .limit(1);
+      
+      checks.staff_offers_table = !offersError;
+      checks.active_offers = offers?.length || 0;
+
+      // Check carousel_items table
+      const { data: carouselItems, error: carouselError } = await supabase
+        .from('carousel_items')
+        .select('id')
+        .eq('is_active', true)
+        .limit(1);
+      
+      checks.carousel_items_table = !carouselError;
+      checks.active_carousel_items = carouselItems?.length || 0;
+
+      // Check offer_views table
+      const today = new Date().toISOString().split('T')[0];
+      const { data: todayViews, error: viewsError } = await supabase
+        .from('offer_views')
+        .select('id')
+        .gte('viewed_at', `${today}T00:00:00.000Z`)
+        .limit(100);
+      
+      checks.offer_views_table = !viewsError;
+      checks.total_views_today = todayViews?.length || 0;
+
+      const allHealthy = checks.staff_offers_table && 
+                         checks.carousel_items_table && 
+                         checks.offer_views_table;
+
+      console.log('✅ [OFFER HEALTH] System health:', checks);
+      res.json({
+        healthy: allHealthy,
+        checks,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error('❌ [OFFER HEALTH] Error checking system health:', error.message);
+      res.status(500).json({ 
+        healthy: false, 
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
   return httpServer;
 }

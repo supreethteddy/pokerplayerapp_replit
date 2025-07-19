@@ -34,6 +34,7 @@ import { useState, useEffect } from "react";
 import type { Table as TableType, SeatRequest, KycDocument } from "@shared/schema";
 import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
+import OfferCarousel from "./OfferCarousel";
 import tiltRoomLogo from "@assets/1_1752926810964.png";
 
 
@@ -385,17 +386,13 @@ export default function PlayerDashboard() {
                 <p className="text-slate-200 text-lg">Welcome back, {user.firstName}!</p>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-sm text-slate-300">Current Time</p>
-                <p className="text-lg font-semibold text-white">{callTime}</p>
-              </div>
+            <div className="flex items-center">
               <Button
                 onClick={signOut}
-                className="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-600 p-0 flex items-center justify-center"
+                className="w-10 h-10 rounded-full bg-red-600 hover:bg-red-700 border border-red-500 p-0 flex items-center justify-center"
                 title="Sign Out"
               >
-                <LogOut className="w-4 h-4 text-slate-300" />
+                <LogOut className="w-4 h-4 text-white" />
               </Button>
             </div>
           </div>
@@ -424,9 +421,9 @@ export default function PlayerDashboard() {
 
           {/* Game Tab */}
           <TabsContent value="game" className="space-y-4">
-            {/* Offer Banner */}
-            <OfferBanner onOfferClick={(offerId) => {
-              // Switch to offers tab when banner is clicked
+            {/* Staff-Managed Offer Carousel */}
+            <OfferCarousel onOfferClick={(offerId) => {
+              // Switch to offers tab when carousel item is clicked
               const offersTab = document.querySelector('[value="balance"]') as HTMLElement;
               if (offersTab) offersTab.click();
             }} />
@@ -534,9 +531,32 @@ export default function PlayerDashboard() {
             </div>
           </TabsContent>
 
-          {/* Balance Tab */}
+          {/* Offers Tab - Staff Managed */}
           <TabsContent value="balance" className="space-y-4">
-            <BalanceDisplay />
+            <Card className="bg-slate-800 border-slate-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center">
+                  <CreditCard className="w-5 h-5 mr-2 text-emerald-500" />
+                  Special Offers
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CreditCard className="w-8 h-8 text-slate-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white mb-2">Offers Coming Soon</h3>
+                  <p className="text-slate-400 mb-4">
+                    Our team is preparing exclusive offers for you. Check back regularly for exciting promotions and bonuses!
+                  </p>
+                  <div className="bg-slate-700 rounded-lg p-4">
+                    <p className="text-sm text-slate-300">
+                      Offers are managed by our staff and will appear here automatically when available.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Stats Tab */}

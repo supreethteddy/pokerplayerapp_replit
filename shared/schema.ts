@@ -98,6 +98,41 @@ export const offerBanners = pgTable("offer_banners", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// === OFFER MANAGEMENT SYSTEM ===
+
+export const staffOffers = pgTable("staff_offers", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  offerType: text("offer_type").notNull(), // welcome_bonus, deposit_bonus, cashback, free_spins, tournament
+  terms: text("terms"), // Terms and conditions
+  isActive: boolean("is_active").default(true),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  targetAudience: text("target_audience").default("all"), // all, new_players, vip, etc.
+  createdBy: text("created_by").notNull(), // Staff member who created the offer
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const carouselItems = pgTable("carousel_items", {
+  id: serial("id").primaryKey(),
+  offerId: integer("offer_id").references(() => staffOffers.id),
+  mediaUrl: text("media_url").notNull(), // URL to video or image
+  mediaType: text("media_type").notNull(), // video, image
+  position: integer("position").notNull().default(0), // Order in carousel
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const offerViews = pgTable("offer_views", {
+  id: serial("id").primaryKey(),
+  offerId: integer("offer_id").references(() => staffOffers.id),
+  playerId: integer("player_id").references(() => players.id),
+  viewType: text("view_type").notNull(), // carousel, offers_page
+  viewedAt: timestamp("viewed_at").defaultNow(),
+});
+
 // Enterprise-grade sync activity log for cross-portal integration
 export const syncActivityLog = pgTable("sync_activity_log", {
   id: serial("id").primaryKey(),
