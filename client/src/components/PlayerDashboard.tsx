@@ -354,6 +354,7 @@ export default function PlayerDashboard() {
   
   // Tournament state variables
   const [tournamentActionLoading, setTournamentActionLoading] = useState(false);
+  const [showTournaments, setShowTournaments] = useState(false);
   
   // Handle tab navigation from URL parameters
   const getActiveTabFromUrl = () => {
@@ -1039,28 +1040,41 @@ export default function PlayerDashboard() {
               }} />
               
               <div className="w-full max-w-full space-y-3 sm:space-y-4">
-                {/* Cash Tables & Tournaments Sub-Tabs */}
-                <Tabs defaultValue="cash" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 bg-slate-800 border border-slate-700">
-                    <TabsTrigger value="cash" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-slate-300">
-                      <Table className="w-4 h-4 mr-2" />
-                      Cash Tables
-                    </TabsTrigger>
-                    <TabsTrigger value="tournaments" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-slate-300">
-                      <Trophy className="w-4 h-4 mr-2" />
-                      Tournaments
-                    </TabsTrigger>
-                  </TabsList>
+                {/* Toggle State for Cash Tables vs Tournaments */}
+                <div className="flex items-center space-x-4 mb-4">
+                  <button
+                    onClick={() => setShowTournaments(false)}
+                    className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors ${
+                      !showTournaments 
+                        ? 'bg-emerald-600 text-white' 
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    <Table className="w-4 h-4 mr-2" />
+                    Cash Tables
+                  </button>
+                  <button
+                    onClick={() => setShowTournaments(true)}
+                    className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors ${
+                      showTournaments 
+                        ? 'bg-emerald-600 text-white' 
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    <Trophy className="w-4 h-4 mr-2" />
+                    Tournaments
+                  </button>
+                </div>
 
-                  {/* Cash Tables Tab */}
-                  <TabsContent value="cash" className="mt-4">
-                    <Card className="bg-slate-800 border-slate-700 w-full max-w-full overflow-hidden">
-                      <CardHeader>
-                        <CardTitle className="text-white flex items-center">
-                          <Table className="w-5 h-5 mr-2 text-emerald-500" />
-                          Cash Tables
-                        </CardTitle>
-                      </CardHeader>
+                {/* Cash Tables Display */}
+                {!showTournaments && (
+                  <Card className="bg-slate-800 border-slate-700 w-full max-w-full overflow-hidden">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center">
+                        <Table className="w-5 h-5 mr-2 text-emerald-500" />
+                        Cash Tables
+                      </CardTitle>
+                    </CardHeader>
                 <CardContent>
                   {tablesLoading ? (
                     <div className="space-y-4">
@@ -1170,18 +1184,18 @@ export default function PlayerDashboard() {
                     </div>
                   )}
                 </CardContent>
-                    </Card>
-                  </TabsContent>
+                  </Card>
+                )}
 
-                  {/* Tournaments Tab */}
-                  <TabsContent value="tournaments" className="mt-4">
-                    <Card className="bg-slate-800 border-slate-700 w-full max-w-full overflow-hidden">
-                      <CardHeader>
-                        <CardTitle className="text-white flex items-center">
-                          <Trophy className="w-5 h-5 mr-2 text-yellow-500" />
-                          Tournaments
-                        </CardTitle>
-                      </CardHeader>
+                {/* Tournaments Display */}
+                {showTournaments && (
+                  <Card className="bg-slate-800 border-slate-700 w-full max-w-full overflow-hidden">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center">
+                        <Trophy className="w-5 h-5 mr-2 text-yellow-500" />
+                        Tournaments
+                      </CardTitle>
+                    </CardHeader>
                       <CardContent>
                         {tournamentsLoading ? (
                           <div className="space-y-4">
@@ -1296,8 +1310,7 @@ export default function PlayerDashboard() {
                         )}
                       </CardContent>
                     </Card>
-                  </TabsContent>
-                </Tabs>
+                )}
 
                 {/* Preferences section removed as per requirements */}
               </div>
