@@ -73,20 +73,21 @@ const PlayerSeat = ({ player, position, total }: { player: Player | null, positi
   const y = 50 + radiusY * Math.sin(angle);
 
   if (!player) {
-    // Empty chair - styled like the images
+    // Empty holographic seat
     return (
       <div 
         className="absolute transform -translate-x-1/2 -translate-y-1/2"
         style={{ left: `${x}%`, top: `${y}%` }}
       >
         <div className="relative">
-          {/* Chair back */}
-          <div className="w-20 h-24 bg-gradient-to-b from-amber-900 to-amber-800 rounded-t-3xl border-2 border-amber-700 shadow-lg">
-            {/* Chair seat */}
-            <div className="absolute bottom-0 w-20 h-16 bg-gradient-to-b from-amber-800 to-amber-900 rounded-b-2xl border-2 border-amber-700">
-              {/* Empty seat indicator */}
-              <div className="absolute inset-2 rounded-lg border border-dashed border-amber-600 bg-amber-700/30 flex items-center justify-center">
-                <span className="text-amber-400 text-xs font-semibold">OPEN</span>
+          {/* Holographic Empty Seat */}
+          <div className="w-24 h-28 relative">
+            {/* Holographic glow */}
+            <div className="absolute inset-0 bg-cyan-400/20 rounded-full blur-md animate-pulse"></div>
+            {/* Seat structure */}
+            <div className="relative w-20 h-24 bg-gradient-to-b from-slate-800/80 to-slate-700/80 rounded-full border-2 border-cyan-400/40 shadow-lg backdrop-blur-sm">
+              <div className="absolute inset-2 rounded-full border border-dashed border-cyan-400/60 bg-cyan-900/20 flex items-center justify-center">
+                <span className="text-cyan-300 text-xs font-semibold">OPEN</span>
               </div>
             </div>
           </div>
@@ -101,55 +102,75 @@ const PlayerSeat = ({ player, position, total }: { player: Player | null, positi
       style={{ left: `${x}%`, top: `${y}%` }}
     >
       <div className="relative">
-        {/* Occupied Chair */}
-        <div className="w-20 h-24 bg-gradient-to-b from-amber-900 to-amber-800 rounded-t-3xl border-2 border-amber-700 shadow-lg">
-          {/* Chair seat with player */}
-          <div className="absolute bottom-0 w-20 h-16 bg-gradient-to-b from-amber-800 to-amber-900 rounded-b-2xl border-2 border-amber-700">
-            {/* Player avatar */}
-            <div className={`absolute inset-1 rounded-lg flex items-center justify-center text-white font-bold text-sm ${
-              player.isDealer ? 'bg-yellow-600 border-2 border-yellow-400' :
-              player.isSmallBlind ? 'bg-blue-600 border-2 border-blue-400' :
-              player.isBigBlind ? 'bg-red-600 border-2 border-red-400' :
-              'bg-gray-700 border-2 border-gray-500'
+        {/* Holographic Occupied Seat */}
+        <div className="w-24 h-28 relative">
+          {/* Player holographic aura */}
+          <div className={`absolute inset-0 rounded-full blur-lg animate-pulse ${
+            player.isDealer ? 'bg-yellow-400/30' :
+            player.isSmallBlind ? 'bg-blue-400/30' :
+            player.isBigBlind ? 'bg-red-400/30' :
+            'bg-cyan-400/20'
+          }`}></div>
+          
+          {/* 3D Seat Structure */}
+          <div className="relative w-20 h-24 bg-gradient-to-b from-slate-800/90 to-slate-700/90 rounded-full border-2 border-cyan-400/50 shadow-lg backdrop-blur-sm">
+            {/* Player Avatar */}
+            <div className={`absolute inset-1 rounded-full flex items-center justify-center text-white font-bold text-sm border-2 backdrop-blur-sm ${
+              player.isDealer ? 'bg-yellow-600/80 border-yellow-400' :
+              player.isSmallBlind ? 'bg-blue-600/80 border-blue-400' :
+              player.isBigBlind ? 'bg-red-600/80 border-red-400' :
+              'bg-slate-700/80 border-cyan-400/50'
             }`}>
               {player.username.substring(0, 2).toUpperCase()}
             </div>
           </div>
         </div>
 
-        {/* Player name and stack - positioned below chair */}
+        {/* Holographic Player Info */}
         <div className="absolute -bottom-16 left-1/2 transform -translate-x-1/2 text-center min-w-24">
-          <div className="text-white text-xs font-semibold bg-black/80 px-2 py-1 rounded shadow-lg">
+          <div className="text-cyan-200 text-xs font-semibold bg-slate-900/80 backdrop-blur-sm border border-cyan-400/30 px-2 py-1 rounded shadow-lg">
             {player.username}
           </div>
-          <div className="text-yellow-300 text-xs font-bold bg-black/80 px-2 py-1 rounded mt-1 shadow-lg">
+          <div className="text-cyan-300 text-xs font-bold bg-slate-900/80 backdrop-blur-sm border border-cyan-400/30 px-2 py-1 rounded mt-1 shadow-lg">
             ₹{player.stack.toLocaleString()}
           </div>
         </div>
 
-        {/* Position indicators */}
+        {/* Holographic Position Indicators */}
         {player.isDealer && (
-          <div className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full border-2 border-gray-300 flex items-center justify-center text-xs font-bold text-black shadow-lg">
-            D
+          <div className="absolute -top-2 -right-2">
+            <div className="absolute inset-0 bg-yellow-400 rounded-full blur-sm opacity-50 animate-pulse"></div>
+            <div className="relative w-6 h-6 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full border-2 border-yellow-300 flex items-center justify-center text-xs font-bold text-black shadow-lg">
+              D
+            </div>
           </div>
         )}
         {player.isSmallBlind && (
-          <div className="absolute -top-2 -left-2 w-6 h-6 bg-blue-500 rounded-full border-2 border-blue-300 flex items-center justify-center text-xs font-bold text-white shadow-lg">
-            SB
+          <div className="absolute -top-2 -left-2">
+            <div className="absolute inset-0 bg-blue-400 rounded-full blur-sm opacity-50 animate-pulse"></div>
+            <div className="relative w-6 h-6 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full border-2 border-blue-300 flex items-center justify-center text-xs font-bold text-white shadow-lg">
+              SB
+            </div>
           </div>
         )}
         {player.isBigBlind && (
-          <div className="absolute -top-2 -left-2 w-6 h-6 bg-red-500 rounded-full border-2 border-red-300 flex items-center justify-center text-xs font-bold text-white shadow-lg">
-            BB
+          <div className="absolute -top-2 -left-2">
+            <div className="absolute inset-0 bg-red-400 rounded-full blur-sm opacity-50 animate-pulse"></div>
+            <div className="relative w-6 h-6 bg-gradient-to-br from-red-500 to-red-600 rounded-full border-2 border-red-300 flex items-center justify-center text-xs font-bold text-white shadow-lg">
+              BB
+            </div>
           </div>
         )}
 
-        {/* Player cards - only shown if player has cards */}
+        {/* Holographic Player Cards */}
         {player.cards && player.cards.length > 0 && player.cards[0] !== 'XX' && (
           <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 flex gap-1">
             {player.cards.map((card, idx) => (
-              <div key={idx} className="scale-75">
-                <PokerCard card={card} />
+              <div key={idx} className="scale-75 transform hover:scale-90 transition-transform duration-200">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-cyan-400/20 blur-sm rounded-lg"></div>
+                  <PokerCard card={card} />
+                </div>
               </div>
             ))}
           </div>
@@ -223,41 +244,73 @@ export default function TableView() {
 
       {/* Main Table Area */}
       <div className="flex-1 relative px-4 py-8">
-        <div className="relative w-full max-w-5xl mx-auto aspect-[5/3]">
-          {/* Realistic Poker Table Base - Dark Wood */}
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-900 via-amber-800 to-amber-900 rounded-[50%] shadow-2xl border-8 border-amber-700">
-            {/* Table Rail - Leather Padding */}
-            <div className="absolute inset-2 rounded-[50%] border-4 border-amber-600 bg-gradient-to-br from-amber-800 to-amber-700">
-              {/* Felt Playing Surface */}
-              <div className="absolute inset-4 rounded-[50%] bg-gradient-to-br from-emerald-800 via-emerald-700 to-emerald-800 shadow-inner">
-                {/* Felt texture overlay */}
-                <div className="absolute inset-0 rounded-[50%] bg-emerald-700 opacity-30" 
-                     style={{
-                       backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.1) 1px, transparent 0)`
-                     }}>
-                </div>
-                
-                {/* Center area with community cards */}
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-                  {displayData.communityCards && displayData.communityCards.length > 0 ? (
-                    <div className="flex gap-1 mb-4 justify-center">
-                      {displayData.communityCards.map((card, idx) => (
-                        <PokerCard key={idx} card={card} />
-                      ))}
+        <div className="relative w-full max-w-6xl mx-auto aspect-[5/3]">
+          {/* Bellagio 3D Holographic Table */}
+          <div className="absolute inset-0 perspective-1000">
+            {/* 3D Table Base with Holographic Effect */}
+            <div className="relative w-full h-full transform-gpu transition-transform duration-500 hover:scale-105">
+              {/* Holographic Glow Ring */}
+              <div className="absolute inset-0 rounded-[50%] animate-pulse">
+                <div className="absolute inset-0 rounded-[50%] bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 opacity-20 blur-lg"></div>
+                <div className="absolute inset-2 rounded-[50%] bg-gradient-to-r from-blue-400 via-cyan-500 to-teal-400 opacity-30 blur-md"></div>
+              </div>
+              
+              {/* Main Table Structure */}
+              <div className="absolute inset-0 rounded-[50%] shadow-2xl backdrop-blur-sm border border-cyan-400/30">
+                {/* 3D Table Rail with Holographic Border */}
+                <div className="absolute inset-1 rounded-[50%] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-2 border-cyan-500/40 shadow-inner">
+                  {/* Holographic Felt Surface */}
+                  <div className="absolute inset-3 rounded-[50%] bg-gradient-to-br from-emerald-900 via-teal-800 to-cyan-900 shadow-inner relative overflow-hidden">
+                    {/* Animated Holographic Grid */}
+                    <div className="absolute inset-0 rounded-[50%] opacity-20" 
+                         style={{
+                           backgroundImage: `
+                             linear-gradient(45deg, transparent 40%, rgba(6, 182, 212, 0.3) 50%, transparent 60%),
+                             radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.2) 2px, transparent 2px),
+                             radial-gradient(circle at 80% 80%, rgba(34, 197, 94, 0.2) 2px, transparent 2px)
+                           `,
+                           backgroundSize: '50px 50px, 20px 20px, 25px 25px',
+                           animation: 'hologram-scan 4s infinite linear'
+                         }}>
                     </div>
-                  ) : null}
-                  
-                  <div className="text-white text-xl font-bold mb-1">Pot: ₹{displayData.pot}</div>
-                  <div className="text-emerald-200 text-sm">{displayData.gameType}</div>
-                  <div className="text-amber-300 text-xs font-semibold mt-1 px-2 py-1 bg-black/30 rounded">
-                    LOCAL GAME
-                  </div>
-                </div>
+                    
+                    {/* 3D Center Display */}
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
+                      {/* Holographic Info Panel */}
+                      <div className="relative p-4 rounded-lg bg-slate-900/80 backdrop-blur-md border border-cyan-400/40 shadow-lg">
+                        <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-cyan-500/10 to-blue-500/10"></div>
+                        
+                        {displayData.communityCards && displayData.communityCards.length > 0 ? (
+                          <div className="flex gap-1 mb-4 justify-center relative z-10">
+                            {displayData.communityCards.map((card, idx) => (
+                              <div key={idx} className="transform hover:scale-110 transition-transform duration-200">
+                                <PokerCard card={card} />
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                        
+                        <div className="relative z-10">
+                          <div className="text-cyan-300 text-2xl font-bold mb-2 text-shadow-lg">
+                            POT: ₹{displayData.pot.toLocaleString()}
+                          </div>
+                          <div className="text-blue-200 text-lg font-semibold">{displayData.gameType}</div>
+                          <div className="text-xs text-cyan-400 mt-2 px-3 py-1 bg-cyan-900/50 rounded-full border border-cyan-400/30">
+                            🏛️ BELLAGIO 3D HOLOGRAM
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-                {/* Dealer chip position indicator */}
-                <div className="absolute top-1/4 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                  <div className="w-8 h-8 bg-white rounded-full border-2 border-gray-300 flex items-center justify-center text-xs font-bold">
-                    D
+                    {/* 3D Dealer Button with Holographic Effect */}
+                    <div className="absolute top-1/4 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-cyan-400 rounded-full blur-sm opacity-50 animate-pulse"></div>
+                        <div className="relative w-10 h-10 bg-gradient-to-br from-white to-cyan-100 rounded-full border-2 border-cyan-400 flex items-center justify-center text-sm font-bold text-slate-900 shadow-lg transform hover:scale-110 transition-transform duration-200">
+                          D
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

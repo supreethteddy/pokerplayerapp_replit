@@ -71,6 +71,33 @@ html, body {
   }
 }
 
+/* Holographic Animations for Bellagio 3D Table */
+@keyframes hologram-scan {
+  0% {
+    background-position: -100% 0%, 0% 0%, 100% 100%;
+  }
+  100% {
+    background-position: 100% 0%, 100% 100%, 0% 0%;
+  }
+}
+
+@keyframes hologram-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(6, 182, 212, 0.6);
+  }
+}
+
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.text-shadow-lg {
+  text-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
 /* Dark theme overrides for poker styling */
 .dark {
   --background: hsl(240, 10%, 3.9%);
