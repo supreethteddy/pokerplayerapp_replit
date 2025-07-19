@@ -4507,44 +4507,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Sample game sessions data
       const sampleSessions = [
-        { big_blind_amount: 100, rs_played: 5000 },
-        { big_blind_amount: 200, rs_played: 8000 },
-        { big_blind_amount: 150, rs_played: 12000 }
+        { big_blind_amount: 100, hours_played: 2.5 },
+        { big_blind_amount: 200, hours_played: 3.0 },
+        { big_blind_amount: 150, hours_played: 4.2 }
       ];
       
       // Sample daily visits (19 days in July)
       const sampleVisitFrequency = 19;
       
-      // Sample total Rs played
-      const sampleTotalRsPlayed = 25000;
+      // Sample total Hours played
+      const sampleTotalHoursPlayed = 15.5;
       
-      // Calculate VIP Points using the exact formula
-      // Formula: VIP Points = (Big Blind × 0.5) + (Rs Played × 0.3) + (Visit Frequency × 0.2)
+      // Calculate VIP Points using the corrected formula
+      // Formula: VIP Points = (Big Blind × 0.5) + (Hours Played × 0.3) + (Visit Frequency × 0.2)
       
       const avgBigBlind = sampleSessions.length > 0 ? 
         sampleSessions.reduce((sum, s) => sum + s.big_blind_amount, 0) / sampleSessions.length : 0;
-      const totalRsPlayed = sampleTotalRsPlayed;
+      const totalHoursPlayed = sampleTotalHoursPlayed;
       const visitFrequency = sampleVisitFrequency;
       
       const bigBlindPoints = avgBigBlind * 0.5;
-      const rsPlayedPoints = totalRsPlayed * 0.3;
+      const hoursPlayedPoints = totalHoursPlayed * 0.3;
       const frequencyPoints = visitFrequency * 0.2;
-      const totalVipPoints = bigBlindPoints + rsPlayedPoints + frequencyPoints;
+      const totalVipPoints = bigBlindPoints + hoursPlayedPoints + frequencyPoints;
       
       console.log(`✅ [VIP POINTS] Calculated ${totalVipPoints} points for player ${playerId}`);
-      console.log(`📊 [VIP POINTS] Breakdown: BB(${avgBigBlind}×0.5=${bigBlindPoints}) + Rs(${totalRsPlayed}×0.3=${rsPlayedPoints}) + Visits(${visitFrequency}×0.2=${frequencyPoints})`);
+      console.log(`📊 [VIP POINTS] Breakdown: BB(${avgBigBlind}×0.5=${bigBlindPoints}) + Hours(${totalHoursPlayed}×0.3=${hoursPlayedPoints}) + Visits(${visitFrequency}×0.2=${frequencyPoints})`);
       
       res.json({
         success: true,
         calculation: {
           avgBigBlind,
-          totalRsPlayed,
+          totalHoursPlayed,
           visitFrequency,
           bigBlindPoints,
-          rsPlayedPoints,
+          hoursPlayedPoints,
           frequencyPoints,
           totalVipPoints,
-          formula: 'VIP Points = (Big Blind × 0.5) + (Rs Played × 0.3) + (Visit Frequency × 0.2)',
+          formula: 'VIP Points = (Big Blind × 0.5) + (Hours Played × 0.3) + (Visit Frequency × 0.2)',
           note: 'Using sample data - connect to Supabase VIP tables for live data'
         }
       });

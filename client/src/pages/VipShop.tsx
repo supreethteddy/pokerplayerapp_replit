@@ -113,10 +113,10 @@ export default function VipShop() {
                       </div>
                       <div className="bg-slate-700 p-4 rounded-lg text-center">
                         <div className="text-yellow-400 text-2xl font-bold">
-                          {breakdown.rsPlayedPoints.toFixed(1)}
+                          {(breakdown.hoursPlayedPoints || breakdown.rsPlayedPoints || 0).toFixed(1)}
                         </div>
                         <div className="text-slate-300 text-sm">
-                          Rs Played (₹{breakdown.totalRsPlayed} × 0.3)
+                          Hours Played ({breakdown.totalHoursPlayed || breakdown.totalRsPlayed || 0}h × 0.3)
                         </div>
                       </div>
                       <div className="bg-slate-700 p-4 rounded-lg text-center">
@@ -133,7 +133,7 @@ export default function VipShop() {
 
                 {/* Formula Display */}
                 <div className="text-sm text-slate-400 p-3 bg-slate-900 rounded text-center">
-                  <strong>Formula:</strong> VIP Points = (Big Blind × 0.5) + (Rs Played × 0.3) + (Visit Frequency × 0.2)
+                  <strong>Formula:</strong> VIP Points = (Big Blind × 0.5) + (Hours Played × 0.3) + (Visit Frequency × 0.2)
                 </div>
               </div>
             )}
