@@ -33,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import type { Table as TableType, SeatRequest, KycDocument } from "@shared/schema";
 import BalanceDisplay from "./BalanceDisplay";
+import OfferBanner from "./OfferBanner";
 
 
 export default function PlayerDashboard() {
@@ -390,11 +391,11 @@ export default function PlayerDashboard() {
           <TabsList className="grid w-full grid-cols-4 bg-slate-800 border-slate-700">
             <TabsTrigger value="game" className="text-slate-400 data-[state=active]:text-white">
               <Spade className="w-4 h-4 mr-2" />
-              Game
+              Lobby
             </TabsTrigger>
             <TabsTrigger value="balance" className="text-slate-400 data-[state=active]:text-white">
               <CreditCard className="w-4 h-4 mr-2" />
-              Balance
+              Offers
             </TabsTrigger>
             <TabsTrigger value="stats" className="text-slate-400 data-[state=active]:text-white">
               <BarChart3 className="w-4 h-4 mr-2" />
@@ -408,6 +409,13 @@ export default function PlayerDashboard() {
 
           {/* Game Tab */}
           <TabsContent value="game" className="space-y-4">
+            {/* Offer Banner */}
+            <OfferBanner onOfferClick={(offerId) => {
+              // Switch to offers tab when banner is clicked
+              const offersTab = document.querySelector('[value="balance"]') as HTMLElement;
+              if (offersTab) offersTab.click();
+            }} />
+            
             <div className="grid grid-cols-1 gap-4 sm:gap-6">
               {/* Live Tables */}
               <Card className="bg-slate-800 border-slate-700">
@@ -444,19 +452,12 @@ export default function PlayerDashboard() {
                             </div>
                           </div>
                           
-                          <div className="grid grid-cols-3 gap-4 mb-3">
+                          <div className="grid grid-cols-2 gap-4 mb-3">
                             <div className="text-center">
                               <Users className="w-4 h-4 text-slate-400 mx-auto mb-1" />
                               <p className="text-xs text-slate-400">Players</p>
                               <p className="text-sm font-semibold text-white">
                                 {table.currentPlayers}/{table.maxPlayers}
-                              </p>
-                            </div>
-                            <div className="text-center">
-                              <div className="w-4 h-4 bg-emerald-500 rounded-full mx-auto mb-1" />
-                              <p className="text-xs text-slate-400">Pot</p>
-                              <p className="text-sm font-semibold text-emerald-400">
-                                ₹{table.pot}
                               </p>
                             </div>
                             <div className="text-center">

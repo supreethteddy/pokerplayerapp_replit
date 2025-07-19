@@ -77,6 +77,27 @@ export const transactions = pgTable("transactions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const averageStackData = pgTable("average_stack_data", {
+  id: serial("id").primaryKey(),
+  tableId: text("table_id").notNull(),
+  averageStack: text("average_stack").notNull().default("0.00"),
+  updatedBy: integer("updated_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const offerBanners = pgTable("offer_banners", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  imageUrl: text("image_url").notNull(),
+  offerDescription: text("offer_description"),
+  redirectUrl: text("redirect_url"),
+  isActive: boolean("is_active").default(true),
+  displayOrder: integer("display_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Enterprise-grade sync activity log for cross-portal integration
 export const syncActivityLog = pgTable("sync_activity_log", {
   id: serial("id").primaryKey(),
@@ -131,6 +152,14 @@ export type InsertSeatRequest = z.infer<typeof insertSeatRequestSchema>;
 export type KycDocument = typeof kycDocuments.$inferSelect;
 export type InsertKycDocument = z.infer<typeof insertKycDocumentSchema>;
 export type Transaction = typeof transactions.$inferSelect;
+
+export const insertAverageStackDataSchema = createInsertSchema(averageStackData).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertAverageStackData = z.infer<typeof insertAverageStackDataSchema>;
+export type AverageStackData = typeof averageStackData.$inferSelect;
+
+export const insertOfferBannerSchema = createInsertSchema(offerBanners).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertOfferBanner = z.infer<typeof insertOfferBannerSchema>;
+export type OfferBanner = typeof offerBanners.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type SyncActivityLog = typeof syncActivityLog.$inferSelect;
 export type InsertSyncActivityLog = z.infer<typeof insertSyncActivityLogSchema>;

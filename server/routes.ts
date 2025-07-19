@@ -2840,5 +2840,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Remove duplicate - this route is already handled above with comprehensive tracking
 
   const httpServer = createServer(app);
+  // Offer Banners API
+  app.get('/api/offer-banners', async (req, res) => {
+    try {
+      const { data: banners, error } = await localSupabase
+        .from('offer_banners')
+        .select('*')
+        .order('display_order', { ascending: true })
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching offer banners:', error);
+        return res.status(500).json({ error: 'Failed to fetch offer banners' });
+      }
+
+      // Transform to match frontend types
+      const transformedBanners = (banners || []).map(banner => ({
+        id: banner.id,
+        title: banner.title,
+        imageUrl: banner.image_url,
+        offerDescription: banner.offer_description,
+        redirectUrl: banner.redirect_url,
+        isActive: banner.is_active,
+        displayOrder: banner.display_order
+      }));
+
+      res.json(transformedBanners);
+    } catch (error: any) {
+      console.error('Error in offer banners endpoint:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/offer-banners', async (req, res) => {
+    try {
+      const { title, imageUrl, offerDescription, redirectUrl, isActive, displayOrder } = req.body;
+
+      const { data: banner, error } = await localSupabase
+        .from('offer_banners')
+        .insert({
+          title,
+          image_url: imageUrl,
+          offer_description: offerDescription,
+          redirect_url: redirectUrl,
+          is_active: isActive !== undefined ? isActive : true,
+          display_order: displayOrder || 0
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating offer banner:', error);
+        return res.status(500).json({ error: 'Failed to create offer banner' });
+      }
+
+      res.json(banner);
+    } catch (error: any) {
+      console.error('Error in create offer banner endpoint:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Average Stack Management API
+  app.get('/api/average-stack/:tableId', async (req, res) => {
+    try {
+      const { tableId } = req.params;
+
+      const { data: stackData, error } = await localSupabase
+        .from('average_stack_data')
+        .select('*')
+        .eq('table_id', tableId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" error
+        console.error('Error fetching average stack:', error);
+        return res.status(500).json({ error: 'Failed to fetch average stack' });
+      }
+
+      res.json(stackData || { table_id: tableId, average_stack: '0.00' });
+    } catch (error: any) {
+      console.error('Error in average stack endpoint:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/average-stack', async (req, res) => {
+    try {
+      const { tableId, averageStack, updatedBy } = req.body;
+
+      // Upsert average stack data
+      const { data: stackData, error } = await localSupabase
+        .from('average_stack_data')
+        .upsert({
+          table_id: tableId,
+          average_stack: averageStack.toString(),
+          updated_by: updatedBy,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'table_id'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating average stack:', error);
+        return res.status(500).json({ error: 'Failed to update average stack' });
+      }
+
+      console.log(`✅ [AVERAGE STACK] Updated table ${tableId} to ₹${averageStack}`);
+      res.json(stackData);
+    } catch (error: any) {
+      console.error('Error in update average stack endpoint:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   return httpServer;
 }
