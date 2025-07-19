@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Spade, Upload, Shield, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import tiltRoomLogo from "@assets/1_1752926810964.png";
+// Clean minimal design - no branding elements
 
 export default function AuthLayout() {
   const { signIn, signUp, signupCooldown } = useAuth();
@@ -234,21 +234,8 @@ export default function AuthLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-black flex flex-col">
-      {/* Tilt Logo Background Header */}
-      <div 
-        className="relative w-full h-48 bg-center bg-cover bg-no-repeat"
-        style={{
-          backgroundImage: `url(${tiltRoomLogo})`,
-          backgroundSize: 'contain',
-          backgroundPosition: 'center'
-        }}
-      >
-        <div className="absolute inset-0 bg-black bg-opacity-60"></div>
-      </div>
-
-      {/* Login Content */}
-      <div className="flex-1 flex items-center justify-center p-4 bg-black">
+    <>
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="max-w-md w-full">
           <Card className="bg-gray-900 border-gray-800 shadow-2xl">
             <CardContent className="pt-6">
@@ -463,6 +450,6 @@ export default function AuthLayout() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
