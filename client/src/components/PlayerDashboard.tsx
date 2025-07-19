@@ -46,6 +46,7 @@ import { useLocation } from "wouter";
 import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
+import GreChatDialog from "./GreChatDialog";
 
 // Scrollable Offers Display Component
 const ScrollableOffersDisplay = () => {
@@ -341,6 +342,7 @@ export default function PlayerDashboard() {
   const queryClient = useQueryClient();
   const [callTime, setCallTime] = useState("02:45");
   const [location] = useLocation();
+  const [isChatOpen, setIsChatOpen] = useState(false);
   
   // Feedback system state
   const [feedbackMessage, setFeedbackMessage] = useState("");
@@ -1956,6 +1958,23 @@ export default function PlayerDashboard() {
           </div>
         </Tabs>
       </div>
+
+      {/* Floating GRE Chat Button */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <Button
+          onClick={() => setIsChatOpen(true)}
+          className="w-14 h-14 rounded-full bg-emerald-600 hover:bg-emerald-700 shadow-lg hover:shadow-xl transition-all duration-200"
+          size="lg"
+        >
+          <MessageCircle className="w-6 h-6 text-white" />
+        </Button>
+      </div>
+
+      {/* GRE Chat Dialog */}
+      <GreChatDialog 
+        isOpen={isChatOpen} 
+        onClose={() => setIsChatOpen(false)} 
+      />
     </div>
   );
 }
