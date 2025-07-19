@@ -269,6 +269,8 @@ This player portal is designed to work alongside an existing admin dashboard, sh
 ✅ **STAFF-ONLY PLAYER MANAGEMENT**: Table view now connects to waitlist system showing only players seated by super admin/admin/manager
 ✅ **REMOVED MOCK PLAYER DATA**: Eliminated random online player generation, system shows actual staff-assigned players only
 ✅ **OFFLINE GAME INDICATORS**: Added clear labeling that this is a local offline poker game managed by casino staff
+✅ **SIMPLIFIED TOURNAMENT INTERFACE**: Removed sub-tabs and implemented simple toggle buttons next to logo for Cash Tables and Tournaments
+✅ **CAROUSEL DOT INDICATORS**: Updated offer carousel indicators from bars to small circular dots for cleaner visual design
 
 ## User Preferences
 
