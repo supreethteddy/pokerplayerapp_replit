@@ -340,7 +340,7 @@ export default function PlayerDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [callTime, setCallTime] = useState("02:45");
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
 
   
   // Feedback system state
@@ -1058,8 +1058,7 @@ export default function PlayerDashboard() {
                       {tables?.map((table) => (
                         <div
                           key={table.id}
-                          className="bg-slate-700 p-4 rounded-lg hover:bg-slate-600 transition-colors cursor-pointer"
-                          onClick={() => setLocation(`/table/${table.id}`)}
+                          className="bg-slate-700 p-4 rounded-lg"
                         >
                           <div className="flex justify-between items-start mb-3">
                             <div>
@@ -1091,50 +1090,58 @@ export default function PlayerDashboard() {
                             </div>
                           </div>
 
-                          <div className="flex justify-between items-center" onClick={(e) => e.stopPropagation()}>
-                            {isTableJoined(table.id) ? (
-                              <div className="flex items-center space-x-2">
-                                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
-                                  Joined
-                                </Badge>
-                                <span className="text-sm text-slate-400">
-                                  Position: {getWaitListPosition(table.id)}
-                                </span>
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center space-x-2">
+                              {isTableJoined(table.id) ? (
+                                <>
+                                  <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+                                    Joined
+                                  </Badge>
+                                  <span className="text-sm text-slate-400">
+                                    Position: {getWaitListPosition(table.id)}
+                                  </span>
+                                  <Button
+                                    onClick={() => handleLeaveWaitList(table.id)}
+                                    disabled={leaveWaitListMutation.isPending}
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-red-500 text-red-400 hover:bg-red-500/10"
+                                  >
+                                    {leaveWaitListMutation.isPending ? (
+                                      <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin mr-2" />
+                                    ) : null}
+                                    Leave
+                                  </Button>
+                                </>
+                              ) : (
                                 <Button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleLeaveWaitList(table.id);
-                                  }}
-                                  disabled={leaveWaitListMutation.isPending}
+                                  onClick={() => handleJoinWaitList(table.id)}
+                                  disabled={joinWaitListMutation.isPending}
                                   size="sm"
-                                  variant="outline"
-                                  className="border-red-500 text-red-400 hover:bg-red-500/10"
+                                  className="bg-emerald-500 hover:bg-emerald-600 text-white"
                                 >
-                                  {leaveWaitListMutation.isPending ? (
-                                    <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin mr-2" />
+                                  {joinWaitListMutation.isPending ? (
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
                                   ) : null}
-                                  Leave
+                                  Join Wait-List
                                 </Button>
-                              </div>
-                            ) : (
+                              )}
+                            </div>
+                            
+                            <div className="flex items-center space-x-2">
+                              <Badge variant="secondary" className="bg-slate-600 text-slate-300">
+                                {table.isActive ? 'Active' : 'Inactive'}
+                              </Badge>
                               <Button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleJoinWaitList(table.id);
-                                }}
-                                disabled={joinWaitListMutation.isPending}
+                                onClick={() => setLocation(`/table/${table.id}`)}
                                 size="sm"
-                                className="bg-emerald-500 hover:bg-emerald-600 text-white"
+                                variant="outline"
+                                className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
                               >
-                                {joinWaitListMutation.isPending ? (
-                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                                ) : null}
-                                Join Wait-List
+                                <Eye className="w-4 h-4 mr-1" />
+                                View
                               </Button>
-                            )}
-                            <Badge variant="secondary" className="bg-slate-600 text-slate-300">
-                              {table.isActive ? 'Active' : 'Inactive'}
-                            </Badge>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1163,8 +1170,7 @@ export default function PlayerDashboard() {
                       {tournaments.map((tournament) => (
                         <div
                           key={tournament.id}
-                          className="bg-slate-700 p-4 rounded-lg hover:bg-slate-600 transition-colors cursor-pointer"
-                          onClick={() => setLocation(`/table/${tournament.id}`)}
+                          className="bg-slate-700 p-4 rounded-lg"
                         >
                           <div className="flex justify-between items-start mb-3">
                             <div>
@@ -1203,13 +1209,10 @@ export default function PlayerDashboard() {
                             </div>
                           </div>
 
-                          <div className="flex justify-between items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex justify-between items-center gap-2">
                             <div className="flex gap-2">
                               <Button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleTournamentInterest(tournament.id);
-                                }}
+                                onClick={() => handleTournamentInterest(tournament.id)}
                                 disabled={tournamentActionLoading}
                                 size="sm"
                                 variant="outline"
@@ -1221,10 +1224,7 @@ export default function PlayerDashboard() {
                                 Interested
                               </Button>
                               <Button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleTournamentRegister(tournament.id);
-                                }}
+                                onClick={() => handleTournamentRegister(tournament.id)}
                                 disabled={tournamentActionLoading || tournament.registeredPlayers >= tournament.maxPlayers}
                                 size="sm"
                                 className="bg-yellow-600 hover:bg-yellow-700 text-white"
@@ -1235,16 +1235,28 @@ export default function PlayerDashboard() {
                                 Register
                               </Button>
                             </div>
-                            <Badge 
-                              variant="secondary" 
-                              className={`${
-                                tournament.status === 'upcoming' ? 'bg-green-500/20 text-green-300 border-green-500/30' :
-                                tournament.status === 'ongoing' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' :
-                                'bg-slate-600 text-slate-300'
-                              }`}
-                            >
-                              {tournament.status}
-                            </Badge>
+                            
+                            <div className="flex items-center gap-2">
+                              <Badge 
+                                variant="secondary" 
+                                className={`${
+                                  tournament.status === 'upcoming' ? 'bg-green-500/20 text-green-300 border-green-500/30' :
+                                  tournament.status === 'ongoing' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' :
+                                  'bg-slate-600 text-slate-300'
+                                }`}
+                              >
+                                {tournament.status}
+                              </Badge>
+                              <Button
+                                onClick={() => setLocation(`/table/${tournament.id}`)}
+                                size="sm"
+                                variant="outline"
+                                className="border-purple-500 text-purple-400 hover:bg-purple-500/10"
+                              >
+                                <Eye className="w-4 h-4 mr-1" />
+                                View
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       ))}
