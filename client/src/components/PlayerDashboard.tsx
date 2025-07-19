@@ -1117,8 +1117,27 @@ export default function PlayerDashboard() {
               </Card>
             </div>
 
-            {/* VIP Points System */}
-            {user?.id && <VipPointsDisplay userId={user.id} />}
+            {/* VIP Club Loyalty Program */}
+            <Card className="bg-gradient-to-r from-yellow-900/20 to-yellow-800/20 border-yellow-600/30">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center">
+                  <Star className="w-5 h-5 mr-2 text-yellow-500" />
+                  VIP Club - Loyalty Program
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center justify-center py-12">
+                {/* VIP Shop Button Only */}
+                <Link href="/vip-shop">
+                  <Button 
+                    className="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white font-bold py-6 px-12 text-xl rounded-xl transition-all transform hover:scale-105 shadow-lg"
+                    size="lg"
+                  >
+                    <Star className="w-8 h-8 mr-3" />
+                    Open VIP Shop
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Profile Tab */}
