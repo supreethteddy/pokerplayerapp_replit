@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
 // Dialog removed for document viewer
 import { 
   Spade, 
@@ -32,10 +33,12 @@ import {
   Play,
   Image,
   Star,
-  Calendar
+  Calendar,
+  MessageCircle,
+  Send,
+  Bell
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import type { Table as TableType, SeatRequest, KycDocument } from "@shared/schema";
 import { useLocation } from "wouter";
@@ -208,6 +211,10 @@ export default function PlayerDashboard() {
   const [callTime, setCallTime] = useState("02:45");
   const [location] = useLocation();
   
+  // Feedback system state
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [sendingFeedback, setSendingFeedback] = useState(false);
+  
   // Handle tab navigation from URL parameters
   const getActiveTabFromUrl = () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -372,6 +379,53 @@ export default function PlayerDashboard() {
     enabled: !!user?.id,
     refetchInterval: 2000, // Refresh every 2 seconds
   });
+
+  // Fetch push notifications for the current player
+  const { data: notifications, isLoading: notificationsLoading } = useQuery({
+    queryKey: [`/api/push-notifications/${user?.id}`],
+    enabled: !!user?.id,
+    refetchInterval: 2000, // Real-time notifications
+    refetchOnWindowFocus: true,
+    staleTime: 0
+  });
+
+  // Submit feedback function
+  const submitFeedback = async () => {
+    if (!feedbackMessage.trim() || !user?.id) {
+      toast({
+        title: "Error",
+        description: "Please enter a message",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSendingFeedback(true);
+    try {
+      const response = await apiRequest("POST", "/api/feedback", {
+        playerId: user.id,
+        message: feedbackMessage.trim()
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Feedback Sent",
+          description: "Your message has been sent to management",
+        });
+        setFeedbackMessage("");
+      } else {
+        throw new Error("Failed to send feedback");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to send feedback. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setSendingFeedback(false);
+    }
+  };
 
   // Submit credit request mutation
   const submitCreditRequestMutation = useMutation({
@@ -704,6 +758,13 @@ export default function PlayerDashboard() {
               <User className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
               <span className="truncate">Profile</span>
             </TabsTrigger>
+            <TabsTrigger 
+              value="feedback" 
+              className="flex-1 px-1 sm:px-2 lg:px-3 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+            >
+              <MessageCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 flex-shrink-0" />
+              <span className="truncate">Feedback</span>
+            </TabsTrigger>
           </TabsList>
 
           {/* Tab Content Areas */}
@@ -981,39 +1042,6 @@ export default function PlayerDashboard() {
                                 <p className="text-xs text-emerald-500">
                                   {kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0].fileName}
                                 </p>
-                                <Button 
-                                  size="sm" 
-                                  variant="outline" 
-                                  className="text-xs h-6 px-2 border-slate-600 text-slate-400 hover:bg-slate-700"
-                                  onClick={() => {
-                                    const doc = kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0];
-                                    if (doc && doc.fileUrl) {
-                                      try {
-                                        // Use the document URL directly if it's a full URL, otherwise use the API endpoint
-                                        const documentUrl = doc.fileUrl.startsWith('http') 
-                                          ? doc.fileUrl 
-                                          : `/api/documents/view/${doc.id}`;
-                                        console.log('Opening document:', documentUrl);
-                                        // Try to open in new tab, fallback to current tab
-                                        const newTab = window.open(documentUrl, '_blank', 'noopener,noreferrer');
-                                        if (!newTab) {
-                                          // If popup blocked, open in current tab
-                                          window.location.href = documentUrl;
-                                        }
-                                      } catch (error) {
-                                        console.error('Error opening document:', error);
-                                        toast({
-                                          title: "Error",
-                                          description: "Unable to open document",
-                                          variant: "destructive",
-                                        });
-                                      }
-                                    }
-                                  }}
-                                >
-                                  <Eye className="w-3 h-3 mr-1" />
-                                  View
-                                </Button>
                               </div>
                             )}
                           </div>
@@ -1116,39 +1144,6 @@ export default function PlayerDashboard() {
                                 <p className="text-xs text-emerald-500">
                                   {kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl)[0].fileName}
                                 </p>
-                                <Button 
-                                  size="sm" 
-                                  variant="outline" 
-                                  className="text-xs h-6 px-2 border-slate-600 text-slate-400 hover:bg-slate-700"
-                                  onClick={() => {
-                                    const doc = kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl)[0];
-                                    if (doc && doc.fileUrl) {
-                                      try {
-                                        // Use the document URL directly if it's a full URL, otherwise use the API endpoint
-                                        const documentUrl = doc.fileUrl.startsWith('http') 
-                                          ? doc.fileUrl 
-                                          : `/api/documents/view/${doc.id}`;
-                                        console.log('Opening document:', documentUrl);
-                                        // Try to open in new tab, fallback to current tab
-                                        const newTab = window.open(documentUrl, '_blank', 'noopener,noreferrer');
-                                        if (!newTab) {
-                                          // If popup blocked, open in current tab
-                                          window.location.href = documentUrl;
-                                        }
-                                      } catch (error) {
-                                        console.error('Error opening document:', error);
-                                        toast({
-                                          title: "Error",
-                                          description: "Unable to open document",
-                                          variant: "destructive",
-                                        });
-                                      }
-                                    }
-                                  }}
-                                >
-                                  <Eye className="w-3 h-3 mr-1" />
-                                  View
-                                </Button>
                               </div>
                             )}
                           </div>
@@ -1251,39 +1246,6 @@ export default function PlayerDashboard() {
                                 <p className="text-xs text-emerald-500">
                                   {kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0].fileName}
                                 </p>
-                                <Button 
-                                  size="sm" 
-                                  variant="outline" 
-                                  className="text-xs h-6 px-2 border-slate-600 text-slate-400 hover:bg-slate-700"
-                                  onClick={() => {
-                                    const doc = kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0];
-                                    if (doc && doc.fileUrl) {
-                                      try {
-                                        // Use the document URL directly if it's a full URL, otherwise use the API endpoint
-                                        const documentUrl = doc.fileUrl.startsWith('http') 
-                                          ? doc.fileUrl 
-                                          : `/api/documents/view/${doc.id}`;
-                                        console.log('Opening document:', documentUrl);
-                                        // Try to open in new tab, fallback to current tab
-                                        const newTab = window.open(documentUrl, '_blank', 'noopener,noreferrer');
-                                        if (!newTab) {
-                                          // If popup blocked, open in current tab
-                                          window.location.href = documentUrl;
-                                        }
-                                      } catch (error) {
-                                        console.error('Error opening document:', error);
-                                        toast({
-                                          title: "Error",
-                                          description: "Unable to open document",
-                                          variant: "destructive",
-                                        });
-                                      }
-                                    }
-                                  }}
-                                >
-                                  <Eye className="w-3 h-3 mr-1" />
-                                  View
-                                </Button>
                               </div>
                             )}
                           </div>
@@ -1630,6 +1592,105 @@ export default function PlayerDashboard() {
                   </div>
                 </CardContent>
               </Card>
+              </div>
+            </TabsContent>
+
+            {/* Feedback Tab */}
+            <TabsContent value="feedback" className="flex-1 overflow-y-auto">
+              <div className="space-y-4">
+                {/* Feedback Form */}
+                <Card className="bg-slate-800 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <MessageCircle className="w-5 h-5 mr-2 text-emerald-500" />
+                      Send Feedback to Management
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-white">Message</label>
+                      <textarea
+                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
+                        rows={5}
+                        value={feedbackMessage}
+                        onChange={(e) => setFeedbackMessage(e.target.value)}
+                        placeholder="Share your feedback, suggestions, or concerns with our management team..."
+                        disabled={sendingFeedback}
+                      />
+                    </div>
+                    <Button 
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
+                      onClick={submitFeedback}
+                      disabled={sendingFeedback || !feedbackMessage.trim()}
+                    >
+                      {sendingFeedback ? (
+                        <div className="animate-spin w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full" />
+                      ) : (
+                        <Send className="w-4 h-4 mr-2" />
+                      )}
+                      {sendingFeedback ? "Sending..." : "Send Feedback"}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Push Notifications */}
+                <Card className="bg-slate-800 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <Bell className="w-5 h-5 mr-2 text-emerald-500" />
+                      Notifications from Management
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="max-h-[400px] overflow-y-auto space-y-3">
+                      {notificationsLoading ? (
+                        <div className="space-y-3">
+                          {[1, 2, 3].map((i) => (
+                            <div key={i} className="bg-slate-700 p-3 rounded-lg animate-pulse">
+                              <div className="h-4 bg-slate-600 rounded mb-2"></div>
+                              <div className="h-3 bg-slate-600 rounded w-3/4"></div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : notifications && notifications.length > 0 ? (
+                        notifications.map((notification: any) => (
+                          <div 
+                            key={notification.id} 
+                            className={`p-4 rounded-lg border-l-4 ${
+                              notification.priority === 'urgent' ? 'border-red-500 bg-red-900/20' :
+                              notification.priority === 'high' ? 'border-yellow-500 bg-yellow-900/20' :
+                              'border-emerald-500 bg-emerald-900/20'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <h4 className="font-medium text-white mb-1">{notification.title}</h4>
+                                <p className="text-slate-300 text-sm mb-2">{notification.message}</p>
+                                <div className="flex items-center text-xs text-slate-400">
+                                  <span className="bg-slate-700 px-2 py-1 rounded mr-2">
+                                    {notification.sender_role.toUpperCase()}
+                                  </span>
+                                  <span>{notification.sender_name}</span>
+                                  <span className="mx-2">•</span>
+                                  <span>{new Date(notification.created_at).toLocaleString()}</span>
+                                </div>
+                              </div>
+                              {notification.priority === 'urgent' && (
+                                <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 ml-2" />
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8">
+                          <Bell className="w-12 h-12 text-slate-500 mx-auto mb-3" />
+                          <p className="text-slate-400 text-sm">No notifications yet</p>
+                          <p className="text-slate-500 text-xs">You'll receive real-time messages from staff here</p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </TabsContent>
           </div>

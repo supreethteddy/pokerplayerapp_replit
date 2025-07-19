@@ -3904,6 +3904,210 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== FEEDBACK SYSTEM =====
+  
+  // Submit player feedback
+  app.post("/api/feedback", async (req, res) => {
+    try {
+      const { playerId, message } = req.body;
+      
+      if (!playerId || !message) {
+        return res.status(400).json({ error: "Player ID and message are required" });
+      }
+      
+      // Insert feedback into Supabase
+      const { data, error } = await localSupabase
+        .from('player_feedback')
+        .insert({
+          player_id: playerId,
+          message: message,
+          status: 'unread'
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('[FEEDBACK] Error inserting feedback:', error);
+        return res.status(500).json({ error: 'Failed to submit feedback' });
+      }
+      
+      console.log(`[FEEDBACK] New feedback submitted by player ${playerId}: ${message.substring(0, 50)}...`);
+      
+      res.json({ 
+        success: true, 
+        feedbackId: data.id,
+        message: "Feedback submitted successfully" 
+      });
+    } catch (error: any) {
+      console.error('[FEEDBACK] Unexpected error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get player feedback history
+  app.get("/api/feedback/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      
+      const { data, error } = await localSupabase
+        .from('player_feedback')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+      
+      res.json(data || []);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // ===== PUSH NOTIFICATION SYSTEM =====
+  
+  // Send push notification from staff to player
+  app.post("/api/push-notifications", async (req, res) => {
+    try {
+      const { 
+        senderId, 
+        senderName, 
+        senderRole, 
+        targetPlayerId, 
+        title, 
+        message, 
+        messageType = 'text',
+        mediaUrl,
+        priority = 'normal',
+        broadcastToAll = false
+      } = req.body;
+      
+      if (!senderId || !senderName || !senderRole || !title || !message) {
+        return res.status(400).json({ 
+          error: "Sender ID, name, role, title, and message are required" 
+        });
+      }
+      
+      // Insert notification into Supabase
+      const { data, error } = await localSupabase
+        .from('push_notifications')
+        .insert({
+          sender_id: senderId,
+          sender_name: senderName,
+          sender_role: senderRole,
+          target_player_id: targetPlayerId,
+          title,
+          message,
+          message_type: messageType,
+          media_url: mediaUrl,
+          priority,
+          broadcast_to_all: broadcastToAll,
+          status: 'sent'
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('[PUSH_NOTIFICATION] Error inserting notification:', error);
+        return res.status(500).json({ error: 'Failed to send notification' });
+      }
+      
+      console.log(`[PUSH_NOTIFICATION] New notification sent by ${senderName} (${senderRole}) to ${broadcastToAll ? 'all players' : `player ${targetPlayerId}`}: ${title}`);
+      
+      res.json({ 
+        success: true, 
+        notificationId: data.id,
+        message: "Notification sent successfully" 
+      });
+    } catch (error: any) {
+      console.error('[PUSH_NOTIFICATION] Unexpected error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get notifications for a specific player
+  app.get("/api/push-notifications/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      
+      // Get both targeted and broadcast notifications
+      const { data, error } = await localSupabase
+        .from('push_notifications')
+        .select('*')
+        .or(`target_player_id.eq.${playerId},broadcast_to_all.eq.true`)
+        .order('created_at', { ascending: false })
+        .limit(50); // Limit to last 50 notifications
+      
+      if (error) {
+        console.error('[PUSH_NOTIFICATION] Error fetching notifications:', error);
+        return res.status(500).json({ error: error.message });
+      }
+      
+      console.log(`[PUSH_NOTIFICATION] Fetched ${data?.length || 0} notifications for player ${playerId}`);
+      
+      res.json(data || []);
+    } catch (error: any) {
+      console.error('[PUSH_NOTIFICATION] Unexpected error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Mark notification as read
+  app.patch("/api/push-notifications/:notificationId/read", async (req, res) => {
+    try {
+      const notificationId = parseInt(req.params.notificationId);
+      
+      const { error } = await localSupabase
+        .from('push_notifications')
+        .update({ 
+          status: 'read',
+          read_at: new Date().toISOString()
+        })
+        .eq('id', notificationId);
+      
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+      
+      res.json({ success: true, message: "Notification marked as read" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get notification statistics for staff
+  app.get("/api/notification-stats", async (req, res) => {
+    try {
+      const { data, error } = await localSupabase
+        .from('push_notifications')
+        .select('status, priority, message_type, created_at');
+      
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+      
+      const stats = {
+        totalNotifications: data?.length || 0,
+        sentNotifications: data?.filter(n => n.status === 'sent').length || 0,
+        readNotifications: data?.filter(n => n.status === 'read').length || 0,
+        highPriorityNotifications: data?.filter(n => n.priority === 'high').length || 0,
+        urgentNotifications: data?.filter(n => n.priority === 'urgent').length || 0,
+        textNotifications: data?.filter(n => n.message_type === 'text').length || 0,
+        imageNotifications: data?.filter(n => n.message_type === 'image').length || 0,
+        videoNotifications: data?.filter(n => n.message_type === 'video').length || 0,
+        todayNotifications: data?.filter(n => {
+          const today = new Date().toDateString();
+          return new Date(n.created_at).toDateString() === today;
+        }).length || 0
+      };
+      
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

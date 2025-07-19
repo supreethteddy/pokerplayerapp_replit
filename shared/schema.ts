@@ -70,6 +70,36 @@ export const kycDocuments = pgTable("kyc_documents", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Player feedback messages directed to admins
+export const playerFeedback = pgTable("player_feedback", {
+  id: serial("id").primaryKey(),
+  playerId: integer("player_id").references(() => players.id),
+  message: text("message").notNull(),
+  status: text("status").notNull().default("unread"), // unread, read, responded
+  response: text("response"), // Admin response to feedback
+  respondedBy: text("responded_by"), // Admin who responded
+  respondedAt: timestamp("responded_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Push notifications from staff to players
+export const pushNotifications = pgTable("push_notifications", {
+  id: serial("id").primaryKey(),
+  senderId: text("sender_id").notNull(), // ID of staff member sending
+  senderName: text("sender_name").notNull(), // Name of sender
+  senderRole: text("sender_role").notNull(), // admin, manager, gre
+  targetPlayerId: integer("target_player_id").references(() => players.id), // null for broadcast
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  messageType: text("message_type").notNull().default("text"), // text, image, video
+  mediaUrl: text("media_url"), // URL for image/video content
+  priority: text("priority").notNull().default("normal"), // low, normal, high, urgent
+  status: text("status").notNull().default("sent"), // sent, delivered, read
+  broadcastToAll: boolean("broadcast_to_all").default(false),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const transactions = pgTable("transactions", {
   id: serial("id").primaryKey(),
   universalId: text("universal_id").unique(), // Enterprise-grade universal ID
@@ -203,3 +233,25 @@ export type OfferBanner = typeof offerBanners.$inferSelect;
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type SyncActivityLog = typeof syncActivityLog.$inferSelect;
 export type InsertSyncActivityLog = z.infer<typeof insertSyncActivityLogSchema>;
+
+// Staff offers system
+export const insertStaffOfferSchema = createInsertSchema(staffOffers).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertStaffOffer = z.infer<typeof insertStaffOfferSchema>;
+export type StaffOffer = typeof staffOffers.$inferSelect;
+
+export const insertCarouselItemSchema = createInsertSchema(carouselItems).omit({ id: true, createdAt: true });
+export type InsertCarouselItem = z.infer<typeof insertCarouselItemSchema>;
+export type CarouselItem = typeof carouselItems.$inferSelect;
+
+export const insertOfferViewSchema = createInsertSchema(offerViews).omit({ id: true });
+export type InsertOfferView = z.infer<typeof insertOfferViewSchema>;
+export type OfferView = typeof offerViews.$inferSelect;
+
+// Feedback and Push Notification Schemas
+export const insertPlayerFeedbackSchema = createInsertSchema(playerFeedback).omit({ id: true, createdAt: true });
+export type InsertPlayerFeedback = z.infer<typeof insertPlayerFeedbackSchema>;
+export type PlayerFeedback = typeof playerFeedback.$inferSelect;
+
+export const insertPushNotificationSchema = createInsertSchema(pushNotifications).omit({ id: true, createdAt: true });
+export type InsertPushNotification = z.infer<typeof insertPushNotificationSchema>;
+export type PushNotification = typeof pushNotifications.$inferSelect;
