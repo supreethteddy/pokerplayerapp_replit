@@ -687,6 +687,9 @@ export default function PlayerDashboard() {
           </TabsTrigger>
         </TabsList>
 
+        {/* Tab Content Areas */}
+        <div className="mt-6">
+
           {/* Game Tab */}
           <TabsContent value="game" className="space-y-4">
             {/* Staff-Managed Offer Carousel */}
@@ -1582,7 +1585,8 @@ export default function PlayerDashboard() {
               </Card>
             </div>
           </TabsContent>
-        </Tabs>
+        </div>
+      </Tabs>
     </div>
   );
 }
