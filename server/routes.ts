@@ -4939,7 +4939,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { data: agents, error: agentsError } = await staffPortalSupabase
         .from('gre_online_status')
-        .select('id')
+        .select('gre_id')
         .limit(1);
 
       const health = {
@@ -4972,6 +4972,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: error.message,
         timestamp: new Date().toISOString()
       });
+    }
+  });
+
+  // GRE Admin API endpoints for Staff Portal integration
+  app.get("/api/gre-admin/chat-sessions", async (req, res) => {
+    try {
+      console.log('🎯 [GRE ADMIN] Fetching all active chat sessions...');
+      
+      const { data: sessions, error } = await staffPortalSupabase
+        .from('gre_chat_sessions')
+        .select(`
+          *,
+          gre_chat_messages(*)
+        `)
+        .eq('status', 'active')
+        .order('last_message_at', { ascending: false });
+      
+      if (error) {
+        console.error('❌ [GRE ADMIN] Error fetching chat sessions:', error);
+        return res.status(500).json({ error: "Failed to fetch chat sessions" });
+      }
+      
+      console.log(`✅ [GRE ADMIN] Retrieved ${sessions?.length || 0} active chat sessions`);
+      res.json(sessions || []);
+    } catch (error: any) {
+      console.error('❌ [GRE ADMIN] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/gre-admin/chat-sessions/:sessionId/messages", async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      console.log(`🎯 [GRE ADMIN] Fetching messages for session: ${sessionId}`);
+      
+      const { data: messages, error } = await staffPortalSupabase
+        .from('gre_chat_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('timestamp', { ascending: true });
+      
+      if (error) {
+        console.error('❌ [GRE ADMIN] Error fetching messages:', error);
+        return res.status(500).json({ error: "Failed to fetch messages" });
+      }
+      
+      console.log(`✅ [GRE ADMIN] Retrieved ${messages?.length || 0} messages for session ${sessionId}`);
+      res.json(messages || []);
+    } catch (error: any) {
+      console.error('❌ [GRE ADMIN] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/gre-admin/chat-sessions/:sessionId/reply", async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const { message, greId, greName } = req.body;
+      
+      console.log(`🎯 [GRE ADMIN] Sending reply to session: ${sessionId}`);
+      
+      // Get session details
+      const { data: session, error: sessionError } = await staffPortalSupabase
+        .from('gre_chat_sessions')
+        .select('player_id')
+        .eq('id', sessionId)
+        .single();
+      
+      if (sessionError) {
+        throw new Error(`Session not found: ${sessionError.message}`);
+      }
+      
+      // Insert GRE reply message
+      const { data: replyMessage, error: messageError } = await staffPortalSupabase
+        .from('gre_chat_messages')
+        .insert({
+          session_id: sessionId,
+          player_id: session.player_id,
+          message: message.trim(),
+          sender: 'gre',
+          sender_name: greName || 'Guest Relations',
+          timestamp: new Date().toISOString(),
+          status: 'sent',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          request_id: 0
+        })
+        .select()
+        .single();
+      
+      if (messageError) {
+        throw new Error(`Failed to send reply: ${messageError.message}`);
+      }
+      
+      // Update session with GRE assignment and last message time
+      await staffPortalSupabase
+        .from('gre_chat_sessions')
+        .update({
+          gre_id: greId,
+          last_message_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', sessionId);
+      
+      console.log(`✅ [GRE ADMIN] Reply sent successfully - Message ID: ${replyMessage.id}`);
+      res.json({ success: true, message: replyMessage });
+    } catch (error: any) {
+      console.error('❌ [GRE ADMIN] Error sending reply:', error);
+      res.status(500).json({ error: error.message });
     }
   });
 
