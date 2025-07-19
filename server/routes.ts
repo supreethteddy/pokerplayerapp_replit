@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketServer, WebSocket } from "ws";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from 'url';
@@ -4194,6 +4195,165 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+
+  // WebSocket server for real-time GRE chat
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  
+  // Store active WebSocket connections by player ID
+  const playerConnections = new Map<number, WebSocket>();
+
+  wss.on('connection', (ws: WebSocket, request) => {
+    console.log('🔗 [WEBSOCKET] New connection established');
+    
+    let playerId: number | null = null;
+
+    ws.on('message', async (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        console.log('📨 [WEBSOCKET] Received message:', data);
+
+        if (data.type === 'authenticate') {
+          playerId = data.playerId;
+          playerConnections.set(playerId, ws);
+          console.log(`🔐 [WEBSOCKET] Player ${playerId} authenticated and connected`);
+          
+          // Send confirmation
+          ws.send(JSON.stringify({
+            type: 'authenticated',
+            playerId: playerId,
+            message: 'Successfully connected to GRE chat'
+          }));
+        }
+
+        if (data.type === 'chat_message' && playerId) {
+          console.log(`💬 [WEBSOCKET] Processing chat message from player ${playerId}`);
+          
+          // Create or get chat session
+          let sessionId = `session_${playerId}_${Date.now()}`;
+          
+          // Check if player has existing session
+          const { data: existingSessions } = await staffPortalSupabase
+            .from('gre_chat_sessions')
+            .select('session_id')
+            .eq('player_id', playerId)
+            .eq('status', 'active')
+            .limit(1);
+
+          if (existingSessions && existingSessions.length > 0) {
+            sessionId = existingSessions[0].session_id;
+          } else {
+            // Create new session
+            await staffPortalSupabase
+              .from('gre_chat_sessions')
+              .insert({
+                session_id: sessionId,
+                player_id: playerId,
+                player_name: data.playerName || `Player ${playerId}`,
+                status: 'active',
+                created_at: new Date().toISOString()
+              });
+          }
+
+          // Store the message
+          const { data: messageData, error: messageError } = await staffPortalSupabase
+            .from('gre_chat_messages')
+            .insert({
+              session_id: sessionId,
+              player_id: playerId,
+              player_name: data.playerName || `Player ${playerId}`,
+              message: data.message,
+              sender: 'player',
+              sender_name: data.playerName || `Player ${playerId}`,
+              timestamp: new Date().toISOString(),
+              status: 'sent'
+            })
+            .select()
+            .single();
+
+          if (messageError) {
+            console.error('❌ [WEBSOCKET] Error saving message:', messageError);
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Failed to send message'
+            }));
+            return;
+          }
+
+          console.log('✅ [WEBSOCKET] Message saved successfully');
+
+          // Send confirmation to player
+          ws.send(JSON.stringify({
+            type: 'message_sent',
+            message: 'Message sent successfully',
+            messageData: messageData
+          }));
+
+          // Broadcast to GRE staff (this would be handled by Staff Portal WebSocket)
+          console.log(`📢 [WEBSOCKET] Message from player ${playerId} ready for GRE staff`);
+        }
+
+        if (data.type === 'get_messages' && playerId) {
+          // Fetch recent messages for this player
+          const { data: messages } = await staffPortalSupabase
+            .from('gre_chat_messages')
+            .select('*')
+            .eq('player_id', playerId)
+            .order('created_at', { ascending: true })
+            .limit(50);
+
+          ws.send(JSON.stringify({
+            type: 'chat_history',
+            messages: messages || []
+          }));
+        }
+
+      } catch (error) {
+        console.error('❌ [WEBSOCKET] Error processing message:', error);
+        ws.send(JSON.stringify({
+          type: 'error',
+          message: 'Invalid message format'
+        }));
+      }
+    });
+
+    ws.on('close', () => {
+      if (playerId) {
+        playerConnections.delete(playerId);
+        console.log(`🔌 [WEBSOCKET] Player ${playerId} disconnected`);
+      }
+    });
+
+    ws.on('error', (error) => {
+      console.error('❌ [WEBSOCKET] Connection error:', error);
+    });
+  });
+
+  // Function to send messages to specific players (for GRE staff replies)
+  app.post('/api/gre-chat/send-to-player', async (req, res) => {
+    try {
+      const { playerId, message, greStaffName = 'Guest Relations Team' } = req.body;
+      
+      const playerWs = playerConnections.get(playerId);
+      if (playerWs && playerWs.readyState === WebSocket.OPEN) {
+        playerWs.send(JSON.stringify({
+          type: 'new_message',
+          message: {
+            sender: 'gre',
+            sender_name: greStaffName,
+            message: message,
+            timestamp: new Date().toISOString()
+          }
+        }));
+        
+        res.json({ success: true, message: 'Message sent to player via WebSocket' });
+      } else {
+        res.json({ success: false, message: 'Player not connected via WebSocket' });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Feedback System API Endpoints
   app.post("/api/feedback", async (req, res) => {
     try {
@@ -5181,6 +5341,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Tournament interest endpoint (sends to GRE) - already handled in GRE chat endpoint
+
+
 
   return httpServer;
 }

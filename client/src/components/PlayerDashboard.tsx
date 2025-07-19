@@ -639,7 +639,7 @@ export default function PlayerDashboard() {
     }
   };
 
-  // GRE Chat functionality
+  // GRE Chat functionality - Now using WebSocket for real-time chat
   const sendChatMessage = async () => {
     if (!chatMessage.trim() || !user?.id) {
       toast({
@@ -651,7 +651,33 @@ export default function PlayerDashboard() {
     }
 
     setSendingChatMessage(true);
+    
+    // Try WebSocket first for real-time chat
+    if (wsConnection && wsConnected) {
+      try {
+        console.log('📤 [WEBSOCKET] Sending message via WebSocket');
+        wsConnection.send(JSON.stringify({
+          type: 'chat_message',
+          playerId: user.id,
+          playerName: `${user.firstName} ${user.lastName}`,
+          message: chatMessage.trim()
+        }));
+        
+        toast({
+          title: "Message Sent",
+          description: "Your message has been sent to our team via real-time chat",
+        });
+        setChatMessage("");
+        setSendingChatMessage(false);
+        return;
+      } catch (error) {
+        console.error('❌ [WEBSOCKET] Failed to send via WebSocket, falling back to REST API');
+      }
+    }
+    
+    // Fallback to REST API if WebSocket is not available
     try {
+      console.log('📤 [REST API] Sending message via REST API fallback');
       const response = await apiRequest("POST", "/api/gre-chat/send", {
         playerId: user.id,
         playerName: `${user.firstName} ${user.lastName}`,
@@ -691,13 +717,104 @@ export default function PlayerDashboard() {
     staleTime: 0
   });
 
+  // WebSocket connection for real-time GRE chat
+  const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [realtimeChatMessages, setRealtimeChatMessages] = useState<any[]>([]);
+
+  // Initialize WebSocket connection
+  useEffect(() => {
+    if (user?.id && !wsConnection) {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      
+      console.log('🔗 [WEBSOCKET] Connecting to:', wsUrl);
+      const ws = new WebSocket(wsUrl);
+      
+      ws.onopen = () => {
+        console.log('✅ [WEBSOCKET] Connected successfully');
+        setWsConnected(true);
+        
+        // Authenticate with player ID
+        ws.send(JSON.stringify({
+          type: 'authenticate',
+          playerId: user.id,
+          playerName: `${user.firstName} ${user.lastName}`
+        }));
+        
+        // Request chat history
+        ws.send(JSON.stringify({
+          type: 'get_messages',
+          playerId: user.id
+        }));
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('📨 [WEBSOCKET] Received:', data);
+          
+          if (data.type === 'authenticated') {
+            console.log('🔐 [WEBSOCKET] Authentication successful');
+          }
+          
+          if (data.type === 'chat_history') {
+            console.log('📋 [WEBSOCKET] Chat history received:', data.messages.length, 'messages');
+            setRealtimeChatMessages(data.messages);
+          }
+          
+          if (data.type === 'new_message') {
+            console.log('💬 [WEBSOCKET] New message received from GRE');
+            setRealtimeChatMessages(prev => [...prev, data.message]);
+          }
+          
+          if (data.type === 'message_sent') {
+            console.log('✅ [WEBSOCKET] Message sent confirmation');
+            // Refresh chat history
+            ws.send(JSON.stringify({
+              type: 'get_messages',
+              playerId: user.id
+            }));
+          }
+          
+        } catch (error) {
+          console.error('❌ [WEBSOCKET] Error parsing message:', error);
+        }
+      };
+      
+      ws.onclose = () => {
+        console.log('🔌 [WEBSOCKET] Connection closed');
+        setWsConnected(false);
+        setWsConnection(null);
+      };
+      
+      ws.onerror = (error) => {
+        console.error('❌ [WEBSOCKET] Connection error:', error);
+        setWsConnected(false);
+      };
+      
+      setWsConnection(ws);
+    }
+    
+    // Cleanup WebSocket on unmount
+    return () => {
+      if (wsConnection) {
+        wsConnection.close();
+      }
+    };
+  }, [user?.id]);
+
   // Debug: Log chat messages to console
   useEffect(() => {
     if (chatMessages) {
-      console.log('💬 [DEBUG] Chat messages received:', chatMessages);
-      console.log('💬 [DEBUG] Chat messages length:', chatMessages.length);
+      console.log('💬 [DEBUG] REST API Chat messages received:', chatMessages);
+      console.log('💬 [DEBUG] REST API Chat messages length:', chatMessages.length);
     }
-  }, [chatMessages]);
+    if (realtimeChatMessages.length > 0) {
+      console.log('🔗 [DEBUG] WebSocket Chat messages:', realtimeChatMessages);
+      console.log('🔗 [DEBUG] WebSocket Chat messages length:', realtimeChatMessages.length);
+    }
+  }, [chatMessages, realtimeChatMessages]);
 
   // Submit credit request mutation
   const submitCreditRequestMutation = useMutation({
@@ -2087,8 +2204,8 @@ export default function PlayerDashboard() {
                           Guest Relations Support
                         </CardTitle>
                         <div className="flex items-center space-x-2 text-sm text-slate-400">
-                          <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
-                          <span>Available 24/7</span>
+                          <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-400 animate-pulse' : 'bg-orange-400'}`}></div>
+                          <span>{wsConnected ? 'Real-time chat connected' : 'Available 24/7'}</span>
                         </div>
                       </div>
                     </div>
@@ -2101,8 +2218,8 @@ export default function PlayerDashboard() {
                           <MessageCircle className="w-8 h-8 mx-auto mb-2 animate-pulse" />
                           Loading chat history...
                         </div>
-                      ) : chatMessages && chatMessages.length > 0 ? (
-                        chatMessages.map((message: any, index: number) => (
+                      ) : realtimeChatMessages.length > 0 ? (
+                        realtimeChatMessages.map((message: any, index: number) => (
                           <div
                             key={index}
                             className={`flex ${
