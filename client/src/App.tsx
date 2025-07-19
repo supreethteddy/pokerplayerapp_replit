@@ -17,12 +17,15 @@ function AppContent() {
   const [showLoadingScreen, setShowLoadingScreen] = useState(false);
   const [hasShownLoadingScreen, setHasShownLoadingScreen] = useState(false);
 
-  // Show loading screen when user signs in (but not on initial page load if already signed in)
+  // Show loading screen when user signs in 
   useEffect(() => {
-    if (user && !hasShownLoadingScreen && !loading) {
-      // Check if this is a fresh sign-in by looking at session storage
+    if (user && !loading && !hasShownLoadingScreen) {
+      // Check if user just signed in or is returning to a session
       const justSignedIn = sessionStorage.getItem('just_signed_in');
+      
+      // Always show loading screen for fresh sign-ins
       if (justSignedIn) {
+        console.log('Fresh sign-in detected - showing loading screen with video');
         setShowLoadingScreen(true);
         sessionStorage.removeItem('just_signed_in');
       }

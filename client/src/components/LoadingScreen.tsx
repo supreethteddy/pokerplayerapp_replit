@@ -16,19 +16,22 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
     setVideoLoaded(false);
     setShowFallback(false);
     
-    // Auto-complete after 10 seconds maximum
+    // Auto-complete after 15 seconds maximum to give video more time
     const maxTimer = setTimeout(() => {
+      console.log('Loading screen max timer reached');
       setShowVideo(false);
       onComplete();
-    }, 10000);
+    }, 15000);
 
-    // Show fallback after 3 seconds if video doesn't load
+    // Show fallback after 5 seconds if video doesn't load
     const fallbackTimer = setTimeout(() => {
       if (!videoLoaded) {
+        console.log('Video not loaded, showing fallback');
         setShowFallback(true);
       }
-    }, 3000);
+    }, 5000);
 
+    // Clear session storage flags to ensure video shows next time
     return () => {
       clearTimeout(maxTimer);
       clearTimeout(fallbackTimer);
@@ -43,9 +46,27 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
   };
 
   const handleVideoLoad = () => {
-    console.log('Video loaded successfully');
+    console.log('Video loaded successfully - attempting autoplay with audio');
     setVideoLoaded(true);
     setShowFallback(false);
+    
+    // Ensure video plays with audio - try multiple times if needed
+    const video = document.querySelector('video');
+    if (video) {
+      // Force unmute and try to play
+      video.muted = false;
+      video.volume = 1.0;
+      
+      const attemptPlay = () => {
+        video.play().catch((error) => {
+          console.error('Video autoplay failed:', error);
+          // Try again after a short delay
+          setTimeout(attemptPlay, 100);
+        });
+      };
+      
+      attemptPlay();
+    }
   };
 
   const handleVideoError = (e: any) => {
@@ -68,7 +89,8 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
           className="w-full h-full object-cover"
           style={{ display: showFallback ? 'none' : 'block' }}
           controls={false}
-          preload="auto"
+          preload="metadata"
+          key={Date.now()} // Force fresh video load
         >
           <source src={tiltReelsVideo} type="video/mp4" />
           Your browser does not support the video tag.

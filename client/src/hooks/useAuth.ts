@@ -223,6 +223,9 @@ export function useAuth() {
         throw error;
       }
 
+      // Set session storage flag to trigger loading screen
+      sessionStorage.setItem('just_signed_in', 'true');
+      
       toast({
         title: "Welcome Back",
         description: "Successfully signed in",

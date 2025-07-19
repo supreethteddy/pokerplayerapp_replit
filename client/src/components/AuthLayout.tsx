@@ -245,12 +245,7 @@ export default function AuthLayout() {
         }}
       >
         <div className="absolute inset-0 bg-black bg-opacity-60"></div>
-        <div className="relative z-10 flex items-center justify-center h-full">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-white mb-2">Tilt Room</h1>
-            <p className="text-slate-300">Player Portal</p>
-          </div>
-        </div>
+
       </div>
 
       {/* Login Content */}
