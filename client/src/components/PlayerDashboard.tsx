@@ -656,31 +656,31 @@ export default function PlayerDashboard() {
 
       {/* Navigation Tabs */}
       <Tabs defaultValue="game" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-6 bg-slate-800 border border-slate-700 rounded-lg">
+        <TabsList className="flex w-full justify-between mb-6 bg-slate-800 border border-slate-700 rounded-lg p-1">
           <TabsTrigger 
             value="game" 
-            className="px-4 py-3 text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300"
+            className="flex-1 px-3 py-2 text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center"
           >
             <Spade className="w-4 h-4 mr-2" />
             Game
           </TabsTrigger>
           <TabsTrigger 
             value="balance" 
-            className="px-4 py-3 text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300"
+            className="flex-1 px-3 py-2 text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center"
           >
             <CreditCard className="w-4 h-4 mr-2" />
             Offers
           </TabsTrigger>
           <TabsTrigger 
             value="stats" 
-            className="px-4 py-3 text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300"
+            className="flex-1 px-3 py-2 text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center"
           >
             <BarChart3 className="w-4 h-4 mr-2" />
             My Stats
           </TabsTrigger>
           <TabsTrigger 
             value="profile" 
-            className="px-4 py-3 text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300"
+            className="flex-1 px-3 py-2 text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center"
           >
             <User className="w-4 h-4 mr-2" />
             Profile
