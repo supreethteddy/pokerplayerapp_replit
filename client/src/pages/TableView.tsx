@@ -64,22 +64,32 @@ const PokerCard = ({ card }: { card: string }) => {
 };
 
 const PlayerSeat = ({ player, position, total }: { player: Player | null, position: number, total: number }) => {
-  // Calculate position around the elliptical table
+  // Calculate position around the elliptical table - more realistic positioning
   const angle = (position / total) * 2 * Math.PI - Math.PI / 2;
-  const radiusX = 45; // Horizontal radius percentage
-  const radiusY = 35; // Vertical radius percentage
+  const radiusX = 42; // Horizontal radius percentage
+  const radiusY = 32; // Vertical radius percentage
   
   const x = 50 + radiusX * Math.cos(angle);
   const y = 50 + radiusY * Math.sin(angle);
 
   if (!player) {
+    // Empty chair - styled like the images
     return (
       <div 
         className="absolute transform -translate-x-1/2 -translate-y-1/2"
         style={{ left: `${x}%`, top: `${y}%` }}
       >
-        <div className="w-16 h-16 border-2 border-dashed border-gray-400 rounded-full flex items-center justify-center bg-gray-100/10">
-          <Users className="w-6 h-6 text-gray-400" />
+        <div className="relative">
+          {/* Chair back */}
+          <div className="w-20 h-24 bg-gradient-to-b from-amber-900 to-amber-800 rounded-t-3xl border-2 border-amber-700 shadow-lg">
+            {/* Chair seat */}
+            <div className="absolute bottom-0 w-20 h-16 bg-gradient-to-b from-amber-800 to-amber-900 rounded-b-2xl border-2 border-amber-700">
+              {/* Empty seat indicator */}
+              <div className="absolute inset-2 rounded-lg border border-dashed border-amber-600 bg-amber-700/30 flex items-center justify-center">
+                <span className="text-amber-400 text-xs font-semibold">OPEN</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -91,46 +101,57 @@ const PlayerSeat = ({ player, position, total }: { player: Player | null, positi
       style={{ left: `${x}%`, top: `${y}%` }}
     >
       <div className="relative">
-        {/* Player avatar and info */}
-        <div className="bg-black border-2 border-yellow-500 rounded-lg p-2 min-w-[80px] text-center">
-          {player.isDealer && (
-            <div className="absolute -top-2 -right-2 w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center">
-              <Crown className="w-3 h-3 text-black" />
+        {/* Occupied Chair */}
+        <div className="w-20 h-24 bg-gradient-to-b from-amber-900 to-amber-800 rounded-t-3xl border-2 border-amber-700 shadow-lg">
+          {/* Chair seat with player */}
+          <div className="absolute bottom-0 w-20 h-16 bg-gradient-to-b from-amber-800 to-amber-900 rounded-b-2xl border-2 border-amber-700">
+            {/* Player avatar */}
+            <div className={`absolute inset-1 rounded-lg flex items-center justify-center text-white font-bold text-sm ${
+              player.isDealer ? 'bg-yellow-600 border-2 border-yellow-400' :
+              player.isSmallBlind ? 'bg-blue-600 border-2 border-blue-400' :
+              player.isBigBlind ? 'bg-red-600 border-2 border-red-400' :
+              'bg-gray-700 border-2 border-gray-500'
+            }`}>
+              {player.username.substring(0, 2).toUpperCase()}
             </div>
-          )}
-          
-          <div className="w-12 h-12 mx-auto mb-1 bg-gradient-to-br from-blue-400 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-            {player.username.slice(0, 2).toUpperCase()}
           </div>
-          
-          <div className="text-white text-xs font-semibold">{player.username}</div>
-          <div className="text-yellow-400 text-xs">₹{player.stack.toLocaleString()}</div>
-          
-          {player.isSmallBlind && <Badge className="text-xs mt-1 bg-blue-600">SB</Badge>}
-          {player.isBigBlind && <Badge className="text-xs mt-1 bg-red-600">BB</Badge>}
         </div>
 
-        {/* Player cards */}
-        {player.cards && player.cards.length > 0 && (
-          <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 flex gap-1">
-            {player.cards.map((card, idx) => (
-              <PokerCard key={idx} card={card} />
-            ))}
+        {/* Player name and stack - positioned below chair */}
+        <div className="absolute -bottom-16 left-1/2 transform -translate-x-1/2 text-center min-w-24">
+          <div className="text-white text-xs font-semibold bg-black/80 px-2 py-1 rounded shadow-lg">
+            {player.username}
+          </div>
+          <div className="text-yellow-300 text-xs font-bold bg-black/80 px-2 py-1 rounded mt-1 shadow-lg">
+            ₹{player.stack.toLocaleString()}
+          </div>
+        </div>
+
+        {/* Position indicators */}
+        {player.isDealer && (
+          <div className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full border-2 border-gray-300 flex items-center justify-center text-xs font-bold text-black shadow-lg">
+            D
+          </div>
+        )}
+        {player.isSmallBlind && (
+          <div className="absolute -top-2 -left-2 w-6 h-6 bg-blue-500 rounded-full border-2 border-blue-300 flex items-center justify-center text-xs font-bold text-white shadow-lg">
+            SB
+          </div>
+        )}
+        {player.isBigBlind && (
+          <div className="absolute -top-2 -left-2 w-6 h-6 bg-red-500 rounded-full border-2 border-red-300 flex items-center justify-center text-xs font-bold text-white shadow-lg">
+            BB
           </div>
         )}
 
-        {/* Player action */}
-        {player.action && (
-          <div className="absolute -top-8 left-1/2 transform -translate-x-1/2">
-            <Badge className={`text-xs ${
-              player.action === 'fold' ? 'bg-gray-600' :
-              player.action === 'call' ? 'bg-green-600' :
-              player.action === 'raise' ? 'bg-orange-600' :
-              player.action === 'all-in' ? 'bg-red-600' :
-              'bg-blue-600'
-            }`}>
-              {player.action.toUpperCase()}
-            </Badge>
+        {/* Player cards - only shown if player has cards */}
+        {player.cards && player.cards.length > 0 && player.cards[0] !== 'XX' && (
+          <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 flex gap-1">
+            {player.cards.map((card, idx) => (
+              <div key={idx} className="scale-75">
+                <PokerCard card={card} />
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -149,66 +170,18 @@ export default function TableView() {
     refetchInterval: 2000, // Refresh every 2 seconds for live updates
   });
 
-  // Mock data for demonstration - replace with real data
-  const mockTableData: TableData = {
+  // Use real table data from Staff Portal - only show staff-added players
+  const displayData = tableData || {
     id: tableId || '',
-    name: "Cash Table 1",
+    name: "Loading...",
     gameType: "Texas Hold'em",
-    stakes: "₹100/₹200",
-    pot: 1500,
-    maxPlayers: 6,
-    communityCards: ['Ah', 'Kd', '9s', 'XX', 'XX'],
-    isActive: true,
-    players: [
-      {
-        id: 1,
-        username: "IOSQA",
-        stack: 4950,
-        position: 0,
-        cards: ['XX', 'XX'],
-        isSmallBlind: true
-      },
-      {
-        id: 2,
-        username: "jagrub23",
-        stack: 11960,
-        position: 1,
-        cards: ['XX', 'XX']
-      },
-      {
-        id: 3,
-        username: "krencyga1",
-        stack: 480,
-        position: 2,
-        cards: ['XX', 'XX']
-      },
-      {
-        id: 4,
-        username: "vyomqa1",
-        stack: 490,
-        position: 3,
-        cards: ['2h', '2c'],
-        isDealer: true
-      },
-      {
-        id: 5,
-        username: "vyomqa2",
-        stack: 8360,
-        position: 4,
-        cards: ['XX', 'XX']
-      },
-      {
-        id: 6,
-        username: "Nirav4545",
-        stack: 4650,
-        position: 5,
-        cards: ['XX', 'XX'],
-        isBigBlind: true
-      }
-    ]
+    stakes: "₹0/₹0",
+    pot: 0,
+    maxPlayers: 8,
+    communityCards: [],
+    isActive: false,
+    players: []
   };
-
-  const displayData = tableData || mockTableData;
 
   if (isLoading) {
     return (
@@ -224,7 +197,7 @@ export default function TableView() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-900 via-blue-800 to-blue-700">
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-black">
       {/* Header */}
       <div className="p-4 flex items-center justify-between text-white">
         <Button 
@@ -239,43 +212,59 @@ export default function TableView() {
         <div className="text-center">
           <h1 className="text-xl font-bold">{displayData.name}</h1>
           <p className="text-sm opacity-80">{displayData.gameType} • {displayData.stakes}</p>
+          <p className="text-xs text-gray-400 mt-1">Offline Local Game</p>
         </div>
         
-        <Button 
-          className="bg-blue-600 hover:bg-blue-700"
-          onClick={() => {
-            // Handle join table logic
-            setLocation('/');
-          }}
-        >
-          Join Similar
-        </Button>
-      </div>
-
-      {/* Community Cards */}
-      <div className="absolute top-20 right-4 flex gap-1 bg-black/50 p-2 rounded-lg">
-        {displayData.communityCards.map((card, idx) => (
-          <PokerCard key={idx} card={card} />
-        ))}
+        <div className="text-right">
+          <div className="text-sm text-gray-300">Players: {displayData.players.length}/{displayData.maxPlayers}</div>
+          <div className="text-xs text-gray-400">Managed by Staff</div>
+        </div>
       </div>
 
       {/* Main Table Area */}
       <div className="flex-1 relative px-4 py-8">
-        <div className="relative w-full max-w-4xl mx-auto aspect-[4/3]">
-          {/* Table Surface */}
-          <div className="absolute inset-4 border-4 border-yellow-500 rounded-[50%] bg-gradient-to-br from-green-800 to-green-900 shadow-2xl">
-            {/* Table felt pattern */}
-            <div className="absolute inset-2 rounded-[50%] bg-gradient-to-br from-green-700 to-green-800 opacity-50"></div>
-            
-            {/* Center pot area */}
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-              <div className="text-white text-2xl font-bold mb-2">Pot: ₹{displayData.pot}</div>
-              <div className="text-gray-300 text-sm">{displayData.gameType}</div>
-              <div className="text-yellow-400 text-sm font-semibold mt-1">2/2(HOLD'EM)</div>
+        <div className="relative w-full max-w-5xl mx-auto aspect-[5/3]">
+          {/* Realistic Poker Table Base - Dark Wood */}
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-900 via-amber-800 to-amber-900 rounded-[50%] shadow-2xl border-8 border-amber-700">
+            {/* Table Rail - Leather Padding */}
+            <div className="absolute inset-2 rounded-[50%] border-4 border-amber-600 bg-gradient-to-br from-amber-800 to-amber-700">
+              {/* Felt Playing Surface */}
+              <div className="absolute inset-4 rounded-[50%] bg-gradient-to-br from-emerald-800 via-emerald-700 to-emerald-800 shadow-inner">
+                {/* Felt texture overlay */}
+                <div className="absolute inset-0 rounded-[50%] bg-emerald-700 opacity-30" 
+                     style={{
+                       backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.1) 1px, transparent 0)`
+                     }}>
+                </div>
+                
+                {/* Center area with community cards */}
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
+                  {displayData.communityCards && displayData.communityCards.length > 0 ? (
+                    <div className="flex gap-1 mb-4 justify-center">
+                      {displayData.communityCards.map((card, idx) => (
+                        <PokerCard key={idx} card={card} />
+                      ))}
+                    </div>
+                  ) : null}
+                  
+                  <div className="text-white text-xl font-bold mb-1">Pot: ₹{displayData.pot}</div>
+                  <div className="text-emerald-200 text-sm">{displayData.gameType}</div>
+                  <div className="text-amber-300 text-xs font-semibold mt-1 px-2 py-1 bg-black/30 rounded">
+                    LOCAL GAME
+                  </div>
+                </div>
+
+                {/* Dealer chip position indicator */}
+                <div className="absolute top-1/4 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                  <div className="w-8 h-8 bg-white rounded-full border-2 border-gray-300 flex items-center justify-center text-xs font-bold">
+                    D
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Player Seats */}
+          {/* Player Seats - Realistic Positioning */}
           {seatPositions.map((player, index) => (
             <PlayerSeat 
               key={index}
@@ -287,18 +276,28 @@ export default function TableView() {
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="absolute bottom-0 left-0 right-0 bg-black/80 p-4">
-        <div className="flex justify-center gap-4 max-w-md mx-auto">
-          <Button className="flex-1 bg-gray-700 hover:bg-gray-600 text-white">
-            F/C
-          </Button>
-          <Button className="flex-1 bg-gray-700 hover:bg-gray-600 text-white">
-            Check
-          </Button>
-          <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white">
-            Call Any
-          </Button>
+      {/* Table Information */}
+      <div className="absolute bottom-0 left-0 right-0 bg-black/90 p-4">
+        <div className="max-w-4xl mx-auto text-white text-center">
+          <div className="flex justify-between items-center text-sm">
+            <div>
+              <span className="text-gray-400">Status:</span>
+              <span className={`ml-2 px-2 py-1 rounded text-xs ${
+                displayData.isActive 
+                  ? 'bg-green-600 text-white' 
+                  : 'bg-red-600 text-white'
+              }`}>
+                {displayData.isActive ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+            <div className="text-gray-400">
+              This is an offline local poker game managed by casino staff
+            </div>
+            <div>
+              <span className="text-gray-400">Max Players:</span>
+              <span className="ml-2 text-white">{displayData.maxPlayers}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

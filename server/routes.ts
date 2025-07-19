@@ -932,11 +932,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get detailed table view data for TableView component
+  // Get detailed table view data for TableView component - OFFLINE LOCAL POKER GAME
   app.get("/api/tables/:tableId/view", async (req, res) => {
     try {
       const { tableId } = req.params;
-      console.log(`🎮 [TABLE VIEW] Fetching table details for: ${tableId}`);
+      console.log(`🎮 [OFFLINE TABLE VIEW] Fetching table details for: ${tableId}`);
       
       // Fetch table from Staff Portal Supabase
       const { data: table, error } = await supabase
@@ -946,60 +946,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .single();
         
       if (error || !table) {
-        console.error('[TABLE VIEW] Error fetching table:', error);
+        console.error('[OFFLINE TABLE VIEW] Error fetching table:', error);
         return res.status(404).json({ error: 'Table not found' });
       }
       
-      // Generate realistic player data for table view
-      const generateRealisticPlayers = (maxPlayers: number, gameType: string) => {
-        const playerNames = [
-          'IOSQA', 'jagrub23', 'krencyga1', 'vyomqa1', 'vyomqa2', 'Nirav4545',
-          'PokerPro99', 'ChipsAhoy', 'AllInAce', 'FoldMaster', 'BluffKing',
-          'CardShark', 'TexasHoldem', 'RiverRat', 'FlopWiz', 'TurnKing'
-        ];
-        
-        const currentPlayers = Math.min(table.current_players || 3, maxPlayers);
-        const players = [];
-        
-        for (let i = 0; i < currentPlayers; i++) {
-          const stack = Math.floor(Math.random() * 10000) + 500;
-          const hasCards = Math.random() > 0.3; // 70% chance to have cards
-          
-          players.push({
-            id: i + 1,
-            username: playerNames[i % playerNames.length],
-            stack: stack,
-            position: i,
-            cards: hasCards ? ['XX', 'XX'] : undefined,
-            isDealer: i === 3,
-            isSmallBlind: i === 0,
-            isBigBlind: i === Math.min(currentPlayers - 1, 5),
-            action: Math.random() > 0.7 ? ['fold', 'call', 'raise', 'check'][Math.floor(Math.random() * 4)] : undefined
-          });
-        }
-        
-        return players;
-      };
+      // Fetch ONLY real players added by staff (no mock/online players)
+      // Check if there are any seated players for this table
+      const { data: seatedPlayers, error: seatedError } = await supabase
+        .from('waitlist')
+        .select(`
+          *,
+          players:player_id (
+            id,
+            first_name,
+            last_name,
+            email
+          )
+        `)
+        .eq('table_id', tableId)
+        .eq('status', 'seated');
+
+      let actualPlayers = [];
       
-      // Generate community cards for the flop
-      const communityCards = ['Ah', 'Kd', '9s', 'XX', 'XX'];
+      if (seatedPlayers && seatedPlayers.length > 0) {
+        // Only show players that have been seated by staff
+        actualPlayers = seatedPlayers.map((seatData, index) => ({
+          id: seatData.players?.id || index + 1,
+          username: seatData.players?.first_name || `Player ${index + 1}`,
+          stack: 5000, // Default starting stack for offline game
+          position: seatData.position || index,
+          cards: [], // No cards shown in offline mode
+          isDealer: index === 0, // First seated player is dealer
+          isSmallBlind: index === 1,
+          isBigBlind: index === 2,
+          isStaffAdded: true // Flag to indicate this is a real staff-added player
+        }));
+        
+        console.log(`✅ [OFFLINE TABLE VIEW] Found ${actualPlayers.length} staff-seated players`);
+      } else {
+        console.log(`ℹ️ [OFFLINE TABLE VIEW] No staff-seated players found for table ${table.name}`);
+      }
       
       const tableViewData = {
         id: table.id,
         name: table.name,
         gameType: table.game_type || "Texas Hold'em",
         stakes: table.small_blind && table.big_blind ? `₹${table.small_blind}/₹${table.big_blind}` : "₹100/₹200",
-        pot: Math.floor(Math.random() * 5000) + 500,
-        players: generateRealisticPlayers(table.max_players || 6, table.game_type || "Texas Hold'em"),
-        maxPlayers: table.max_players || 6,
-        communityCards: communityCards,
-        isActive: table.status === 'active'
+        pot: 0, // No active pot in offline mode
+        players: actualPlayers, // Only real staff-added players
+        maxPlayers: table.max_players || 8,
+        communityCards: [], // No community cards in offline mode
+        isActive: table.status === 'active',
+        isOfflineGame: true // Flag to indicate this is an offline game
       };
       
-      console.log(`✅ [TABLE VIEW] Returning table data for ${table.name} with ${tableViewData.players.length} players`);
+      console.log(`✅ [OFFLINE TABLE VIEW] Returning OFFLINE table data for ${table.name} with ${actualPlayers.length} STAFF-ADDED players`);
       res.json(tableViewData);
     } catch (error: any) {
-      console.error('[TABLE VIEW] Error:', error);
+      console.error('[OFFLINE TABLE VIEW] Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
