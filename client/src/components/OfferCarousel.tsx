@@ -39,18 +39,70 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
     staleTime: 0,
   });
 
+  // Demo offers as fallback
+  const demoCarouselItems = [
+    {
+      id: 'demo-carousel-1',
+      offer_id: 'demo-welcome',
+      media_url: '/api/placeholder-welcome-bonus.jpg',
+      media_type: 'image' as const,
+      position: 1,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      staff_offers: {
+        id: 'demo-welcome',
+        title: 'Welcome Bonus',
+        description: 'Get 100% bonus on your first deposit up to ₹5,000. Join today and double your gaming power!',
+        offer_type: 'banner'
+      }
+    },
+    {
+      id: 'demo-carousel-2',
+      offer_id: 'demo-weekend',
+      media_url: '/api/placeholder-weekend-special.jpg',
+      media_type: 'image' as const,
+      position: 2,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      staff_offers: {
+        id: 'demo-weekend',
+        title: 'Weekend Special',
+        description: 'Double loyalty points on all weekend games. Play Friday to Sunday and earn twice the rewards!',
+        offer_type: 'carousel'
+      }
+    },
+    {
+      id: 'demo-carousel-3',
+      offer_id: 'demo-tournament',
+      media_url: '/api/placeholder-tournament.jpg',
+      media_type: 'image' as const,
+      position: 3,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      staff_offers: {
+        id: 'demo-tournament',
+        title: 'Free Tournament Entry',
+        description: 'Complimentary entry to our Sunday ₹10,000 guaranteed tournament. No entry fee required!',
+        offer_type: 'popup'
+      }
+    }
+  ];
+
+  // Use staff carousel items if available, otherwise use demo items
+  const displayItems = (carouselItems && carouselItems.length > 0) ? carouselItems : demoCarouselItems;
+
   // Auto-scroll functionality
   useEffect(() => {
-    if (!carouselItems || carouselItems.length <= 1) return;
+    if (!displayItems || displayItems.length <= 1) return;
 
     const interval = setInterval(() => {
       setCurrentIndex((prevIndex) => 
-        prevIndex === carouselItems.length - 1 ? 0 : prevIndex + 1
+        prevIndex === displayItems.length - 1 ? 0 : prevIndex + 1
       );
     }, 5000); // Change slide every 5 seconds
 
     return () => clearInterval(interval);
-  }, [carouselItems]);
+  }, [displayItems]);
 
   // Track offer view
   const trackOfferView = async (offerId: string, viewType: 'carousel' | 'offers_page' = 'carousel') => {
@@ -72,16 +124,16 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
   };
 
   const nextSlide = () => {
-    if (!carouselItems) return;
+    if (!displayItems) return;
     setCurrentIndex((prevIndex) => 
-      prevIndex === carouselItems.length - 1 ? 0 : prevIndex + 1
+      prevIndex === displayItems.length - 1 ? 0 : prevIndex + 1
     );
   };
 
   const prevSlide = () => {
-    if (!carouselItems) return;
+    if (!displayItems) return;
     setCurrentIndex((prevIndex) => 
-      prevIndex === 0 ? carouselItems.length - 1 : prevIndex - 1
+      prevIndex === 0 ? displayItems.length - 1 : prevIndex - 1
     );
   };
 
@@ -95,25 +147,7 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
     );
   }
 
-  if (error || !carouselItems || carouselItems.length === 0) {
-    return (
-      <Card className="bg-slate-800 border-slate-700">
-        <CardContent className="p-6">
-          <div className="text-center py-8">
-            <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
-              <ExternalLink className="w-8 h-8 text-slate-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-white mb-2">No Active Offers</h3>
-            <p className="text-slate-400">
-              Check back soon for exciting promotions and special offers from our team!
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const currentItem = carouselItems[currentIndex];
+  const currentItem = displayItems[currentIndex];
 
   return (
     <Card className="bg-slate-800 border-slate-700 overflow-hidden relative">
@@ -196,7 +230,7 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
           </div>
 
           {/* Navigation Controls */}
-          {carouselItems.length > 1 && (
+          {displayItems.length > 1 && (
             <>
               <Button
                 onClick={prevSlide}
@@ -218,9 +252,9 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
           )}
 
           {/* Dots Indicator */}
-          {carouselItems.length > 1 && (
+          {displayItems.length > 1 && (
             <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex space-x-1">
-              {carouselItems.map((_, index) => (
+              {displayItems.map((_, index) => (
                 <button
                   key={index}
                   onClick={() => setCurrentIndex(index)}
