@@ -37,7 +37,8 @@ import {
   MessageCircle,
   MessageSquare,
   Send,
-  Bell
+  Bell,
+  Trophy
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
@@ -1038,14 +1039,28 @@ export default function PlayerDashboard() {
               }} />
               
               <div className="w-full max-w-full space-y-3 sm:space-y-4">
-                {/* Cash Tables */}
-                <Card className="bg-slate-800 border-slate-700 w-full max-w-full overflow-hidden">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <Table className="w-5 h-5 mr-2 text-emerald-500" />
-                    Cash Tables
-                  </CardTitle>
-                </CardHeader>
+                {/* Cash Tables & Tournaments Sub-Tabs */}
+                <Tabs defaultValue="cash" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 bg-slate-800 border border-slate-700">
+                    <TabsTrigger value="cash" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-slate-300">
+                      <Table className="w-4 h-4 mr-2" />
+                      Cash Tables
+                    </TabsTrigger>
+                    <TabsTrigger value="tournaments" className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-slate-300">
+                      <Trophy className="w-4 h-4 mr-2" />
+                      Tournaments
+                    </TabsTrigger>
+                  </TabsList>
+
+                  {/* Cash Tables Tab */}
+                  <TabsContent value="cash" className="mt-4">
+                    <Card className="bg-slate-800 border-slate-700 w-full max-w-full overflow-hidden">
+                      <CardHeader>
+                        <CardTitle className="text-white flex items-center">
+                          <Table className="w-5 h-5 mr-2 text-emerald-500" />
+                          Cash Tables
+                        </CardTitle>
+                      </CardHeader>
                 <CardContent>
                   {tablesLoading ? (
                     <div className="space-y-4">
@@ -1145,135 +1160,148 @@ export default function PlayerDashboard() {
                           </div>
                         </div>
                       ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Tournaments */}
-              <Card className="bg-slate-800 border-slate-700 w-full max-w-full overflow-hidden">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <Calendar className="w-5 h-5 mr-2 text-yellow-500" />
-                    Tournaments
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {tournamentsLoading ? (
-                    <div className="space-y-4">
-                      {[1, 2, 3].map((i) => (
-                        <Skeleton key={i} className="h-20 bg-slate-700" />
-                      ))}
-                    </div>
-                  ) : tournaments && tournaments.length > 0 ? (
-                    <div className="space-y-4">
-                      {tournaments.map((tournament) => (
-                        <div
-                          key={tournament.id}
-                          className="bg-slate-700 p-4 rounded-lg"
-                        >
-                          <div className="flex justify-between items-start mb-3">
-                            <div>
-                              <h3 className="font-semibold text-white">{tournament.name}</h3>
-                              <p className="text-sm text-slate-400">{tournament.type}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-sm text-slate-400">Buy-in</p>
-                              <p className="text-lg font-semibold text-yellow-500">
-                                ₹{tournament.buyIn}
-                              </p>
-                            </div>
-                          </div>
-                          
-                          <div className="grid grid-cols-3 gap-4 mb-3">
-                            <div className="text-center">
-                              <Calendar className="w-4 h-4 text-slate-400 mx-auto mb-1" />
-                              <p className="text-xs text-slate-400">Start Date</p>
-                              <p className="text-sm font-semibold text-white">
-                                {new Date(tournament.startDate).toLocaleDateString()}
-                              </p>
-                            </div>
-                            <div className="text-center">
-                              <Clock className="w-4 h-4 text-slate-400 mx-auto mb-1" />
-                              <p className="text-xs text-slate-400">Start Time</p>
-                              <p className="text-sm font-semibold text-white">
-                                {new Date(tournament.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </p>
-                            </div>
-                            <div className="text-center">
-                              <Users className="w-4 h-4 text-slate-400 mx-auto mb-1" />
-                              <p className="text-xs text-slate-400">Players</p>
-                              <p className="text-sm font-semibold text-white">
-                                {tournament.registeredPlayers}/{tournament.maxPlayers}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex justify-between items-center gap-2">
-                            <div className="flex gap-2">
-                              <Button
-                                onClick={() => handleTournamentInterest(tournament.id)}
-                                disabled={tournamentActionLoading}
-                                size="sm"
-                                variant="outline"
-                                className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
-                              >
-                                {tournamentActionLoading ? (
-                                  <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mr-2" />
-                                ) : null}
-                                Interested
-                              </Button>
-                              <Button
-                                onClick={() => handleTournamentRegister(tournament.id)}
-                                disabled={tournamentActionLoading || tournament.registeredPlayers >= tournament.maxPlayers}
-                                size="sm"
-                                className="bg-yellow-600 hover:bg-yellow-700 text-white"
-                              >
-                                {tournamentActionLoading ? (
-                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                                ) : null}
-                                Register
-                              </Button>
-                            </div>
-                            
-                            <div className="flex items-center gap-2">
-                              <Badge 
-                                variant="secondary" 
-                                className={`${
-                                  tournament.status === 'upcoming' ? 'bg-green-500/20 text-green-300 border-green-500/30' :
-                                  tournament.status === 'ongoing' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' :
-                                  'bg-slate-600 text-slate-300'
-                                }`}
-                              >
-                                {tournament.status}
-                              </Badge>
-                              <Button
-                                onClick={() => setLocation(`/table/${tournament.id}`)}
-                                size="sm"
-                                variant="outline"
-                                className="border-purple-500 text-purple-400 hover:bg-purple-500/10"
-                              >
-                                <Eye className="w-4 h-4 mr-1" />
-                                View
-                              </Button>
-                            </div>
-                          </div>
+                      
+                      {(!tables || tables.length === 0) && (
+                        <div className="text-center py-8">
+                          <Table className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                          <p className="text-slate-400">No tables available</p>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <Calendar className="w-12 h-12 text-slate-500 mx-auto mb-3" />
-                      <p className="text-slate-400 text-sm">No tournaments available</p>
-                      <p className="text-slate-500 text-xs">Check back later for upcoming tournaments</p>
+                      )}
                     </div>
                   )}
                 </CardContent>
-              </Card>
+                    </Card>
+                  </TabsContent>
 
-              {/* Preferences section removed as per requirements */}
-            </div>
-          </TabsContent>
+                  {/* Tournaments Tab */}
+                  <TabsContent value="tournaments" className="mt-4">
+                    <Card className="bg-slate-800 border-slate-700 w-full max-w-full overflow-hidden">
+                      <CardHeader>
+                        <CardTitle className="text-white flex items-center">
+                          <Trophy className="w-5 h-5 mr-2 text-yellow-500" />
+                          Tournaments
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {tournamentsLoading ? (
+                          <div className="space-y-4">
+                            {[1, 2, 3].map((i) => (
+                              <Skeleton key={i} className="h-24 bg-slate-700" />
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {tournaments?.map((tournament) => (
+                              <div
+                                key={tournament.id}
+                                className="bg-slate-700 p-4 rounded-lg"
+                              >
+                                <div className="flex justify-between items-start mb-3">
+                                  <div>
+                                    <h3 className="font-semibold text-white">{tournament.name}</h3>
+                                    <p className="text-sm text-slate-400">{tournament.game_type}</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-sm text-slate-400">Buy-in</p>
+                                    <p className="text-lg font-semibold text-yellow-500">
+                                      ₹{tournament.buy_in?.toLocaleString()}
+                                    </p>
+                                  </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-3 gap-4 mb-3">
+                                  <div className="text-center">
+                                    <Users className="w-4 h-4 text-slate-400 mx-auto mb-1" />
+                                    <p className="text-xs text-slate-400">Players</p>
+                                    <p className="text-sm font-semibold text-white">
+                                      {tournament.registered_players}/{tournament.max_players}
+                                    </p>
+                                  </div>
+                                  <div className="text-center">
+                                    <Clock className="w-4 h-4 text-slate-400 mx-auto mb-1" />
+                                    <p className="text-xs text-slate-400">Start Time</p>
+                                    <p className="text-sm font-semibold text-emerald-500">
+                                      {new Date(tournament.start_time).toLocaleTimeString([], { 
+                                        hour: '2-digit', 
+                                        minute: '2-digit' 
+                                      })}
+                                    </p>
+                                  </div>
+                                  <div className="text-center">
+                                    <Trophy className="w-4 h-4 text-yellow-500 mx-auto mb-1" />
+                                    <p className="text-xs text-slate-400">Prize Pool</p>
+                                    <p className="text-sm font-semibold text-yellow-500">
+                                      ₹{tournament.prize_pool?.toLocaleString()}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="flex justify-between items-center">
+                                  <div className="flex items-center space-x-2">
+                                    <Badge 
+                                      className={`${
+                                        tournament.status === 'upcoming' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' :
+                                        tournament.status === 'running' ? 'bg-green-500/20 text-green-300 border-green-500/30' :
+                                        tournament.status === 'finished' ? 'bg-gray-500/20 text-gray-300 border-gray-500/30' :
+                                        'bg-slate-500/20 text-slate-300 border-slate-500/30'
+                                      }`}
+                                    >
+                                      {tournament.status?.charAt(0).toUpperCase() + tournament.status?.slice(1)}
+                                    </Badge>
+                                    <span className="text-sm text-slate-400">
+                                      {tournament.tournament_type}
+                                    </span>
+                                  </div>
+                                  
+                                  <div className="flex items-center space-x-2">
+                                    {tournament.status === 'upcoming' && (
+                                      <>
+                                        <Button
+                                          onClick={() => handleTournamentInterest(tournament.id)}
+                                          disabled={tournamentActionLoading}
+                                          size="sm"
+                                          variant="outline"
+                                          className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
+                                        >
+                                          {tournamentActionLoading ? (
+                                            <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mr-2" />
+                                          ) : null}
+                                          Interested
+                                        </Button>
+                                        <Button
+                                          onClick={() => handleTournamentRegister(tournament.id)}
+                                          disabled={tournamentActionLoading}
+                                          size="sm"
+                                          className="bg-yellow-500 hover:bg-yellow-600 text-black"
+                                        >
+                                          {tournamentActionLoading ? (
+                                            <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin mr-2" />
+                                          ) : null}
+                                          Register
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                            
+                            {(!tournaments || tournaments.length === 0) && (
+                              <div className="text-center py-8">
+                                <Trophy className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                                <p className="text-slate-400">No tournaments available</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </Tabs>
+
+                {/* Preferences section removed as per requirements */}
+              </div>
+            </TabsContent>
 
           {/* Offers Tab - Staff Managed */}
           <TabsContent value="balance" className="space-y-4">
