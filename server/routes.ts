@@ -4034,8 +4034,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const playerId = parseInt(req.params.playerId);
       
-      // Get both targeted and broadcast notifications
-      const { data, error } = await localSupabase
+      // Get both targeted and broadcast notifications from Staff Portal Supabase
+      const { data, error } = await staffPortalSupabase
         .from('push_notifications')
         .select('*')
         .or(`target_player_id.eq.${playerId},broadcast_to_all.eq.true`)
@@ -4044,7 +4044,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (error) {
         console.error('[PUSH_NOTIFICATION] Error fetching notifications:', error);
-        return res.status(500).json({ error: error.message });
+        return res.json([]);
       }
       
       console.log(`[PUSH_NOTIFICATION] Fetched ${data?.length || 0} notifications for player ${playerId}`);
@@ -4184,17 +4184,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`📋 [GRE CHAT] Using existing chat request - ID: ${requestId}`);
       }
       
-      // Insert chat message linked to the request
-      const { data, error } = await localSupabase
+      // Insert chat message into Staff Portal Supabase
+      const { data, error } = await staffPortalSupabase
         .from('gre_chat_messages')
         .insert({
           player_id: playerId,
           player_name: playerName,
           message: message.trim(),
           sender: 'player',
-          request_id: requestId,
-          timestamp: timestamp || new Date().toISOString(),
-          status: 'sent'
+          sender_name: playerName,
+          status: 'sent',
+          created_at: new Date().toISOString()
         })
         .select()
         .single();
@@ -4216,12 +4216,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { playerId } = req.params;
       console.log(`💬 [GRE CHAT] Fetching messages for player ${playerId}`);
       
-      // Fetch chat messages from local Supabase
-      const { data, error } = await localSupabase
+      // Fetch chat messages from Staff Portal Supabase
+      const { data, error } = await staffPortalSupabase
         .from('gre_chat_messages')
         .select('*')
         .eq('player_id', parseInt(playerId))
-        .order('timestamp', { ascending: true })
+        .order('created_at', { ascending: true })
         .limit(50); // Last 50 messages
       
       if (error) {
@@ -4702,6 +4702,178 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error(`❌ [PUSH_NOTIFICATION] Error sending notification:`, error);
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Enable GRE chat for all existing players
+  app.post("/api/gre-chat/enable-all-players", async (req, res) => {
+    try {
+      console.log(`🔧 [GRE CHAT] Enabling chat for all existing players...`);
+      
+      // Get all players from Player Portal (local Supabase)
+      const { data: players, error: playersError } = await localSupabase
+        .from('players')
+        .select('id, first_name, last_name, email')
+        .eq('is_active', true);
+
+      if (playersError) {
+        throw new Error(`Failed to fetch players: ${playersError.message}`);
+      }
+
+      let enabledCount = 0;
+      let errorCount = 0;
+
+      for (const player of players || []) {
+        try {
+          // Check if chat session already exists
+          const { data: existingSession } = await staffPortalSupabase
+            .from('gre_chat_sessions')
+            .select('id')
+            .eq('player_id', player.id)
+            .single();
+
+          if (!existingSession) {
+            // Create new chat session
+            const { error: sessionError } = await staffPortalSupabase
+              .from('gre_chat_sessions')
+              .insert({
+                player_id: player.id,
+                status: 'active',
+                created_at: new Date().toISOString(),
+                last_message_at: new Date().toISOString()
+              });
+
+            if (sessionError) {
+              console.error(`❌ [GRE CHAT] Error creating session for player ${player.id}:`, sessionError);
+              errorCount++;
+            } else {
+              console.log(`✅ [GRE CHAT] Created session for player ${player.id} (${player.first_name} ${player.last_name})`);
+              enabledCount++;
+            }
+          } else {
+            console.log(`⚡ [GRE CHAT] Session already exists for player ${player.id}`);
+            enabledCount++;
+          }
+        } catch (error) {
+          console.error(`❌ [GRE CHAT] Error processing player ${player.id}:`, error);
+          errorCount++;
+        }
+      }
+
+      console.log(`✅ [GRE CHAT] Chat enablement completed: ${enabledCount} enabled, ${errorCount} errors`);
+      res.json({
+        success: true,
+        message: `GRE chat enabled for ${enabledCount} players`,
+        enabledCount,
+        errorCount,
+        totalPlayers: players?.length || 0
+      });
+    } catch (error: any) {
+      console.error(`❌ [GRE CHAT] Error enabling chat for all players:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Enable GRE chat for specific player
+  app.post("/api/gre-chat/enable-player/:playerId", async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      console.log(`🔧 [GRE CHAT] Enabling chat for player ${playerId}...`);
+      
+      // Check if chat session already exists
+      const { data: existingSession } = await staffPortalSupabase
+        .from('gre_chat_sessions')
+        .select('id')
+        .eq('player_id', parseInt(playerId))
+        .single();
+
+      if (existingSession) {
+        return res.json({
+          success: true,
+          message: `Chat already enabled for player ${playerId}`,
+          sessionId: existingSession.id
+        });
+      }
+
+      // Create new chat session
+      const { data: newSession, error: sessionError } = await staffPortalSupabase
+        .from('gre_chat_sessions')
+        .insert({
+          player_id: parseInt(playerId),
+          status: 'active',
+          created_at: new Date().toISOString(),
+          last_message_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (sessionError) {
+        throw new Error(`Failed to create chat session: ${sessionError.message}`);
+      }
+
+      console.log(`✅ [GRE CHAT] Chat session created for player ${playerId}`);
+      res.json({
+        success: true,
+        message: `Chat enabled for player ${playerId}`,
+        sessionId: newSession.id
+      });
+    } catch (error: any) {
+      console.error(`❌ [GRE CHAT] Error enabling chat for player ${playerId}:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Real-time chat health check
+  app.get("/api/gre-chat/health", async (req, res) => {
+    try {
+      console.log(`🔍 [GRE CHAT] Checking system health...`);
+      
+      // Check Staff Portal Supabase connection
+      const { data: sessions, error: sessionsError } = await staffPortalSupabase
+        .from('gre_chat_sessions')
+        .select('id')
+        .limit(1);
+
+      const { data: messages, error: messagesError } = await staffPortalSupabase
+        .from('gre_chat_messages')
+        .select('id')
+        .limit(1);
+
+      const { data: agents, error: agentsError } = await staffPortalSupabase
+        .from('gre_online_status')
+        .select('id')
+        .limit(1);
+
+      const health = {
+        timestamp: new Date().toISOString(),
+        staffPortalConnection: !sessionsError,
+        chatSessionsTable: !sessionsError,
+        chatMessagesTable: !messagesError,
+        onlineStatusTable: !agentsError,
+        errors: {
+          sessions: sessionsError?.message || null,
+          messages: messagesError?.message || null,
+          agents: agentsError?.message || null
+        }
+      };
+
+      const allHealthy = health.staffPortalConnection && 
+                         health.chatSessionsTable && 
+                         health.chatMessagesTable && 
+                         health.onlineStatusTable;
+
+      console.log(`✅ [GRE CHAT] Health check completed - Status: ${allHealthy ? 'Healthy' : 'Issues Detected'}`);
+      res.json({
+        healthy: allHealthy,
+        ...health
+      });
+    } catch (error: any) {
+      console.error(`❌ [GRE CHAT] Health check error:`, error);
+      res.status(500).json({
+        healthy: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
     }
   });
 
