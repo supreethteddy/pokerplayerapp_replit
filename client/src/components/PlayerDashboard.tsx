@@ -26,7 +26,12 @@ import {
   AlertCircle,
   Eye,
   AlertTriangle,
-  Phone
+  Phone,
+  Gift,
+  Play,
+  Image,
+  Star,
+  Calendar
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -36,7 +41,181 @@ import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 
+// Dynamic Offers Display Component
+const DynamicOffersDisplay = () => {
+  const { data: offers, isLoading } = useQuery({
+    queryKey: ['/api/staff-offers'],
+    refetchInterval: 5000, // Refresh every 5 seconds
+  });
 
+  const trackOfferView = useMutation({
+    mutationFn: (offerId: string) => 
+      apiRequest("POST", "/api/offer-views", { offer_id: offerId }),
+  });
+
+  if (isLoading) {
+    return (
+      <Card className="bg-slate-800 border-slate-700">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center">
+            <Gift className="w-5 h-5 mr-2 text-emerald-500" />
+            Special Offers
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="animate-pulse space-y-4">
+            <div className="h-48 bg-slate-700 rounded-lg"></div>
+            <div className="h-4 bg-slate-700 rounded w-3/4"></div>
+            <div className="h-4 bg-slate-700 rounded w-1/2"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!offers || offers.length === 0) {
+    return (
+      <Card className="bg-slate-800 border-slate-700">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center">
+            <Gift className="w-5 h-5 mr-2 text-emerald-500" />
+            Special Offers
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8">
+            <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Gift className="w-8 h-8 text-slate-300" />
+            </div>
+            <h3 className="text-lg font-semibold text-white mb-2">Offers Coming Soon</h3>
+            <p className="text-slate-300 mb-4">
+              Our team is preparing exclusive offers for you. Check back regularly for exciting promotions and bonuses!
+            </p>
+            <div className="bg-slate-700 rounded-lg p-4">
+              <p className="text-sm text-slate-200">
+                Offers are managed by our staff and will appear here automatically when available.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card className="bg-slate-800 border-slate-700">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center">
+            <Gift className="w-5 h-5 mr-2 text-emerald-500" />
+            Special Offers ({offers.length})
+          </CardTitle>
+        </CardHeader>
+      </Card>
+
+      {/* Scrollable offers container */}
+      <div className="max-h-[600px] overflow-y-auto space-y-4 pr-2">
+        {offers.map((offer: any) => (
+          <Card 
+            key={offer.id} 
+            className="bg-slate-800 border-slate-700 hover:border-emerald-500/50 transition-colors"
+            onClick={() => trackOfferView.mutate(offer.id)}
+          >
+            <CardContent className="p-0">
+              {/* Dynamic Image/Video Display */}
+              <div className="relative">
+                {offer.video_url ? (
+                  <div className="aspect-video rounded-t-lg overflow-hidden bg-slate-900">
+                    <video 
+                      className="w-full h-full object-cover" 
+                      poster={offer.image_url}
+                      controls
+                      preload="metadata"
+                    >
+                      <source src={offer.video_url} type="video/mp4" />
+                      <div className="flex items-center justify-center h-full">
+                        <Play className="w-12 h-12 text-white" />
+                      </div>
+                    </video>
+                  </div>
+                ) : offer.image_url ? (
+                  <div className="aspect-video rounded-t-lg overflow-hidden bg-slate-900">
+                    <img 
+                      src={offer.image_url} 
+                      alt={offer.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                      }}
+                    />
+                    <div className="hidden flex items-center justify-center h-full">
+                      <Image className="w-12 h-12 text-slate-400" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="aspect-video rounded-t-lg bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center">
+                    <Gift className="w-16 h-16 text-white" />
+                  </div>
+                )}
+                
+                {/* Offer type badge */}
+                <Badge 
+                  className={`absolute top-3 right-3 ${
+                    offer.offer_type === 'banner' ? 'bg-blue-600' :
+                    offer.offer_type === 'carousel' ? 'bg-purple-600' :
+                    'bg-orange-600'
+                  }`}
+                >
+                  {offer.offer_type}
+                </Badge>
+              </div>
+
+              {/* Dynamic Content Area */}
+              <div className="p-6">
+                <h3 className="text-xl font-bold text-white mb-3">
+                  {offer.title}
+                </h3>
+                
+                {/* Dynamic description with responsive sizing */}
+                <div className="text-slate-300 leading-relaxed mb-4">
+                  <p className={`${
+                    offer.description.length > 200 ? 'text-sm' : 
+                    offer.description.length > 100 ? 'text-base' : 'text-lg'
+                  }`}>
+                    {offer.description}
+                  </p>
+                </div>
+
+                {/* Date range if available */}
+                {(offer.start_date || offer.end_date) && (
+                  <div className="flex items-center text-sm text-slate-400 mb-4">
+                    <Calendar className="w-4 h-4 mr-2" />
+                    {offer.start_date && new Date(offer.start_date).toLocaleDateString()} 
+                    {offer.start_date && offer.end_date && ' - '}
+                    {offer.end_date && new Date(offer.end_date).toLocaleDateString()}
+                  </div>
+                )}
+
+                {/* Action button */}
+                <Button 
+                  className="w-full bg-emerald-600 hover:bg-emerald-700"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    trackOfferView.mutate(offer.id);
+                  }}
+                >
+                  <Star className="w-4 h-4 mr-2" />
+                  View Offer Details
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 export default function PlayerDashboard() {
   const { user, signOut } = useAuth();
@@ -515,30 +694,7 @@ export default function PlayerDashboard() {
 
           {/* Offers Tab - Staff Managed */}
           <TabsContent value="balance" className="space-y-4">
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center">
-                  <CreditCard className="w-5 h-5 mr-2 text-emerald-500" />
-                  Special Offers
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <CreditCard className="w-8 h-8 text-slate-300" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-white mb-2">Offers Coming Soon</h3>
-                  <p className="text-slate-300 mb-4">
-                    Our team is preparing exclusive offers for you. Check back regularly for exciting promotions and bonuses!
-                  </p>
-                  <div className="bg-slate-700 rounded-lg p-4">
-                    <p className="text-sm text-slate-200">
-                      Offers are managed by our staff and will appear here automatically when available.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <DynamicOffersDisplay />
           </TabsContent>
 
           {/* Stats Tab */}

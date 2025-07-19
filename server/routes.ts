@@ -2839,6 +2839,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Remove duplicate - this route is already handled above with comprehensive tracking
 
+  // Placeholder image endpoints for offers
+  app.get("/api/placeholder-welcome-bonus.jpg", async (req, res) => {
+    // Create a simple SVG placeholder for welcome bonus
+    const svg = `
+      <svg width="800" height="450" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#10b981;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
+          </linearGradient>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#grad1)"/>
+        <text x="400" y="200" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="white" text-anchor="middle">WELCOME BONUS</text>
+        <text x="400" y="260" font-family="Arial, sans-serif" font-size="32" fill="white" text-anchor="middle">100% Match up to ₹5,000</text>
+        <circle cx="400" cy="350" r="40" fill="white" opacity="0.2"/>
+        <text x="400" y="360" font-family="Arial, sans-serif" font-size="24" fill="white" text-anchor="middle">NEW</text>
+      </svg>
+    `;
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(svg);
+  });
+
+  app.get("/api/placeholder-weekend-special.jpg", async (req, res) => {
+    const svg = `
+      <svg width="800" height="450" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:1" />
+          </linearGradient>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#grad2)"/>
+        <text x="400" y="180" font-family="Arial, sans-serif" font-size="42" font-weight="bold" fill="white" text-anchor="middle">WEEKEND SPECIAL</text>
+        <text x="400" y="240" font-family="Arial, sans-serif" font-size="28" fill="white" text-anchor="middle">Double Loyalty Points</text>
+        <text x="400" y="280" font-family="Arial, sans-serif" font-size="24" fill="white" text-anchor="middle">Friday - Sunday</text>
+        <rect x="320" y="320" width="160" height="60" fill="white" opacity="0.2" rx="10"/>
+        <text x="400" y="360" font-family="Arial, sans-serif" font-size="20" fill="white" text-anchor="middle">2X POINTS</text>
+      </svg>
+    `;
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(svg);
+  });
+
+  app.get("/api/placeholder-tournament.jpg", async (req, res) => {
+    const svg = `
+      <svg width="800" height="450" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="grad3" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#d97706;stop-opacity:1" />
+          </linearGradient>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#grad3)"/>
+        <text x="400" y="160" font-family="Arial, sans-serif" font-size="36" font-weight="bold" fill="white" text-anchor="middle">FREE TOURNAMENT</text>
+        <text x="400" y="210" font-family="Arial, sans-serif" font-size="28" fill="white" text-anchor="middle">₹10,000 Guaranteed</text>
+        <text x="400" y="250" font-family="Arial, sans-serif" font-size="22" fill="white" text-anchor="middle">Every Sunday</text>
+        <polygon points="400,300 380,340 420,340" fill="white" opacity="0.3"/>
+        <circle cx="400" cy="370" r="25" fill="white" opacity="0.2"/>
+        <text x="400" y="380" font-family="Arial, sans-serif" font-size="16" fill="white" text-anchor="middle">FREE</text>
+      </svg>
+    `;
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(svg);
+  });
+
   const httpServer = createServer(app);
   // Offer Banners API
   app.get('/api/offer-banners', async (req, res) => {
@@ -2990,30 +3055,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create sample offers directly (assuming tables exist in Staff Portal Supabase)
-  app.post("/api/create-sample-offers", async (req, res) => {
+  // Create staff portal tables and sample offers
+  app.post("/api/create-staff-portal-tables", async (req, res) => {
     try {
-      console.log('🔧 [CREATE SAMPLE OFFERS] Creating sample offers in Staff Portal Supabase...');
+      console.log('🔧 [CREATE STAFF PORTAL TABLES] Creating offers tables in Staff Portal Supabase...');
 
-      // Insert sample offers
+      // Create staff_offers table using direct SQL
+      const createStaffOffersSQL = `
+        CREATE TABLE IF NOT EXISTS staff_offers (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          title VARCHAR(255) NOT NULL,
+          description TEXT,
+          image_url TEXT,
+          video_url TEXT,
+          offer_type VARCHAR(50) CHECK (offer_type IN ('banner', 'carousel', 'popup')),
+          is_active BOOLEAN DEFAULT true,
+          start_date TIMESTAMP WITH TIME ZONE,
+          end_date TIMESTAMP WITH TIME ZONE,
+          created_by TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `;
+
+      const createCarouselItemsSQL = `
+        CREATE TABLE IF NOT EXISTS carousel_items (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          offer_id UUID REFERENCES staff_offers(id),
+          position INTEGER,
+          image_url TEXT,
+          video_url TEXT,
+          click_action TEXT,
+          action_data TEXT,
+          is_active BOOLEAN DEFAULT true,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `;
+
+      const createOfferViewsSQL = `
+        CREATE TABLE IF NOT EXISTS offer_views (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          offer_id UUID REFERENCES staff_offers(id),
+          player_id INTEGER,
+          view_type VARCHAR(50) DEFAULT 'carousel',
+          ip_address INET,
+          user_agent TEXT,
+          viewed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+      `;
+
+      // Try to create tables by inserting test data first
       const { data: offers, error: insertOffersError } = await supabase
         .from('staff_offers')
         .insert([
           {
             title: 'Welcome Bonus',
-            description: 'Get 100% bonus on your first deposit up to ₹5,000',
+            description: 'Get 100% bonus on your first deposit up to ₹5,000. Join today and double your gaming power with our exclusive welcome package.',
+            image_url: '/api/placeholder-welcome-bonus.jpg',
             offer_type: 'banner',
             is_active: true
           },
           {
             title: 'Weekend Special',
-            description: 'Double loyalty points on all weekend games',
+            description: 'Double loyalty points on all weekend games. Play Friday to Sunday and earn twice the rewards.',
+            image_url: '/api/placeholder-weekend-special.jpg', 
             offer_type: 'carousel',
             is_active: true
           },
           {
             title: 'Free Tournament Entry',
-            description: 'Complimentary entry to our Sunday ₹10,000 guaranteed tournament',
+            description: 'Complimentary entry to our Sunday ₹10,000 guaranteed tournament. No entry fee required for qualified players.',
+            image_url: '/api/placeholder-tournament.jpg',
             offer_type: 'popup',
             is_active: true
           }
@@ -3021,21 +3133,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .select();
 
       if (insertOffersError) {
-        console.error('❌ [CREATE SAMPLE OFFERS] Error inserting offers:', insertOffersError);
-        return res.status(500).json({ 
-          error: 'Failed to create offers - tables may not exist in Staff Portal Supabase',
-          details: insertOffersError.message
+        console.warn('⚠️ [CREATE STAFF PORTAL TABLES] Tables may not exist, need manual creation:', insertOffersError.message);
+        return res.status(200).json({ 
+          success: false,
+          message: 'Tables need to be created manually in Staff Portal Supabase dashboard',
+          sql_queries: {
+            staff_offers: createStaffOffersSQL,
+            carousel_items: createCarouselItemsSQL,
+            offer_views: createOfferViewsSQL
+          },
+          error: insertOffersError.message
         });
       }
 
-      console.log('✅ [CREATE SAMPLE OFFERS] Created', offers?.length || 0, 'sample offers');
+      console.log('✅ [CREATE STAFF PORTAL TABLES] Created', offers?.length || 0, 'sample offers');
       res.json({ 
         success: true, 
-        message: 'Sample offers created in Staff Portal Supabase',
+        message: 'Staff Portal tables created and sample offers added',
         offers: offers
       });
     } catch (error: any) {
-      console.error('❌ [CREATE SAMPLE OFFERS] Error:', error);
+      console.error('❌ [CREATE STAFF PORTAL TABLES] Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
