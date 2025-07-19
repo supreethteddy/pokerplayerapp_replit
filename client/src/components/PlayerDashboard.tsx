@@ -35,7 +35,7 @@ import type { Table as TableType, SeatRequest, KycDocument } from "@shared/schem
 import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
-import tiltRoomLogo from "@assets/1_1752926810964.png";
+
 
 
 export default function PlayerDashboard() {
@@ -363,115 +363,43 @@ export default function PlayerDashboard() {
   }
 
   return (
-    <div 
-      className="min-h-screen relative pb-20"
-      style={{
-        backgroundImage: `url(${tiltRoomLogo})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-        backgroundAttachment: 'fixed'
-      }}
-    >
-      {/* Full black overlay for complete black background */}
-      <div className="absolute inset-0 bg-black bg-opacity-95 z-0"></div>
-      
-      <div className="relative z-10 max-w-4xl mx-auto px-4 py-6">
-        {/* Header with transparent overlay */}
-        <div 
-          className="relative mb-6 rounded-lg overflow-hidden border border-white border-opacity-10"
-          style={{
-            backdropFilter: 'blur(10px)',
-            backgroundColor: 'rgba(0, 0, 0, 0.3)',
-            minHeight: '120px'
-          }}
-        >
-          {/* Dark overlay for better text readability */}
-          <div className="absolute inset-0 bg-black bg-opacity-40"></div>
-          
-          {/* Header content */}
-          <div className="relative z-10 flex justify-between items-center p-6 h-full">
-            <div className="flex items-center space-x-4">
-              <div>
-                <p className="text-slate-200 text-lg">Welcome back, {user.firstName}!</p>
-              </div>
-            </div>
-            <div className="flex items-center">
-              <Button
-                onClick={signOut}
-                className="w-10 h-10 rounded-full bg-red-600 hover:bg-red-700 border border-red-500 p-0 flex items-center justify-center"
-                title="Sign Out"
-              >
-                <LogOut className="w-4 h-4 text-white" />
-              </Button>
-            </div>
-          </div>
+    <div className="min-h-screen bg-slate-900 p-4 sm:p-6">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Player Dashboard</h1>
+          <p className="text-slate-400">Welcome back, {user?.firstName}!</p>
         </div>
+        <Button
+          onClick={signOut}
+          variant="outline"
+          className="border-slate-600 text-slate-400 hover:bg-slate-700 hover:text-white"
+        >
+          <LogOut className="h-4 w-4 mr-2" />
+          Sign Out
+        </Button>
+      </div>
 
-        {/* Glass-like Tabs */}
-        <Tabs defaultValue="game" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 bg-black bg-opacity-30 border border-white border-opacity-10 backdrop-blur-md rounded-lg">
-            <TabsTrigger 
-              value="game" 
-              className="
-                text-white text-opacity-70 
-                transition-all duration-300 ease-in-out
-                hover:bg-white hover:bg-opacity-10 hover:text-white hover:backdrop-blur-lg
-                data-[state=active]:bg-white data-[state=active]:bg-opacity-20 
-                data-[state=active]:text-white data-[state=active]:backdrop-blur-lg
-                border border-transparent hover:border-white hover:border-opacity-20
-                rounded-md mx-1
-              "
-            >
-              <Spade className="w-4 h-4 mr-2" />
-              Lobby
-            </TabsTrigger>
-            <TabsTrigger 
-              value="balance" 
-              className="
-                text-white text-opacity-70 
-                transition-all duration-300 ease-in-out
-                hover:bg-white hover:bg-opacity-10 hover:text-white hover:backdrop-blur-lg
-                data-[state=active]:bg-white data-[state=active]:bg-opacity-20 
-                data-[state=active]:text-white data-[state=active]:backdrop-blur-lg
-                border border-transparent hover:border-white hover:border-opacity-20
-                rounded-md mx-1
-              "
-            >
-              <CreditCard className="w-4 h-4 mr-2" />
-              Offers
-            </TabsTrigger>
-            <TabsTrigger 
-              value="stats" 
-              className="
-                text-white text-opacity-70 
-                transition-all duration-300 ease-in-out
-                hover:bg-white hover:bg-opacity-10 hover:text-white hover:backdrop-blur-lg
-                data-[state=active]:bg-white data-[state=active]:bg-opacity-20 
-                data-[state=active]:text-white data-[state=active]:backdrop-blur-lg
-                border border-transparent hover:border-white hover:border-opacity-20
-                rounded-md mx-1
-              "
-            >
-              <BarChart3 className="w-4 h-4 mr-2" />
-              Stats
-            </TabsTrigger>
-            <TabsTrigger 
-              value="profile" 
-              className="
-                text-white text-opacity-70 
-                transition-all duration-300 ease-in-out
-                hover:bg-white hover:bg-opacity-10 hover:text-white hover:backdrop-blur-lg
-                data-[state=active]:bg-white data-[state=active]:bg-opacity-20 
-                data-[state=active]:text-white data-[state=active]:backdrop-blur-lg
-                border border-transparent hover:border-white hover:border-opacity-20
-                rounded-md mx-1
-              "
-            >
-              <User className="w-4 h-4 mr-2" />
-              Profile
-            </TabsTrigger>
-          </TabsList>
+      {/* Navigation Tabs */}
+      <Tabs defaultValue="game" className="w-full">
+        <TabsList className="grid w-full grid-cols-4 bg-slate-800 border-slate-700">
+          <TabsTrigger value="game" className="text-slate-300 data-[state=active]:text-white">
+            <Spade className="w-4 h-4 mr-2" />
+            Lobby
+          </TabsTrigger>
+          <TabsTrigger value="balance" className="text-slate-300 data-[state=active]:text-white">
+            <CreditCard className="w-4 h-4 mr-2" />
+            Offers
+          </TabsTrigger>
+          <TabsTrigger value="stats" className="text-slate-300 data-[state=active]:text-white">
+            <BarChart3 className="w-4 h-4 mr-2" />
+            Stats
+          </TabsTrigger>
+          <TabsTrigger value="profile" className="text-slate-300 data-[state=active]:text-white">
+            <User className="w-4 h-4 mr-2" />
+            Profile
+          </TabsTrigger>
+        </TabsList>
 
           {/* Game Tab */}
           <TabsContent value="game" className="space-y-4">
@@ -484,10 +412,10 @@ export default function PlayerDashboard() {
             
             <div className="grid grid-cols-1 gap-4 sm:gap-6">
               {/* Live Tables */}
-              <Card className="bg-black bg-opacity-40 border-white border-opacity-20 backdrop-blur-lg">
+              <Card className="bg-slate-800 border-slate-700">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center">
-                    <Table className="w-5 h-5 mr-2 text-emerald-400" />
+                    <Table className="w-5 h-5 mr-2 text-emerald-500" />
                     Live Tables
                   </CardTitle>
                 </CardHeader>
@@ -495,7 +423,7 @@ export default function PlayerDashboard() {
                   {tablesLoading ? (
                     <div className="space-y-4">
                       {[1, 2, 3].map((i) => (
-                        <Skeleton key={i} className="h-20 bg-black bg-opacity-30 border border-white border-opacity-10" />
+                        <Skeleton key={i} className="h-20 bg-slate-700" />
                       ))}
                     </div>
                   ) : (
@@ -503,7 +431,7 @@ export default function PlayerDashboard() {
                       {tables?.map((table) => (
                         <div
                           key={table.id}
-                          className="bg-black bg-opacity-30 p-4 rounded-lg border border-white border-opacity-10 backdrop-blur-sm hover:bg-opacity-40 transition-all duration-300"
+                          className="bg-slate-700 p-4 rounded-lg hover:bg-slate-600 transition-colors"
                         >
                           <div className="flex justify-between items-start mb-3">
                             <div>
@@ -512,7 +440,7 @@ export default function PlayerDashboard() {
                             </div>
                             <div className="text-right">
                               <p className="text-sm text-slate-400">Stakes</p>
-                              <p className="text-lg font-semibold text-emerald-400">
+                              <p className="text-lg font-semibold text-emerald-500">
                                 {table.stakes}
                               </p>
                             </div>
@@ -529,7 +457,7 @@ export default function PlayerDashboard() {
                             <div className="text-center">
                               <div className="w-4 h-4 bg-amber-500 rounded-full mx-auto mb-1" />
                               <p className="text-xs text-slate-400">Avg Stack</p>
-                              <p className="text-sm font-semibold text-amber-400">
+                              <p className="text-sm font-semibold text-amber-500">
                                 ₹{table.avgStack}
                               </p>
                             </div>
@@ -562,7 +490,7 @@ export default function PlayerDashboard() {
                                 onClick={() => handleJoinWaitList(table.id)}
                                 disabled={joinWaitListMutation.isPending}
                                 size="sm"
-                                className="bg-emerald-500 bg-opacity-80 text-white border-emerald-400 border-opacity-50 hover:bg-opacity-100 hover:border-opacity-80 backdrop-blur-sm transition-all duration-300"
+                                className="bg-emerald-500 hover:bg-emerald-600 text-white"
                               >
                                 {joinWaitListMutation.isPending ? (
                                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
@@ -587,23 +515,23 @@ export default function PlayerDashboard() {
 
           {/* Offers Tab - Staff Managed */}
           <TabsContent value="balance" className="space-y-4">
-            <Card className="bg-black bg-opacity-40 border-white border-opacity-20 backdrop-blur-lg">
+            <Card className="bg-slate-800 border-slate-700">
               <CardHeader>
                 <CardTitle className="text-white flex items-center">
-                  <CreditCard className="w-5 h-5 mr-2 text-emerald-400" />
+                  <CreditCard className="w-5 h-5 mr-2 text-emerald-500" />
                   Special Offers
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-black bg-opacity-40 border border-white border-opacity-20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
+                  <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
                     <CreditCard className="w-8 h-8 text-slate-300" />
                   </div>
                   <h3 className="text-lg font-semibold text-white mb-2">Offers Coming Soon</h3>
                   <p className="text-slate-300 mb-4">
                     Our team is preparing exclusive offers for you. Check back regularly for exciting promotions and bonuses!
                   </p>
-                  <div className="bg-black bg-opacity-30 border border-white border-opacity-10 rounded-lg p-4 backdrop-blur-sm">
+                  <div className="bg-slate-700 rounded-lg p-4">
                     <p className="text-sm text-slate-200">
                       Offers are managed by our staff and will appear here automatically when available.
                     </p>
@@ -616,7 +544,7 @@ export default function PlayerDashboard() {
           {/* Stats Tab */}
           <TabsContent value="stats" className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-              <Card className="bg-black bg-opacity-40 border-white border-opacity-20 backdrop-blur-lg">
+              <Card className="bg-slate-800 border-slate-700">
                 <CardHeader>
                   <CardTitle className="text-white">Gaming Stats</CardTitle>
                 </CardHeader>
@@ -631,16 +559,16 @@ export default function PlayerDashboard() {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-slate-400">Total Winnings</span>
-                    <span className="text-emerald-400 font-semibold">₹{user.totalWinnings}</span>
+                    <span className="text-emerald-500 font-semibold">₹{user.totalWinnings}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-slate-400">Total Losses</span>
-                    <span className="text-red-400 font-semibold">₹{user.totalLosses}</span>
+                    <span className="text-red-500 font-semibold">₹{user.totalLosses}</span>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-black bg-opacity-40 border-white border-opacity-20 backdrop-blur-lg">
+              <Card className="bg-slate-800 border-slate-700">
                 <CardHeader>
                   <CardTitle className="text-white">Financial Stats</CardTitle>
                 </CardHeader>
@@ -651,21 +579,21 @@ export default function PlayerDashboard() {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-slate-400">Total Deposits</span>
-                    <span className="text-emerald-400 font-semibold">₹{user.totalDeposits}</span>
+                    <span className="text-emerald-500 font-semibold">₹{user.totalDeposits}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-slate-400">Total Withdrawals</span>
-                    <span className="text-amber-400 font-semibold">₹{user.totalWithdrawals}</span>
+                    <span className="text-amber-500 font-semibold">₹{user.totalWithdrawals}</span>
                   </div>
                 </CardContent>
               </Card>
             </div>
 
             {/* Account Management Notice */}
-            <Card className="bg-amber-500 bg-opacity-20 border-amber-400 border-opacity-30 backdrop-blur-lg">
+            <Card className="bg-amber-500/20 border-amber-400/30">
               <CardContent className="p-4">
                 <div className="flex items-start space-x-3">
-                  <AlertCircle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
+                  <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
                   <div>
                     <div className="text-amber-200 font-medium mb-1">Account Management</div>
                     <div className="text-amber-100 text-opacity-90 text-sm">
@@ -682,29 +610,29 @@ export default function PlayerDashboard() {
           <TabsContent value="profile" className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:gap-6">
               {/* Profile Summary */}
-              <Card className="bg-black bg-opacity-40 border-white border-opacity-20 backdrop-blur-lg">
+              <Card className="bg-slate-800 border-slate-700">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center">
-                    <User className="w-5 h-5 mr-2 text-emerald-400" />
+                    <User className="w-5 h-5 mr-2 text-emerald-500" />
                     Profile
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   {/* Profile Details */}
                   <div className="space-y-3">
-                    <div className="flex justify-between items-center p-3 bg-black bg-opacity-30 border border-white border-opacity-10 rounded-lg backdrop-blur-sm">
+                    <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
                       <span className="text-sm text-slate-300">Name</span>
                       <span className="text-sm text-white font-medium">{user?.firstName} {user?.lastName}</span>
                     </div>
-                    <div className="flex justify-between items-center p-3 bg-black bg-opacity-30 border border-white border-opacity-10 rounded-lg backdrop-blur-sm">
+                    <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
                       <span className="text-sm text-slate-300">Email</span>
                       <span className="text-sm text-white font-medium">{user?.email}</span>
                     </div>
-                    <div className="flex justify-between items-center p-3 bg-black bg-opacity-30 border border-white border-opacity-10 rounded-lg backdrop-blur-sm">
+                    <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
                       <span className="text-sm text-slate-300">Phone</span>
                       <span className="text-sm text-white font-medium">{user?.phone}</span>
                     </div>
-                    <div className="flex justify-between items-center p-3 bg-black bg-opacity-30 border border-white border-opacity-10 rounded-lg backdrop-blur-sm">
+                    <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
                       <span className="text-sm text-slate-300">KYC Status</span>
                       <div className="flex items-center">
                         {user?.kycStatus === 'approved' ? (
@@ -723,10 +651,10 @@ export default function PlayerDashboard() {
               </Card>
 
               {/* KYC Documents Management */}
-              <Card className="bg-black bg-opacity-40 border-white border-opacity-20 backdrop-blur-lg">
+              <Card className="bg-slate-800 border-slate-700">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center">
-                    <FileText className="w-5 h-5 mr-2 text-emerald-400" />
+                    <FileText className="w-5 h-5 mr-2 text-emerald-500" />
                     KYC Documents
                   </CardTitle>
                 </CardHeader>
@@ -734,13 +662,13 @@ export default function PlayerDashboard() {
                   {kycLoading ? (
                     <div className="space-y-3">
                       {[1, 2, 3].map((i) => (
-                        <Skeleton key={i} className="h-12 bg-black bg-opacity-30 border border-white border-opacity-10" />
+                        <Skeleton key={i} className="h-12 bg-slate-700" />
                       ))}
                     </div>
                   ) : (
                     <div className="space-y-3">
                       {/* File type information */}
-                      <div className="mb-4 p-3 bg-black bg-opacity-30 border border-white border-opacity-10 rounded-lg backdrop-blur-sm">
+                      <div className="mb-4 p-3 bg-slate-700 rounded-lg">
                         <p className="text-xs text-slate-300 mb-1">
                           <strong>Supported file types:</strong> JPG, PNG, PDF (max 5MB each)
                         </p>
@@ -753,7 +681,7 @@ export default function PlayerDashboard() {
                         {kycDocuments ? `Found ${kycDocuments.length} documents` : 'No documents found'}
                       </div>
                       {/* ID Document */}
-                      <div className="flex items-center justify-between p-3 bg-black bg-opacity-30 border border-white border-opacity-10 rounded-lg backdrop-blur-sm">
+                      <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
                         <div className="flex items-center space-x-3 flex-1">
                           {getKycStatusIcon(getKycDocumentStatus('id'))}
                           <div className="flex-1">
@@ -761,7 +689,7 @@ export default function PlayerDashboard() {
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('id')}</p>
                             {kycDocuments?.filter(d => d.documentType === 'government_id' && d.fileUrl).length > 0 && (
                               <div className="flex items-center space-x-2 mt-1">
-                                <p className="text-xs text-emerald-400">
+                                <p className="text-xs text-emerald-500">
                                   {kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0].fileName}
                                 </p>
                                 <Button 
@@ -850,7 +778,7 @@ export default function PlayerDashboard() {
                       </div>
 
                       {/* Address Document */}
-                      <div className="flex items-center justify-between p-3 bg-black bg-opacity-30 border border-white border-opacity-10 rounded-lg backdrop-blur-sm">
+                      <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
                         <div className="flex items-center space-x-3 flex-1">
                           {getKycStatusIcon(getKycDocumentStatus('utility'))}
                           <div className="flex-1">
@@ -858,7 +786,7 @@ export default function PlayerDashboard() {
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('utility')}</p>
                             {kycDocuments?.filter(d => d.documentType === 'utility_bill' && d.fileUrl).length > 0 && (
                               <div className="flex items-center space-x-2 mt-1">
-                                <p className="text-xs text-emerald-400">
+                                <p className="text-xs text-emerald-500">
                                   {kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl)[0].fileName}
                                 </p>
                                 <Button 
@@ -947,7 +875,7 @@ export default function PlayerDashboard() {
                       </div>
 
                       {/* Photo Document */}
-                      <div className="flex items-center justify-between p-3 bg-black bg-opacity-30 border border-white border-opacity-10 rounded-lg backdrop-blur-sm">
+                      <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
                         <div className="flex items-center space-x-3 flex-1">
                           {getKycStatusIcon(getKycDocumentStatus('photo'))}
                           <div className="flex-1">
@@ -955,7 +883,7 @@ export default function PlayerDashboard() {
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('photo')}</p>
                             {kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 && (
                               <div className="flex items-center space-x-2 mt-1">
-                                <p className="text-xs text-emerald-400">
+                                <p className="text-xs text-emerald-500">
                                   {kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0].fileName}
                                 </p>
                                 <Button 
@@ -1145,9 +1073,6 @@ export default function PlayerDashboard() {
             </div>
           </TabsContent>
         </Tabs>
-      </div>
-
-
     </div>
   );
 }
