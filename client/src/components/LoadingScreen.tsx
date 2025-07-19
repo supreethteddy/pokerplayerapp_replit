@@ -12,24 +12,28 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
   const [showFallback, setShowFallback] = useState(false);
 
   useEffect(() => {
-    // Auto-complete after 8 seconds maximum
+    // Force fresh video load each time by clearing any cached state
+    setVideoLoaded(false);
+    setShowFallback(false);
+    
+    // Auto-complete after 10 seconds maximum
     const maxTimer = setTimeout(() => {
       setShowVideo(false);
       onComplete();
-    }, 8000);
+    }, 10000);
 
-    // Show fallback after 2 seconds if video doesn't load
+    // Show fallback after 3 seconds if video doesn't load
     const fallbackTimer = setTimeout(() => {
       if (!videoLoaded) {
         setShowFallback(true);
       }
-    }, 2000);
+    }, 3000);
 
     return () => {
       clearTimeout(maxTimer);
       clearTimeout(fallbackTimer);
     };
-  }, [onComplete, videoLoaded]);
+  }, [onComplete]);
 
   const handleVideoEnd = () => {
     setTimeout(() => {
@@ -39,12 +43,13 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
   };
 
   const handleVideoLoad = () => {
+    console.log('Video loaded successfully');
     setVideoLoaded(true);
     setShowFallback(false);
   };
 
-  const handleVideoError = () => {
-    console.log('Video failed to load, showing fallback');
+  const handleVideoError = (e: any) => {
+    console.error('Video failed to load:', e);
     setShowFallback(true);
   };
 
@@ -53,16 +58,17 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
   return (
     <div className="fixed inset-0 bg-black z-50 flex items-center justify-center overflow-hidden">
       <div className="relative w-full h-full">
-        {/* MP4 Video */}
+        {/* MP4 Video with Audio */}
         <video 
           autoPlay 
-          muted 
           playsInline
           onEnded={handleVideoEnd}
           onLoadedData={handleVideoLoad}
           onError={handleVideoError}
           className="w-full h-full object-cover"
           style={{ display: showFallback ? 'none' : 'block' }}
+          controls={false}
+          preload="auto"
         >
           <source src={tiltReelsVideo} type="video/mp4" />
           Your browser does not support the video tag.
