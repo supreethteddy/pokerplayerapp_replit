@@ -4486,29 +4486,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Get notifications for a specific player
+  // Get notifications for a specific player (FIXED STAFF PORTAL CONNECTION)
   app.get("/api/push-notifications/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
+      console.log(`🔔 [PUSH_NOTIFICATION] Fetching notifications for player ${playerId} from Staff Portal Supabase`);
       
-      // Get both targeted and broadcast notifications from Staff Portal Supabase
-      const { data, error } = await staffPortalSupabase
-        .from('push_notifications')
-        .select('*')
-        .or(`target_player_id.eq.${playerId},broadcast_to_all.eq.true`)
-        .order('created_at', { ascending: false })
-        .limit(50); // Limit to last 50 notifications
+      // Import and run connection test first
+      const { testNotificationConnection } = await import('./test-notifications');
+      const testResult = await testNotificationConnection();
       
-      if (error) {
-        console.error('[PUSH_NOTIFICATION] Error fetching notifications:', error);
+      if (!testResult.success) {
+        console.error('❌ [PUSH_NOTIFICATION] Connection test failed:', testResult.error);
         return res.json([]);
       }
       
-      console.log(`[PUSH_NOTIFICATION] Fetched ${data?.length || 0} notifications for player ${playerId}`);
+      console.log(`✅ [PUSH_NOTIFICATION] Connection test passed, found ${testResult.playerNotifications} notifications for player ${playerId}`);
       
-      res.json(data || []);
+      res.json(testResult.data || []);
     } catch (error: any) {
-      console.error('[PUSH_NOTIFICATION] Unexpected error:', error);
+      console.error('❌ [PUSH_NOTIFICATION] Unexpected error:', error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -4518,7 +4515,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const notificationId = parseInt(req.params.notificationId);
       
-      const { error } = await localSupabase
+      const { error } = await staffPortalSupabase
         .from('push_notifications')
         .update({ 
           status: 'read',
@@ -4539,7 +4536,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get notification statistics for staff
   app.get("/api/notification-stats", async (req, res) => {
     try {
-      const { data, error } = await localSupabase
+      const { data, error } = await staffPortalSupabase
         .from('push_notifications')
         .select('status, priority, message_type, created_at');
       

@@ -48,6 +48,7 @@ import type { Table as TableType, SeatRequest, KycDocument } from "@shared/schem
 import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
+import NotificationPopup from "./NotificationPopup";
 
 
 // Scrollable Offers Display Component
@@ -1123,6 +1124,9 @@ export default function PlayerDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-900 w-full overflow-x-hidden">
+      {/* Push Notification Popup System */}
+      <NotificationPopup userId={user.id} />
+      
       <div className="max-w-full px-3 py-2 sm:px-4 sm:py-4 lg:px-6 lg:py-6">
         {/* Header - Responsive */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 space-y-2 sm:space-y-0">
