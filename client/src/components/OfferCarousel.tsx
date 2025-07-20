@@ -91,17 +91,27 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
   // Use staff carousel items if available, otherwise use demo items
   const displayItems = (carouselItems && carouselItems.length > 0) ? carouselItems : demoCarouselItems;
 
-  // Auto-scroll functionality
+  // Auto-scroll functionality - Enhanced with logging
   useEffect(() => {
-    if (!displayItems || displayItems.length <= 1) return;
+    if (!displayItems || displayItems.length <= 1) {
+      console.log('🎠 [CAROUSEL] Auto-scroll disabled: displayItems length =', displayItems?.length);
+      return;
+    }
 
+    console.log('🎠 [CAROUSEL] Starting auto-scroll for', displayItems.length, 'items');
+    
     const interval = setInterval(() => {
-      setCurrentIndex((prevIndex) => 
-        prevIndex === displayItems.length - 1 ? 0 : prevIndex + 1
-      );
+      setCurrentIndex((prevIndex) => {
+        const nextIndex = prevIndex === displayItems.length - 1 ? 0 : prevIndex + 1;
+        console.log('🎠 [CAROUSEL] Auto-scroll:', prevIndex, '→', nextIndex);
+        return nextIndex;
+      });
     }, 5000); // Change slide every 5 seconds
 
-    return () => clearInterval(interval);
+    return () => {
+      console.log('🎠 [CAROUSEL] Clearing auto-scroll interval');
+      clearInterval(interval);
+    };
   }, [displayItems]);
 
   // Track offer view
@@ -152,9 +162,9 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
   return (
     <Card className="bg-slate-800 border-slate-700 overflow-hidden relative">
       <CardContent className="p-0">
-        <div className="relative h-48 md:h-56">
-          {/* Media Display */}
-          <div className="absolute inset-0">
+        <div className="relative h-48 md:h-56 overflow-hidden">
+          {/* Media Display with smooth transitions */}
+          <div className="absolute inset-0 transition-all duration-500 ease-in-out">
             {currentItem.media_type === 'video' ? (
               <div className="relative w-full h-full bg-slate-900 flex items-center justify-center">
                 <video
@@ -232,20 +242,21 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
             </>
           )}
 
-          {/* Dots Indicator - Small dots */}
+          {/* Dots Indicator - Circular dots */}
           {displayItems.length > 1 && (
-            <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex space-x-2">
+            <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex space-x-3 z-10">
               {displayItems.map((_, index) => (
                 <button
                   key={index}
                   onClick={(e) => {
                     e.stopPropagation();
+                    console.log('🎯 [CAROUSEL] Dot clicked:', index);
                     setCurrentIndex(index);
                   }}
-                  className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                  className={`w-3 h-3 rounded-full transition-all duration-300 ${
                     index === currentIndex 
-                      ? 'bg-white' 
-                      : 'bg-white/40 hover:bg-white/60'
+                      ? 'bg-white scale-125 shadow-lg' 
+                      : 'bg-white/50 hover:bg-white/75 hover:scale-110'
                   }`}
                 />
               ))}
