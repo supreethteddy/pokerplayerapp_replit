@@ -91,14 +91,11 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
   // Use staff carousel items if available, otherwise use demo items
   const displayItems = (carouselItems && carouselItems.length > 0) ? carouselItems : demoCarouselItems;
 
-  // Auto-scroll functionality - Enhanced with logging
+  // Auto-scroll functionality - Fixed useEffect dependencies
   useEffect(() => {
     if (!displayItems || displayItems.length <= 1) {
-      console.log('🎠 [CAROUSEL] Auto-scroll disabled: displayItems length =', displayItems?.length);
       return;
     }
-
-    console.log('🎠 [CAROUSEL] Starting auto-scroll for', displayItems.length, 'items');
     
     const interval = setInterval(() => {
       setCurrentIndex((prevIndex) => {
@@ -108,11 +105,8 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
       });
     }, 5000); // Change slide every 5 seconds
 
-    return () => {
-      console.log('🎠 [CAROUSEL] Clearing auto-scroll interval');
-      clearInterval(interval);
-    };
-  }, [displayItems]);
+    return () => clearInterval(interval);
+  }, [displayItems.length]); // Only depend on length to avoid constant restarts
 
   // Track offer view
   const trackOfferView = async (offerId: string, viewType: 'carousel' | 'offers_page' = 'carousel') => {
@@ -242,21 +236,20 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
             </>
           )}
 
-          {/* Dots Indicator - Circular dots */}
+          {/* Small circular dots indicator */}
           {displayItems.length > 1 && (
-            <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex space-x-3 z-10">
+            <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex space-x-2 z-10">
               {displayItems.map((_, index) => (
                 <button
                   key={index}
                   onClick={(e) => {
                     e.stopPropagation();
-                    console.log('🎯 [CAROUSEL] Dot clicked:', index);
                     setCurrentIndex(index);
                   }}
-                  className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                  className={`w-1.5 h-1.5 rounded-full transition-all duration-200 ${
                     index === currentIndex 
-                      ? 'bg-white scale-125 shadow-lg' 
-                      : 'bg-white/50 hover:bg-white/75 hover:scale-110'
+                      ? 'bg-white opacity-100' 
+                      : 'bg-white opacity-50 hover:opacity-75'
                   }`}
                 />
               ))}
