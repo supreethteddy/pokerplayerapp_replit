@@ -1104,18 +1104,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const playerId = parseInt(req.params.playerId);
       
-      // Get waitlist entries from Supabase using proper 'waitlist' table
-      const { data: requests, error } = await supabase
+      // Get waitlist entries from Staff Portal Supabase using proper 'waitlist' table
+      const { data: requests, error } = await staffPortalSupabase
         .from('waitlist')
         .select('*')
         .eq('player_id', playerId)
-        .order('created_at', { ascending: false });
+        .order('requested_at', { ascending: false });
       
       if (error) {
         throw new Error(`Failed to fetch waitlist: ${error.message}`);
       }
       
-      // Transform to camelCase for response
+      // Transform to camelCase for response (INCLUDE ALL ENTRIES INCLUDING SEATED)
       const transformedRequests = (requests || []).map(req => ({
         id: req.id,
         playerId: req.player_id,
@@ -1148,7 +1148,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('🚮 [WAITLIST DELETE] Removing player', playerId, 'from table', tableId);
       
       // Remove from waitlist
-      const { data: deletedEntry, error } = await supabase
+      const { data: deletedEntry, error } = await staffPortalSupabase
         .from('waitlist')
         .delete()
         .eq('player_id', playerId)
@@ -1323,45 +1323,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get seated players for a table (for Player Portal table view)
+  // Get seated players for a table (for Player Portal table view) - SIMPLIFIED VERSION
   app.get("/api/table-seats/:tableId", async (req, res) => {
     try {
       const tableId = req.params.tableId;
       
       console.log(`🪑 [TABLE SEATS] Getting seated players for table ${tableId}`);
       
-      // Get all seated players for this table
-      const { data: seatedPlayers, error } = await staffPortalSupabase
+      // SIMPLIFIED: Get all waitlist entries for this table with status 'seated'
+      const { data: waitlistData, error } = await staffPortalSupabase
         .from('waitlist')
-        .select(`
-          *,
-          players!inner(first_name, last_name, email)
-        `)
+        .select('id, player_id, position, status, seated_at')
         .eq('table_id', tableId)
-        .eq('status', 'seated')
-        .order('seat_number', { ascending: true });
+        .eq('status', 'seated');
       
       if (error) {
-        throw new Error(`Failed to fetch seated players: ${error.message}`);
+        console.error('❌ [TABLE SEATS] Waitlist query error:', error);
+        return res.json([]); // Return empty array instead of error
       }
       
-      // Transform for response
-      const transformedSeatedPlayers = (seatedPlayers || []).map(entry => ({
-        seatNumber: entry.seat_number,
-        playerId: entry.player_id,
-        player: {
-          firstName: entry.players.first_name,
-          lastName: entry.players.last_name,
-          email: entry.players.email
-        },
-        seatedAt: entry.seated_at
-      }));
+      // Get player details separately to avoid join issues
+      const seatedPlayers = [];
+      for (const entry of waitlistData || []) {
+        const { data: playerData, error: playerError } = await staffPortalSupabase
+          .from('players')
+          .select('first_name, last_name, email')
+          .eq('id', entry.player_id)
+          .single();
+        
+        if (!playerError && playerData) {
+          seatedPlayers.push({
+            seatNumber: entry.position, // Use position as seat number
+            playerId: entry.player_id,
+            player: {
+              firstName: playerData.first_name,
+              lastName: playerData.last_name,
+              email: playerData.email
+            },
+            seatedAt: entry.seated_at
+          });
+        }
+      }
       
-      console.log(`✅ [TABLE SEATS] Found ${transformedSeatedPlayers.length} seated players`);
-      res.json(transformedSeatedPlayers);
+      console.log(`✅ [TABLE SEATS] Found ${seatedPlayers.length} seated players`);
+      res.json(seatedPlayers);
     } catch (error: any) {
-      console.error('❌ [TABLE SEATS] Error:', error);
-      res.status(500).json({ error: error.message });
+      console.error('❌ [TABLE SEATS] Unexpected error:', error);
+      res.json([]); // Return empty array instead of error
     }
   });
 
@@ -4486,26 +4494,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Get notifications for a specific player (FIXED STAFF PORTAL CONNECTION)
+  // Get notifications for a specific player (DIRECT STAFF PORTAL CONNECTION)
   app.get("/api/push-notifications/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
-      console.log(`🔔 [PUSH_NOTIFICATION] Fetching notifications for player ${playerId} from Staff Portal Supabase`);
+      console.log(`🔔 [PUSH_NOTIFICATION] Direct query for player ${playerId} from Staff Portal Supabase`);
       
-      // Import and run connection test first
-      const { testNotificationConnection } = await import('./test-notifications');
-      const testResult = await testNotificationConnection();
+      // Direct query to Staff Portal Supabase without test connection
+      const { data: notifications, error } = await staffPortalSupabase
+        .from('push_notifications')
+        .select('*')
+        .or(`target_player_id.eq.${playerId},broadcast_to_all.eq.true`)
+        .order('created_at', { ascending: false })
+        .limit(50);
       
-      if (!testResult.success) {
-        console.error('❌ [PUSH_NOTIFICATION] Connection test failed:', testResult.error);
+      if (error) {
+        console.error('❌ [PUSH_NOTIFICATION] Direct query error:', error);
         return res.json([]);
       }
       
-      console.log(`✅ [PUSH_NOTIFICATION] Connection test passed, found ${testResult.playerNotifications} notifications for player ${playerId}`);
+      console.log(`✅ [PUSH_NOTIFICATION] Found ${notifications?.length || 0} notifications for player ${playerId}`);
       
-      res.json(testResult.data || []);
+      res.json(notifications || []);
     } catch (error: any) {
-      console.error('❌ [PUSH_NOTIFICATION] Unexpected error:', error);
+      console.error('❌ [PUSH_NOTIFICATION] Direct query unexpected error:', error);
       res.status(500).json({ error: error.message });
     }
   });

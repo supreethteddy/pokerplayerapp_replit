@@ -12,10 +12,12 @@ export default function NotificationPopup({ userId }: NotificationPopupProps) {
   const [shownNotifications, setShownNotifications] = useState<Set<number>>(new Set());
   const [visibleNotifications, setVisibleNotifications] = useState<any[]>([]);
 
-  // Fetch notifications every 5 seconds to check for new ones
+  // Fetch notifications every 3 seconds to check for new ones
   const { data: notifications } = useQuery({
     queryKey: ['/api/push-notifications', userId],
-    refetchInterval: 5000, // Check for new notifications every 5 seconds
+    refetchInterval: 3000, // Check for new notifications every 3 seconds
+    refetchOnWindowFocus: true,
+    staleTime: 0 // Always fetch fresh data
   });
 
   useEffect(() => {
