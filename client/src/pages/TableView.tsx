@@ -44,30 +44,44 @@ export default function TableView() {
   
   // Join waitlist with seat reservation
   const joinWaitlistMutation = useMutation({
-    mutationFn: (seatNumber: number) => 
-      apiRequest("POST", "/api/waitlist", {
-        tableId,
-        gameType: currentTable?.gameType || "Texas Hold'em",
-        minBuyIn: currentTable?.stakes?.split('/')[0]?.replace('₹', '') || 1000,
-        maxBuyIn: currentTable?.stakes?.split('/')[1]?.replace('₹', '') || 10000,
-        seatNumber,
-        notes: `Player reserved seat ${seatNumber}`
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/seat-requests'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/waitlist'] });
+    mutationFn: async (seatNumber: number) => {
+      if (!user?.id || !currentTable?.id) {
+        throw new Error("User or table not found");
+      }
+
+      console.log(`🎯 Reserving seat ${seatNumber} for player ${user.id} on table ${currentTable.id}`);
+
+      const requestData = {
+        playerId: user.id,
+        tableId: currentTable.id,
+        status: "waiting",
+        seatNumber: seatNumber,
+        notes: `Player ${user.firstName} ${user.lastName} requested seat ${seatNumber}`
+      };
+
+      console.log('🎯 Sending request data:', requestData);
+
+      const response = await apiRequest("POST", "/api/seat-requests", requestData);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      console.log('✅ Seat reservation successful:', data);
       toast({
-        title: "Seat Reserved",
-        description: `You've reserved seat ${selectedSeat} for ${currentTable?.name}`,
+        title: "Seat Reserved!",
+        description: `You've been added to the waitlist for seat ${selectedSeat}`,
       });
       setSelectedSeat(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/table-seats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tables"] });
       // Navigate back to dashboard after successful reservation
       setTimeout(() => setLocation('/'), 1500);
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error('❌ Seat reservation failed:', error);
       toast({
         title: "Error",
-        description: "Failed to reserve seat. Please try again.",
+        description: error.message || "Failed to join waitlist",
         variant: "destructive",
       });
     },
@@ -245,7 +259,10 @@ export default function TableView() {
                 <p className="text-slate-400 text-xs mb-4">Note: Multiple players can reserve the same seat. Staff will assign final seating.</p>
                 <div className="flex gap-3 justify-center">
                   <Button
-                    onClick={() => joinWaitlistMutation.mutate(selectedSeat)}
+                    onClick={() => {
+                      console.log(`🎯 Reserving seat ${selectedSeat} - Button clicked`);
+                      joinWaitlistMutation.mutate(selectedSeat);
+                    }}
                     disabled={joinWaitlistMutation.isPending}
                     className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg hover:shadow-emerald-500/25 transition-all duration-300"
                   >
@@ -254,7 +271,7 @@ export default function TableView() {
                     ) : (
                       <UserPlus className="w-4 h-4 mr-2" />
                     )}
-                    Reserve Seat
+                    Reserve Seat {selectedSeat}
                   </Button>
                   <Button
                     onClick={() => setSelectedSeat(null)}

@@ -1031,8 +1031,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tableUuid = requestData.tableId;
       console.log('🔍 [WAITLIST ROUTE] Validating table UUID:', tableUuid);
       
-      // Verify table exists in poker_tables
-      const { data: tableExists, error: tableError } = await supabase
+      // Verify table exists in poker_tables (using Staff Portal database)
+      const { data: tableExists, error: tableError } = await staffPortalSupabase
         .from('poker_tables')
         .select('id, game_type, min_buy_in, max_buy_in')
         .eq('id', tableUuid)
@@ -1045,7 +1045,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('✅ [WAITLIST ROUTE] Table exists:', tableExists);
       
       // Get current waitlist count for position
-      const { data: waitlistCount, error: countError } = await supabase
+      const { data: waitlistCount, error: countError } = await staffPortalSupabase
         .from('waitlist')
         .select('id')
         .eq('table_id', tableUuid)
@@ -1053,8 +1053,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const position = (waitlistCount?.length || 0) + 1;
       
-      // Create waitlist entry in Supabase using proper 'waitlist' table
-      const { data: waitlistEntry, error: insertError } = await supabase
+      // Create waitlist entry in Staff Portal Supabase using proper 'waitlist' table
+      const { data: waitlistEntry, error: insertError } = await staffPortalSupabase
         .from('waitlist')
         .insert({
           player_id: requestData.playerId,
