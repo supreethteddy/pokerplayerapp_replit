@@ -33,6 +33,13 @@ export default function TableView() {
     enabled: !!user?.id,
   });
   
+  // Get seated players for this table
+  const { data: seatedPlayers } = useQuery({
+    queryKey: ['/api/table-seats', tableId],
+    enabled: !!tableId,
+    refetchInterval: 2000, // Refresh every 2 seconds to show real-time seat assignments
+  });
+  
   const isOnWaitlist = userWaitlist?.some((req: any) => req.tableId === tableId);
   
   // Join waitlist with seat reservation
@@ -118,39 +125,69 @@ export default function TableView() {
                   const y = 50 + radiusY * Math.sin(angle);
                   const isSelected = selectedSeat === seatNumber;
                   
+                  // Check if this seat is occupied by a seated player
+                  const seatedPlayer = seatedPlayers?.find((p: any) => p.seatNumber === seatNumber);
+                  const isOccupied = !!seatedPlayer;
+                  
                   return (
                     <div
                       key={seatNumber}
-                      className="absolute transform -translate-x-1/2 -translate-y-1/2"
+                      className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer"
                       style={{ left: `${x}%`, top: `${y}%` }}
-                      onClick={() => setSelectedSeat(seatNumber)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!isOccupied) {
+                          console.log(`Seat ${seatNumber} clicked!`);
+                          setSelectedSeat(seatNumber);
+                        }
+                      }}
                     >
                       {/* Player Seat */}
-                      <div className={`w-12 h-12 bg-gradient-to-br from-slate-700 to-slate-800 rounded-full border-2 flex items-center justify-center shadow-lg transition-all duration-300 ${
-                        isSelected ? 'border-emerald-500 shadow-emerald-500/50 scale-110' :
-                        'border-slate-600 hover:border-emerald-500 hover:shadow-emerald-500/25 cursor-pointer'
+                      <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center shadow-lg transition-all duration-300 ${
+                        isOccupied 
+                          ? 'bg-gradient-to-br from-blue-600 to-blue-700 border-blue-500 cursor-not-allowed' 
+                          : isSelected 
+                            ? 'border-emerald-500 shadow-emerald-500/50 scale-110 bg-gradient-to-br from-emerald-700 to-emerald-800 hover:scale-105' 
+                            : 'bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 hover:border-emerald-500 hover:shadow-emerald-500/25 hover:scale-105'
                       }`}>
-                        <Plus className="w-4 h-4 text-emerald-400" />
+                        {isOccupied ? (
+                          <span className="text-white text-xs font-bold">
+                            {seatedPlayer.player.firstName.charAt(0)}{seatedPlayer.player.lastName.charAt(0)}
+                          </span>
+                        ) : (
+                          <Plus className="w-5 h-5 text-emerald-400 font-bold" />
+                        )}
                       </div>
                       {/* Seat Label */}
                       <div className={`absolute -bottom-5 left-1/2 transform -translate-x-1/2 text-xs font-semibold transition-colors ${
-                        isSelected ? 'text-emerald-400' : 'text-white'
+                        isOccupied 
+                          ? 'text-blue-400' 
+                          : isSelected 
+                            ? 'text-emerald-400' 
+                            : 'text-white'
                       }`}>
-                        Seat {seatNumber}
+                        {isOccupied ? seatedPlayer.player.firstName : `Seat ${seatNumber}`}
                       </div>
                     </div>
                   );
                 })}
 
+                {/* Dealer Position - Outside the table */}
+                <div 
+                  className="absolute transform -translate-x-1/2 -translate-y-1/2 z-10"
+                  style={{ left: '50%', top: '15%' }}
+                >
+                  <div className="w-10 h-10 bg-gradient-to-br from-yellow-600 to-yellow-700 rounded-full border-3 border-yellow-500 flex items-center justify-center shadow-lg">
+                    <span className="text-sm font-bold text-white">D</span>
+                  </div>
+                  <div className="absolute -bottom-5 left-1/2 transform -translate-x-1/2 text-xs text-yellow-400 font-semibold">
+                    Dealer
+                  </div>
+                </div>
+
                 {/* Center Pot Area */}
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center">
-                    {/* Dealer Button */}
-                    <div className="absolute -top-8 left-1/2 transform -translate-x-1/2">
-                      <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full border-2 border-yellow-300 flex items-center justify-center shadow-lg">
-                        <span className="text-xs font-bold text-black">D</span>
-                      </div>
-                    </div>
                     {/* Pot Display */}
                     <div className="bg-gradient-to-br from-yellow-600 via-amber-500 to-orange-500 border-2 border-yellow-400/80 px-4 py-2 rounded-lg text-center shadow-xl">
                       <div className="text-yellow-200 text-xs font-semibold">POT</div>
@@ -169,7 +206,7 @@ export default function TableView() {
             <CardContent className="p-4 text-center">
               <Users className="w-8 h-8 text-blue-400 mx-auto mb-2" />
               <div className="text-slate-400 text-sm">Players</div>
-              <div className="text-white text-xl font-bold">0/{currentTable.maxPlayers || 9}</div>
+              <div className="text-white text-xl font-bold">{seatedPlayers?.length || 0}/{currentTable.maxPlayers || 9}</div>
             </CardContent>
           </Card>
 

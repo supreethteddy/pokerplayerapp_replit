@@ -1271,6 +1271,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Assign player to seat (for Staff Portal)
+  app.post("/api/staff/assign-player", async (req, res) => {
+    try {
+      const { waitlistId, seatNumber, assignedBy } = req.body;
+      
+      console.log(`👤 [STAFF ASSIGN] Assigning player from waitlist ${waitlistId} to seat ${seatNumber} by ${assignedBy}`);
+      
+      // Update waitlist entry to seated status
+      const { data: updatedEntry, error } = await staffPortalSupabase
+        .from('waitlist')
+        .update({
+          status: 'seated',
+          seat_number: seatNumber,
+          seated_at: new Date().toISOString(),
+          notes: `Assigned to seat ${seatNumber} by ${assignedBy}`
+        })
+        .eq('id', waitlistId)
+        .select(`
+          *,
+          players!inner(first_name, last_name, email, phone)
+        `)
+        .single();
+      
+      if (error) {
+        throw new Error(`Failed to assign player: ${error.message}`);
+      }
+      
+      // Transform for response
+      const transformedAssignment = {
+        id: updatedEntry.id,
+        playerId: updatedEntry.player_id,
+        tableId: updatedEntry.table_id,
+        seatNumber: updatedEntry.seat_number,
+        status: updatedEntry.status,
+        seatedAt: updatedEntry.seated_at,
+        notes: updatedEntry.notes,
+        player: {
+          firstName: updatedEntry.players.first_name,
+          lastName: updatedEntry.players.last_name,
+          email: updatedEntry.players.email,
+          phone: updatedEntry.players.phone
+        }
+      };
+      
+      console.log('✅ [STAFF ASSIGN] Player assigned successfully:', transformedAssignment);
+      res.json(transformedAssignment);
+    } catch (error: any) {
+      console.error('❌ [STAFF ASSIGN] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get seated players for a table (for Player Portal table view)
+  app.get("/api/table-seats/:tableId", async (req, res) => {
+    try {
+      const tableId = req.params.tableId;
+      
+      console.log(`🪑 [TABLE SEATS] Getting seated players for table ${tableId}`);
+      
+      // Get all seated players for this table
+      const { data: seatedPlayers, error } = await staffPortalSupabase
+        .from('waitlist')
+        .select(`
+          *,
+          players!inner(first_name, last_name, email)
+        `)
+        .eq('table_id', tableId)
+        .eq('status', 'seated')
+        .order('seat_number', { ascending: true });
+      
+      if (error) {
+        throw new Error(`Failed to fetch seated players: ${error.message}`);
+      }
+      
+      // Transform for response
+      const transformedSeatedPlayers = (seatedPlayers || []).map(entry => ({
+        seatNumber: entry.seat_number,
+        playerId: entry.player_id,
+        player: {
+          firstName: entry.players.first_name,
+          lastName: entry.players.last_name,
+          email: entry.players.email
+        },
+        seatedAt: entry.seated_at
+      }));
+      
+      console.log(`✅ [TABLE SEATS] Found ${transformedSeatedPlayers.length} seated players`);
+      res.json(transformedSeatedPlayers);
+    } catch (error: any) {
+      console.error('❌ [TABLE SEATS] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // UNIFIED CREDIT SYSTEM - Cross-portal credit management
   
   // Request credit (Player Portal)
