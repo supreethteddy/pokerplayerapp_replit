@@ -26,7 +26,7 @@ export default function TableView() {
   
   // Fetch user data from correct endpoint
   const { data: user } = useQuery({
-    queryKey: ['/api/players/supabase'],
+    queryKey: ['/api/players/supabase/e0953527-a5d5-402c-9e00-8ed590d19cde'],
   });
   
   const currentTable = tables?.find((table: any) => table.id === tableId);
@@ -137,8 +137,8 @@ export default function TableView() {
                 {Array.from({ length: 9 }, (_, index) => {
                   const seatNumber = index + 1;
                   const angle = (index / 9) * 2 * Math.PI - Math.PI / 2;
-                  const radiusX = 45;
-                  const radiusY = 35;
+                  const radiusX = 40;
+                  const radiusY = 30;
                   const x = 50 + radiusX * Math.cos(angle);
                   const y = 50 + radiusY * Math.sin(angle);
                   const isSelected = selectedSeat === seatNumber;
@@ -153,9 +153,9 @@ export default function TableView() {
                       className="absolute transform -translate-x-1/2 -translate-y-1/2 z-50"
                       style={{ left: `${x}%`, top: `${y}%` }}
                     >
-                      {/* FULLY CLICKABLE SEAT BUTTON */}
+                      {/* COMPACT CLICKABLE SEAT BUTTON */}
                       <div 
-                        className={`w-16 h-16 rounded-full border-2 flex items-center justify-center shadow-lg transition-all duration-300 select-none ${
+                        className={`w-12 h-12 rounded-full border-2 flex items-center justify-center shadow-lg transition-all duration-300 select-none ${
                           isOccupied 
                             ? 'bg-gradient-to-br from-blue-600 to-blue-700 border-blue-500 cursor-not-allowed' 
                             : isSelected 
@@ -165,8 +165,8 @@ export default function TableView() {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          console.log(`🎯🎯🎯 SEAT ${seatNumber} CLICKED!!! Occupied: ${isOccupied}, User ID: ${user?.id}`);
-                          if (!isOccupied && user?.id) {
+                          console.log(`🎯 SEAT ${seatNumber} CLICKED!!! User:`, user);
+                          if (!isOccupied && user) {
                             console.log(`🎯 Setting selected seat to ${seatNumber} and opening dialog`);
                             setSelectedSeat(seatNumber);
                             setShowJoinDialog(true);
@@ -174,9 +174,6 @@ export default function TableView() {
                         }}
                         onMouseDown={(e) => {
                           console.log(`🎯 Mouse down on seat ${seatNumber}`);
-                        }}
-                        onTouchStart={(e) => {
-                          console.log(`🎯 Touch start on seat ${seatNumber}`);
                         }}
                         style={{ 
                           pointerEvents: 'auto',
@@ -188,13 +185,13 @@ export default function TableView() {
                             {seatedPlayer.player.firstName.charAt(0)}{seatedPlayer.player.lastName.charAt(0)}
                           </span>
                         ) : (
-                          <Plus className={`w-6 h-6 text-emerald-400 font-bold transition-transform duration-300 ${
+                          <Plus className={`w-4 h-4 text-emerald-400 font-bold transition-transform duration-300 ${
                             isSelected ? 'rotate-45 scale-110' : 'hover:rotate-90 hover:scale-110'
                           }`} />
                         )}
                       </div>
                       {/* Seat Label */}
-                      <div className={`absolute -bottom-5 left-1/2 transform -translate-x-1/2 text-xs font-semibold transition-colors ${
+                      <div className={`absolute -bottom-4 left-1/2 transform -translate-x-1/2 text-xs font-medium transition-colors ${
                         isOccupied 
                           ? 'text-blue-400' 
                           : isSelected 
@@ -209,13 +206,13 @@ export default function TableView() {
 
                 {/* Dealer Position - Outside the table */}
                 <div 
-                  className="absolute transform -translate-x-1/2 -translate-y-1/2 z-10"
-                  style={{ left: '50%', top: '15%' }}
+                  className="absolute transform -translate-x-1/2 -translate-y-1/2 z-40"
+                  style={{ left: '50%', top: '10%' }}
                 >
-                  <div className="w-10 h-10 bg-gradient-to-br from-yellow-600 to-yellow-700 rounded-full border-3 border-yellow-500 flex items-center justify-center shadow-lg">
-                    <span className="text-sm font-bold text-white">D</span>
+                  <div className="w-8 h-8 bg-gradient-to-br from-yellow-600 to-yellow-700 rounded-full border-2 border-yellow-500 flex items-center justify-center shadow-lg">
+                    <span className="text-xs font-bold text-white">D</span>
                   </div>
-                  <div className="absolute -bottom-5 left-1/2 transform -translate-x-1/2 text-xs text-yellow-400 font-semibold">
+                  <div className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 text-xs text-yellow-400 font-medium">
                     Dealer
                   </div>
                 </div>
