@@ -1182,11 +1182,11 @@ export default function PlayerDashboard() {
             <TabsContent value="game" className="space-y-3 sm:space-y-4 w-full max-w-full">
               {/* Staff-Managed Offer Carousel */}
               <OfferCarousel onOfferClick={(offerId) => {
-                console.log('🎯 [OFFER CLICK] Switching to offers tab for offer:', offerId);
-                // Switch to offers tab programmatically
-                setActiveTab('offers');
+                console.log('🎯 [OFFER CLICK] Switching to balance tab for offer:', offerId);
+                // Switch to balance tab where offers are actually displayed
+                setActiveTab('balance');
                 // Update URL to reflect tab change
-                window.history.pushState({}, '', '?tab=offers');
+                window.history.pushState({}, '', '?tab=balance');
                 // Small delay to ensure tab content is rendered before scrolling
                 setTimeout(() => {
                   const targetOffer = document.getElementById(`offer-${offerId}`);

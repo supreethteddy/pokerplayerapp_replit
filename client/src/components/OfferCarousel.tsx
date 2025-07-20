@@ -246,10 +246,10 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
                     e.stopPropagation();
                     setCurrentIndex(index);
                   }}
-                  className={`w-1.5 h-1.5 rounded-full transition-all duration-200 ${
+                  className={`w-2 h-2 rounded-full border-0 transition-all duration-200 ${
                     index === currentIndex 
                       ? 'bg-white opacity-100' 
-                      : 'bg-white opacity-50 hover:opacity-75'
+                      : 'bg-white/60 hover:bg-white/80'
                   }`}
                 />
               ))}
