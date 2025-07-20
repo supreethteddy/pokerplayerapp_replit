@@ -403,6 +403,15 @@ export default function PlayerDashboard() {
     staleTime: 0,
   });
 
+  // Fetch dual balance system data (regular balance + credit limit)
+  const { data: accountBalance, isLoading: balanceLoading } = useQuery({
+    queryKey: ['/api/account-balance', user?.id],
+    enabled: !!user?.id,
+    refetchInterval: 3000, // Refresh every 3 seconds for real-time balance updates
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  });
+
   // Tournament Interest Handler - sends to GRE
   const handleTournamentInterest = async (tournamentId: string) => {
     if (!user?.id) return;
@@ -1493,19 +1502,59 @@ export default function PlayerDashboard() {
                 <CardHeader>
                   <CardTitle className="text-white flex items-center">
                     <CreditCard className="w-5 h-5 mr-2 text-emerald-500" />
-                    Financial Overview
+                    Financial Overview {balanceLoading && <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin ml-2"></div>}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-300">Current Balance</span>
-                    <span className="text-emerald-500 font-semibold">₹{user?.balance || "0.00"}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-300">Credit Limit</span>
-                    <span className="text-blue-500 font-semibold">
-                      {user?.creditApproved ? "₹50,000" : "Not Approved"}
+                  {/* Regular Account Balance */}
+                  <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+                    <div>
+                      <span className="text-slate-300 text-sm">Regular Account Balance</span>
+                      <p className="text-xs text-slate-400">Managed by cashier/admin</p>
+                    </div>
+                    <span className="text-emerald-500 font-bold text-lg">
+                      ₹{accountBalance?.regular_balance || "0.00"}
                     </span>
+                  </div>
+                  
+                  {/* Credit Limit */}
+                  <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+                    <div>
+                      <span className="text-slate-300 text-sm">Credit Limit</span>
+                      <p className="text-xs text-slate-400">Approved by super admin</p>
+                    </div>
+                    <span className="text-blue-500 font-bold text-lg">
+                      ₹{accountBalance?.credit_limit || "0.00"}
+                    </span>
+                  </div>
+                  
+                  {/* Available Credit */}
+                  <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+                    <div>
+                      <span className="text-slate-300 text-sm">Available Credit</span>
+                      <p className="text-xs text-slate-400">Remaining credit to use</p>
+                    </div>
+                    <span className="text-purple-500 font-bold text-lg">
+                      ₹{accountBalance?.available_credit || "0.00"}
+                    </span>
+                  </div>
+                  
+                  {/* Total Funds Available */}
+                  <div className="border-t border-slate-600 pt-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-white font-medium">Total Funds Available</span>
+                      <span className="text-yellow-500 font-bold text-xl">
+                        ₹{((parseFloat(accountBalance?.regular_balance || "0") + parseFloat(accountBalance?.available_credit || "0")).toFixed(2))}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Balance Management Note */}
+                  <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3">
+                    <p className="text-xs text-blue-300">
+                      <strong>Balance Management:</strong> Regular balance changes are handled by cashier/admin staff. 
+                      Credit limit adjustments require super admin approval through the credit request system.
+                    </p>
                   </div>
                 </CardContent>
               </Card>

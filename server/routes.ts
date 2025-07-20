@@ -1434,7 +1434,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log('📋 [CREDIT REQUESTS] Getting requests for player:', playerId);
       
-      const { data: requests, error } = await localSupabase
+      const { data: requests, error } = await staffPortalSupabase
         .from('credit_requests')
         .select('*')
         .eq('player_id', playerId)
@@ -1521,6 +1521,230 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(transformedRequests);
     } catch (error: any) {
       console.error('❌ [ALL CREDIT REQUESTS] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get player account balances (regular + credit) - Enhanced dual balance system
+  app.get("/api/account-balance/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      console.log(`💰 [ACCOUNT BALANCE] Getting balance for player: ${playerId}`);
+      
+      const { data, error } = await staffPortalSupabase
+        .from('account_balances')
+        .select('*')
+        .eq('player_id', playerId)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') {
+        throw new Error(`Failed to fetch account balance: ${error.message}`);
+      }
+      
+      // If no balance record exists, create one
+      if (!data) {
+        const { data: newBalance, error: insertError } = await staffPortalSupabase
+          .from('account_balances')
+          .insert({
+            player_id: playerId,
+            regular_balance: 0.00,
+            credit_limit: 0.00,
+            available_credit: 0.00
+          })
+          .select()
+          .single();
+        
+        if (insertError) {
+          throw new Error(`Failed to create account balance: ${insertError.message}`);
+        }
+        
+        console.log(`✅ [ACCOUNT BALANCE] Created new balance record for player ${playerId}`);
+        res.json(newBalance);
+      } else {
+        console.log(`✅ [ACCOUNT BALANCE] Found balance for player ${playerId}: Regular=₹${data.regular_balance}, Credit=₹${data.credit_limit}`);
+        res.json(data);
+      }
+    } catch (error: any) {
+      console.error(`❌ [ACCOUNT BALANCE] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Staff Portal: Create credit request
+  app.post("/api/staff/credit-request", async (req, res) => {
+    try {
+      const { playerId, requestedAmount, currentCreditLimit, newCreditLimit, requestedBy, requestReason } = req.body;
+      console.log(`📋 [STAFF CREDIT REQUEST] Creating credit request for player ${playerId}: ₹${requestedAmount}`);
+      
+      const { data, error } = await staffPortalSupabase
+        .from('credit_requests')
+        .insert({
+          player_id: playerId,
+          requested_amount: requestedAmount,
+          current_credit_limit: currentCreditLimit,
+          new_credit_limit: newCreditLimit,
+          requested_by: requestedBy,
+          request_reason: requestReason,
+          status: 'pending'
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        throw new Error(`Failed to create credit request: ${error.message}`);
+      }
+      
+      console.log(`✅ [STAFF CREDIT REQUEST] Created credit request: ${data.id}`);
+      res.json(data);
+    } catch (error: any) {
+      console.error(`❌ [STAFF CREDIT REQUEST] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Super Admin: Approve/Reject credit request
+  app.post("/api/admin/credit-request/:requestId/review", async (req, res) => {
+    try {
+      const requestId = req.params.requestId;
+      const { status, reviewedBy, reviewNotes } = req.body;
+      console.log(`🔍 [ADMIN CREDIT REVIEW] ${status} credit request ${requestId} by ${reviewedBy}`);
+      
+      // Get the credit request
+      const { data: creditRequest, error: getError } = await staffPortalSupabase
+        .from('credit_requests')
+        .select('*')
+        .eq('id', requestId)
+        .single();
+      
+      if (getError) {
+        throw new Error(`Failed to get credit request: ${getError.message}`);
+      }
+      
+      // Update credit request status
+      const { data: updatedRequest, error: updateError } = await staffPortalSupabase
+        .from('credit_requests')
+        .update({
+          status: status,
+          reviewed_by: reviewedBy,
+          review_notes: reviewNotes,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('id', requestId)
+        .select()
+        .single();
+      
+      if (updateError) {
+        throw new Error(`Failed to update credit request: ${updateError.message}`);
+      }
+      
+      // If approved, update player's credit limit
+      if (status === 'approved') {
+        const { data: balanceUpdate, error: balanceError } = await staffPortalSupabase
+          .from('account_balances')
+          .upsert({
+            player_id: creditRequest.player_id,
+            credit_limit: creditRequest.new_credit_limit,
+            available_credit: creditRequest.new_credit_limit,
+            updated_by: reviewedBy,
+            updated_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+        
+        if (balanceError) {
+          throw new Error(`Failed to update credit limit: ${balanceError.message}`);
+        }
+        
+        // Log the credit adjustment
+        await staffPortalSupabase
+          .from('balance_transactions')
+          .insert({
+            player_id: creditRequest.player_id,
+            transaction_type: 'credit_adjustment',
+            amount: creditRequest.new_credit_limit - creditRequest.current_credit_limit,
+            balance_type: 'credit',
+            old_balance: creditRequest.current_credit_limit,
+            new_balance: creditRequest.new_credit_limit,
+            description: `Credit limit ${status} by ${reviewedBy}: ${reviewNotes}`,
+            processed_by: reviewedBy,
+            staff_portal_origin: 'super_admin',
+            reference_id: requestId
+          });
+        
+        console.log(`✅ [ADMIN CREDIT REVIEW] Credit limit updated to ₹${creditRequest.new_credit_limit} for player ${creditRequest.player_id}`);
+      }
+      
+      console.log(`✅ [ADMIN CREDIT REVIEW] Credit request ${status}: ${requestId}`);
+      res.json({ success: true, request: updatedRequest });
+    } catch (error: any) {
+      console.error(`❌ [ADMIN CREDIT REVIEW] Error:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Staff Portal: Update regular account balance
+  app.post("/api/staff/balance-adjustment", async (req, res) => {
+    try {
+      const { playerId, amount, transactionType, description, processedBy, staffPortalOrigin } = req.body;
+      console.log(`💰 [STAFF BALANCE] ${transactionType} ₹${amount} for player ${playerId} by ${processedBy}`);
+      
+      // Get current balance
+      const { data: currentBalance, error: getError } = await staffPortalSupabase
+        .from('account_balances')
+        .select('*')
+        .eq('player_id', playerId)
+        .single();
+      
+      if (getError && getError.code !== 'PGRST116') {
+        throw new Error(`Failed to get current balance: ${getError.message}`);
+      }
+      
+      const oldBalance = currentBalance?.regular_balance || 0.00;
+      const newBalance = transactionType === 'deposit' ? 
+        parseFloat(oldBalance) + parseFloat(amount) : 
+        parseFloat(oldBalance) - parseFloat(amount);
+      
+      // Update account balance
+      const { data: updatedBalance, error: updateError } = await staffPortalSupabase
+        .from('account_balances')
+        .upsert({
+          player_id: playerId,
+          regular_balance: newBalance,
+          total_deposits: transactionType === 'deposit' ? 
+            (currentBalance?.total_deposits || 0) + parseFloat(amount) : 
+            (currentBalance?.total_deposits || 0),
+          total_withdrawals: transactionType === 'withdrawal' ? 
+            (currentBalance?.total_withdrawals || 0) + parseFloat(amount) : 
+            (currentBalance?.total_withdrawals || 0),
+          updated_by: processedBy,
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+      
+      if (updateError) {
+        throw new Error(`Failed to update balance: ${updateError.message}`);
+      }
+      
+      // Log the transaction
+      await staffPortalSupabase
+        .from('balance_transactions')
+        .insert({
+          player_id: playerId,
+          transaction_type: transactionType,
+          amount: amount,
+          balance_type: 'regular',
+          old_balance: oldBalance,
+          new_balance: newBalance,
+          description: description,
+          processed_by: processedBy,
+          staff_portal_origin: staffPortalOrigin
+        });
+      
+      console.log(`✅ [STAFF BALANCE] Balance updated: ₹${oldBalance} → ₹${newBalance} for player ${playerId}`);
+      res.json({ success: true, balance: updatedBalance });
+    } catch (error: any) {
+      console.error(`❌ [STAFF BALANCE] Error:`, error);
       res.status(500).json({ error: error.message });
     }
   });
