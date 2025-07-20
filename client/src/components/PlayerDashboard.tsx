@@ -39,7 +39,8 @@ import {
   Send,
   Bell,
   Trophy,
-  X
+  X,
+  Plus
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
