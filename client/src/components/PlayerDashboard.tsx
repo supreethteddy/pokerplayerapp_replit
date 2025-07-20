@@ -1178,6 +1178,17 @@ export default function PlayerDashboard() {
             >
               <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
+            <TabsTrigger 
+              value="notifications" 
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 relative"
+            >
+              <Bell className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
+              {notifications && notifications.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full text-xs flex items-center justify-center text-white" style={{ fontSize: '0.5rem' }}>
+                  {notifications.length > 9 ? '9+' : notifications.length}
+                </span>
+              )}
+            </TabsTrigger>
 
           </TabsList>
 
@@ -2475,6 +2486,100 @@ export default function PlayerDashboard() {
                 </Card>
               </div>
             </TabsContent>
+
+            {/* Notifications Management Tab */}
+            <TabsContent value="notifications" className="space-y-4 w-full max-w-full">
+              <Card className="bg-slate-800/80 border-slate-700/50 w-full max-w-full overflow-hidden backdrop-blur-sm">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-white flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Bell className="w-5 h-5 mr-2 text-blue-500" />
+                      Notifications
+                    </div>
+                    <span className="text-sm font-normal text-slate-400">
+                      Last 24 hours
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {notificationsLoading ? (
+                    <div className="space-y-4">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="animate-pulse flex space-x-3">
+                          <div className="rounded-full bg-slate-700 h-8 w-8"></div>
+                          <div className="flex-1 space-y-2">
+                            <div className="h-4 bg-slate-700 rounded w-3/4"></div>
+                            <div className="h-3 bg-slate-700 rounded w-1/2"></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : notifications && notifications.length > 0 ? (
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {notifications.map((notification: any) => (
+                        <div 
+                          key={notification.id}
+                          className={`p-4 rounded-lg border ${
+                            notification.priority === 'urgent' 
+                              ? 'bg-red-900/20 border-red-500/30' 
+                              : notification.priority === 'high'
+                              ? 'bg-yellow-900/20 border-yellow-500/30'
+                              : 'bg-slate-700/30 border-slate-600/30'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center space-x-2">
+                              {notification.priority === 'urgent' ? (
+                                <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                              ) : notification.priority === 'high' ? (
+                                <Bell className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                              ) : (
+                                <Info className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                              )}
+                              <span className="text-xs font-medium text-white bg-slate-700/60 px-2 py-1 rounded">
+                                {(notification.sender_role || notification.sent_by_role || 'SYSTEM')?.toString().toUpperCase() || 'SYSTEM'}
+                              </span>
+                            </div>
+                            <span className="text-xs text-slate-400">
+                              {new Date(notification.created_at || notification.sent_at).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          
+                          <h4 className="text-white font-semibold text-sm mb-1">
+                            {notification.title}
+                          </h4>
+                          
+                          <p className="text-slate-300 text-sm mb-2 leading-relaxed">
+                            {notification.message}
+                          </p>
+                          
+                          {notification.media_url && (
+                            <div className="mt-2 p-2 bg-slate-800/50 rounded border border-slate-600/50">
+                              <div className="flex items-center space-x-2 text-xs text-slate-400">
+                                <span>📎 Media attachment:</span>
+                                <span className="text-blue-400">{notification.media_description || 'View attachment'}</span>
+                              </div>
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center justify-between mt-2 text-xs text-slate-400">
+                            <span>From: {notification.sender_name || notification.sent_by_name || 'System'}</span>
+                            <span>{new Date(notification.created_at || notification.sent_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Bell className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                      <p className="text-slate-400">No notifications in the last 24 hours</p>
+                      <p className="text-slate-500 text-sm mt-1">New notifications will appear here</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
           </div>
         </Tabs>
       </div>

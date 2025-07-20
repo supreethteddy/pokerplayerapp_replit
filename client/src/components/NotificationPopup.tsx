@@ -9,8 +9,9 @@ interface NotificationPopupProps {
 }
 
 export default function NotificationPopup({ userId }: NotificationPopupProps) {
-  const [shownNotifications, setShownNotifications] = useState<Set<number>>(new Set());
+  const [shownNotifications, setShownNotifications] = useState<Set<string>>(new Set());
   const [visibleNotifications, setVisibleNotifications] = useState<any[]>([]);
+  const [dismissTimers, setDismissTimers] = useState<Map<string, NodeJS.Timeout>>(new Map());
 
   // Fetch notifications every 3 seconds to check for new ones
   const { data: notifications } = useQuery({
@@ -36,11 +37,35 @@ export default function NotificationPopup({ userId }: NotificationPopupProps) {
       if (newNotifications.length > 0) {
         setVisibleNotifications(prev => [...prev, ...newNotifications]);
         setShownNotifications(prev => new Set([...prev, ...newNotifications.map((n: any) => n.id)]));
+        
+        // Auto-dismiss notifications after 8 seconds (8000ms)
+        newNotifications.forEach((notification: any) => {
+          const timer = setTimeout(() => {
+            dismissNotification(notification.id);
+          }, 8000);
+          
+          setDismissTimers(prev => {
+            const newMap = new Map(prev);
+            newMap.set(notification.id, timer);
+            return newMap;
+          });
+        });
       }
     }
   }, [notifications, shownNotifications]);
 
-  const dismissNotification = (notificationId: number) => {
+  const dismissNotification = (notificationId: string | number) => {
+    // Clear any auto-dismiss timer
+    const timer = dismissTimers.get(String(notificationId));
+    if (timer) {
+      clearTimeout(timer);
+      setDismissTimers(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(String(notificationId));
+        return newMap;
+      });
+    }
+    
     setVisibleNotifications(prev => prev.filter(notif => notif.id !== notificationId));
     
     // Mark as read on server
@@ -48,6 +73,13 @@ export default function NotificationPopup({ userId }: NotificationPopupProps) {
       method: 'PATCH'
     }).catch(console.error);
   };
+  
+  // Clean up timers on unmount
+  useEffect(() => {
+    return () => {
+      dismissTimers.forEach(timer => clearTimeout(timer));
+    };
+  }, [dismissTimers]);
 
   const getPriorityIcon = (priority: string) => {
     if (!priority) return <Info className="w-5 h-5 text-blue-500" />;
@@ -89,7 +121,7 @@ export default function NotificationPopup({ userId }: NotificationPopupProps) {
               <div className="flex items-center space-x-2">
                 {getPriorityIcon(notification.priority)}
                 <span className="text-xs font-medium text-white bg-slate-700/80 px-2 py-1 rounded">
-                  {(notification.sender_role || notification.sent_by_role || 'SYSTEM').toUpperCase()}
+                  {(notification.sender_role || notification.sent_by_role || 'SYSTEM')?.toString().toUpperCase() || 'SYSTEM'}
                 </span>
               </div>
               <Button
