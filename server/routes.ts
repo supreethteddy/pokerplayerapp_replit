@@ -1065,8 +1065,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           position: position,
           status: requestData.status || 'waiting',
           requested_at: new Date().toISOString(),
-          seat_number: requestData.seatNumber || null,
-          notes: requestData.notes || `Player ${requestData.playerId} joined waitlist`
+          // seat_number: requestData.seatNumber || null, // Field doesn't exist, using notes instead
+          notes: requestData.notes ? `${requestData.notes} (Preferred Seat: ${requestData.seatNumber})` : `Player ${requestData.playerId} joined waitlist - Preferred Seat: ${requestData.seatNumber || 'Any'}`
         })
         .select()
         .single();
@@ -1086,7 +1086,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         position: waitlistEntry.position,
         status: waitlistEntry.status,
         requestedAt: waitlistEntry.requested_at,
-        seatNumber: waitlistEntry.seat_number,
+        // seatNumber: waitlistEntry.seat_number, // Field doesn't exist in table
         notes: waitlistEntry.notes,
         createdAt: waitlistEntry.created_at
       };

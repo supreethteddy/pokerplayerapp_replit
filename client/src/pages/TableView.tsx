@@ -2,7 +2,8 @@ import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Users, Clock, DollarSign, UserPlus, Plus } from "lucide-react";
+import { ArrowLeft, Users, Clock, DollarSign, UserPlus, Plus, X } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -11,6 +12,7 @@ export default function TableView() {
   const { tableId } = useParams();
   const [, setLocation] = useLocation();
   const [selectedSeat, setSelectedSeat] = useState<number | null>(null);
+  const [showJoinDialog, setShowJoinDialog] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -75,7 +77,7 @@ export default function TableView() {
       queryClient.invalidateQueries({ queryKey: ["/api/table-seats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tables"] });
       // Navigate back to dashboard after successful reservation
-      setTimeout(() => setLocation('/'), 1500);
+      setTimeout(() => setLocation('/'), 2000);
     },
     onError: (error: any) => {
       console.error('❌ Seat reservation failed:', error);
@@ -153,23 +155,26 @@ export default function TableView() {
                         if (!isOccupied) {
                           console.log(`🎯 Seat ${seatNumber} clicked! User ID: ${user?.id}`);
                           setSelectedSeat(seatNumber);
+                          setShowJoinDialog(true);
                         }
                       }}
                     >
-                      {/* Player Seat */}
-                      <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center shadow-lg transition-all duration-300 ${
+                      {/* Player Seat - Enhanced with interactive animations */}
+                      <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center shadow-lg transition-all duration-300 transform ${
                         isOccupied 
                           ? 'bg-gradient-to-br from-blue-600 to-blue-700 border-blue-500 cursor-not-allowed' 
                           : isSelected 
-                            ? 'border-emerald-500 shadow-emerald-500/50 scale-110 bg-gradient-to-br from-emerald-700 to-emerald-800 hover:scale-105' 
-                            : 'bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 hover:border-emerald-500 hover:shadow-emerald-500/25 hover:scale-105'
+                            ? 'border-emerald-500 shadow-emerald-500/50 scale-110 bg-gradient-to-br from-emerald-700 to-emerald-800 animate-pulse' 
+                            : 'bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 hover:border-emerald-500 hover:shadow-emerald-500/25 hover:scale-110 cursor-pointer'
                       }`}>
                         {isOccupied ? (
                           <span className="text-white text-xs font-bold">
                             {seatedPlayer.player.firstName.charAt(0)}{seatedPlayer.player.lastName.charAt(0)}
                           </span>
                         ) : (
-                          <Plus className="w-5 h-5 text-emerald-400 font-bold" />
+                          <Plus className={`w-5 h-5 text-emerald-400 font-bold transition-transform duration-300 ${
+                            isSelected ? 'rotate-45 scale-110' : 'hover:rotate-90 hover:scale-110'
+                          }`} />
                         )}
                       </div>
                       {/* Seat Label */}
@@ -297,6 +302,69 @@ export default function TableView() {
           <p className="text-xs mt-2">Players are seated by super admin, admin, or manager only.</p>
         </div>
       </div>
+
+      {/* Seat Selection Confirmation Dialog */}
+      <Dialog open={showJoinDialog} onOpenChange={setShowJoinDialog}>
+        <DialogContent className="bg-slate-800 border-slate-700 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-emerald-400 text-xl">Join Table Waitlist</DialogTitle>
+            <DialogDescription className="text-slate-300">
+              Confirm your seat reservation for {currentTable?.name}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+              <h4 className="font-semibold text-emerald-400 mb-2">Table Information</h4>
+              <div className="text-sm space-y-1 text-slate-300">
+                <div>• Table: {currentTable?.name}</div>
+                <div>• Game: {currentTable?.gameType}</div>
+                <div>• Stakes: {currentTable?.stakes}</div>
+                <div>• Preferred Seat: {selectedSeat}</div>
+              </div>
+            </div>
+
+            <div className="bg-amber-900/20 border border-amber-600/50 rounded-lg p-3">
+              <p className="text-amber-200 text-sm">
+                <strong>Note:</strong> You will be added to the waitlist for this table. 
+                Staff will assign seating when a spot becomes available.
+              </p>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowJoinDialog(false);
+                  setSelectedSeat(null);
+                }}
+                className="border-slate-600 text-slate-300 hover:bg-slate-700"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Cancel
+              </Button>
+              
+              <Button
+                onClick={() => {
+                  if (selectedSeat) {
+                    joinWaitlistMutation.mutate(selectedSeat);
+                    setShowJoinDialog(false);
+                  }
+                }}
+                disabled={joinWaitlistMutation.isPending}
+                className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white"
+              >
+                {joinWaitlistMutation.isPending ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                ) : (
+                  <UserPlus className="w-4 h-4 mr-2" />
+                )}
+                Confirm Seat {selectedSeat}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
