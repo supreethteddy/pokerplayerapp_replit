@@ -1446,7 +1446,7 @@ export default function PlayerDashboard() {
                                         'bg-slate-500/20 text-slate-300 border-slate-500/30'
                                       }`}
                                     >
-                                      {tournament.status?.charAt(0).toUpperCase() + tournament.status?.slice(1)}
+                                      {tournament.status ? tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1) : 'Unknown'}
                                     </Badge>
                                     <span className="text-sm text-slate-400">
                                       {tournament.tournament_type}
@@ -2078,7 +2078,7 @@ export default function PlayerDashboard() {
                         className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                         style={{ textTransform: 'uppercase' }}
                         onChange={(e) => {
-                          setPanCardNumber(e.target.value.toUpperCase());
+                          setPanCardNumber((e.target.value || '').toUpperCase());
                         }}
                       />
                     </div>
@@ -2461,7 +2461,7 @@ export default function PlayerDashboard() {
                                 <p className="text-slate-300 text-sm mb-2">{notification.message}</p>
                                 <div className="flex items-center text-xs text-slate-400">
                                   <span className="bg-slate-700 px-2 py-1 rounded mr-2">
-                                    {notification.sender_role.toUpperCase()}
+                                    {(notification.sender_role || notification.sent_by_role || 'SYSTEM')?.toString().toUpperCase() || 'SYSTEM'}
                                   </span>
                                   <span>{notification.sender_name}</span>
                                   <span className="mx-2">•</span>
