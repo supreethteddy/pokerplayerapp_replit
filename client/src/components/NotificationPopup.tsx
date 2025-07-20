@@ -23,15 +23,20 @@ export default function NotificationPopup({ userId }: NotificationPopupProps) {
 
   useEffect(() => {
     if (notifications && notifications.length > 0) {
+      // Get permanently dismissed notifications from localStorage
+      const dismissedNotifications = JSON.parse(localStorage.getItem('dismissedNotifications') || '[]');
+      
       // Filter out notifications older than 24 hours
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const recentNotifications = notifications.filter((notif: any) => 
         new Date(notif.created_at) > twentyFourHoursAgo
       );
 
-      // Show new notifications as pop-ups
+      // Show new notifications as pop-ups (only if not already seen and not dismissed)
       const newNotifications = recentNotifications.filter((notif: any) => 
-        !shownNotifications.has(notif.id) && notif.status !== 'read'
+        !shownNotifications.has(notif.id) && 
+        notif.delivery_status !== 'read' &&
+        !dismissedNotifications.includes(String(notif.id))
       );
 
       if (newNotifications.length > 0) {
@@ -68,10 +73,17 @@ export default function NotificationPopup({ userId }: NotificationPopupProps) {
     
     setVisibleNotifications(prev => prev.filter(notif => notif.id !== notificationId));
     
-    // Mark as read on server
+    // Mark as read on server and add to permanent shown list
     fetch(`/api/push-notifications/${notificationId}/read`, {
       method: 'PATCH'
     }).catch(console.error);
+    
+    // Store in localStorage to prevent re-showing across sessions
+    const dismissedNotifications = JSON.parse(localStorage.getItem('dismissedNotifications') || '[]');
+    if (!dismissedNotifications.includes(String(notificationId))) {
+      dismissedNotifications.push(String(notificationId));
+      localStorage.setItem('dismissedNotifications', JSON.stringify(dismissedNotifications));
+    }
   };
   
   // Clean up timers on unmount

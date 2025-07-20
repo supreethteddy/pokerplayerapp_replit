@@ -5639,26 +5639,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log('🏆 [TOURNAMENTS] Fetching tournaments from Staff Portal...');
       
-      // Fetch tournaments from Staff Portal Supabase
+      // First, test basic connection and see what tournaments table has
+      const { data: testData, error: testError } = await staffPortalSupabase
+        .from('tournaments')
+        .select('*')
+        .limit(1);
+      
+      console.log('🔍 [TOURNAMENTS] Test query result:', { testData, testError });
+      
+      if (testError) {
+        console.error('❌ [TOURNAMENTS] Test query failed:', testError);
+        return res.status(500).json({ error: `Tournament table error: ${testError.message}` });
+      }
+      
+      // Fetch all tournaments from Staff Portal Supabase
       const { data: tournaments, error } = await staffPortalSupabase
         .from('tournaments')
         .select('*')
-        .order('start_date', { ascending: true });
+        .order('created_at', { ascending: false });
       
       if (error) {
-        console.error('❌ [TOURNAMENTS] Error fetching tournaments:', error);
-        return res.status(500).json({ error: "Failed to fetch tournaments" });
+        console.error('❌ [TOURNAMENTS] Error:', error);
+        console.log('🔍 [TOURNAMENTS] Attempting to fetch with basic query...');
+        
+        // Try a basic query to see what columns exist
+        const { data: basicTournaments, error: basicError } = await staffPortalSupabase
+          .from('tournaments')
+          .select('*')
+          .limit(5);
+        
+        if (basicError) {
+          console.error('❌ [TOURNAMENTS] Basic query failed:', basicError);
+          return res.status(500).json({ error: `Failed to fetch tournaments: ${basicError.message}` });
+        }
+        
+        console.log('✅ [TOURNAMENTS] Basic query successful, sample data:', basicTournaments?.[0]);
+        return res.json(basicTournaments || []);
       }
       
       // Transform tournament data for frontend
       const transformedTournaments = (tournaments || []).map(tournament => ({
         id: tournament.id,
         name: tournament.name,
-        type: tournament.type || 'Texas Hold\'em',
-        buyIn: tournament.buy_in || 0,
-        startDate: tournament.start_date,
-        maxPlayers: tournament.max_players || 100,
-        registeredPlayers: tournament.registered_players || 0,
+        tournament_type: tournament.tournament_type || tournament.type || 'Texas Hold\'em',
+        buy_in: tournament.buy_in || 0,
+        start_time: tournament.start_time || tournament.start_date,
+        max_players: tournament.max_players || 100,
+        registered_players: tournament.registered_players || 0,
         status: tournament.status || 'upcoming'
       }));
       
