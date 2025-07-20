@@ -195,6 +195,8 @@ const ScrollableOffersDisplay = () => {
                   onClick={(e) => {
                     e.stopPropagation();
                     trackOfferView.mutate(offer.id);
+                    // Navigate to offer detail page
+                    window.location.href = `/offer/${offer.id}`;
                   }}
                 >
                   <Star className="w-4 h-4 mr-2" />
@@ -1149,7 +1151,7 @@ export default function PlayerDashboard() {
               <Spade className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger 
-              value="balance" 
+              value="offers" 
               className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
             >
               <Gift className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
@@ -1182,11 +1184,11 @@ export default function PlayerDashboard() {
             <TabsContent value="game" className="space-y-3 sm:space-y-4 w-full max-w-full">
               {/* Staff-Managed Offer Carousel */}
               <OfferCarousel onOfferClick={(offerId) => {
-                console.log('🎯 [OFFER CLICK] Switching to balance tab for offer:', offerId);
-                // Switch to balance tab where offers are actually displayed
-                setActiveTab('balance');
+                console.log('🎯 [OFFER CLICK] Switching to offers tab for offer:', offerId);
+                // Switch to offers tab where offers are actually displayed
+                setActiveTab('offers');
                 // Update URL to reflect tab change
-                window.history.pushState({}, '', '?tab=balance');
+                window.history.pushState({}, '', '?tab=offers');
                 // Small delay to ensure tab content is rendered before scrolling
                 setTimeout(() => {
                   const targetOffer = document.getElementById(`offer-${offerId}`);
@@ -1486,7 +1488,7 @@ export default function PlayerDashboard() {
             </TabsContent>
 
           {/* Offers Tab - Staff Managed */}
-          <TabsContent value="balance" className="space-y-4">
+          <TabsContent value="offers" className="space-y-4">
             <ScrollableOffersDisplay />
           </TabsContent>
 
