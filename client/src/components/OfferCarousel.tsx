@@ -246,11 +246,14 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
                     e.stopPropagation();
                     setCurrentIndex(index);
                   }}
-                  className={`w-1 h-1 rounded-full transition-all duration-200 ${
-                    index === currentIndex 
-                      ? 'bg-white' 
-                      : 'bg-white/50 hover:bg-white/75'
-                  }`}
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: index === currentIndex ? 'white' : 'rgba(255, 255, 255, 0.5)',
+                    transition: 'all 0.2s ease'
+                  }}
+                  className="hover:opacity-75"
                 />
               ))}
             </div>
