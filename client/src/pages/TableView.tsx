@@ -20,9 +20,9 @@ export default function TableView() {
     refetchInterval: 2000,
   });
   
-  // Fetch user data
+  // Fetch user data from correct endpoint
   const { data: user } = useQuery({
-    queryKey: ['/api/user'],
+    queryKey: ['/api/players/supabase'],
   });
   
   const currentTable = tables?.find((table: any) => table.id === tableId);
@@ -151,7 +151,7 @@ export default function TableView() {
                       onClick={(e) => {
                         e.stopPropagation();
                         if (!isOccupied) {
-                          console.log(`Seat ${seatNumber} clicked!`);
+                          console.log(`🎯 Seat ${seatNumber} clicked! User ID: ${user?.id}`);
                           setSelectedSeat(seatNumber);
                         }
                       }}
