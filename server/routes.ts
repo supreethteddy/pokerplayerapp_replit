@@ -1066,7 +1066,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: requestData.status || 'waiting',
           requested_at: new Date().toISOString(),
           // seat_number: requestData.seatNumber || null, // Field doesn't exist, using notes instead
-          notes: requestData.notes ? `${requestData.notes} (Preferred Seat: ${requestData.seatNumber})` : `Player ${requestData.playerId} joined waitlist - Preferred Seat: ${requestData.seatNumber || 'Any'}`
+          notes: requestData.notes || `Player ${requestData.playerId} requested seat ${requestData.seatNumber || 'Any'} via interactive seat selection`
         })
         .select()
         .single();
