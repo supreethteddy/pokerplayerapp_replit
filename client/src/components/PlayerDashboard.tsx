@@ -106,8 +106,9 @@ const ScrollableOffersDisplay = () => {
       <div className="max-h-[600px] overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
         {displayOffers.map((offer: any) => (
           <Card 
-            key={offer.id} 
-            className="bg-slate-800 border-slate-700 hover:border-emerald-500/50 transition-colors"
+            key={offer.id}
+            id={`offer-${offer.id}`}
+            className="bg-slate-800 border-slate-700 hover:border-emerald-500/50 transition-all duration-300"
             onClick={() => trackOfferView.mutate(offer.id)}
           >
             <CardContent className="p-0">
@@ -1161,45 +1162,61 @@ export default function PlayerDashboard() {
             <TabsContent value="game" className="space-y-3 sm:space-y-4 w-full max-w-full">
               {/* Staff-Managed Offer Carousel */}
               <OfferCarousel onOfferClick={(offerId) => {
-                // Switch to offers tab when carousel item is clicked
-                const offersTab = document.querySelector('[value="balance"]') as HTMLElement;
-                if (offersTab) offersTab.click();
+                // Switch to offers tab and scroll to specific offer
+                const balanceTab = document.querySelector('[value="balance"]') as HTMLElement;
+                if (balanceTab) {
+                  balanceTab.click();
+                  // Small delay to ensure tab content is rendered before scrolling
+                  setTimeout(() => {
+                    const targetOffer = document.getElementById(`offer-${offerId}`);
+                    if (targetOffer) {
+                      targetOffer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      // Add highlight effect
+                      targetOffer.classList.add('ring-2', 'ring-emerald-500', 'ring-opacity-50');
+                      setTimeout(() => {
+                        targetOffer.classList.remove('ring-2', 'ring-emerald-500', 'ring-opacity-50');
+                      }, 3000);
+                    }
+                  }, 200);
+                }
               }} />
               
               <div className="w-full max-w-full space-y-3 sm:space-y-4">
-                {/* Toggle State for Cash Tables vs Tournaments */}
-                <div className="flex items-center space-x-4 mb-4">
+                {/* Toggle State for Cash Tables vs Tournaments - Improved Alignment */}
+                <div className="flex items-center justify-center space-x-2 mb-6 bg-slate-800/50 rounded-xl p-1 max-w-md mx-auto">
                   <button
                     onClick={() => setShowTournaments(false)}
-                    className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors ${
+                    className={`flex-1 flex items-center justify-center px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
                       !showTournaments 
-                        ? 'bg-emerald-600 text-white' 
-                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        ? 'bg-emerald-600 text-white shadow-lg transform scale-105' 
+                        : 'bg-transparent text-slate-300 hover:bg-slate-700/50'
                     }`}
                   >
-                    <Table className="w-4 h-4 mr-2" />
-                    Cash Tables
+                    <Table className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span className="hidden sm:inline">Cash Tables</span>
+                    <span className="sm:hidden">Cash</span>
                   </button>
                   <button
                     onClick={() => setShowTournaments(true)}
-                    className={`flex items-center px-4 py-2 rounded-lg font-medium transition-colors ${
+                    className={`flex-1 flex items-center justify-center px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
                       showTournaments 
-                        ? 'bg-emerald-600 text-white' 
-                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        ? 'bg-emerald-600 text-white shadow-lg transform scale-105' 
+                        : 'bg-transparent text-slate-300 hover:bg-slate-700/50'
                     }`}
                   >
-                    <Trophy className="w-4 h-4 mr-2" />
-                    Tournaments
+                    <Trophy className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span className="hidden sm:inline">Tournaments</span>
+                    <span className="sm:hidden">Tourneys</span>
                   </button>
                 </div>
 
-                {/* Cash Tables Display */}
+                {/* Cash Tables Display - Improved Layout */}
                 {!showTournaments && (
-                  <Card className="bg-slate-800 border-slate-700 w-full max-w-full overflow-hidden">
-                    <CardHeader>
-                      <CardTitle className="text-white flex items-center">
+                  <Card className="bg-slate-800/80 border-slate-700/50 w-full max-w-full overflow-hidden backdrop-blur-sm">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-white flex items-center justify-center text-lg">
                         <Table className="w-5 h-5 mr-2 text-emerald-500" />
-                        Cash Tables
+                        Live Cash Tables
                       </CardTitle>
                     </CardHeader>
                 <CardContent>
@@ -1314,13 +1331,13 @@ export default function PlayerDashboard() {
                   </Card>
                 )}
 
-                {/* Tournaments Display */}
+                {/* Tournaments Display - Improved Layout */}
                 {showTournaments && (
-                  <Card className="bg-slate-800 border-slate-700 w-full max-w-full overflow-hidden">
-                    <CardHeader>
-                      <CardTitle className="text-white flex items-center">
+                  <Card className="bg-slate-800/80 border-slate-700/50 w-full max-w-full overflow-hidden backdrop-blur-sm">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-white flex items-center justify-center text-lg">
                         <Trophy className="w-5 h-5 mr-2 text-yellow-500" />
-                        Tournaments
+                        Active Tournaments
                       </CardTitle>
                     </CardHeader>
                       <CardContent>
