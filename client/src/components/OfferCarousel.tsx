@@ -238,7 +238,7 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
 
           {/* Small circular dots indicator */}
           {displayItems.length > 1 && (
-            <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex space-x-2 z-10">
+            <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex space-x-3 z-10">
               {displayItems.map((_, index) => (
                 <button
                   key={index}
@@ -246,17 +246,15 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
                     e.stopPropagation();
                     setCurrentIndex(index);
                   }}
-                  style={{
-                    width: '4px',
-                    height: '4px',
-                    borderRadius: '50%',
-                    backgroundColor: index === currentIndex ? 'white' : 'rgba(255, 255, 255, 0.5)',
-                    transition: 'all 0.2s ease',
-                    flexShrink: 0,
-                    display: 'block'
-                  }}
-                  className="hover:opacity-75"
-                />
+                  className={`text-lg leading-none transition-opacity duration-200 ${
+                    index === currentIndex 
+                      ? 'text-white opacity-100' 
+                      : 'text-white opacity-50 hover:opacity-75'
+                  }`}
+                  style={{ lineHeight: '1' }}
+                >
+                  •
+                </button>
               ))}
             </div>
           )}
