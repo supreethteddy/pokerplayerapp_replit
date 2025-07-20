@@ -150,40 +150,38 @@ export default function TableView() {
                   return (
                     <div
                       key={seatNumber}
-                      className={`absolute transform -translate-x-1/2 -translate-y-1/2 z-20 ${
-                        isOccupied ? 'cursor-not-allowed' : 'cursor-pointer'
-                      }`}
+                      className="absolute transform -translate-x-1/2 -translate-y-1/2 z-50"
                       style={{ left: `${x}%`, top: `${y}%` }}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        console.log(`🎯 Seat ${seatNumber} clicked! Occupied: ${isOccupied}`);
-                        if (!isOccupied && user?.id) {
-                          console.log(`🎯 Opening dialog for seat ${seatNumber}`);
-                          setSelectedSeat(seatNumber);
-                          setShowJoinDialog(true);
-                        }
-                      }}
                     >
-                      {/* Player Seat - Enhanced with interactive animations */}
-                      <button 
-                        className={`w-14 h-14 rounded-full border-2 flex items-center justify-center shadow-lg transition-all duration-300 transform outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-opacity-50 ${
+                      {/* FULLY CLICKABLE SEAT BUTTON */}
+                      <div 
+                        className={`w-16 h-16 rounded-full border-2 flex items-center justify-center shadow-lg transition-all duration-300 select-none ${
                           isOccupied 
                             ? 'bg-gradient-to-br from-blue-600 to-blue-700 border-blue-500 cursor-not-allowed' 
                             : isSelected 
-                              ? 'border-emerald-500 shadow-emerald-500/50 scale-110 bg-gradient-to-br from-emerald-700 to-emerald-800 animate-pulse' 
-                              : 'bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 hover:border-emerald-500 hover:shadow-emerald-500/25 hover:scale-110 cursor-pointer active:scale-95'
+                              ? 'border-emerald-400 shadow-emerald-500/50 scale-110 bg-gradient-to-br from-emerald-600 to-emerald-700 animate-pulse cursor-pointer' 
+                              : 'bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 hover:border-emerald-400 hover:shadow-emerald-400/50 hover:scale-110 cursor-pointer active:scale-95'
                         }`}
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          console.log(`🎯 Button clicked for seat ${seatNumber}`);
+                          console.log(`🎯🎯🎯 SEAT ${seatNumber} CLICKED!!! Occupied: ${isOccupied}, User ID: ${user?.id}`);
                           if (!isOccupied && user?.id) {
+                            console.log(`🎯 Setting selected seat to ${seatNumber} and opening dialog`);
                             setSelectedSeat(seatNumber);
                             setShowJoinDialog(true);
                           }
                         }}
-                        disabled={isOccupied}
+                        onMouseDown={(e) => {
+                          console.log(`🎯 Mouse down on seat ${seatNumber}`);
+                        }}
+                        onTouchStart={(e) => {
+                          console.log(`🎯 Touch start on seat ${seatNumber}`);
+                        }}
+                        style={{ 
+                          pointerEvents: 'auto',
+                          touchAction: 'manipulation'
+                        }}
                       >
                         {isOccupied ? (
                           <span className="text-white text-xs font-bold">
@@ -194,7 +192,7 @@ export default function TableView() {
                             isSelected ? 'rotate-45 scale-110' : 'hover:rotate-90 hover:scale-110'
                           }`} />
                         )}
-                      </button>
+                      </div>
                       {/* Seat Label */}
                       <div className={`absolute -bottom-5 left-1/2 transform -translate-x-1/2 text-xs font-semibold transition-colors ${
                         isOccupied 
