@@ -1167,6 +1167,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Simple waitlist join endpoint
+  app.post("/api/waitlist/join", async (req, res) => {
+    try {
+      const { table_id, player_id, game_type, min_buy_in, max_buy_in, notes } = req.body;
+      
+      console.log('🎯 [SIMPLE JOIN API] Join request:', { table_id, player_id, notes });
+      
+      // Check if player is already in waitlist for this table
+      const { data: existingEntry } = await staffPortalSupabase
+        .from('waitlist')
+        .select('*')
+        .eq('player_id', player_id)
+        .eq('table_id', table_id)
+        .single();
+      
+      if (existingEntry) {
+        return res.status(400).json({ error: 'Already in waitlist for this table' });
+      }
+      
+      // Get the next position
+      const { data: waitlistEntries } = await staffPortalSupabase
+        .from('waitlist')
+        .select('position')
+        .eq('table_id', table_id)
+        .order('position', { ascending: false })
+        .limit(1);
+      
+      const nextPosition = (waitlistEntries?.[0]?.position || 0) + 1;
+      
+      // Add to waitlist
+      const { data: newEntry, error } = await staffPortalSupabase
+        .from('waitlist')
+        .insert({
+          player_id,
+          table_id,
+          game_type: game_type || 'Texas Hold\'em',
+          min_buy_in: min_buy_in || 1000,
+          max_buy_in: max_buy_in || 10000,
+          position: nextPosition,
+          status: 'waiting',
+          notes: notes || `Player ${player_id} joined waitlist`,
+          requested_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        throw new Error(`Failed to join waitlist: ${error.message}`);
+      }
+      
+      console.log('✅ [SIMPLE JOIN API] Successfully added to waitlist:', newEntry);
+      res.json({ success: true, entry: newEntry });
+    } catch (error: any) {
+      console.error('❌ [SIMPLE JOIN API] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Clean up old waitlist entries (for tables that no longer exist)
   app.delete("/api/cleanup-waitlist/:playerId", async (req, res) => {
     try {

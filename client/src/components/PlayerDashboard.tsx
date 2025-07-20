@@ -489,27 +489,33 @@ export default function PlayerDashboard() {
     enabled: !!user?.id,
   });
 
-  // Join wait-list mutation
+  // Simple join waitlist - no seat selection required
   const joinWaitListMutation = useMutation({
-    mutationFn: async ({ tableId, seatNumber }: { tableId: string; seatNumber?: number }) => {
-      const response = await apiRequest('POST', '/api/seat-requests', {
-        playerId: user?.id,
-        tableId,
-        seatNumber: seatNumber || null,
+    mutationFn: async (tableId: string) => {
+      console.log('🎯 [SIMPLE JOIN] Joining waitlist for table:', tableId, 'player:', user?.id);
+      const response = await apiRequest('POST', '/api/waitlist/join', {
+        table_id: tableId,
+        player_id: user?.id,
+        game_type: 'Texas Hold\'em',
+        min_buy_in: 1000,
+        max_buy_in: 10000,
+        notes: `Player ${user?.firstName} ${user?.lastName} joined waitlist`
       });
       return response.json();
     },
     onSuccess: () => {
+      console.log('✅ [SIMPLE JOIN] Success!');
       queryClient.invalidateQueries({ queryKey: ['/api/seat-requests'] });
       toast({
-        title: "Joined Wait-List",
-        description: "You've been added to the table wait-list",
+        title: "Joined Waitlist",
+        description: "You've been added to the waitlist successfully",
       });
     },
     onError: (error: any) => {
+      console.error('❌ [SIMPLE JOIN] Error:', error);
       toast({
         title: "Failed to Join",
-        description: error.message || "Could not join wait-list",
+        description: error.message || "Could not join waitlist",
         variant: "destructive",
       });
     },
@@ -589,8 +595,9 @@ export default function PlayerDashboard() {
     return request?.position || 0;
   };
 
-  const handleJoinWaitList = (tableId: string, seatNumber?: number) => {
-    joinWaitListMutation.mutate({ tableId, seatNumber });
+  const handleJoinWaitList = (tableId: string) => {
+    console.log('🎯 [HANDLE JOIN] Simple join for table:', tableId);
+    joinWaitListMutation.mutate(tableId);
   };
   
   // Simplified direct join functionality - no seat selection dialog
