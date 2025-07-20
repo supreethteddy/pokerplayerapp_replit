@@ -1278,41 +1278,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`👤 [STAFF ASSIGN] Assigning player from waitlist ${waitlistId} to seat ${seatNumber} by ${assignedBy}`);
       
-      // Update waitlist entry to seated status
+      // Update waitlist entry to seated status (SCHEMA WORKAROUND - only use known columns)
       const { data: updatedEntry, error } = await staffPortalSupabase
         .from('waitlist')
         .update({
           status: 'seated',
-          seat_number: seatNumber,
+          position: seatNumber,  // Use position instead of seat_number to bypass schema cache
           seated_at: new Date().toISOString(),
-          notes: `Assigned to seat ${seatNumber} by ${assignedBy}`
+          notes: `Assigned to seat ${seatNumber} by ${assignedBy || 'staff'}`
         })
         .eq('id', waitlistId)
-        .select(`
-          *,
-          players!inner(first_name, last_name, email, phone)
-        `)
+        .select('*')
         .single();
       
       if (error) {
         throw new Error(`Failed to assign player: ${error.message}`);
       }
       
+      // Get player details separately to avoid join issues
+      const { data: playerData } = await staffPortalSupabase
+        .from('players')
+        .select('first_name, last_name, email, phone')
+        .eq('id', updatedEntry.player_id)
+        .single();
+      
       // Transform for response
       const transformedAssignment = {
         id: updatedEntry.id,
         playerId: updatedEntry.player_id,
         tableId: updatedEntry.table_id,
-        seatNumber: updatedEntry.seat_number,
+        seatNumber: updatedEntry.position, // Use position as seat number
         status: updatedEntry.status,
         seatedAt: updatedEntry.seated_at,
         notes: updatedEntry.notes,
-        player: {
-          firstName: updatedEntry.players.first_name,
-          lastName: updatedEntry.players.last_name,
-          email: updatedEntry.players.email,
-          phone: updatedEntry.players.phone
-        }
+        player: playerData ? {
+          firstName: playerData.first_name,
+          lastName: playerData.last_name,
+          email: playerData.email,
+          phone: playerData.phone
+        } : null
       };
       
       console.log('✅ [STAFF ASSIGN] Player assigned successfully:', transformedAssignment);
@@ -1330,20 +1334,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`🪑 [TABLE SEATS] Getting seated players for table ${tableId}`);
       
-      // SCHEMA WORKAROUND: Select only the columns that definitely exist
-      const { data: waitlistData, error } = await staffPortalSupabase
+      // BYPASS ALL SCHEMA ISSUES: Query waitlist with explicit table_id as UUID string
+      console.log(`🔍 [TABLE SEATS] Querying waitlist for table_id: "${tableId}" (${typeof tableId})`);
+      
+      const { data: allWaitlistData, error } = await staffPortalSupabase
         .from('waitlist')
-        .select('id, player_id, position, status, seated_at, created_at')
-        .eq('table_id', tableId)
-        .eq('status', 'seated');
+        .select('id, player_id, position, status, seated_at, created_at, notes')
+        .eq('table_id', tableId);
+      
+      console.log(`🔍 [TABLE SEATS] Raw waitlist query result:`, { 
+        found: allWaitlistData?.length || 0, 
+        error: error?.message,
+        sample: allWaitlistData?.[0] 
+      });
+      
+      // Filter for seated players in memory
+      const waitlistData = (allWaitlistData || []).filter(entry => entry.status === 'seated');
       
       if (error) {
         console.error('❌ [TABLE SEATS] Waitlist query error:', error);
         return res.json([]);
       }
       
-      console.log(`🪑 [TABLE SEATS] Found ${waitlistData?.length || 0} seated entries for table ${tableId}`);
-      console.log('🪑 [TABLE SEATS] Raw waitlist data:', JSON.stringify(waitlistData, null, 2));
+      console.log(`🪑 [TABLE SEATS] Query result - All entries: ${allWaitlistData?.length || 0}, Seated entries: ${waitlistData?.length || 0}`);
+      console.log('🪑 [TABLE SEATS] All waitlist data for table:', JSON.stringify(allWaitlistData?.slice(0, 3), null, 2));
       
       if (error) {
         console.error('❌ [TABLE SEATS] Waitlist query error:', error);
@@ -1361,7 +1375,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (!playerError && playerData) {
           seatedPlayers.push({
-            seatNumber: entry.position, // Use position as seat number
+            seatNumber: entry.seat_number || entry.position, // Use seat_number if available, fallback to position
             playerId: entry.player_id,
             player: {
               firstName: playerData.first_name,

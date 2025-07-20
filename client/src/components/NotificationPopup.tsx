@@ -61,7 +61,9 @@ export default function NotificationPopup({ userId }: NotificationPopupProps) {
   };
 
   const getPriorityColors = (priority: string) => {
-    switch (priority) {
+    if (!priority) return 'border-blue-500 bg-blue-900/90 shadow-blue-500/30';
+    
+    switch (priority.toLowerCase()) {
       case 'urgent': return 'border-red-500 bg-red-900/90 shadow-red-500/30';
       case 'high': return 'border-yellow-500 bg-yellow-900/90 shadow-yellow-500/30';
       case 'normal': return 'border-blue-500 bg-blue-900/90 shadow-blue-500/30';
@@ -87,7 +89,7 @@ export default function NotificationPopup({ userId }: NotificationPopupProps) {
               <div className="flex items-center space-x-2">
                 {getPriorityIcon(notification.priority)}
                 <span className="text-xs font-medium text-white bg-slate-700/80 px-2 py-1 rounded">
-                  {notification.sender_role.toUpperCase()}
+                  {(notification.sender_role || notification.sent_by_role || 'SYSTEM').toUpperCase()}
                 </span>
               </div>
               <Button
@@ -109,8 +111,8 @@ export default function NotificationPopup({ userId }: NotificationPopupProps) {
             </p>
             
             <div className="flex items-center justify-between text-xs text-white/70">
-              <span>{notification.sender_name}</span>
-              <span>{new Date(notification.created_at).toLocaleTimeString()}</span>
+              <span>{notification.sender_name || notification.sent_by_name || 'System'}</span>
+              <span>{new Date(notification.created_at || notification.sent_at).toLocaleTimeString()}</span>
             </div>
           </CardContent>
         </Card>
