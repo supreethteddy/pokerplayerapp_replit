@@ -1147,24 +1147,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log('🚮 [WAITLIST DELETE] Removing player', playerId, 'from table', tableId);
       
-      // Remove from waitlist
-      const { data: deletedEntry, error } = await staffPortalSupabase
+      // Remove from waitlist - Remove all entries for this player and table
+      const { data: deletedEntries, error } = await staffPortalSupabase
         .from('waitlist')
         .delete()
         .eq('player_id', playerId)
         .eq('table_id', tableId)
-        .eq('status', 'waiting')
-        .select()
-        .single();
+        .select();
       
       if (error) {
         throw new Error(`Failed to remove from waitlist: ${error.message}`);
       }
       
-      console.log('✅ [WAITLIST DELETE] Successfully removed from waitlist:', deletedEntry);
-      res.json({ success: true, removed: deletedEntry });
+      console.log('✅ [WAITLIST DELETE] Successfully removed', deletedEntries?.length || 0, 'entries from waitlist');
+      res.json({ success: true, removed: deletedEntries });
     } catch (error: any) {
       console.error('❌ [WAITLIST DELETE] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Clean up old waitlist entries (for tables that no longer exist)
+  app.delete("/api/cleanup-waitlist/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      
+      console.log('🧹 [WAITLIST CLEANUP] Cleaning up old entries for player', playerId);
+      
+      // Get current table IDs
+      const { data: currentTables } = await staffPortalSupabase
+        .from('staff_tables')
+        .select('id');
+      
+      const currentTableIds = currentTables?.map(t => t.id) || [];
+      
+      // Remove waitlist entries for tables that don't exist anymore
+      const { data: deletedEntries, error } = await staffPortalSupabase
+        .from('waitlist')
+        .delete()
+        .eq('player_id', playerId)
+        .not('table_id', 'in', `(${currentTableIds.map(id => `'${id}'`).join(',')})`)
+        .select();
+      
+      if (error) {
+        console.log('❌ [WAITLIST CLEANUP] Error:', error.message);
+      } else {
+        console.log('✅ [WAITLIST CLEANUP] Cleaned up', deletedEntries?.length || 0, 'old waitlist entries');
+      }
+      
+      res.json({ success: true, cleaned: deletedEntries?.length || 0 });
+    } catch (error: any) {
+      console.error('❌ [WAITLIST CLEANUP] Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
