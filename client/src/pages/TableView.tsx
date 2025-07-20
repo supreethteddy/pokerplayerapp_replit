@@ -137,8 +137,8 @@ export default function TableView() {
                 {Array.from({ length: 9 }, (_, index) => {
                   const seatNumber = index + 1;
                   const angle = (index / 9) * 2 * Math.PI - Math.PI / 2;
-                  const radiusX = 40;
-                  const radiusY = 30;
+                  const radiusX = 42;
+                  const radiusY = 32;
                   const x = 50 + radiusX * Math.cos(angle);
                   const y = 50 + radiusY * Math.sin(angle);
                   const isSelected = selectedSeat === seatNumber;
@@ -153,24 +153,23 @@ export default function TableView() {
                       className="absolute transform -translate-x-1/2 -translate-y-1/2 z-50"
                       style={{ left: `${x}%`, top: `${y}%` }}
                     >
-                      {/* COMPACT CLICKABLE SEAT BUTTON */}
+                      {/* ELEGANT SEAT BUTTON */}
                       <div 
-                        className={`w-12 h-12 rounded-full border-2 flex items-center justify-center shadow-lg transition-all duration-300 select-none ${
+                        className={`w-10 h-10 rounded-full border-2 flex items-center justify-center shadow-lg transition-all duration-300 select-none ${
                           isOccupied 
                             ? 'bg-gradient-to-br from-blue-600 to-blue-700 border-blue-500 cursor-not-allowed' 
                             : isSelected 
                               ? 'border-emerald-400 shadow-emerald-500/50 scale-110 bg-gradient-to-br from-emerald-600 to-emerald-700 animate-pulse cursor-pointer' 
-                              : 'bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 hover:border-emerald-400 hover:shadow-emerald-400/50 hover:scale-110 cursor-pointer active:scale-95'
+                              : 'bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 hover:border-emerald-400 hover:shadow-emerald-400/50 hover:scale-105 cursor-pointer active:scale-95'
                         }`}
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          console.log(`🎯 SEAT ${seatNumber} CLICKED!!! User:`, user);
-                          if (!isOccupied && user) {
-                            console.log(`🎯 Setting selected seat to ${seatNumber} and opening dialog`);
-                            setSelectedSeat(seatNumber);
-                            setShowJoinDialog(true);
-                          }
+                          console.log(`🎯 SEAT ${seatNumber} CLICKED!!! User available:`, !!user);
+                          // Always open dialog regardless of user loading state
+                          console.log(`🎯 Opening dialog for seat ${seatNumber}`);
+                          setSelectedSeat(seatNumber);
+                          setShowJoinDialog(true);
                         }}
                         onMouseDown={(e) => {
                           console.log(`🎯 Mouse down on seat ${seatNumber}`);
@@ -185,18 +184,18 @@ export default function TableView() {
                             {seatedPlayer.player.firstName.charAt(0)}{seatedPlayer.player.lastName.charAt(0)}
                           </span>
                         ) : (
-                          <Plus className={`w-4 h-4 text-emerald-400 font-bold transition-transform duration-300 ${
+                          <Plus className={`w-3 h-3 text-emerald-400 font-bold transition-transform duration-300 ${
                             isSelected ? 'rotate-45 scale-110' : 'hover:rotate-90 hover:scale-110'
                           }`} />
                         )}
                       </div>
                       {/* Seat Label */}
-                      <div className={`absolute -bottom-4 left-1/2 transform -translate-x-1/2 text-xs font-medium transition-colors ${
+                      <div className={`absolute -bottom-5 left-1/2 transform -translate-x-1/2 text-xs font-medium transition-colors ${
                         isOccupied 
                           ? 'text-blue-400' 
                           : isSelected 
                             ? 'text-emerald-400' 
-                            : 'text-white'
+                            : 'text-slate-300'
                       }`}>
                         {isOccupied ? seatedPlayer.player.firstName : `Seat ${seatNumber}`}
                       </div>
@@ -204,15 +203,15 @@ export default function TableView() {
                   );
                 })}
 
-                {/* Dealer Position - Outside the table */}
+                {/* Dealer Position - Visible outside the table */}
                 <div 
                   className="absolute transform -translate-x-1/2 -translate-y-1/2 z-40"
-                  style={{ left: '50%', top: '10%' }}
+                  style={{ left: '50%', top: '8%' }}
                 >
-                  <div className="w-8 h-8 bg-gradient-to-br from-yellow-600 to-yellow-700 rounded-full border-2 border-yellow-500 flex items-center justify-center shadow-lg">
+                  <div className="w-7 h-7 bg-gradient-to-br from-yellow-600 to-yellow-700 rounded-full border-2 border-yellow-500 flex items-center justify-center shadow-xl">
                     <span className="text-xs font-bold text-white">D</span>
                   </div>
-                  <div className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 text-xs text-yellow-400 font-medium">
+                  <div className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 text-xs text-yellow-400 font-medium whitespace-nowrap">
                     Dealer
                   </div>
                 </div>
@@ -359,12 +358,13 @@ export default function TableView() {
               
               <Button
                 onClick={() => {
-                  if (selectedSeat) {
+                  if (selectedSeat && user?.id) {
+                    console.log(`🎯 Joining waitlist for seat ${selectedSeat}`);
                     joinWaitlistMutation.mutate(selectedSeat);
                     setShowJoinDialog(false);
                   }
                 }}
-                disabled={joinWaitlistMutation.isPending}
+                disabled={joinWaitlistMutation.isPending || !user?.id}
                 className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white"
               >
                 {joinWaitlistMutation.isPending ? (
