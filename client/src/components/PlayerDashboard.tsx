@@ -1182,23 +1182,26 @@ export default function PlayerDashboard() {
             <TabsContent value="game" className="space-y-3 sm:space-y-4 w-full max-w-full">
               {/* Staff-Managed Offer Carousel */}
               <OfferCarousel onOfferClick={(offerId) => {
-                // Switch to offers tab and scroll to specific offer
-                const balanceTab = document.querySelector('[value="balance"]') as HTMLElement;
-                if (balanceTab) {
-                  balanceTab.click();
-                  // Small delay to ensure tab content is rendered before scrolling
-                  setTimeout(() => {
-                    const targetOffer = document.getElementById(`offer-${offerId}`);
-                    if (targetOffer) {
-                      targetOffer.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      // Add highlight effect
-                      targetOffer.classList.add('ring-2', 'ring-emerald-500', 'ring-opacity-50');
-                      setTimeout(() => {
-                        targetOffer.classList.remove('ring-2', 'ring-emerald-500', 'ring-opacity-50');
-                      }, 3000);
-                    }
-                  }, 200);
-                }
+                console.log('🎯 [OFFER CLICK] Switching to offers tab for offer:', offerId);
+                // Switch to offers tab programmatically
+                setActiveTab('offers');
+                // Update URL to reflect tab change
+                window.history.pushState({}, '', '?tab=offers');
+                // Small delay to ensure tab content is rendered before scrolling
+                setTimeout(() => {
+                  const targetOffer = document.getElementById(`offer-${offerId}`);
+                  if (targetOffer) {
+                    console.log('🎯 [OFFER SCROLL] Found offer element, scrolling to:', offerId);
+                    targetOffer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    // Add highlight effect
+                    targetOffer.classList.add('ring-2', 'ring-emerald-500', 'ring-opacity-50');
+                    setTimeout(() => {
+                      targetOffer.classList.remove('ring-2', 'ring-emerald-500', 'ring-opacity-50');
+                    }, 3000);
+                  } else {
+                    console.log('❌ [OFFER SCROLL] Could not find offer element:', `offer-${offerId}`);
+                  }
+                }, 300);
               }} />
               
               <div className="w-full max-w-full space-y-3 sm:space-y-4">
