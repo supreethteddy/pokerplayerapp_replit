@@ -588,24 +588,7 @@ export default function PlayerDashboard() {
     joinWaitListMutation.mutate({ tableId, seatNumber });
   };
   
-  // Open seat selection dialog
-  const openSeatDialog = (tableId: string, tableName: string) => {
-    setSelectedTableId(tableId);
-    setSelectedTableName(tableName);
-    setSelectedSeatNumber(null);
-    setShowSeatDialog(true);
-  };
-  
-  // Confirm seat selection and join waitlist
-  const confirmSeatSelection = () => {
-    if (selectedTableId) {
-      handleJoinWaitList(selectedTableId, selectedSeatNumber || undefined);
-      setShowSeatDialog(false);
-      setSelectedTableId(null);
-      setSelectedTableName(null);
-      setSelectedSeatNumber(null);
-    }
-  };
+  // Simplified direct join functionality - no seat selection dialog
 
   const handleLeaveWaitList = (tableId: string) => {
     leaveWaitListMutation.mutate(tableId);
@@ -1325,7 +1308,7 @@ export default function PlayerDashboard() {
                                 </>
                               ) : (
                                 <Button
-                                  onClick={() => openSeatDialog(table.id, table.name)}
+                                  onClick={() => handleJoinWaitList(table.id)}
                                   disabled={joinWaitListMutation.isPending}
                                   size="sm"
                                   className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 border border-emerald-500/30 backdrop-blur-sm"
@@ -2487,81 +2470,7 @@ export default function PlayerDashboard() {
         </Tabs>
       </div>
       
-      {/* Seat Selection Dialog */}
-      {showSeatDialog && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 w-full max-w-md">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-white">Select Preferred Seat</h3>
-              <button
-                onClick={() => setShowSeatDialog(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="mb-6">
-              <p className="text-sm text-slate-300 mb-2">Table: <span className="text-emerald-400 font-medium">{selectedTableName}</span></p>
-              <p className="text-xs text-slate-400">
-                Choose a seat number (1-10) or select "Any Seat" to join the waitlist without a preference
-              </p>
-            </div>
-            
-            {/* Seat Selection Grid */}
-            <div className="grid grid-cols-5 gap-2 mb-6">
-              <button
-                onClick={() => setSelectedSeatNumber(null)}
-                className={`p-3 rounded-lg border text-sm font-medium transition-colors ${
-                  selectedSeatNumber === null
-                    ? 'bg-emerald-600 border-emerald-500 text-white'
-                    : 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
-                }`}
-              >
-                Any Seat
-              </button>
-              
-              {[1,2,3,4,5,6,7,8,9,10].map((seatNum) => (
-                <button
-                  key={seatNum}
-                  onClick={() => setSelectedSeatNumber(seatNum)}
-                  className={`p-3 rounded-lg border text-sm font-medium transition-colors ${
-                    selectedSeatNumber === seatNum
-                      ? 'bg-emerald-600 border-emerald-500 text-white'
-                      : 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
-                  }`}
-                >
-                  {seatNum}
-                </button>
-              ))}
-            </div>
-            
-            <div className="flex space-x-3">
-              <Button
-                variant="outline"
-                className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-700"
-                onClick={() => setShowSeatDialog(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={confirmSeatSelection}
-                disabled={joinWaitListMutation.isPending}
-              >
-                {joinWaitListMutation.isPending ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                    Joining...
-                  </>
-                ) : (
-                  'Join Waitlist'
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Seat selection dialog removed - direct waitlist joining only */}
 
     </div>
   );
