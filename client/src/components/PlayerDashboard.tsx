@@ -1278,10 +1278,10 @@ export default function PlayerDashboard() {
                                     disabled={leaveWaitListMutation.isPending}
                                     size="sm"
                                     variant="outline"
-                                    className="bg-gradient-to-r from-red-600/20 to-red-500/20 border border-red-500/50 text-red-300 hover:from-red-500/30 hover:to-red-400/30 hover:border-red-400 hover:text-red-200 transition-all duration-300 shadow-lg hover:shadow-red-500/25 backdrop-blur-sm"
+                                    className="bg-gradient-to-r from-slate-600/30 to-slate-500/30 border border-slate-400/50 text-slate-300 hover:from-slate-500/40 hover:to-slate-400/40 hover:border-slate-300 hover:text-slate-200 transition-all duration-300 shadow-lg hover:shadow-slate-500/25 backdrop-blur-sm"
                                   >
                                     {leaveWaitListMutation.isPending ? (
-                                      <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin mr-2" />
+                                      <div className="w-4 h-4 border-2 border-slate-300 border-t-transparent rounded-full animate-spin mr-2" />
                                     ) : null}
                                     Leave
                                   </Button>
@@ -1291,7 +1291,7 @@ export default function PlayerDashboard() {
                                   onClick={() => handleJoinWaitList(table.id)}
                                   disabled={joinWaitListMutation.isPending}
                                   size="sm"
-                                  className="bg-emerald-500 hover:bg-emerald-600 text-white"
+                                  className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 border border-emerald-500/30 backdrop-blur-sm"
                                 >
                                   {joinWaitListMutation.isPending ? (
                                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
@@ -1309,7 +1309,7 @@ export default function PlayerDashboard() {
                                 onClick={() => setLocation(`/table/${table.id}`)}
                                 size="sm"
                                 variant="outline"
-                                className="bg-gradient-to-r from-blue-600/20 to-blue-500/20 border border-blue-500/50 text-blue-300 hover:from-blue-500/30 hover:to-blue-400/30 hover:border-blue-400 hover:text-blue-200 transition-all duration-300 shadow-lg hover:shadow-blue-500/25 backdrop-blur-sm"
+                                className="bg-gradient-to-r from-emerald-600/20 to-emerald-500/20 border border-emerald-500/50 text-emerald-300 hover:from-emerald-500/30 hover:to-emerald-400/30 hover:border-emerald-400 hover:text-emerald-200 transition-all duration-300 shadow-lg hover:shadow-emerald-500/25 backdrop-blur-sm"
                               >
                                 <Eye className="w-4 h-4 mr-1" />
                                 View
