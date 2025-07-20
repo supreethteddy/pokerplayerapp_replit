@@ -247,11 +247,13 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
                     setCurrentIndex(index);
                   }}
                   style={{
-                    width: '6px',
-                    height: '6px',
+                    width: '4px',
+                    height: '4px',
                     borderRadius: '50%',
                     backgroundColor: index === currentIndex ? 'white' : 'rgba(255, 255, 255, 0.5)',
-                    transition: 'all 0.2s ease'
+                    transition: 'all 0.2s ease',
+                    flexShrink: 0,
+                    display: 'block'
                   }}
                   className="hover:opacity-75"
                 />
