@@ -56,6 +56,8 @@ export const seatRequests = pgTable("seat_requests", {
   tableId: text("table_id").notNull(), // Changed to text to support UUID table IDs from poker_tables
   status: text("status").notNull().default("waiting"), // waiting, approved, rejected
   position: integer("position").default(0),
+  seatNumber: integer("seat_number"), // Preferred seat number (1-9)
+  notes: text("notes"), // Additional notes for seat reservation
   estimatedWait: integer("estimated_wait").default(0), // in minutes
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -195,6 +197,8 @@ export const insertSeatRequestSchema = createInsertSchema(seatRequests).omit({
   createdAt: true,
 }).extend({
   tableId: z.string(), // Override to accept UUID strings from poker_tables
+  seatNumber: z.number().optional(), // Preferred seat number (1-9)
+  notes: z.string().optional(), // Additional notes for seat reservation
 });
 
 export const insertKycDocumentSchema = createInsertSchema(kycDocuments).omit({

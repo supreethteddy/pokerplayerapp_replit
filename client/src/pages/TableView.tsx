@@ -2,7 +2,7 @@ import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Users, Clock, DollarSign, UserPlus } from "lucide-react";
+import { ArrowLeft, Users, Clock, DollarSign, UserPlus, Plus } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -35,26 +35,32 @@ export default function TableView() {
   
   const isOnWaitlist = userWaitlist?.some((req: any) => req.tableId === tableId);
   
-  // Join waitlist with seat selection
+  // Join waitlist with seat reservation
   const joinWaitlistMutation = useMutation({
     mutationFn: (seatNumber: number) => 
-      apiRequest("POST", "/api/seat-requests", {
+      apiRequest("POST", "/api/waitlist", {
         tableId,
+        gameType: currentTable?.gameType || "Texas Hold'em",
+        minBuyIn: currentTable?.stakes?.split('/')[0]?.replace('₹', '') || 1000,
+        maxBuyIn: currentTable?.stakes?.split('/')[1]?.replace('₹', '') || 10000,
         seatNumber,
-        notes: `Player selected seat ${seatNumber}`
+        notes: `Player reserved seat ${seatNumber}`
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/seat-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/waitlist'] });
       toast({
-        title: "Joined Waitlist",
-        description: `You've been added to the waitlist for seat ${selectedSeat}`,
+        title: "Seat Reserved",
+        description: `You've reserved seat ${selectedSeat} for ${currentTable?.name}`,
       });
       setSelectedSeat(null);
+      // Navigate back to dashboard after successful reservation
+      setTimeout(() => setLocation('/'), 1500);
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to join waitlist. Please try again.",
+        description: "Failed to reserve seat. Please try again.",
         variant: "destructive",
       });
     },
@@ -117,15 +123,14 @@ export default function TableView() {
                       key={seatNumber}
                       className="absolute transform -translate-x-1/2 -translate-y-1/2"
                       style={{ left: `${x}%`, top: `${y}%` }}
-                      onClick={() => !isOnWaitlist && setSelectedSeat(seatNumber)}
+                      onClick={() => setSelectedSeat(seatNumber)}
                     >
                       {/* Player Seat */}
                       <div className={`w-12 h-12 bg-gradient-to-br from-slate-700 to-slate-800 rounded-full border-2 flex items-center justify-center shadow-lg transition-all duration-300 ${
-                        isOnWaitlist ? 'border-slate-600 cursor-not-allowed opacity-50' :
                         isSelected ? 'border-emerald-500 shadow-emerald-500/50 scale-110' :
                         'border-slate-600 hover:border-emerald-500 hover:shadow-emerald-500/25 cursor-pointer'
                       }`}>
-                        <Users className="w-4 h-4 text-slate-400" />
+                        <Plus className="w-4 h-4 text-emerald-400" />
                       </div>
                       {/* Seat Label */}
                       <div className={`absolute -bottom-5 left-1/2 transform -translate-x-1/2 text-xs font-semibold transition-colors ${
@@ -194,52 +199,43 @@ export default function TableView() {
         </div>
 
         {/* Seat Selection and Join Controls */}
-        {!isOnWaitlist && (
-          <div className="mt-8 text-center">
-            {selectedSeat ? (
-              <div className="space-y-4">
-                <div className="bg-slate-800 border border-emerald-500/50 rounded-lg p-4 max-w-md mx-auto">
-                  <h3 className="text-emerald-400 font-semibold mb-2">Seat {selectedSeat} Selected</h3>
-                  <p className="text-slate-300 text-sm mb-4">Join the waitlist for this seat position</p>
-                  <div className="flex gap-3 justify-center">
-                    <Button
-                      onClick={() => joinWaitlistMutation.mutate(selectedSeat)}
-                      disabled={joinWaitlistMutation.isPending}
-                      className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg hover:shadow-emerald-500/25 transition-all duration-300"
-                    >
-                      {joinWaitlistMutation.isPending ? (
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                      ) : (
-                        <UserPlus className="w-4 h-4 mr-2" />
-                      )}
-                      Join Waitlist
-                    </Button>
-                    <Button
-                      onClick={() => setSelectedSeat(null)}
-                      variant="outline"
-                      className="border-slate-600 text-slate-300 hover:bg-slate-700"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
+        <div className="mt-8 text-center">
+          {selectedSeat ? (
+            <div className="space-y-4">
+              <div className="bg-slate-800 border border-emerald-500/50 rounded-lg p-4 max-w-md mx-auto">
+                <h3 className="text-emerald-400 font-semibold mb-2">Seat {selectedSeat} Selected</h3>
+                <p className="text-slate-300 text-sm mb-2">Reserve this seat position for {currentTable?.name}</p>
+                <p className="text-slate-400 text-xs mb-4">Note: Multiple players can reserve the same seat. Staff will assign final seating.</p>
+                <div className="flex gap-3 justify-center">
+                  <Button
+                    onClick={() => joinWaitlistMutation.mutate(selectedSeat)}
+                    disabled={joinWaitlistMutation.isPending}
+                    className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg hover:shadow-emerald-500/25 transition-all duration-300"
+                  >
+                    {joinWaitlistMutation.isPending ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    ) : (
+                      <UserPlus className="w-4 h-4 mr-2" />
+                    )}
+                    Reserve Seat
+                  </Button>
+                  <Button
+                    onClick={() => setSelectedSeat(null)}
+                    variant="outline"
+                    className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                  >
+                    Cancel
+                  </Button>
                 </div>
               </div>
-            ) : (
-              <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 max-w-md mx-auto">
-                <p className="text-slate-300 text-sm">Click on any seat to select your preferred position</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {isOnWaitlist && (
-          <div className="mt-8 text-center">
-            <div className="bg-emerald-800/20 border border-emerald-500/50 rounded-lg p-4 max-w-md mx-auto">
-              <p className="text-emerald-400 font-semibold">You're already on the waitlist for this table</p>
-              <p className="text-slate-300 text-sm mt-2">You'll be seated by casino staff when a spot opens</p>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 max-w-md mx-auto">
+              <p className="text-slate-300 text-sm">Click on any seat to reserve your preferred position</p>
+              <p className="text-slate-400 text-xs mt-2">Staff will manage final table assignments</p>
+            </div>
+          )}
+        </div>
 
         {/* Info Text */}
         <div className="mt-8 text-center text-slate-400">

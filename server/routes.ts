@@ -1065,7 +1065,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           position: position,
           status: requestData.status || 'waiting',
           requested_at: new Date().toISOString(),
-          notes: `Player ${requestData.playerId} joined waitlist`
+          seat_number: requestData.seatNumber || null,
+          notes: requestData.notes || `Player ${requestData.playerId} joined waitlist`
         })
         .select()
         .single();
@@ -1085,6 +1086,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         position: waitlistEntry.position,
         status: waitlistEntry.status,
         requestedAt: waitlistEntry.requested_at,
+        seatNumber: waitlistEntry.seat_number,
+        notes: waitlistEntry.notes,
         createdAt: waitlistEntry.created_at
       };
       
@@ -1124,6 +1127,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: req.status,
         requestedAt: req.requested_at,
         seatedAt: req.seated_at,
+        seatNumber: req.seat_number,
         notes: req.notes,
         createdAt: req.created_at
       }));
@@ -1172,8 +1176,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log('📋 [WAITLIST TABLE] Getting waitlist for table:', tableId);
       
-      // Get all waitlist entries for this table
-      const { data: waitlist, error } = await supabase
+      // Get all waitlist entries for this table using Staff Portal database
+      const { data: waitlist, error } = await staffPortalSupabase
         .from('waitlist')
         .select(`
           *,
@@ -1181,6 +1185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `)
         .eq('table_id', tableId)
         .eq('status', 'waiting')
+        .order('seat_number', { ascending: true, nullsLast: true })
         .order('position', { ascending: true });
       
       if (error) {
@@ -1198,6 +1203,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         position: entry.position,
         status: entry.status,
         requestedAt: entry.requested_at,
+        seatNumber: entry.seat_number,
         notes: entry.notes,
         player: {
           firstName: entry.players.first_name,
@@ -1207,10 +1213,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }));
       
-      console.log('✅ [WAITLIST TABLE] Returning', transformedWaitlist.length, 'waitlist entries');
+      console.log('✅ [WAITLIST TABLE] Returning', transformedWaitlist.length, 'waitlist entries with seat reservations');
       res.json(transformedWaitlist);
     } catch (error: any) {
       console.error('❌ [WAITLIST TABLE] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get seat reservations for a specific seat (for Manager Portal)
+  app.get("/api/waitlist/seat/:tableId/:seatNumber", async (req, res) => {
+    try {
+      const tableId = req.params.tableId;
+      const seatNumber = parseInt(req.params.seatNumber);
+      
+      console.log(`📋 [SEAT RESERVATIONS] Getting reservations for table ${tableId}, seat ${seatNumber}`);
+      
+      // Get all players who reserved this specific seat
+      const { data: reservations, error } = await staffPortalSupabase
+        .from('waitlist')
+        .select(`
+          *,
+          players!inner(first_name, last_name, email, phone)
+        `)
+        .eq('table_id', tableId)
+        .eq('seat_number', seatNumber)
+        .eq('status', 'waiting')
+        .order('position', { ascending: true });
+      
+      if (error) {
+        throw new Error(`Failed to fetch seat reservations: ${error.message}`);
+      }
+      
+      // Transform for response
+      const transformedReservations = (reservations || []).map(entry => ({
+        id: entry.id,
+        playerId: entry.player_id,
+        tableId: entry.table_id,
+        seatNumber: entry.seat_number,
+        position: entry.position,
+        status: entry.status,
+        requestedAt: entry.requested_at,
+        notes: entry.notes,
+        player: {
+          firstName: entry.players.first_name,
+          lastName: entry.players.last_name,
+          email: entry.players.email,
+          phone: entry.players.phone
+        }
+      }));
+      
+      console.log(`✅ [SEAT RESERVATIONS] Found ${transformedReservations.length} reservations for seat ${seatNumber}`);
+      res.json(transformedReservations);
+    } catch (error: any) {
+      console.error('❌ [SEAT RESERVATIONS] Error:', error);
       res.status(500).json({ error: error.message });
     }
   });

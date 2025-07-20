@@ -1288,7 +1288,7 @@ export default function PlayerDashboard() {
                                 </>
                               ) : (
                                 <Button
-                                  onClick={() => handleJoinWaitList(table.id)}
+                                  onClick={() => setLocation(`/table/${table.id}`)}
                                   disabled={joinWaitListMutation.isPending}
                                   size="sm"
                                   className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 border border-emerald-500/30 backdrop-blur-sm"
