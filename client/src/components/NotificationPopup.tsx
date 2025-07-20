@@ -50,7 +50,9 @@ export default function NotificationPopup({ userId }: NotificationPopupProps) {
   };
 
   const getPriorityIcon = (priority: string) => {
-    switch (priority) {
+    if (!priority) return <Info className="w-5 h-5 text-blue-500" />;
+    
+    switch (priority.toLowerCase()) {
       case 'urgent': return <AlertTriangle className="w-5 h-5 text-red-500" />;
       case 'high': return <Bell className="w-5 h-5 text-yellow-500" />;
       case 'normal': return <Info className="w-5 h-5 text-blue-500" />;

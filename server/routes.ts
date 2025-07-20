@@ -1330,12 +1330,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`🪑 [TABLE SEATS] Getting seated players for table ${tableId}`);
       
-      // SIMPLIFIED: Get all waitlist entries for this table with status 'seated'
+      // SCHEMA WORKAROUND: Select only the columns that definitely exist
       const { data: waitlistData, error } = await staffPortalSupabase
         .from('waitlist')
-        .select('id, player_id, position, status, seated_at')
+        .select('id, player_id, position, status, seated_at, created_at')
         .eq('table_id', tableId)
         .eq('status', 'seated');
+      
+      if (error) {
+        console.error('❌ [TABLE SEATS] Waitlist query error:', error);
+        return res.json([]);
+      }
+      
+      console.log(`🪑 [TABLE SEATS] Found ${waitlistData?.length || 0} seated entries for table ${tableId}`);
+      console.log('🪑 [TABLE SEATS] Raw waitlist data:', JSON.stringify(waitlistData, null, 2));
       
       if (error) {
         console.error('❌ [TABLE SEATS] Waitlist query error:', error);
@@ -4500,22 +4508,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const playerId = parseInt(req.params.playerId);
       console.log(`🔔 [PUSH_NOTIFICATION] Direct query for player ${playerId} from Staff Portal Supabase`);
       
-      // Direct query to Staff Portal Supabase without test connection
-      const { data: notifications, error } = await staffPortalSupabase
+      // DIAGNOSTIC: First check what columns actually exist
+      console.log('🔍 [PUSH_NOTIFICATION] Testing basic query without specific columns');
+      
+      // Try basic query first
+      const { data: basicTest, error: basicError } = await staffPortalSupabase
         .from('push_notifications')
         .select('*')
-        .or(`target_player_id.eq.${playerId},broadcast_to_all.eq.true`)
-        .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(5);
       
-      if (error) {
-        console.error('❌ [PUSH_NOTIFICATION] Direct query error:', error);
+      if (basicError) {
+        console.error('❌ [PUSH_NOTIFICATION] Basic query failed:', basicError);
         return res.json([]);
       }
       
-      console.log(`✅ [PUSH_NOTIFICATION] Found ${notifications?.length || 0} notifications for player ${playerId}`);
+      console.log('✅ [PUSH_NOTIFICATION] Basic query succeeded, sample data:', basicTest?.[0]);
       
-      res.json(notifications || []);
+      // Now try to get notifications for the player using whatever columns exist
+      const { data: notifications, error } = await staffPortalSupabase
+        .from('push_notifications')
+        .select('*')
+        .limit(50);
+      
+      // Filter based on actual database structure
+      const playerNotifications = (notifications || []).filter(n => 
+        n.target_audience === 'all_players' || 
+        n.target_audience === `player_${playerId}` ||
+        n.target_audience === playerId.toString()
+      );
+      
+      if (error) {
+        console.error('❌ [PUSH_NOTIFICATION] Query error:', error);
+        return res.json([]);
+      }
+      
+      console.log(`✅ [PUSH_NOTIFICATION] Found ${playerNotifications.length} notifications for player ${playerId}`);
+      
+      res.json(playerNotifications);
     } catch (error: any) {
       console.error('❌ [PUSH_NOTIFICATION] Direct query unexpected error:', error);
       res.status(500).json({ error: error.message });
