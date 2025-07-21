@@ -4849,10 +4849,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/gre-chat/send-to-player', async (req, res) => {
     try {
       const { playerId, message, greStaffName = 'Guest Relations Team' } = req.body;
+      console.log(`🔄 [GRE WEBSOCKET] Attempting to send message to player ${playerId}`);
+      console.log(`💬 [GRE WEBSOCKET] Message: "${message}" from ${greStaffName}`);
       
-      const playerWs = playerConnections.get(playerId);
+      // First, store the message in the database (Staff Portal Supabase)
+      try {
+        // Get or create active chat session
+        let { data: session } = await staffPortalSupabase
+          .from('gre_chat_sessions')
+          .select('*')
+          .eq('player_id', playerId)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!session) {
+          const { data: newSession, error: sessionError } = await staffPortalSupabase
+            .from('gre_chat_sessions')
+            .insert({
+              player_id: playerId,
+              status: 'active',
+              category: 'general',
+              priority: 'normal',
+              started_at: new Date().toISOString(),
+              last_message_at: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+          
+          if (sessionError) {
+            console.error('❌ [GRE WEBSOCKET] Failed to create session:', sessionError);
+          } else {
+            session = newSession;
+            console.log('✅ [GRE WEBSOCKET] Created new chat session:', session.id);
+          }
+        }
+
+        // Store GRE message in database
+        if (session) {
+          const { data: storedMessage, error: messageError } = await staffPortalSupabase
+            .from('gre_chat_messages')
+            .insert({
+              session_id: session.id,
+              player_id: playerId,
+              player_name: 'Player', // This will be updated by the system
+              message: message.trim(),
+              sender: 'gre',
+              sender_name: greStaffName,
+              timestamp: new Date().toISOString(),
+              status: 'sent',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              request_id: 0
+            })
+            .select()
+            .single();
+
+          if (messageError) {
+            console.error('❌ [GRE WEBSOCKET] Failed to store message in database:', messageError);
+          } else {
+            console.log('✅ [GRE WEBSOCKET] Message stored in database:', storedMessage.id);
+          }
+        }
+      } catch (dbError) {
+        console.error('❌ [GRE WEBSOCKET] Database error:', dbError);
+      }
+      
+      // Check WebSocket connection
+      const playerWs = playerConnections.get(parseInt(playerId));
+      console.log(`🔍 [GRE WEBSOCKET] Player ${playerId} WebSocket status:`, {
+        connected: !!playerWs,
+        readyState: playerWs?.readyState || 'not connected',
+        totalConnections: playerConnections.size
+      });
+      
       if (playerWs && playerWs.readyState === WebSocket.OPEN) {
-        playerWs.send(JSON.stringify({
+        const wsMessage = {
           type: 'new_message',
           message: {
             sender: 'gre',
@@ -4860,13 +4935,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             message: message,
             timestamp: new Date().toISOString()
           }
-        }));
+        };
         
-        res.json({ success: true, message: 'Message sent to player via WebSocket' });
+        playerWs.send(JSON.stringify(wsMessage));
+        console.log('✅ [GRE WEBSOCKET] Message sent successfully via WebSocket');
+        res.json({ success: true, message: 'Message sent to player via WebSocket', stored: true });
       } else {
-        res.json({ success: false, message: 'Player not connected via WebSocket' });
+        console.log('❌ [GRE WEBSOCKET] Player not connected via WebSocket');
+        res.json({ success: false, message: 'Player not connected via WebSocket', stored: true });
       }
     } catch (error: any) {
+      console.error('❌ [GRE WEBSOCKET] Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
