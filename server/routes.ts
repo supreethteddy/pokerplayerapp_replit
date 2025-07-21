@@ -5092,6 +5092,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GRE Chat Close Session Endpoint
+  app.post("/api/gre-chat/close-session/:playerId", async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      const { greStaffName = 'Guest Relations Team' } = req.body;
+      console.log(`🔒 [GRE CHAT] Closing chat session for player ${playerId} by ${greStaffName}`);
+      
+      // Close the chat session in Staff Portal Supabase
+      const { data: session, error } = await staffPortalSupabase
+        .from('gre_chat_sessions')
+        .update({ 
+          status: 'closed',
+          closed_at: new Date().toISOString(),
+          closed_by: greStaffName,
+          updated_at: new Date().toISOString()
+        })
+        .eq('player_id', parseInt(playerId))
+        .eq('status', 'active')
+        .select()
+        .single();
+      
+      if (error) {
+        console.log(`❌ [GRE CHAT] Error closing session:`, error);
+        throw new Error(`Failed to close chat session: ${error.message}`);
+      }
+      
+      // Send close notification via WebSocket
+      const playerConnections = wss.clients;
+      playerConnections.forEach((client) => {
+        if (client.playerId === parseInt(playerId) && client.readyState === WebSocket.OPEN) {
+          console.log(`📢 [GRE WEBSOCKET] Sending close notification to player ${playerId}`);
+          client.send(JSON.stringify({
+            type: 'chat_closed',
+            sessionId: session?.id,
+            message: `Chat session closed by ${greStaffName}`,
+            timestamp: new Date().toISOString()
+          }));
+        }
+      });
+      
+      console.log(`✅ [GRE CHAT] Session closed successfully for player ${playerId}`);
+      res.json({ success: true, message: 'Chat session closed successfully', session });
+    } catch (error: any) {
+      console.error(`❌ [GRE CHAT] Error closing session:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // GRE Staff Portal API Endpoints
   app.get("/api/gre-chat/requests", async (req, res) => {
     try {

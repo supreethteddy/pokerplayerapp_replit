@@ -687,10 +687,11 @@ export default function PlayerDashboard() {
       try {
         console.log('📤 [WEBSOCKET] Sending message via WebSocket');
         wsConnection.send(JSON.stringify({
-          type: 'chat_message',
+          type: 'send_message',
           playerId: user.id,
           playerName: `${user.firstName} ${user.lastName}`,
-          message: chatMessage.trim()
+          message: chatMessage.trim(),
+          sender: 'player'
         }));
         
         toast({
@@ -798,6 +799,8 @@ export default function PlayerDashboard() {
           if (data.type === 'new_message') {
             console.log('💬 [WEBSOCKET] New message received from GRE');
             setRealtimeChatMessages(prev => [...prev, data.message]);
+            // Also refresh REST API data for consistency
+            queryClient.invalidateQueries({ queryKey: [`/api/gre-chat/messages/${user.id}`] });
           }
           
           if (data.type === 'message_sent') {
@@ -807,6 +810,20 @@ export default function PlayerDashboard() {
               type: 'get_messages',
               playerId: user.id
             }));
+          }
+          
+          if (data.type === 'chat_closed') {
+            console.log('🔒 [WEBSOCKET] Chat session closed by GRE');
+            // Show confirmation dialog
+            if (confirm('GRE staff has closed this chat session. Would you like to clear the chat history?')) {
+              setRealtimeChatMessages([]);
+              setChatMessage("");
+              queryClient.invalidateQueries({ queryKey: [`/api/gre-chat/messages/${user.id}`] });
+              toast({
+                title: "Chat Closed",
+                description: "Chat session has been closed and cleared.",
+              });
+            }
           }
           
         } catch (error) {
