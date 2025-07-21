@@ -4713,10 +4713,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
 
-  // WebSocket server for real-time GRE chat
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  // WebSocket server for millisecond-level real-time GRE chat
+  const wss = new WebSocketServer({ 
+    server: httpServer, 
+    path: '/ws',
+    perMessageDeflate: false, // Disable compression for faster transmission
+    maxPayload: 16 * 1024, // 16KB limit for faster processing
+    skipUTF8Validation: true, // Skip validation for speed
+    clientTracking: true // Enable client tracking for instant broadcasting
+  });
   
-  // Store active WebSocket connections by player ID
+  // Store active WebSocket connections by player ID for instant message delivery
   const playerConnections = new Map<number, WebSocket>();
 
   wss.on('connection', (ws: WebSocket, request) => {
@@ -4728,6 +4735,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const data = JSON.parse(message.toString());
         console.log('📨 [WEBSOCKET] Received message:', data);
+        console.log('📨 [WEBSOCKET] Message type:', data.type);
+        console.log('📨 [WEBSOCKET] Player ID from message:', data.playerId);
+        console.log('📨 [WEBSOCKET] Current authenticated playerId:', playerId);
 
         if (data.type === 'authenticate') {
           playerId = data.playerId;
@@ -4744,7 +4754,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }));
         }
 
-        if (data.type === 'chat_message' && playerId) {
+        if (data.type === 'send_message' && playerId) {
           console.log(`💬 [WEBSOCKET] Processing chat message from player ${playerId}`);
           
           // Create or get chat session

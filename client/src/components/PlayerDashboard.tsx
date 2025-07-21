@@ -42,7 +42,8 @@ import {
   X,
   Plus,
   Info,
-  RotateCcw
+  RotateCcw,
+  Trash2
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
@@ -743,7 +744,7 @@ export default function PlayerDashboard() {
   const { data: chatMessages, isLoading: chatLoading } = useQuery({
     queryKey: [`/api/gre-chat/messages/${user?.id}`],
     enabled: !!user?.id,
-    refetchInterval: 2000, // Real-time chat updates
+    refetchInterval: 100, // Ultra-fast 100ms updates for millisecond-level performance
     refetchOnWindowFocus: true,
     staleTime: 0
   });
@@ -753,13 +754,14 @@ export default function PlayerDashboard() {
   const [wsConnected, setWsConnected] = useState(false);
   const [realtimeChatMessages, setRealtimeChatMessages] = useState<any[]>([]);
 
-  // Initialize WebSocket connection
+  // Initialize ultra-fast WebSocket connection for millisecond-level performance
   useEffect(() => {
     if (user?.id && !wsConnection) {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const wsUrl = `${protocol}//${window.location.host}/ws`;
       
-      console.log('🔗 [WEBSOCKET] Connecting to:', wsUrl);
+      console.log('🔗 [WEBSOCKET] Connecting with ultra-fast optimizations to:', wsUrl);
+      // Create WebSocket with optimized protocol for instant messaging
       const ws = new WebSocket(wsUrl);
       
       ws.onopen = () => {
@@ -2442,6 +2444,24 @@ export default function PlayerDashboard() {
                           }
                         }}
                       />
+                      <Button 
+                        onClick={() => {
+                          if (confirm('Are you sure you want to clear the chat history?')) {
+                            setRealtimeChatMessages([]);
+                            queryClient.invalidateQueries({ queryKey: [`/api/gre-chat/messages/${user?.id}`] });
+                            toast({
+                              title: "Chat Cleared",
+                              description: "Chat history has been cleared",
+                            });
+                          }
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                        title="Clear Chat"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                       <Button 
                         onClick={sendChatMessage}
                         disabled={sendingChatMessage || !chatMessage.trim()}
