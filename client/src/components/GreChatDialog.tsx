@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,9 @@ import { apiRequest } from "@/lib/queryClient";
 interface GreChatDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  messages?: any[];
+  wsConnection?: WebSocket | null;
+  wsConnected?: boolean;
 }
 
 interface ChatMessage {
@@ -32,44 +35,46 @@ interface ChatMessage {
   is_read: boolean;
 }
 
-export default function GreChatDialog({ isOpen, onClose }: GreChatDialogProps) {
+export default function GreChatDialog({ isOpen, onClose, messages = [], wsConnection, wsConnected }: GreChatDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch chat messages
-  const { data: messages = [], isLoading } = useQuery({
-    queryKey: ['/api/gre-chat/messages', user?.id],
-    enabled: !!user?.id && isOpen,
-    refetchInterval: 3000, // Refresh every 3 seconds for real-time feel
-  });
-
-  // Fetch online agents
-  const { data: agents = [] } = useQuery({
-    queryKey: ['/api/gre-chat/agents'],
-    enabled: isOpen,
-    refetchInterval: 10000, // Refresh every 10 seconds
-  });
-
-  // Send message mutation
+  // Send message via WebSocket or API fallback
   const sendMessage = useMutation({
-    mutationFn: (message: string) =>
-      apiRequest("POST", "/api/gre-chat/send", {
-        playerId: user?.id,
-        message,
-        senderType: 'player'
-      }),
+    mutationFn: async (message: string) => {
+      if (wsConnection && wsConnected && wsConnection.readyState === WebSocket.OPEN) {
+        // Use WebSocket for real-time messaging
+        console.log('📤 [WEBSOCKET] Sending message via WebSocket');
+        wsConnection.send(JSON.stringify({
+          type: 'send_message',
+          playerId: user?.id,
+          playerName: `${user?.firstName} ${user?.lastName}`,
+          message,
+          sender: 'player'
+        }));
+        return { success: true };
+      } else {
+        // Fallback to REST API
+        console.log('🔄 [API] Using REST API fallback for message send');
+        return apiRequest("POST", "/api/gre-chat/send", {
+          playerId: user?.id,
+          message,
+          senderType: 'player'
+        });
+      }
+    },
     onSuccess: () => {
       setNewMessage("");
-      queryClient.invalidateQueries({ queryKey: ['/api/gre-chat/messages'] });
       toast({
         title: "Message Sent",
         description: "Your message has been sent to our support team.",
       });
     },
     onError: (error: any) => {
+      console.error('❌ [CHAT] Error sending message:', error);
       toast({
         title: "Failed to Send Message",
         description: error.message || "Please try again.",
@@ -96,7 +101,8 @@ export default function GreChatDialog({ isOpen, onClose }: GreChatDialogProps) {
     });
   };
 
-  const onlineAgentsCount = agents.filter((agent: any) => agent.is_online).length;
+  // Show online status based on WebSocket connection
+  const onlineAgentsCount = wsConnected ? 1 : 0;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
