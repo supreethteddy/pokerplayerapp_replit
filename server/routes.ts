@@ -4801,9 +4801,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           if (messageError) {
             console.error('❌ [WEBSOCKET] Error saving message:', messageError);
+            console.error('❌ [WEBSOCKET] Detailed error:', JSON.stringify(messageError, null, 2));
+            console.error('❌ [WEBSOCKET] Session ID used:', sessionId);
+            console.error('❌ [WEBSOCKET] Player ID used:', playerId);
+            console.error('❌ [WEBSOCKET] Message data used:', data.message);
+            
+            // Try alternative approach - save to REST API instead
+            try {
+              const restResponse = await fetch('http://localhost:5000/api/gre-chat/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  playerId: playerId,
+                  playerName: data.playerName || `Player ${playerId}`,
+                  message: data.message,
+                  timestamp: new Date().toISOString()
+                })
+              });
+              
+              if (restResponse.ok) {
+                console.log('✅ [WEBSOCKET] Message saved via REST API fallback');
+                ws.send(JSON.stringify({
+                  type: 'message_sent',
+                  message: 'Message sent successfully via REST API',
+                }));
+                return;
+              }
+            } catch (restError) {
+              console.error('❌ [WEBSOCKET] REST API fallback also failed:', restError);
+            }
+            
             ws.send(JSON.stringify({
               type: 'error',
-              message: 'Failed to send message'
+              message: 'Failed to send message - please try again'
             }));
             return;
           }
@@ -5114,6 +5144,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error(`❌ [GRE CHAT] Error fetching messages:`, error);
       res.json([]); // Return empty array instead of error to prevent UI issues
+    }
+  });
+
+  // Clear chat messages for a player (used by clear chat button)
+  app.delete("/api/gre-chat/messages/:playerId", async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      console.log(`🗑️ [GRE CHAT] Clearing chat history for player ${playerId}`);
+
+      // Delete all messages for this player from Staff Portal Supabase
+      const { error } = await staffPortalSupabase
+        .from('gre_chat_messages')
+        .delete()
+        .eq('player_id', parseInt(playerId));
+
+      if (error) {
+        console.error('❌ [GRE CHAT] Error clearing messages:', error);
+        return res.status(500).json({ error: 'Failed to clear chat history' });
+      }
+
+      console.log(`✅ [GRE CHAT] Successfully cleared chat history for player ${playerId}`);
+      res.json({ success: true, message: 'Chat history cleared successfully' });
+
+    } catch (error) {
+      console.error('❌ [GRE CHAT] Error clearing chat:', error);
+      res.status(500).json({ error: 'Failed to clear chat history' });
     }
   });
 

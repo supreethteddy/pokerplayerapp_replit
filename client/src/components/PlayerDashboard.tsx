@@ -2445,14 +2445,39 @@ export default function PlayerDashboard() {
                         }}
                       />
                       <Button 
-                        onClick={() => {
+                        onClick={async () => {
                           if (confirm('Are you sure you want to clear the chat history?')) {
-                            setRealtimeChatMessages([]);
-                            queryClient.invalidateQueries({ queryKey: [`/api/gre-chat/messages/${user?.id}`] });
-                            toast({
-                              title: "Chat Cleared",
-                              description: "Chat history has been cleared",
-                            });
+                            try {
+                              // Clear chat via API
+                              await apiRequest("DELETE", `/api/gre-chat/messages/${user?.id}`);
+                              
+                              // Clear local states
+                              setRealtimeChatMessages([]);
+                              
+                              // Invalidate and refetch queries
+                              queryClient.invalidateQueries({ queryKey: [`/api/gre-chat/messages/${user?.id}`] });
+                              
+                              // Clear WebSocket message via WebSocket if connected
+                              if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+                                wsConnection.send(JSON.stringify({
+                                  type: 'clear_chat',
+                                  playerId: user.id,
+                                  playerName: `${user.firstName} ${user.lastName}`,
+                                  timestamp: new Date().toISOString()
+                                }));
+                              }
+                              
+                              toast({
+                                title: "Chat Cleared",
+                                description: "Chat history has been permanently cleared",
+                              });
+                            } catch (error) {
+                              toast({
+                                title: "Error",
+                                description: "Failed to clear chat history",
+                                variant: "destructive"
+                              });
+                            }
                           }
                         }}
                         variant="outline"
