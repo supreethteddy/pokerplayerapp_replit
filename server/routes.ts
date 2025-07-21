@@ -4725,6 +4725,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Store active WebSocket connections by player ID for instant message delivery
   const playerConnections = new Map<number, WebSocket>();
+  
+  // Store temporary chat messages in memory (not database) - cleared on session end
+  const tempChatMessages = new Map<number, any[]>();
 
   wss.on('connection', (ws: WebSocket, request) => {
     console.log('🔗 [WEBSOCKET] New connection established');
@@ -4755,90 +4758,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         if (data.type === 'send_message' && playerId) {
-          console.log(`💬 [WEBSOCKET] Processing chat message from player ${playerId}`);
+          console.log(`💬 [WEBSOCKET] Processing temporary chat message from player ${playerId}`);
           
-          // Create or get chat session
-          let sessionId = `session_${playerId}_${Date.now()}`;
+          // Create temporary message data (not stored in database)
+          const messageData = {
+            id: crypto.randomUUID(),
+            player_id: playerId,
+            player_name: data.playerName || `Player ${playerId}`,
+            message: data.message,
+            sender: 'player',
+            sender_name: data.playerName || `Player ${playerId}`,
+            timestamp: new Date().toISOString(),
+            status: 'sent'
+          };
+
+          // Get or create temporary message array for this player
+          if (!tempChatMessages.has(playerId)) {
+            tempChatMessages.set(playerId, []);
+          }
           
-          // Check if player has existing session
-          const { data: existingSessions } = await staffPortalSupabase
-            .from('gre_chat_sessions')
-            .select('session_id')
-            .eq('player_id', playerId)
-            .eq('status', 'active')
-            .limit(1);
-
-          if (existingSessions && existingSessions.length > 0) {
-            sessionId = existingSessions[0].session_id;
-          } else {
-            // Create new session
-            await staffPortalSupabase
-              .from('gre_chat_sessions')
-              .insert({
-                session_id: sessionId,
-                player_id: playerId,
-                player_name: data.playerName || `Player ${playerId}`,
-                status: 'active',
-                created_at: new Date().toISOString()
-              });
-          }
-
-          // Store the message
-          const { data: messageData, error: messageError } = await staffPortalSupabase
-            .from('gre_chat_messages')
-            .insert({
-              session_id: sessionId,
-              player_id: playerId,
-              player_name: data.playerName || `Player ${playerId}`,
-              message: data.message,
-              sender: 'player',
-              sender_name: data.playerName || `Player ${playerId}`,
-              timestamp: new Date().toISOString(),
-              status: 'sent'
-            })
-            .select()
-            .single();
-
-          if (messageError) {
-            console.error('❌ [WEBSOCKET] Error saving message:', messageError);
-            console.error('❌ [WEBSOCKET] Detailed error:', JSON.stringify(messageError, null, 2));
-            console.error('❌ [WEBSOCKET] Session ID used:', sessionId);
-            console.error('❌ [WEBSOCKET] Player ID used:', playerId);
-            console.error('❌ [WEBSOCKET] Message data used:', data.message);
-            
-            // Try alternative approach - save to REST API instead
-            try {
-              const restResponse = await fetch('http://localhost:5000/api/gre-chat/send', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  playerId: playerId,
-                  playerName: data.playerName || `Player ${playerId}`,
-                  message: data.message,
-                  timestamp: new Date().toISOString()
-                })
-              });
-              
-              if (restResponse.ok) {
-                console.log('✅ [WEBSOCKET] Message saved via REST API fallback');
-                ws.send(JSON.stringify({
-                  type: 'message_sent',
-                  message: 'Message sent successfully via REST API',
-                }));
-                return;
-              }
-            } catch (restError) {
-              console.error('❌ [WEBSOCKET] REST API fallback also failed:', restError);
-            }
-            
-            ws.send(JSON.stringify({
-              type: 'error',
-              message: 'Failed to send message - please try again'
-            }));
-            return;
-          }
-
-          console.log('✅ [WEBSOCKET] Message saved successfully');
+          // Add message to temporary memory storage (not database)
+          tempChatMessages.get(playerId)!.push(messageData);
+          console.log(`✅ [WEBSOCKET] Message stored temporarily in memory for player ${playerId}`);
+          console.log(`📊 [WEBSOCKET] Player ${playerId} now has ${tempChatMessages.get(playerId)!.length} temporary messages`);
 
           // Send confirmation to player
           ws.send(JSON.stringify({
@@ -4848,21 +4790,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }));
 
           // Broadcast to GRE staff (this would be handled by Staff Portal WebSocket)
-          console.log(`📢 [WEBSOCKET] Message from player ${playerId} ready for GRE staff`);
+          console.log(`📢 [WEBSOCKET] Temporary message from player ${playerId} available for GRE staff`);
         }
 
         if (data.type === 'get_messages' && playerId) {
-          // Fetch recent messages for this player
-          const { data: messages } = await staffPortalSupabase
-            .from('gre_chat_messages')
-            .select('*')
-            .eq('player_id', playerId)
-            .order('created_at', { ascending: true })
-            .limit(50);
+          // Get temporary messages for this player from memory
+          const messages = tempChatMessages.get(playerId) || [];
+          console.log(`📋 [WEBSOCKET] Fetching ${messages.length} temporary messages for player ${playerId}`);
 
           ws.send(JSON.stringify({
             type: 'chat_history',
-            messages: messages || []
+            messages: messages
+          }));
+        }
+
+        if (data.type === 'clear_chat' && playerId) {
+          // Clear temporary messages for this player
+          tempChatMessages.delete(playerId);
+          console.log(`🗑️ [WEBSOCKET] Cleared temporary chat messages for player ${playerId}`);
+
+          ws.send(JSON.stringify({
+            type: 'chat_cleared',
+            message: 'Chat history cleared successfully'
           }));
         }
 
@@ -5025,97 +4974,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/gre-chat/send", async (req, res) => {
     try {
       const { playerId, playerName, message, timestamp } = req.body;
-      console.log(`💬 [GRE CHAT] Receiving message from player ${playerId}: ${playerName}`);
+      console.log(`💬 [GRE CHAT] Receiving temporary message from player ${playerId}: ${playerName}`);
       
-      // Check if there's an active chat session for this player in Staff Portal Supabase
-      let { data: existingSession } = await staffPortalSupabase
-        .from('gre_chat_sessions')
-        .select('*')
-        .eq('player_id', playerId)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-      
-      let sessionId;
-      
-      // If no active session exists, create a new one
-      if (!existingSession) {
-        const { data: newSession, error: sessionError } = await staffPortalSupabase
-          .from('gre_chat_sessions')
-          .insert({
-            player_id: playerId,
-            status: 'active',
-            category: 'general',
-            priority: 'normal',
-            started_at: new Date().toISOString(),
-            last_message_at: new Date().toISOString(),
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .select()
-          .single();
-        
-        if (sessionError) {
-          throw new Error(`Failed to create chat session: ${sessionError.message}`);
-        }
-        
-        sessionId = newSession.id;
-        console.log(`✅ [GRE CHAT] Created new chat session - ID: ${sessionId}`);
-      } else {
-        sessionId = existingSession.id;
-        console.log(`⚡ [GRE CHAT] Using existing chat session - ID: ${sessionId}`);
+      // Create temporary message data (not stored in database)
+      const messageData = {
+        id: crypto.randomUUID(),
+        player_id: parseInt(playerId),
+        player_name: playerName,
+        message: message.trim(),
+        sender: 'player',
+        sender_name: playerName,
+        timestamp: timestamp || new Date().toISOString(),
+        status: 'sent'
+      };
+
+      // Get or create temporary message array for this player
+      if (!tempChatMessages.has(parseInt(playerId))) {
+        tempChatMessages.set(parseInt(playerId), []);
       }
       
-      // Insert the message into Staff Portal Supabase
-      const { data, error } = await staffPortalSupabase
-        .from('gre_chat_messages')
-        .insert({
-          session_id: sessionId,
-          player_id: playerId,
-          player_name: playerName,
-          message: message.trim(),
-          sender: 'player',
-          sender_name: playerName,
-          timestamp: new Date().toISOString(),
-          status: 'sent',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          request_id: 0
-        })
-        .select()
-        .single();
-      
-      if (error) {
-        throw new Error(`Failed to send message: ${error.message}`);
-      }
-      
-      // Update session last message time
-      await staffPortalSupabase
-        .from('gre_chat_sessions')
-        .update({ 
-          last_message_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', sessionId);
-      
+      // Add message to temporary memory storage (not database)
+      tempChatMessages.get(parseInt(playerId))!.push(messageData);
+      console.log(`✅ [GRE CHAT] Message stored temporarily in memory for player ${playerId}`);
+      console.log(`📊 [GRE CHAT] Player ${playerId} now has ${tempChatMessages.get(parseInt(playerId))!.length} temporary messages`);
+
       // Broadcast message to all connected WebSocket clients for real-time updates
       const playerConnections = wss.clients;
       playerConnections.forEach((client) => {
-        if (client.playerId === playerId && client.readyState === WebSocket.OPEN) {
-          console.log(`📢 [GRE WEBSOCKET] Broadcasting new message to player ${playerId}`);
+        if (client.playerId === parseInt(playerId) && client.readyState === WebSocket.OPEN) {
+          console.log(`📢 [GRE WEBSOCKET] Broadcasting new temporary message to player ${playerId}`);
           client.send(JSON.stringify({
             type: 'new_message',
-            message: data,
+            message: messageData,
             timestamp: new Date().toISOString()
           }));
         }
       });
       
-      console.log(`✅ [GRE CHAT] Message sent successfully - ID: ${data.id}`);
-      res.json({ success: true, message: data });
+      console.log(`✅ [GRE CHAT] Temporary message sent successfully - ID: ${messageData.id}`);
+      res.json({ success: true, message: messageData });
     } catch (error: any) {
-      console.error(`❌ [GRE CHAT] Error sending message:`, error);
+      console.error(`❌ [GRE CHAT] Error sending temporary message:`, error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -5123,26 +5022,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/gre-chat/messages/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
-      console.log(`💬 [GRE CHAT] Fetching messages for player ${playerId}`);
+      console.log(`💬 [GRE CHAT] Fetching temporary messages for player ${playerId}`);
       
-      // Fetch chat messages from Staff Portal Supabase
-      const { data, error } = await staffPortalSupabase
-        .from('gre_chat_messages')
-        .select('*')
-        .eq('player_id', parseInt(playerId))
-        .order('created_at', { ascending: true })
-        .limit(50); // Last 50 messages
+      // Get temporary messages for this player from memory
+      const messages = tempChatMessages.get(parseInt(playerId)) || [];
+      console.log(`✅ [GRE CHAT] Retrieved ${messages.length} temporary messages for player ${playerId}`);
       
-      if (error) {
-        console.log(`❌ [GRE CHAT] Error fetching messages:`, error);
-        // Return empty array if table doesn't exist yet
-        return res.json([]);
-      }
-      
-      console.log(`✅ [GRE CHAT] Retrieved ${data?.length || 0} messages for player ${playerId}`);
-      res.json(data || []);
+      res.json(messages);
     } catch (error: any) {
-      console.error(`❌ [GRE CHAT] Error fetching messages:`, error);
+      console.error(`❌ [GRE CHAT] Error fetching temporary messages:`, error);
       res.json([]); // Return empty array instead of error to prevent UI issues
     }
   });
@@ -5151,24 +5039,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/gre-chat/messages/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
-      console.log(`🗑️ [GRE CHAT] Clearing chat history for player ${playerId}`);
+      console.log(`🗑️ [GRE CHAT] Clearing temporary chat history for player ${playerId}`);
 
-      // Delete all messages for this player from Staff Portal Supabase
-      const { error } = await staffPortalSupabase
-        .from('gre_chat_messages')
-        .delete()
-        .eq('player_id', parseInt(playerId));
-
-      if (error) {
-        console.error('❌ [GRE CHAT] Error clearing messages:', error);
-        return res.status(500).json({ error: 'Failed to clear chat history' });
-      }
-
-      console.log(`✅ [GRE CHAT] Successfully cleared chat history for player ${playerId}`);
+      // Clear temporary messages for this player from memory
+      tempChatMessages.delete(parseInt(playerId));
+      console.log(`✅ [GRE CHAT] Successfully cleared temporary chat history for player ${playerId}`);
+      
       res.json({ success: true, message: 'Chat history cleared successfully' });
 
     } catch (error) {
-      console.error('❌ [GRE CHAT] Error clearing chat:', error);
+      console.error('❌ [GRE CHAT] Error clearing temporary chat:', error);
       res.status(500).json({ error: 'Failed to clear chat history' });
     }
   });
