@@ -53,36 +53,32 @@ export default function TableView() {
         throw new Error("User or table not found");
       }
 
-      console.log(`🎯 Reserving seat ${seatNumber} for player ${user.id} on table ${currentTable.id}`);
+      console.log(`🎯 [TABLE VIEW JOIN] Joining waitlist for seat ${seatNumber} on table ${currentTable.id}`);
 
-      const requestData = {
-        playerId: user.id,
-        tableId: currentTable.id,
-        status: "waiting",
-        seatNumber: seatNumber,
-        notes: `Player ${user.firstName} ${user.lastName} requested seat ${seatNumber}`
-      };
-
-      console.log('🎯 Sending request data:', requestData);
-
-      const response = await apiRequest("POST", "/api/seat-requests", requestData);
+      const response = await apiRequest('POST', '/api/waitlist/join', {
+        table_id: currentTable.id,
+        player_id: user.id,
+        game_type: 'Texas Hold\'em',
+        min_buy_in: 1000,
+        max_buy_in: 10000,
+        notes: `Player ${user.firstName} ${user.lastName} joined waitlist via seat selection`
+      });
       return response.json();
     },
     onSuccess: (data) => {
-      console.log('✅ Seat reservation successful:', data);
+      console.log('✅ [TABLE VIEW JOIN] Waitlist join successful:', data);
       toast({
-        title: "Seat Reserved!",
-        description: `You've been added to the waitlist for seat ${selectedSeat}`,
+        title: "Joined Waitlist!",
+        description: `You've been added to the waitlist successfully`,
       });
       setSelectedSeat(null);
       queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/table-seats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tables"] });
-      // Navigate back to dashboard after successful reservation
+      // Navigate back to dashboard after successful join
       setTimeout(() => setLocation('/'), 2000);
     },
     onError: (error: any) => {
-      console.error('❌ Seat reservation failed:', error);
+      console.error('❌ [TABLE VIEW JOIN] Waitlist join failed:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to join waitlist",

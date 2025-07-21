@@ -596,8 +596,9 @@ export default function PlayerDashboard() {
   };
 
   const handleJoinWaitList = (tableId: string) => {
-    console.log('🎯 [HANDLE JOIN] Simple join for table:', tableId);
-    joinWaitListMutation.mutate(tableId);
+    console.log('🎯 [HANDLE JOIN] Navigating to table view for seat selection:', tableId);
+    // Navigate to table view first, then seat selection will complete the join
+    setLocation(`/table/${tableId}`);
   };
   
   // Simplified direct join functionality - no seat selection dialog
@@ -606,72 +607,7 @@ export default function PlayerDashboard() {
     leaveWaitListMutation.mutate(tableId);
   };
 
-  // Cleanup old waitlist entries mutation
-  const cleanupWaitlistMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest('DELETE', `/api/cleanup-waitlist/${user?.id}`);
-      return response.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/seat-requests'] });
-      if (data.cleaned > 0) {
-        toast({
-          title: "Waitlist Cleaned",
-          description: `Removed ${data.cleaned} old waitlist entries`,
-        });
-      }
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Cleanup Failed",
-        description: error.message || "Could not cleanup waitlist",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Auto-cleanup on component mount
-  useEffect(() => {
-    if (user?.id && seatRequests) {
-      // Check if there are any waitlist entries for tables that don't exist
-      const currentTableIds = tables?.map(t => t.id) || [];
-      const hasOldEntries = seatRequests.some(req => !currentTableIds.includes(req.tableId));
-      
-      if (hasOldEntries) {
-        console.log('🧹 Auto-cleaning old waitlist entries...');
-        cleanupWaitlistMutation.mutate();
-      }
-    }
-  }, [user?.id, seatRequests, tables]);
-
-  // Leave all waitlist entries
-  const leaveAllWaitlistMutation = useMutation({
-    mutationFn: async () => {
-      if (!user?.id) throw new Error('No user ID');
-      
-      const currentEntries = seatRequests || [];
-      const deletePromises = currentEntries.map(entry => 
-        apiRequest('DELETE', `/api/seat-requests/${user.id}/${entry.tableId}`)
-      );
-      
-      await Promise.all(deletePromises);
-      return { removed: currentEntries.length };
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/seat-requests'] });
-      toast({
-        title: "Left All Waitlists",
-        description: `Removed from ${data.removed} waitlists`,
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Failed to Leave All",
-        description: error.message || "Could not leave all waitlists",
-        variant: "destructive",
-      });
-    },
-  });
+  // Removed cleanup and leave all mutations as requested
 
   // Credit request state and mutations
   const [creditAmount, setCreditAmount] = useState("");
@@ -1326,51 +1262,7 @@ export default function PlayerDashboard() {
                   </button>
                 </div>
 
-                {/* Waitlist Management Controls */}
-                {!showTournaments && seatRequests && seatRequests.length > 0 && (
-                  <Card className="bg-slate-800/80 border-slate-700/50 mb-4 w-full max-w-full overflow-hidden backdrop-blur-sm">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-white font-medium">Waitlist Management</p>
-                          <p className="text-sm text-slate-400">
-                            You're on {seatRequests.length} waitlist{seatRequests.length !== 1 ? 's' : ''}
-                          </p>
-                        </div>
-                        <div className="flex space-x-2">
-                          <Button
-                            onClick={() => cleanupWaitlistMutation.mutate()}
-                            disabled={cleanupWaitlistMutation.isPending}
-                            size="sm"
-                            variant="outline"
-                            className="bg-gradient-to-r from-blue-600/20 to-blue-500/20 border border-blue-500/50 text-blue-300 hover:from-blue-500/30 hover:to-blue-400/30 hover:border-blue-400 hover:text-blue-200 transition-all duration-300 shadow-lg hover:shadow-blue-500/25 backdrop-blur-sm"
-                          >
-                            {cleanupWaitlistMutation.isPending ? (
-                              <div className="w-4 h-4 border-2 border-blue-300 border-t-transparent rounded-full animate-spin mr-2" />
-                            ) : (
-                              <RotateCcw className="w-4 h-4 mr-1" />
-                            )}
-                            Cleanup Old
-                          </Button>
-                          <Button
-                            onClick={() => leaveAllWaitlistMutation.mutate()}
-                            disabled={leaveAllWaitlistMutation.isPending}
-                            size="sm"
-                            variant="outline"
-                            className="bg-gradient-to-r from-red-600/20 to-red-500/20 border border-red-500/50 text-red-300 hover:from-red-500/30 hover:to-red-400/30 hover:border-red-400 hover:text-red-200 transition-all duration-300 shadow-lg hover:shadow-red-500/25 backdrop-blur-sm"
-                          >
-                            {leaveAllWaitlistMutation.isPending ? (
-                              <div className="w-4 h-4 border-2 border-red-300 border-t-transparent rounded-full animate-spin mr-2" />
-                            ) : (
-                              <X className="w-4 h-4 mr-1" />
-                            )}
-                            Leave All
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                {/* Removed waitlist management controls as requested */}
 
                 {/* Cash Tables Display - Improved Layout */}
                 {!showTournaments && (
