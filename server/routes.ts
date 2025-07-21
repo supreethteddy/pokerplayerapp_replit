@@ -4840,74 +4840,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/gre-chat/send-to-player', async (req, res) => {
     try {
       const { playerId, message, greStaffName = 'Guest Relations Team' } = req.body;
-      console.log(`🔄 [GRE WEBSOCKET] Attempting to send message to player ${playerId}`);
+      console.log(`🔄 [GRE WEBSOCKET] Sending temporary message to player ${playerId}`);
       console.log(`💬 [GRE WEBSOCKET] Message: "${message}" from ${greStaffName}`);
       
-      // First, store the message in the database (Staff Portal Supabase)
-      try {
-        // Get or create active chat session
-        let { data: session } = await staffPortalSupabase
-          .from('gre_chat_sessions')
-          .select('*')
-          .eq('player_id', playerId)
-          .eq('status', 'active')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
+      // Create temporary GRE message data (stored only in memory)
+      const messageData = {
+        id: crypto.randomUUID(),
+        player_id: parseInt(playerId),
+        player_name: 'Player',
+        message: message.trim(),
+        sender: 'gre',
+        sender_name: greStaffName,
+        timestamp: new Date().toISOString(),
+        status: 'sent'
+      };
 
-        if (!session) {
-          const { data: newSession, error: sessionError } = await staffPortalSupabase
-            .from('gre_chat_sessions')
-            .insert({
-              player_id: playerId,
-              status: 'active',
-              category: 'general',
-              priority: 'normal',
-              started_at: new Date().toISOString(),
-              last_message_at: new Date().toISOString(),
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            })
-            .select()
-            .single();
-          
-          if (sessionError) {
-            console.error('❌ [GRE WEBSOCKET] Failed to create session:', sessionError);
-          } else {
-            session = newSession;
-            console.log('✅ [GRE WEBSOCKET] Created new chat session:', session.id);
-          }
-        }
-
-        // Store GRE message in database
-        if (session) {
-          const { data: storedMessage, error: messageError } = await staffPortalSupabase
-            .from('gre_chat_messages')
-            .insert({
-              session_id: session.id,
-              player_id: playerId,
-              player_name: 'Player', // This will be updated by the system
-              message: message.trim(),
-              sender: 'gre',
-              sender_name: greStaffName,
-              timestamp: new Date().toISOString(),
-              status: 'sent',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              request_id: 0
-            })
-            .select()
-            .single();
-
-          if (messageError) {
-            console.error('❌ [GRE WEBSOCKET] Failed to store message in database:', messageError);
-          } else {
-            console.log('✅ [GRE WEBSOCKET] Message stored in database:', storedMessage.id);
-          }
-        }
-      } catch (dbError) {
-        console.error('❌ [GRE WEBSOCKET] Database error:', dbError);
+      // Get or create temporary message array for this player
+      if (!tempChatMessages.has(parseInt(playerId))) {
+        tempChatMessages.set(parseInt(playerId), []);
       }
+      
+      // Add GRE message to temporary memory storage (not database)
+      tempChatMessages.get(parseInt(playerId))!.push(messageData);
+      console.log(`✅ [GRE WEBSOCKET] GRE message stored temporarily in memory for player ${playerId}`);
+      console.log(`📊 [GRE WEBSOCKET] Player ${playerId} now has ${tempChatMessages.get(parseInt(playerId))!.length} temporary messages`);
       
       // Check WebSocket connection
       const playerWs = playerConnections.get(parseInt(playerId));
@@ -4918,22 +4874,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       if (playerWs && playerWs.readyState === WebSocket.OPEN) {
+        // Send instant WebSocket message with complete message data
         const wsMessage = {
           type: 'new_message',
-          message: {
-            sender: 'gre',
-            sender_name: greStaffName,
-            message: message,
-            timestamp: new Date().toISOString()
-          }
+          message: messageData,
+          timestamp: new Date().toISOString()
         };
         
         playerWs.send(JSON.stringify(wsMessage));
-        console.log('✅ [GRE WEBSOCKET] Message sent successfully via WebSocket');
-        res.json({ success: true, message: 'Message sent to player via WebSocket', stored: true });
+        console.log(`⚡ [GRE WEBSOCKET] INSTANT delivery to player ${playerId} - millisecond performance`);
+        res.json({ success: true, message: 'Message sent to player via WebSocket', stored: true, messageData });
       } else {
         console.log('❌ [GRE WEBSOCKET] Player not connected via WebSocket');
-        res.json({ success: false, message: 'Player not connected via WebSocket', stored: true });
+        res.json({ success: false, message: 'Player not connected via WebSocket', stored: true, messageData });
       }
     } catch (error: any) {
       console.error('❌ [GRE WEBSOCKET] Error:', error);
