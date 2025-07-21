@@ -4732,6 +4732,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (data.type === 'authenticate') {
           playerId = data.playerId;
           playerConnections.set(playerId, ws);
+          // Store playerId on WebSocket client for broadcasting
+          ws.playerId = playerId;
           console.log(`🔐 [WEBSOCKET] Player ${playerId} authenticated and connected`);
           
           // Send confirmation
@@ -5056,6 +5058,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           updated_at: new Date().toISOString()
         })
         .eq('id', sessionId);
+      
+      // Broadcast message to all connected WebSocket clients for real-time updates
+      const playerConnections = wss.clients;
+      playerConnections.forEach((client) => {
+        if (client.playerId === playerId && client.readyState === WebSocket.OPEN) {
+          console.log(`📢 [GRE WEBSOCKET] Broadcasting new message to player ${playerId}`);
+          client.send(JSON.stringify({
+            type: 'new_message',
+            message: data,
+            timestamp: new Date().toISOString()
+          }));
+        }
+      });
       
       console.log(`✅ [GRE CHAT] Message sent successfully - ID: ${data.id}`);
       res.json({ success: true, message: data });

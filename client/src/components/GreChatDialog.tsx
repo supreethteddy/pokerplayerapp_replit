@@ -61,8 +61,9 @@ export default function GreChatDialog({ isOpen, onClose, messages = [], wsConnec
         console.log('🔄 [API] Using REST API fallback for message send');
         return apiRequest("POST", "/api/gre-chat/send", {
           playerId: user?.id,
+          playerName: `${user?.firstName} ${user?.lastName}`,
           message,
-          senderType: 'player'
+          timestamp: new Date().toISOString()
         });
       }
     },
@@ -135,7 +136,7 @@ export default function GreChatDialog({ isOpen, onClose, messages = [], wsConnec
         {/* Messages Area */}
         <ScrollArea className="flex-1 px-4 py-4">
           <div className="space-y-4">
-            {isLoading ? (
+            {false ? (
               <div className="text-center text-slate-400 py-8">
                 <MessageCircle className="w-8 h-8 mx-auto mb-2 animate-pulse" />
                 Loading chat history...
