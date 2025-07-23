@@ -19,23 +19,16 @@ import { testDirectTableQuery } from './direct-table-test';
 import { addTablesToSupabase } from './add-tables-to-supabase';
 import { cleanupSupabaseTables } from './cleanup-supabase-tables';
 
-// Connect to Staff Portal's Supabase database for table synchronization
-const supabase = createClient(
-  process.env.STAFF_PORTAL_SUPABASE_URL!,
-  process.env.STAFF_PORTAL_SUPABASE_SERVICE_KEY!
-);
-
-// Connect to local database for credit requests
-const localSupabase = createClient(
-  process.env.VITE_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-// Connect to Staff Portal Supabase for GRE chat and push notifications
+// STAFF PORTAL EXCLUSIVE MODE - Using ONLY Staff Portal Supabase for ALL operations
+// No local or fallback databases - everything goes through Staff Portal system
 const staffPortalSupabase = createClient(
   process.env.STAFF_PORTAL_SUPABASE_URL!,
   process.env.STAFF_PORTAL_SUPABASE_SERVICE_KEY!
 );
+
+// UNIFIED SYSTEM - All database operations use Staff Portal Supabase exclusively
+const supabase = staffPortalSupabase;  // Redirect all calls to Staff Portal
+const localSupabase = staffPortalSupabase;  // No more local database - use Staff Portal
 
 // Create KYC document schema - omit fileUrl as it's generated during upload
 const insertKycDocumentSchema = createInsertSchema(kycDocuments).omit({ fileUrl: true });
