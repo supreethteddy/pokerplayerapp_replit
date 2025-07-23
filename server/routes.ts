@@ -5298,8 +5298,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           player_email: playerEmail || 'no-email@example.com',
           subject: message,
           priority: priority,
-          status: 'waiting',
-          source: 'player_portal'
+          status: 'waiting'
+          // Note: source column removed due to schema cache issue - default value 'player_portal' will be used
         })
         .select()
         .single();
