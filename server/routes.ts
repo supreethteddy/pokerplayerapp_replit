@@ -5312,12 +5312,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log('✅ [UNIFIED CHAT] Message created successfully:', chatRequest.id);
-      console.log(`   Player: ${chatRequest.player_name}`);
+      console.log(`   Player: ${chatRequest.player_name || chatRequest.sender_name}`);
       console.log(`   Status: ${chatRequest.status}`);
 
+      // Return in format expected by integration guide
       res.json({
         success: true,
-        request: chatRequest,
+        request: {
+          id: chatRequest.id,
+          player_id: chatRequest.player_id,
+          player_name: chatRequest.player_name || chatRequest.sender_name,
+          message: chatRequest.message,
+          status: chatRequest.status,
+          created_at: chatRequest.created_at
+        },
         message: 'Message sent to staff successfully'
       });
     } catch (error: any) {

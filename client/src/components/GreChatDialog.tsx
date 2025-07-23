@@ -42,14 +42,20 @@ export default function GreChatDialog({ isOpen, onClose, messages = [], wsConnec
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // UNIFIED CHAT SYSTEM - Staff Portal Integration
+  // UNIFIED CHAT SYSTEM - Staff Portal Integration (EXACT IMPLEMENTATION FROM INTEGRATION GUIDE)
   const sendMessage = useMutation({
     mutationFn: async (message: string) => {
-      console.log('🚀 [UNIFIED CHAT] Sending message to Staff Portal via unified API...');
+      console.log('🚀 Sending message to Staff Portal via unified API...');
       
-      // Use Staff Portal's unified chat system
+      // Use Staff Portal's unified chat system - EXACT API FROM INTEGRATION GUIDE
       const STAFF_PORTAL_API = "http://localhost:5000/api";
       
+      const playerData = {
+        id: user?.id,
+        fullName: `${user?.firstName} ${user?.lastName}`,
+        email: user?.email || 'no-email@example.com'
+      };
+
       const response = await fetch(`${STAFF_PORTAL_API}/unified-chat-requests`, {
         method: 'POST',
         headers: {
@@ -57,9 +63,9 @@ export default function GreChatDialog({ isOpen, onClose, messages = [], wsConnec
           'Cache-Control': 'no-cache'
         },
         body: JSON.stringify({
-          playerId: user?.id,
-          playerName: `${user?.firstName} ${user?.lastName}`,
-          playerEmail: user?.email,
+          playerId: playerData.id,
+          playerName: playerData.fullName,
+          playerEmail: playerData.email,
           message: message.trim(),
           priority: "urgent",
           source: "poker_room_tracker"
@@ -69,7 +75,7 @@ export default function GreChatDialog({ isOpen, onClose, messages = [], wsConnec
       const result = await response.json();
       
       if (result.success) {
-        console.log('✅ [UNIFIED CHAT] Message sent to Staff Portal:', result.request.id);
+        console.log('✅ Message sent to Staff Portal:', result.request.id);
         console.log('   Player:', result.request.player_name);
         console.log('   Status:', result.request.status);
         return {
@@ -81,11 +87,11 @@ export default function GreChatDialog({ isOpen, onClose, messages = [], wsConnec
         throw new Error(result.error || 'Failed to send message');
       }
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       setNewMessage("");
       toast({
-        title: "Message Sent",
-        description: "Your message has been sent to our staff. They will respond shortly.",
+        title: "Message Sent Successfully",
+        description: `Message sent to Staff Portal (ID: ${result.messageId?.substring(0, 8)})`,
       });
       // Refresh messages to show the new message
       queryClient.invalidateQueries({ queryKey: ['/api/gre-chat/messages', user?.id] });
