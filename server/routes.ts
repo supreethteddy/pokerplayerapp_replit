@@ -4730,73 +4730,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ENTERPRISE-GRADE HYBRID GRE CHAT SYSTEM
   // Stores messages in BOTH memory AND Supabase simultaneously
   
-  // PURE SUPABASE GRE CHAT SYSTEM - Cross-Portal Database-Only Implementation
-  class PureSupabaseGreChatSystem {
+  // STAFF PORTAL COMPATIBLE GRE CHAT SYSTEM - Exact Logic Replication
+  class StaffPortalCompatibleGreChatSystem {
     constructor() {
-      this.supabaseClient = staffPortalSupabase; // ONLY Supabase database for perfect cross-portal sync
-      console.log('🚀 [PURE SUPABASE] Chat system initialized with database-only storage');
+      this.supabaseClient = staffPortalSupabase;
+      console.log('🚀 [STAFF PORTAL LOGIC] GRE Chat system initialized with identical Staff Portal logic');
     }
 
-    async sendMessage(playerId, playerName, message, sender, senderName) {
+    async getOrCreateSession(playerId, playerName) {
       try {
-        console.log(`💾 [SUPABASE ONLY] Storing message directly in Staff Portal Supabase for player ${playerId}`);
-        
-        // Generate proper UUID for session_id or get existing session
-        let sessionId;
-        try {
-          // Try to find existing session for this player
-          const { data: existingSession } = await this.supabaseClient
-            .from('gre_chat_sessions')
-            .select('id')
-            .eq('player_id', playerId)
-            .eq('status', 'active')
-            .single();
-          
-          sessionId = existingSession?.id || crypto.randomUUID();
-        } catch {
-          // Create new session UUID if none exists
-          sessionId = crypto.randomUUID();
+        // First, try to find existing active session
+        const { data: existingSession } = await this.supabaseClient
+          .from('gre_chat_sessions')
+          .select('*')
+          .eq('player_id', playerId)
+          .eq('status', 'active')
+          .single();
+
+        if (existingSession) {
+          console.log(`🔄 [SESSION] Found existing session ${existingSession.id} for player ${playerId}`);
+          return existingSession;
         }
 
-        // Store ONLY in Supabase database for cross-portal access
-        const { data, error } = await this.supabaseClient
-          .from('gre_chat_messages')
-          .insert({
-            session_id: sessionId,  // Fixed: Use proper UUID format
-            player_id: playerId,
-            player_name: playerName,
-            message: message.trim(),
-            sender: sender,  // Fixed: Use 'sender' not 'sender_type'
-            sender_name: senderName,
-            timestamp: new Date().toISOString(),
-            status: 'sent',
-            request_id: 0
-          })
+        // Find available GRE agent
+        const { data: availableAgent } = await this.supabaseClient
+          .from('gre_online_status')
+          .select('gre_id, gre_name, current_sessions, max_sessions')
+          .eq('is_online', true)
+          .eq('status', 'available')
+          .order('current_sessions', { ascending: true })
+          .limit(1)
+          .single();
+
+        // Create new session with or without agent assignment  
+        const sessionData = {
+          id: crypto.randomUUID(),
+          player_id: playerId,
+          gre_id: availableAgent?.gre_id || null,
+          status: 'active',
+          started_at: new Date().toISOString(),
+          last_message_at: new Date().toISOString(),
+          priority: 'normal',
+          category: 'general_support'
+        };
+
+        const { data: newSession, error } = await this.supabaseClient
+          .from('gre_chat_sessions')
+          .insert(sessionData)
           .select()
           .single();
 
         if (error) {
-          console.error(`❌ [SUPABASE] Database insert failed:`, error);
-          throw new Error(`Failed to store message: ${error.message}`);
+          console.error(`❌ [SESSION] Failed to create session:`, error);
+          throw new Error(`Session creation failed: ${error.message}`);
         }
 
-        console.log(`✅ [SUPABASE] Message stored successfully in database for cross-portal access`);
+        // Update agent's session count if assigned
+        if (availableAgent && availableAgent.current_sessions < availableAgent.max_sessions) {
+          await this.supabaseClient
+            .from('gre_online_status')
+            .update({ 
+              current_sessions: (availableAgent.current_sessions || 0) + 1,
+              last_seen: new Date().toISOString()
+            })
+            .eq('gre_id', availableAgent.gre_id);
+          
+          console.log(`✅ [SESSION] New session ${newSession.id} created and assigned to agent ${availableAgent.gre_name}`);
+        } else {
+          console.log(`⏳ [SESSION] New session ${newSession.id} created, waiting for available agent`);
+        }
+
+        return newSession;
+      } catch (error) {
+        console.error(`❌ [SESSION] Error managing session:`, error);
+        throw error;
+      }
+    }
+
+    async sendMessage(playerId, playerName, message, sender = 'player', senderName = null) {
+      try {
+        console.log(`💬 [STAFF PORTAL LOGIC] Processing message from ${sender} ${playerId}: ${playerName}`);
         
-        // Return message in Player Portal format
+        // Get or create session using Staff Portal logic
+        const session = await this.getOrCreateSession(playerId, playerName);
+        
+        // Store message in exact Staff Portal format
         const messageData = {
-          id: data.id || crypto.randomUUID(),
+          id: crypto.randomUUID(),
+          session_id: session.id,
           player_id: playerId,
           player_name: playerName,
           message: message.trim(),
           sender: sender,
-          sender_name: senderName,
-          timestamp: data.created_at || new Date().toISOString(),
-          status: 'sent'
+          sender_name: senderName || playerName,
+          timestamp: new Date().toISOString(),
+          status: 'sent',
+          request_id: null
         };
 
-        return { success: true, message: messageData };
+        const { data, error } = await this.supabaseClient
+          .from('gre_chat_messages')
+          .insert(messageData)
+          .select()
+          .single();
+
+        if (error) {
+          console.error(`❌ [STAFF PORTAL LOGIC] Message insert failed:`, error);
+          throw new Error(`Failed to store message: ${error.message}`);
+        }
+
+        // Update session's last message timestamp
+        await this.supabaseClient
+          .from('gre_chat_sessions')
+          .update({ last_message_at: new Date().toISOString() })
+          .eq('id', session.id);
+
+        console.log(`✅ [STAFF PORTAL LOGIC] Message stored successfully in session ${session.id}`);
+        
+        return { success: true, message: data };
       } catch (error) {
-        console.error(`❌ [SUPABASE] Error sending message:`, error);
+        console.error(`❌ [STAFF PORTAL LOGIC] Error sending message:`, error);
         throw error;
       }
     }
@@ -4910,7 +4963,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   }
 
-  const pureSupabaseGreChat = new PureSupabaseGreChatSystem();
+  const staffPortalGreChat = new StaffPortalCompatibleGreChatSystem();
 
   wss.on('connection', (ws: WebSocket, request) => {
     console.log('🔗 [WEBSOCKET] New connection established');
@@ -4945,7 +4998,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           try {
             // Use pure Supabase system (database only)
-            const result = await pureSupabaseGreChat.sendMessage(
+            const result = await staffPortalGreChat.sendMessage(
               playerId,
               data.playerName || `Player ${playerId}`,
               data.message,
@@ -4976,7 +5029,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (data.type === 'get_messages' && playerId) {
           try {
             // Get messages from pure Supabase system
-            const messages = await pureSupabaseGreChat.getMessages(playerId);
+            const messages = await staffPortalGreChat.getMessages(playerId);
             console.log(`📋 [WEBSOCKET] Fetching ${messages.length} Supabase messages for player ${playerId}`);
 
             ws.send(JSON.stringify({
@@ -5163,7 +5216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`💬 [GRE CHAT] Fetching Supabase messages for player ${playerId}`);
       
       // Get messages from pure Supabase system
-      const messages = await pureSupabaseGreChat.getMessages(parseInt(playerId));
+      const messages = await staffPortalGreChat.getMessages(parseInt(playerId));
       console.log(`✅ [GRE CHAT] Retrieved ${messages.length} Supabase messages for player ${playerId}`);
       
       res.json(messages);
@@ -5180,7 +5233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`🗑️ [GRE CHAT] Clearing Supabase chat history for player ${playerId}`);
 
       // Clear messages using pure Supabase system
-      const result = await pureSupabaseGreChat.clearChat(parseInt(playerId));
+      const result = await staffPortalGreChat.clearChat(parseInt(playerId));
       console.log(`✅ [GRE CHAT] Successfully cleared Supabase chat history for player ${playerId}`);
       
       res.json({ success: true, message: 'Chat history cleared successfully' });
