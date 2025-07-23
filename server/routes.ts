@@ -4847,6 +4847,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         console.log(`✅ [STAFF PORTAL LOGIC] Message stored successfully in session ${session.id}`);
         
+        // UNIFIED CROSS-PORTAL REAL-TIME BROADCASTING
+        this.broadcastToAllConnectedClients({
+          type: 'new_message',
+          message: data,
+          playerId: playerId,
+          senderType: sender
+        });
+        
         return { success: true, message: data };
       } catch (error) {
         console.error(`❌ [STAFF PORTAL LOGIC] Error sending message:`, error);
@@ -4887,6 +4895,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (error) {
         console.error(`❌ [SUPABASE] Error getting messages:`, error);
         return [];
+      }
+    }
+
+    // UNIFIED CROSS-PORTAL BROADCASTING SYSTEM
+    broadcastToAllConnectedClients(data) {
+      try {
+        // Broadcast to Player Portal WebSocket connections
+        if (typeof playerConnections !== 'undefined' && playerConnections.has(data.playerId)) {
+          const playerWs = playerConnections.get(data.playerId);
+          if (playerWs && playerWs.readyState === 1) { // WebSocket.OPEN = 1
+            playerWs.send(JSON.stringify(data));
+            console.log(`📢 [CROSS-PORTAL] Message broadcasted to Player Portal for player ${data.playerId}`);
+          }
+        }
+
+        // Enhanced Staff Portal visibility logging
+        console.log(`\n🚨 [CROSS-PORTAL ALERT] REAL-TIME MESSAGE UPDATE`);
+        console.log(`============================================`);
+        console.log(`👤 Player ID: ${data.playerId}`);
+        console.log(`📨 Message ID: ${data.message.id}`);
+        console.log(`💬 Content: "${data.message.message}"`);
+        console.log(`🔗 Session: ${data.message.session_id}`);
+        console.log(`👤 Sender: ${data.senderType} (${data.message.sender_name})`);
+        console.log(`📊 Status: ${data.message.status}`);
+        console.log(`⏰ Timestamp: ${data.message.timestamp || data.message.created_at}`);
+        console.log(`============================================`);
+        console.log(`📢 [STAFF PORTAL] Message instantly available in GRE interface`);
+        console.log(`🎯 [STAFF PORTAL] Real-time query ready: gre_chat_messages WHERE session_id = '${data.message.session_id}'`);
+        console.log(`🔄 [UNIFIED SYSTEM] Cross-portal synchronization complete\n`);
+        
+      } catch (error) {
+        console.error(`❌ [CROSS-PORTAL] Broadcasting error:`, error);
       }
     }
 

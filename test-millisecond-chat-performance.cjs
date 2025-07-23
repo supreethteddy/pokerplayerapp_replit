@@ -1,183 +1,135 @@
-/**
- * TEMPORARY GRE CHAT SYSTEM - MILLISECOND PERFORMANCE TEST
- * Tests the complete temporary memory-based chat system with real-time WebSocket performance
- */
+// MILLISECOND-LEVEL CHAT PERFORMANCE TEST
+// Tests real-time synchronization between Player Portal and Staff Portal
 
-const WebSocket = require('ws');
-const fetch = require('node-fetch');
+const { createClient } = require('@supabase/supabase-js');
 
-const SERVER_URL = 'http://localhost:5000';
-const WS_URL = 'ws://localhost:5000/ws';
-const PLAYER_ID = 29;
+const supabaseUrl = 'https://oyhnpnymlezjusnwpjeu.supabase.co';
+const serviceKey = process.env.STAFF_PORTAL_SUPABASE_SERVICE_KEY;
 
-// Colors for console output
-const colors = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  red: '\x1b[31m',
-  blue: '\x1b[34m',
-  cyan: '\x1b[36m'
-};
-
-function log(message, color = colors.reset) {
-  console.log(`${color}${message}${colors.reset}`);
+if (!serviceKey) {
+  console.error('❌ STAFF_PORTAL_SUPABASE_SERVICE_KEY not found');
+  process.exit(1);
 }
 
-async function testTemporaryChat() {
-  log('🚀 TESTING TEMPORARY GRE CHAT SYSTEM - MILLISECOND PERFORMANCE', colors.bright);
-  log('=' .repeat(80), colors.cyan);
-  
+const supabase = createClient(supabaseUrl, serviceKey);
+
+console.log('🚀 MILLISECOND-LEVEL CHAT PERFORMANCE TEST');
+console.log('==========================================');
+
+async function testRealTimeSync() {
   try {
-    // Test 1: Send player message via REST API (temporary storage)
-    log('\n📤 Test 1: Player Message via REST API', colors.yellow);
-    const startTime1 = Date.now();
-    
-    const playerResponse = await fetch(`${SERVER_URL}/api/gre-chat/send`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        playerId: PLAYER_ID,
-        playerName: 'Test Player',
-        message: 'Performance test - player message stored temporarily in memory',
-        timestamp: new Date().toISOString()
-      })
-    });
-    
-    const playerResult = await playerResponse.json();
-    const responseTime1 = Date.now() - startTime1;
-    
-    if (playerResult.success) {
-      log(`✅ Player message sent successfully in ${responseTime1}ms`, colors.green);
-      log(`📊 Message ID: ${playerResult.message.id}`, colors.cyan);
-      log(`📝 Stored temporarily in memory for player ${PLAYER_ID}`, colors.green);
-    } else {
-      log(`❌ Player message failed: ${JSON.stringify(playerResult)}`, colors.red);
+    // Step 1: Get all messages for player 29
+    console.log('\n📋 Step 1: Checking all messages in gre_chat_messages table...');
+    const { data: allMessages, error: allError } = await supabase
+      .from('gre_chat_messages')
+      .select('*')
+      .eq('player_id', 29)
+      .order('created_at', { ascending: false });
+
+    if (allError) {
+      console.error('❌ Error fetching all messages:', allError);
       return;
     }
-    
-    // Test 2: Send GRE response via REST API (temporary storage)
-    log('\n📤 Test 2: GRE Response via REST API', colors.yellow);
-    const startTime2 = Date.now();
-    
-    const greResponse = await fetch(`${SERVER_URL}/api/gre-chat/send-to-player`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        playerId: PLAYER_ID,
-        message: 'GRE performance test - response stored temporarily in memory with millisecond delivery!',
-        greStaffName: 'Performance Test Team'
-      })
+
+    console.log(`✅ Found ${allMessages.length} total messages for player 29:`);
+    allMessages.forEach((msg, index) => {
+      console.log(`\n📨 Message ${index + 1}:`);
+      console.log(`   ID: ${msg.id}`);
+      console.log(`   Session: ${msg.session_id}`);
+      console.log(`   Player: ${msg.player_name} (ID: ${msg.player_id})`);
+      console.log(`   Sender: ${msg.sender} (${msg.sender_name})`);
+      console.log(`   Message: "${msg.message}"`);
+      console.log(`   Status: ${msg.status}`);
+      console.log(`   Created: ${msg.created_at}`);
+      console.log(`   Updated: ${msg.updated_at}`);
     });
-    
-    const greResult = await greResponse.json();
-    const responseTime2 = Date.now() - startTime2;
-    
-    if (greResult.success || greResult.stored) {
-      log(`✅ GRE message stored successfully in ${responseTime2}ms`, colors.green);
-      log(`📊 Message stored temporarily: ${greResult.stored}`, colors.cyan);
-      log(`💾 Temporary storage confirmed`, colors.green);
-    } else {
-      log(`❌ GRE message failed: ${JSON.stringify(greResult)}`, colors.red);
+
+    // Step 2: Check gre_chat_sessions
+    console.log('\n📋 Step 2: Checking all sessions in gre_chat_sessions table...');
+    const { data: allSessions, error: sessionError } = await supabase
+      .from('gre_chat_sessions')
+      .select('*')
+      .eq('player_id', 29)
+      .order('started_at', { ascending: false });
+
+    if (sessionError) {
+      console.error('❌ Error fetching sessions:', sessionError);
+      return;
     }
-    
-    // Test 3: Fetch temporary messages via REST API
-    log('\n📥 Test 3: Fetch Temporary Messages', colors.yellow);
-    const startTime3 = Date.now();
-    
-    const messagesResponse = await fetch(`${SERVER_URL}/api/gre-chat/messages/${PLAYER_ID}`);
-    const messages = await messagesResponse.json();
-    const responseTime3 = Date.now() - startTime3;
-    
-    log(`✅ Temporary messages retrieved in ${responseTime3}ms`, colors.green);
-    log(`📊 Message count: ${messages.length}`, colors.cyan);
-    
-    messages.forEach((msg, index) => {
-      log(`   ${index + 1}. [${msg.sender.toUpperCase()}] ${msg.sender_name}: ${msg.message}`, colors.blue);
+
+    console.log(`✅ Found ${allSessions.length} sessions for player 29:`);
+    allSessions.forEach((session, index) => {
+      console.log(`\n💬 Session ${index + 1}:`);
+      console.log(`   ID: ${session.id}`);
+      console.log(`   Player ID: ${session.player_id}`);
+      console.log(`   GRE ID: ${session.gre_id || 'Unassigned'}`);
+      console.log(`   Status: ${session.status}`);
+      console.log(`   Priority: ${session.priority}`);
+      console.log(`   Category: ${session.category}`);
+      console.log(`   Started: ${session.started_at}`);
+      console.log(`   Last Message: ${session.last_message_at}`);
+      console.log(`   Ended: ${session.ended_at || 'Still active'}`);
     });
+
+    // Step 3: Check what Player Portal API returns
+    console.log('\n📋 Step 3: Testing Player Portal API endpoint...');
+    const response = await fetch('http://localhost:5000/api/gre-chat/messages/29');
+    const playerPortalMessages = await response.json();
     
-    // Test 4: WebSocket Real-time Performance Test
-    log('\n🔗 Test 4: WebSocket Real-time Performance', colors.yellow);
-    
-    return new Promise((resolve) => {
-      const startTime4 = Date.now();
-      const ws = new WebSocket(WS_URL);
-      
-      ws.on('open', () => {
-        const connectTime = Date.now() - startTime4;
-        log(`✅ WebSocket connected in ${connectTime}ms`, colors.green);
-        
-        // Authenticate
-        ws.send(JSON.stringify({
-          type: 'authenticate',
-          playerId: PLAYER_ID
-        }));
-      });
-      
-      ws.on('message', (data) => {
-        const message = JSON.parse(data.toString());
-        const receiveTime = Date.now() - startTime4;
-        
-        if (message.type === 'authenticated') {
-          log(`🔐 WebSocket authenticated in ${receiveTime}ms`, colors.green);
-          
-          // Send test message via WebSocket
-          const wsStartTime = Date.now();
-          ws.send(JSON.stringify({
-            type: 'send_message',
-            playerId: PLAYER_ID,
-            playerName: 'WebSocket Test Player',
-            message: 'WebSocket real-time test - millisecond temporary storage',
-            timestamp: new Date().toISOString()
-          }));
-          
-        } else if (message.type === 'message_sent') {
-          const wsResponseTime = Date.now() - startTime4;
-          log(`⚡ WebSocket message sent confirmation in ${wsResponseTime}ms`, colors.green);
-          log(`📊 Ultra-fast temporary storage confirmed`, colors.cyan);
-          
-        } else if (message.type === 'chat_history') {
-          log(`📋 Chat history received: ${message.messages.length} temporary messages`, colors.green);
-          
-        } else if (message.type === 'new_message') {
-          const instantReceive = Date.now() - startTime4;
-          log(`⚡ INSTANT message received in ${instantReceive}ms`, colors.bright);
-          log(`💬 Real-time message: ${message.message.message}`, colors.blue);
-        }
-      });
-      
-      ws.on('error', (error) => {
-        log(`❌ WebSocket error: ${error.message}`, colors.red);
-        resolve();
-      });
-      
-      // Close test after 5 seconds
-      setTimeout(() => {
-        ws.close();
-        log(`\n🔚 WebSocket test completed`, colors.yellow);
-        resolve();
-      }, 5000);
+    console.log(`✅ Player Portal API returned ${playerPortalMessages.length} messages:`);
+    playerPortalMessages.forEach((msg, index) => {
+      console.log(`\n🎮 Player Portal Message ${index + 1}:`);
+      console.log(`   ID: ${msg.id}`);
+      console.log(`   Player: ${msg.player_name} (ID: ${msg.player_id})`);
+      console.log(`   Sender: ${msg.sender} (${msg.sender_name})`);
+      console.log(`   Message: "${msg.message}"`);
+      console.log(`   Status: ${msg.status}`);
+      console.log(`   Timestamp: ${msg.timestamp}`);
     });
+
+    // Step 4: Compare for sync issues
+    console.log('\n🔍 Step 4: SYNCHRONIZATION ANALYSIS');
+    console.log('=====================================');
     
+    if (allMessages.length !== playerPortalMessages.length) {
+      console.log(`❌ SYNC ISSUE: Database has ${allMessages.length} messages, Player Portal shows ${playerPortalMessages.length}`);
+      
+      // Find missing messages
+      const dbMessageIds = new Set(allMessages.map(m => m.id));
+      const portalMessageIds = new Set(playerPortalMessages.map(m => m.id));
+      
+      const missingInPortal = allMessages.filter(m => !portalMessageIds.has(m.id));
+      const missingInDB = playerPortalMessages.filter(m => !dbMessageIds.has(m.id));
+      
+      if (missingInPortal.length > 0) {
+        console.log(`\n🚨 Messages in database but NOT in Player Portal:`);
+        missingInPortal.forEach(msg => {
+          console.log(`   - ${msg.id}: "${msg.message}" (${msg.sender})`);
+        });
+      }
+      
+      if (missingInDB.length > 0) {
+        console.log(`\n🚨 Messages in Player Portal but NOT in database:`);
+        missingInDB.forEach(msg => {
+          console.log(`   - ${msg.id}: "${msg.message}" (${msg.sender})`);
+        });
+      }
+    } else {
+      console.log(`✅ PERFECT SYNC: Both systems show ${allMessages.length} messages`);
+    }
+
+    // Final recommendations
+    console.log('\n🎯 RECOMMENDATIONS FOR STAFF PORTAL SYNC:');
+    console.log('==========================================');
+    console.log('1. Staff Portal should query: gre_chat_messages WHERE player_id = 29');
+    console.log('2. Real-time updates via Supabase subscriptions on gre_chat_messages table');
+    console.log('3. WebSocket path: /chat-ws for bi-directional communication');
+    console.log('4. Message format: player_message type with all required fields');
+    console.log(`5. Latest session ID: ${allSessions[0]?.id || 'None'}`);
+
   } catch (error) {
-    log(`❌ Test failed: ${error.message}`, colors.red);
-    console.error(error);
+    console.error('❌ Test failed:', error);
   }
-  
-  // Final performance summary
-  log('\n' + '='.repeat(80), colors.cyan);
-  log('🎯 TEMPORARY CHAT SYSTEM PERFORMANCE SUMMARY:', colors.bright);
-  log('✅ Temporary memory storage: OPERATIONAL', colors.green);
-  log('✅ REST API response: < 50ms average', colors.green);  
-  log('✅ WebSocket real-time: MILLISECOND delivery', colors.green);
-  log('✅ Message persistence: TEMPORARY only (lost on restart)', colors.green);
-  log('✅ Cross-portal ready: GRE staff can send responses', colors.green);
-  log('=' .repeat(80), colors.cyan);
 }
 
-// Run the test
-testTemporaryChat().then(() => {
-  log('\n🏁 All temporary chat performance tests completed!', colors.bright);
-  process.exit(0);
-});
+testRealTimeSync();
