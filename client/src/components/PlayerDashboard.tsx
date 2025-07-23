@@ -95,7 +95,7 @@ const ScrollableOffersDisplay = () => {
   ];
 
   // Use staff offers if available, otherwise demo offers
-  const displayOffers = (offers && offers.length > 0) ? offers : demoOffers;
+  const displayOffers = (offers && Array.isArray(offers) && offers.length > 0) ? offers : demoOffers;
 
   return (
     <div className="space-y-4">
@@ -103,14 +103,14 @@ const ScrollableOffersDisplay = () => {
         <CardHeader>
           <CardTitle className="text-white flex items-center">
             <Gift className="w-5 h-5 mr-2 text-emerald-500" />
-            Special Offers ({displayOffers.length})
+            Special Offers ({Array.isArray(displayOffers) ? displayOffers.length : 0})
           </CardTitle>
         </CardHeader>
       </Card>
 
       {/* Scrollable offers container */}
       <div className="max-h-[600px] overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
-        {displayOffers.map((offer: any) => (
+        {Array.isArray(displayOffers) && displayOffers.map((offer: any) => (
           <Card 
             key={offer.id}
             id={`offer-${offer.id}`}
@@ -261,8 +261,8 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
     );
   }
 
-  const vipPoints = vipData?.calculation?.totalVipPoints || 0;
-  const breakdown = vipData?.calculation;
+  const vipPoints = vipData?.totalVipPoints || 0;
+  const breakdown = vipData;
 
   return (
     <Card className="bg-slate-800 border-slate-700">
@@ -859,7 +859,7 @@ export default function PlayerDashboard() {
   useEffect(() => {
     if (chatMessages) {
       console.log('💬 [DEBUG] REST API Chat messages received:', chatMessages);
-      console.log('💬 [DEBUG] REST API Chat messages length:', chatMessages.length);
+      console.log('💬 [DEBUG] REST API Chat messages length:', Array.isArray(chatMessages) ? chatMessages.length : 0);
     }
     if (realtimeChatMessages.length > 0) {
       console.log('🔗 [DEBUG] WebSocket Chat messages:', realtimeChatMessages);
@@ -908,7 +908,7 @@ export default function PlayerDashboard() {
     }
 
     submitCreditRequestMutation.mutate({
-      playerId: user?.id!,
+      playerId: Number(user?.id),
       requestedAmount: parseFloat(creditAmount),
       requestNote: creditNote || `Credit request for ₹${creditAmount}`,
     });
@@ -941,7 +941,7 @@ export default function PlayerDashboard() {
     if (!user?.id) return;
     
     vipRedeemMutation.mutate({
-      playerId: user.id,
+      playerId: Number(user.id),
       rewardType,
       pointsCost
     });
@@ -1027,7 +1027,7 @@ export default function PlayerDashboard() {
     }
 
     updatePanCardMutation.mutate({
-      playerId: user.id,
+      playerId: Number(user.id),
       panCardNumber
     });
   };
@@ -1156,7 +1156,7 @@ export default function PlayerDashboard() {
   return (
     <div className="min-h-screen bg-slate-900 w-full overflow-x-hidden">
       {/* Push Notification Popup System */}
-      <NotificationPopup userId={user.id} />
+      <NotificationPopup userId={Number(user.id)} />
       
       <div className="max-w-full px-3 py-2 sm:px-4 sm:py-4 lg:px-6 lg:py-6">
         {/* Header - Responsive */}
@@ -1579,7 +1579,7 @@ export default function PlayerDashboard() {
                       <p className="text-xs text-slate-400">Managed by cashier/admin</p>
                     </div>
                     <span className="text-emerald-500 font-bold text-lg">
-                      ₹{accountBalance?.regular_balance || "0.00"}
+                      ₹{(accountBalance as any)?.regular_balance || user?.balance || "0.00"}
                     </span>
                   </div>
                   
@@ -1590,7 +1590,7 @@ export default function PlayerDashboard() {
                       <p className="text-xs text-slate-400">Approved by super admin</p>
                     </div>
                     <span className="text-blue-500 font-bold text-lg">
-                      ₹{accountBalance?.credit_limit || "0.00"}
+                      ₹{(accountBalance as any)?.credit_limit || "0.00"}
                     </span>
                   </div>
                   
@@ -1601,7 +1601,7 @@ export default function PlayerDashboard() {
                       <p className="text-xs text-slate-400">Remaining credit to use</p>
                     </div>
                     <span className="text-purple-500 font-bold text-lg">
-                      ₹{accountBalance?.available_credit || "0.00"}
+                      ₹{(accountBalance as any)?.available_credit || "0.00"}
                     </span>
                   </div>
                   
@@ -1610,7 +1610,7 @@ export default function PlayerDashboard() {
                     <div className="flex justify-between items-center">
                       <span className="text-white font-medium">Total Funds Available</span>
                       <span className="text-yellow-500 font-bold text-xl">
-                        ₹{((parseFloat(accountBalance?.regular_balance || "0") + parseFloat(accountBalance?.available_credit || "0")).toFixed(2))}
+                        ₹{((parseFloat((accountBalance as any)?.regular_balance || user?.balance || "0") + parseFloat((accountBalance as any)?.available_credit || "0")).toFixed(2))}
                       </span>
                     </div>
                   </div>
@@ -1730,10 +1730,10 @@ export default function PlayerDashboard() {
                           <div className="flex-1">
                             <p className="text-sm font-medium text-white">ID Document</p>
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('id')}</p>
-                            {kycDocuments?.filter(d => d.documentType === 'government_id' && d.fileUrl).length > 0 && (
+                            {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl).length > 0 && (
                               <div className="flex items-center space-x-2 mt-1">
                                 <p className="text-xs text-emerald-500">
-                                  {kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0].fileName}
+                                  {Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0]?.fileName : ''}
                                 </p>
                               </div>
                             )}
@@ -1741,13 +1741,13 @@ export default function PlayerDashboard() {
                         </div>
                         <div className="flex flex-col items-stretch space-y-2">
                           {/* View button positioned above other buttons */}
-                          {kycDocuments?.filter(d => d.documentType === 'government_id' && d.fileUrl).length > 0 && (
+                          {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl).length > 0 && (
                             <Button 
                               size="sm" 
                               variant="outline" 
                               className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
                               onClick={() => {
-                                const doc = kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0];
+                                const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0] : null;
                                 if (doc && doc.fileUrl) {
                                   try {
                                     const documentUrl = doc.fileUrl.startsWith('http') 
@@ -2521,7 +2521,7 @@ export default function PlayerDashboard() {
                             </div>
                           ))}
                         </div>
-                      ) : notifications && notifications.length > 0 ? (
+                      ) : Array.isArray(notifications) && notifications.length > 0 ? (
                         notifications.map((notification: any) => (
                           <div 
                             key={notification.id} 
