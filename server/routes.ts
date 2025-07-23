@@ -5272,7 +5272,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // UNIFIED CHAT INTEGRATION - Staff Portal Compatible System
+  // STAFF PORTAL CHAT INTEGRATION - Backend Only (No Widget)
+  // POST /api/chat/send - Send message to staff (connects to Staff Portal's chat_requests table)
+  app.post('/api/chat/send', async (req, res) => {
+    try {
+      console.log('🚀 [STAFF CHAT] Received message for Staff Portal integration');
+      
+      const { playerId, playerName, playerEmail, message, priority = 'urgent' } = req.body;
+      
+      if (!playerId || !playerName || !message) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Missing required fields: playerId, playerName, message' 
+        });
+      }
+
+      console.log(`📤 [STAFF CHAT] Creating chat request for player ${playerId}: "${message}"`);
+      
+      // Save to Staff Portal's chat_requests table as specified
+      const { data, error } = await staffPortalSupabase
+        .from('chat_requests')
+        .insert({
+          player_id: playerId,
+          player_name: playerName,
+          player_email: playerEmail || 'no-email@example.com',
+          subject: message,
+          priority: priority,
+          status: 'waiting',
+          source: 'player_portal'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ [STAFF CHAT] Database error:', error);
+        return res.status(500).json({ 
+          success: false, 
+          error: error.message 
+        });
+      }
+
+      console.log('✅ [STAFF CHAT] Message created successfully:', data.id);
+      console.log(`   Player: ${data.player_name}`);
+      console.log(`   Status: ${data.status}`);
+
+      res.json({ 
+        success: true, 
+        request: data 
+      });
+
+    } catch (error: any) {
+      console.error('❌ [STAFF CHAT] Error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Internal server error' 
+      });
+    }
+  });
+
+  // GET /api/chat/status/:playerId - Check chat status
+  app.get('/api/chat/status/:playerId', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      console.log(`📋 [STAFF CHAT] Getting chat status for player ${playerId}`);
+      
+      const { data, error } = await staffPortalSupabase
+        .from('chat_requests')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error('❌ [STAFF CHAT] Database error:', error);
+        return res.status(500).json({ 
+          success: false, 
+          error: error.message 
+        });
+      }
+
+      console.log(`✅ [STAFF CHAT] Found ${data?.length || 0} chat requests for player ${playerId}`);
+
+      res.json({ 
+        success: true, 
+        messages: data 
+      });
+
+    } catch (error: any) {
+      console.error('❌ [STAFF CHAT] Error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Internal server error' 
+      });
+    }
+  });
+
+  // UNIFIED CHAT INTEGRATION - Staff Portal Compatible System (Keep for compatibility)
   app.post("/api/unified-chat-requests", async (req, res) => {
     try {
       console.log('🚀 [UNIFIED CHAT] Received message via unified API');

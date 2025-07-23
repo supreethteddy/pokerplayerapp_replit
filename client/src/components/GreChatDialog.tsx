@@ -56,7 +56,7 @@ export default function GreChatDialog({ isOpen, onClose, messages = [], wsConnec
         email: user?.email || 'no-email@example.com'
       };
 
-      const response = await fetch(`${STAFF_PORTAL_API}/unified-chat-requests`, {
+      const response = await fetch(`${STAFF_PORTAL_API}/chat/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
