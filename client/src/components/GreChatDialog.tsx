@@ -48,12 +48,15 @@ export default function GreChatDialog({ isOpen, onClose, messages = [], wsConnec
       if (wsConnection && wsConnected && wsConnection.readyState === WebSocket.OPEN) {
         // Use WebSocket for real-time messaging
         console.log('📤 [WEBSOCKET] Sending message via WebSocket');
+        // Staff Portal compatible message format
         wsConnection.send(JSON.stringify({
-          type: 'send_message',
-          playerId: user?.id,
-          playerName: `${user?.firstName} ${user?.lastName}`,
-          message,
-          sender: 'player'
+          type: 'player_message',              // EXACT string expected by Staff Portal
+          playerId: user?.id,                  // Integer from database
+          playerName: `${user?.firstName} ${user?.lastName}`, // String - player's full name
+          playerEmail: user?.email,            // String - valid email address
+          message: message,                    // String - the actual message content
+          messageText: message,                // String - duplicate for compatibility
+          timestamp: new Date().toISOString()  // ISO timestamp string
         }));
         return { success: true };
       } else {

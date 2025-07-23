@@ -4713,14 +4713,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
 
-  // WebSocket server for millisecond-level real-time GRE chat
+  // WebSocket server for Staff Portal compatible GRE chat
   const wss = new WebSocketServer({ 
     server: httpServer, 
-    path: '/ws',
-    perMessageDeflate: false, // Disable compression for faster transmission
-    maxPayload: 16 * 1024, // 16KB limit for faster processing
-    skipUTF8Validation: true, // Skip validation for speed
-    clientTracking: true // Enable client tracking for instant broadcasting
+    path: '/chat-ws', // Staff Portal expects /chat-ws path
+    perMessageDeflate: false,
+    maxPayload: 16 * 1024,
+    skipUTF8Validation: true,
+    clientTracking: true
   });
   
   // Store active WebSocket connections by player ID for instant message delivery
@@ -4993,25 +4993,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }));
         }
 
-        if (data.type === 'send_message' && playerId) {
-          console.log(`💬 [WEBSOCKET] Processing Supabase-only chat message from player ${playerId}`);
+        if (data.type === 'player_message' && playerId) {
+          console.log(`💬 [WEBSOCKET] Processing Staff Portal compatible message from player ${playerId}`);
           
           try {
-            // Use pure Supabase system (database only)
+            // Use Staff Portal compatible system
             const result = await staffPortalGreChat.sendMessage(
               playerId,
               data.playerName || `Player ${playerId}`,
-              data.message,
+              data.message || data.messageText,
               'player',
               data.playerName || `Player ${playerId}`
             );
 
             console.log(`✅ [WEBSOCKET] Message stored in Supabase database for player ${playerId}`);
 
-            // Send confirmation to player
+            // Send Staff Portal compatible acknowledgment
             ws.send(JSON.stringify({
-              type: 'message_sent',
-              message: 'Message sent successfully',
+              type: 'acknowledgment',
+              message: 'Message delivered to GRE staff',
               messageData: result.message
             }));
 

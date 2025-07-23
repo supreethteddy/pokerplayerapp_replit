@@ -758,7 +758,7 @@ export default function PlayerDashboard() {
   useEffect(() => {
     if (user?.id && !wsConnection) {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      const wsUrl = `${protocol}//${window.location.host}/chat-ws`; // Staff Portal compatible path
       
       console.log('🔗 [WEBSOCKET] Connecting with ultra-fast optimizations to:', wsUrl);
       // Create WebSocket with optimized protocol for instant messaging
