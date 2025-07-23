@@ -48,16 +48,24 @@ export default function GreChatDialog({ isOpen, onClose, messages = [], wsConnec
       if (wsConnection && wsConnected && wsConnection.readyState === WebSocket.OPEN) {
         // Use WebSocket for real-time messaging
         console.log('📤 [WEBSOCKET] Sending message via WebSocket');
-        // Staff Portal compatible message format
-        wsConnection.send(JSON.stringify({
-          type: 'player_message',              // EXACT string expected by Staff Portal
-          playerId: user?.id,                  // Integer from database
-          playerName: `${user?.firstName} ${user?.lastName}`, // String - player's full name
-          playerEmail: user?.email,            // String - valid email address
-          message: message,                    // String - the actual message content
-          messageText: message,                // String - duplicate for compatibility
-          timestamp: new Date().toISOString()  // ISO timestamp string
-        }));
+        // Staff Portal compatible message format - EXACT format from integration guide
+        const playerMessage = {
+          type: 'player_message',
+          playerId: user?.id,
+          playerName: `${user?.firstName} ${user?.lastName}`,
+          playerEmail: user?.email,
+          message: message.trim(),
+          messageText: message.trim(),
+          timestamp: new Date().toISOString(),
+          // Universal System fields from integration guide
+          universalId: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          portalOrigin: 'PokerRoomTracker', 
+          targetPortal: 'PokerStaffPortal',
+          messageFormat: 'universal'
+        };
+        
+        console.log('📤 [POKER ROOM TRACKER] Sending to Staff Portal:', playerMessage);
+        wsConnection.send(JSON.stringify(playerMessage));
         return { success: true };
       } else {
         // Fallback to REST API
