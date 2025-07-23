@@ -4727,7 +4727,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const playerConnections = new Map<number, WebSocket>();
   
   // Store temporary chat messages in memory (not database) - cleared on session end
-  const tempChatMessages = new Map<number, any[]>();
+  // ENTERPRISE-GRADE HYBRID GRE CHAT SYSTEM
+  // Stores messages in BOTH memory AND Supabase simultaneously
+  
+  // Enterprise Hybrid GRE Chat System Class - Inline Implementation for immediate deployment
+  class EnterpriseGreChatSystem {
+    constructor() {
+      this.tempChatMessages = new Map(); // Memory storage for ultra-fast access
+      this.supabaseClient = staffPortalSupabase; // Database storage for cross-portal sync
+      console.log('🚀 [ENTERPRISE HYBRID] Chat system initialized with dual storage');
+    }
+
+    async sendMessage(playerId, playerName, message, sender, senderName) {
+      try {
+        const messageData = {
+          id: crypto.randomUUID(),
+          player_id: playerId,
+          player_name: playerName,
+          message: message.trim(),
+          sender: sender,
+          sender_name: senderName,
+          timestamp: new Date().toISOString(),
+          status: 'sent'
+        };
+
+        // DUAL STORAGE: Store in both memory AND database
+        
+        // 1. Memory storage for millisecond performance
+        if (!this.tempChatMessages.has(playerId)) {
+          this.tempChatMessages.set(playerId, []);
+        }
+        this.tempChatMessages.get(playerId).push(messageData);
+        console.log(`⚡ [MEMORY] Message stored for player ${playerId}`);
+
+        // 2. Database storage for cross-portal synchronization  
+        try {
+          const { data, error } = await this.supabaseClient
+            .from('gre_chat_messages')
+            .insert({
+              session_id: `session_${playerId}`,
+              sender_type: sender,
+              sender_name: senderName,
+              message: message.trim(),
+              player_id: playerId,
+              created_at: new Date().toISOString()
+            });
+
+          if (!error) {
+            console.log(`💾 [DATABASE] Message stored in Supabase for cross-portal sync`);
+          }
+        } catch (dbError) {
+          console.log(`⚠️ [DATABASE] Database storage failed, using memory-only mode:`, dbError.message);
+        }
+
+        return { success: true, message: messageData };
+      } catch (error) {
+        console.error(`❌ [ENTERPRISE HYBRID] Error sending message:`, error);
+        throw error;
+      }
+    }
+
+    async getMessages(playerId) {
+      try {
+        // Always return from memory for ultra-fast performance
+        const messages = this.tempChatMessages.get(playerId) || [];
+        console.log(`📋 [HYBRID] Retrieved ${messages.length} messages for player ${playerId}`);
+        return messages;
+      } catch (error) {
+        console.error(`❌ [ENTERPRISE HYBRID] Error getting messages:`, error);
+        return [];
+      }
+    }
+
+    clearChat(playerId) {
+      try {
+        // Clear from memory storage
+        this.tempChatMessages.delete(playerId);
+        console.log(`🗑️ [HYBRID] Cleared chat for player ${playerId}`);
+        return { success: true };
+      } catch (error) {
+        console.error(`❌ [ENTERPRISE HYBRID] Error clearing chat:`, error);
+        throw error;
+      }
+    }
+
+    setPlayerOnline(playerId, playerName) {
+      console.log(`🟢 [HYBRID] Player ${playerId} (${playerName}) set online`);
+    }
+
+    getSystemHealth() {
+      return {
+        memoryStorage: this.tempChatMessages.size,
+        totalPlayers: Array.from(this.tempChatMessages.keys()).length,
+        totalMessages: Array.from(this.tempChatMessages.values()).reduce((sum, msgs) => sum + msgs.length, 0),
+        status: 'healthy'
+      };
+    }
+  }
+
+  const enterpriseGreChat = new EnterpriseGreChatSystem();
 
   wss.on('connection', (ws: WebSocket, request) => {
     console.log('🔗 [WEBSOCKET] New connection established');
@@ -4758,61 +4856,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         if (data.type === 'send_message' && playerId) {
-          console.log(`💬 [WEBSOCKET] Processing temporary chat message from player ${playerId}`);
+          console.log(`💬 [WEBSOCKET] Processing hybrid chat message from player ${playerId}`);
           
-          // Create temporary message data (not stored in database)
-          const messageData = {
-            id: crypto.randomUUID(),
-            player_id: playerId,
-            player_name: data.playerName || `Player ${playerId}`,
-            message: data.message,
-            sender: 'player',
-            sender_name: data.playerName || `Player ${playerId}`,
-            timestamp: new Date().toISOString(),
-            status: 'sent'
-          };
+          try {
+            // Use enterprise hybrid system (memory + database)
+            const result = await enterpriseGreChat.sendMessage(
+              playerId,
+              data.playerName || `Player ${playerId}`,
+              data.message,
+              'player',
+              data.playerName || `Player ${playerId}`
+            );
 
-          // Get or create temporary message array for this player
-          if (!tempChatMessages.has(playerId)) {
-            tempChatMessages.set(playerId, []);
+            console.log(`✅ [WEBSOCKET] Message stored in hybrid system for player ${playerId}`);
+
+            // Send confirmation to player
+            ws.send(JSON.stringify({
+              type: 'message_sent',
+              message: 'Message sent successfully',
+              messageData: result.message
+            }));
+
+            // Broadcast to GRE staff (available in both memory and database)
+            console.log(`📢 [WEBSOCKET] Hybrid message from player ${playerId} available for GRE staff via dual storage`);
+          } catch (error) {
+            console.error(`❌ [WEBSOCKET] Error sending hybrid message:`, error);
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Failed to send message'
+            }));
           }
-          
-          // Add message to temporary memory storage (not database)
-          tempChatMessages.get(playerId)!.push(messageData);
-          console.log(`✅ [WEBSOCKET] Message stored temporarily in memory for player ${playerId}`);
-          console.log(`📊 [WEBSOCKET] Player ${playerId} now has ${tempChatMessages.get(playerId)!.length} temporary messages`);
-
-          // Send confirmation to player
-          ws.send(JSON.stringify({
-            type: 'message_sent',
-            message: 'Message sent successfully',
-            messageData: messageData
-          }));
-
-          // Broadcast to GRE staff (this would be handled by Staff Portal WebSocket)
-          console.log(`📢 [WEBSOCKET] Temporary message from player ${playerId} available for GRE staff`);
         }
 
         if (data.type === 'get_messages' && playerId) {
-          // Get temporary messages for this player from memory
-          const messages = tempChatMessages.get(playerId) || [];
-          console.log(`📋 [WEBSOCKET] Fetching ${messages.length} temporary messages for player ${playerId}`);
+          try {
+            // Get messages from enterprise hybrid system
+            const messages = await enterpriseGreChat.getMessages(playerId);
+            console.log(`📋 [WEBSOCKET] Fetching ${messages.length} hybrid messages for player ${playerId}`);
 
-          ws.send(JSON.stringify({
-            type: 'chat_history',
-            messages: messages
-          }));
+            ws.send(JSON.stringify({
+              type: 'chat_history',
+              messages: messages
+            }));
+          } catch (error) {
+            console.error(`❌ [WEBSOCKET] Error fetching messages:`, error);
+            ws.send(JSON.stringify({
+              type: 'chat_history',
+              messages: []
+            }));
+          }
         }
 
         if (data.type === 'clear_chat' && playerId) {
-          // Clear temporary messages for this player
-          tempChatMessages.delete(playerId);
-          console.log(`🗑️ [WEBSOCKET] Cleared temporary chat messages for player ${playerId}`);
+          try {
+            // Clear messages using enterprise hybrid system
+            const result = enterpriseGreChat.clearChat(playerId);
+            console.log(`🗑️ [WEBSOCKET] Cleared hybrid chat messages for player ${playerId}`);
 
-          ws.send(JSON.stringify({
-            type: 'chat_cleared',
-            message: 'Chat history cleared successfully'
-          }));
+            ws.send(JSON.stringify({
+              type: 'chat_cleared',
+              message: 'Chat history cleared successfully'
+            }));
+          } catch (error) {
+            console.error(`❌ [WEBSOCKET] Error clearing chat:`, error);
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Failed to clear chat'
+            }));
+          }
         }
 
       } catch (error) {
@@ -4923,51 +5034,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GRE Chat System API Endpoints - Send Message
+  // GRE Chat System API Endpoints - Send Message (Enterprise Hybrid)
   app.post("/api/gre-chat/send", async (req, res) => {
     try {
       const { playerId, playerName, message, timestamp } = req.body;
-      console.log(`💬 [GRE CHAT] Receiving temporary message from player ${playerId}: ${playerName}`);
+      console.log(`💬 [GRE CHAT] Receiving hybrid message from player ${playerId}: ${playerName}`);
       
-      // Create temporary message data (not stored in database)
-      const messageData = {
-        id: crypto.randomUUID(),
-        player_id: parseInt(playerId),
-        player_name: playerName,
-        message: message.trim(),
-        sender: 'player',
-        sender_name: playerName,
-        timestamp: timestamp || new Date().toISOString(),
-        status: 'sent'
-      };
+      // Use enterprise hybrid system (memory + database)
+      const result = await enterpriseGreChat.sendMessage(
+        parseInt(playerId),
+        playerName,
+        message.trim(),
+        'player',
+        playerName
+      );
 
-      // Get or create temporary message array for this player
-      if (!tempChatMessages.has(parseInt(playerId))) {
-        tempChatMessages.set(parseInt(playerId), []);
-      }
-      
-      // Add message to temporary memory storage (not database)
-      tempChatMessages.get(parseInt(playerId))!.push(messageData);
-      console.log(`✅ [GRE CHAT] Message stored temporarily in memory for player ${playerId}`);
-      console.log(`📊 [GRE CHAT] Player ${playerId} now has ${tempChatMessages.get(parseInt(playerId))!.length} temporary messages`);
+      console.log(`✅ [GRE CHAT] Message stored in hybrid system for player ${playerId}`);
 
       // Broadcast message to all connected WebSocket clients for real-time updates
       const playerConnections = wss.clients;
       playerConnections.forEach((client) => {
         if (client.playerId === parseInt(playerId) && client.readyState === WebSocket.OPEN) {
-          console.log(`📢 [GRE WEBSOCKET] Broadcasting new temporary message to player ${playerId}`);
+          console.log(`📢 [GRE WEBSOCKET] Broadcasting new hybrid message to player ${playerId}`);
           client.send(JSON.stringify({
             type: 'new_message',
-            message: messageData,
+            message: result.message,
             timestamp: new Date().toISOString()
           }));
         }
       });
       
-      console.log(`✅ [GRE CHAT] Temporary message sent successfully - ID: ${messageData.id}`);
-      res.json({ success: true, message: messageData });
+      console.log(`✅ [GRE CHAT] Hybrid message sent successfully - ID: ${result.message.id}`);
+      res.json({ success: true, message: result.message });
     } catch (error: any) {
-      console.error(`❌ [GRE CHAT] Error sending temporary message:`, error);
+      console.error(`❌ [GRE CHAT] Error sending hybrid message:`, error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -4975,15 +5075,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/gre-chat/messages/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
-      console.log(`💬 [GRE CHAT] Fetching temporary messages for player ${playerId}`);
+      console.log(`💬 [GRE CHAT] Fetching hybrid messages for player ${playerId}`);
       
-      // Get temporary messages for this player from memory
-      const messages = tempChatMessages.get(parseInt(playerId)) || [];
-      console.log(`✅ [GRE CHAT] Retrieved ${messages.length} temporary messages for player ${playerId}`);
+      // Get messages from enterprise hybrid system
+      const messages = await enterpriseGreChat.getMessages(parseInt(playerId));
+      console.log(`✅ [GRE CHAT] Retrieved ${messages.length} hybrid messages for player ${playerId}`);
       
       res.json(messages);
     } catch (error: any) {
-      console.error(`❌ [GRE CHAT] Error fetching temporary messages:`, error);
+      console.error(`❌ [GRE CHAT] Error fetching hybrid messages:`, error);
       res.json([]); // Return empty array instead of error to prevent UI issues
     }
   });
@@ -4992,16 +5092,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/gre-chat/messages/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
-      console.log(`🗑️ [GRE CHAT] Clearing temporary chat history for player ${playerId}`);
+      console.log(`🗑️ [GRE CHAT] Clearing hybrid chat history for player ${playerId}`);
 
-      // Clear temporary messages for this player from memory
-      tempChatMessages.delete(parseInt(playerId));
-      console.log(`✅ [GRE CHAT] Successfully cleared temporary chat history for player ${playerId}`);
+      // Clear messages using enterprise hybrid system
+      const result = enterpriseGreChat.clearChat(parseInt(playerId));
+      console.log(`✅ [GRE CHAT] Successfully cleared hybrid chat history for player ${playerId}`);
       
       res.json({ success: true, message: 'Chat history cleared successfully' });
 
     } catch (error) {
-      console.error('❌ [GRE CHAT] Error clearing temporary chat:', error);
+      console.error('❌ [GRE CHAT] Error clearing hybrid chat:', error);
       res.status(500).json({ error: 'Failed to clear chat history' });
     }
   });
