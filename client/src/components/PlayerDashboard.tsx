@@ -687,6 +687,19 @@ export default function PlayerDashboard() {
     if (wsConnection && wsConnected) {
       try {
         console.log('📤 [WEBSOCKET] Sending message via WebSocket');
+        // Create the message object for immediate display
+        const newMessage = {
+          id: Date.now().toString(),
+          player_id: user.id,
+          message: chatMessage.trim(),
+          sender_type: 'player',
+          timestamp: new Date().toISOString(),
+          is_read: false
+        };
+        
+        // Add to local state immediately for instant display
+        setRealtimeChatMessages(prev => [...prev, newMessage]);
+        
         wsConnection.send(JSON.stringify({
           type: 'send_message',
           playerId: user.id,
@@ -710,6 +723,19 @@ export default function PlayerDashboard() {
     // Fallback to REST API if WebSocket is not available
     try {
       console.log('📤 [REST API] Sending message via REST API fallback');
+      // Create the message object for immediate display
+      const newMessage = {
+        id: Date.now().toString(),
+        player_id: user.id,
+        message: chatMessage.trim(),
+        sender_type: 'player',
+        timestamp: new Date().toISOString(),
+        is_read: false
+      };
+      
+      // Add to local state immediately for instant display
+      setRealtimeChatMessages(prev => [...prev, newMessage]);
+      
       const response = await apiRequest("POST", "/api/gre-chat/send", {
         playerId: user.id,
         playerName: `${user.firstName} ${user.lastName}`,
@@ -727,6 +753,8 @@ export default function PlayerDashboard() {
         // Trigger chat messages refresh
         queryClient.invalidateQueries({ queryKey: [`/api/gre-chat/messages/${user.id}`] });
       } else {
+        // Remove the message from local state if sending failed
+        setRealtimeChatMessages(prev => prev.filter(msg => msg.id !== newMessage.id));
         throw new Error(result.error || "Failed to send message");
       }
     } catch (error: any) {
@@ -807,11 +835,17 @@ export default function PlayerDashboard() {
           
           if (data.type === 'message_sent') {
             console.log('✅ [WEBSOCKET] Message sent confirmation');
-            // Refresh chat history
+            // Add the sent message to local state immediately for instant display
+            if (data.message) {
+              setRealtimeChatMessages(prev => [...prev, data.message]);
+            }
+            // Also refresh chat history
             ws.send(JSON.stringify({
               type: 'get_messages',
               playerId: user.id
             }));
+            // Refresh REST API data for consistency
+            queryClient.invalidateQueries({ queryKey: [`/api/gre-chat/messages/${user.id}`] });
           }
           
           if (data.type === 'chat_closed') {
@@ -2352,8 +2386,48 @@ export default function PlayerDashboard() {
                           <MessageCircle className="w-8 h-8 mx-auto mb-2 animate-pulse" />
                           Loading chat history...
                         </div>
-                      ) : realtimeChatMessages.length > 0 ? (
-                        realtimeChatMessages.map((message: any, index: number) => (
+                      ) : (() => {
+                        // Combine both REST API messages and real-time WebSocket messages
+                        const allMessages = [
+                          ...(Array.isArray(chatMessages) ? chatMessages : []),
+                          ...realtimeChatMessages
+                        ];
+                        
+                        // Remove duplicates based on timestamp and message content
+                        const uniqueMessages = allMessages.filter((message, index, arr) => {
+                          return index === arr.findIndex(m => 
+                            m.message === message.message && 
+                            Math.abs(new Date(m.timestamp || m.created_at).getTime() - new Date(message.timestamp || message.created_at).getTime()) < 1000
+                          );
+                        });
+                        
+                        // Sort by timestamp
+                        const sortedMessages = uniqueMessages.sort((a, b) => 
+                          new Date(a.timestamp || a.created_at).getTime() - new Date(b.timestamp || b.created_at).getTime()
+                        );
+                        
+                        return sortedMessages.length > 0;
+                      })() ? (
+                        (() => {
+                          // Same logic as above for rendering
+                          const allMessages = [
+                            ...(Array.isArray(chatMessages) ? chatMessages : []),
+                            ...realtimeChatMessages
+                          ];
+                          
+                          const uniqueMessages = allMessages.filter((message, index, arr) => {
+                            return index === arr.findIndex(m => 
+                              m.message === message.message && 
+                              Math.abs(new Date(m.timestamp || m.created_at).getTime() - new Date(message.timestamp || message.created_at).getTime()) < 1000
+                            );
+                          });
+                          
+                          const sortedMessages = uniqueMessages.sort((a, b) => 
+                            new Date(a.timestamp || a.created_at).getTime() - new Date(b.timestamp || b.created_at).getTime()
+                          );
+                          
+                          return sortedMessages;
+                        })().map((message: any, index: number) => (
                           <div
                             key={index}
                             className={`flex ${
