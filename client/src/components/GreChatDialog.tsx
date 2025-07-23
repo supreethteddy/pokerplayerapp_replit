@@ -42,8 +42,66 @@ export default function GreChatDialog({ isOpen, onClose, messages = [], wsConnec
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Send message via WebSocket or API fallback
+  // UNIFIED CHAT SYSTEM - Staff Portal Integration
   const sendMessage = useMutation({
+    mutationFn: async (message: string) => {
+      console.log('🚀 [UNIFIED CHAT] Sending message to Staff Portal via unified API...');
+      
+      // Use Staff Portal's unified chat system
+      const STAFF_PORTAL_API = "http://localhost:5000/api";
+      
+      const response = await fetch(`${STAFF_PORTAL_API}/unified-chat-requests`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
+        },
+        body: JSON.stringify({
+          playerId: user?.id,
+          playerName: `${user?.firstName} ${user?.lastName}`,
+          playerEmail: user?.email,
+          message: message.trim(),
+          priority: "urgent",
+          source: "poker_room_tracker"
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        console.log('✅ [UNIFIED CHAT] Message sent to Staff Portal:', result.request.id);
+        console.log('   Player:', result.request.player_name);
+        console.log('   Status:', result.request.status);
+        return {
+          success: true,
+          messageId: result.request.id,
+          message: 'Message sent to staff successfully'
+        };
+      } else {
+        throw new Error(result.error || 'Failed to send message');
+      }
+    },
+    onSuccess: () => {
+      setNewMessage("");
+      toast({
+        title: "Message Sent",
+        description: "Your message has been sent to our staff. They will respond shortly.",
+      });
+      // Refresh messages to show the new message
+      queryClient.invalidateQueries({ queryKey: ['/api/gre-chat/messages', user?.id] });
+    },
+    onError: (error: Error) => {
+      console.error('❌ [UNIFIED CHAT] Failed to send message:', error);
+      toast({
+        title: "Error",
+        description: `Failed to send message: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // LEGACY WebSocket system (kept for backwards compatibility)
+  const sendLegacyMessage = useMutation({
     mutationFn: async (message: string) => {
       if (wsConnection && wsConnected && wsConnection.readyState === WebSocket.OPEN) {
         // Use WebSocket for real-time messaging

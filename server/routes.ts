@@ -5272,6 +5272,129 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // UNIFIED CHAT INTEGRATION - Staff Portal Compatible System
+  app.post("/api/unified-chat-requests", async (req, res) => {
+    try {
+      console.log('🚀 [UNIFIED CHAT] Received message via unified API');
+      const { playerId, playerName, playerEmail, message, priority = "urgent", source = "poker_room_tracker" } = req.body;
+      
+      if (!playerId || !message) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "playerId and message are required" 
+        });
+      }
+
+      console.log(`📤 [UNIFIED CHAT] Creating message for player ${playerId}: "${message}"`);
+      
+      // Create unified chat request using existing gre_chat_messages table structure
+      // Staff Portal has cleared unified system, so we adapt to existing structure
+      const { data: chatRequest, error } = await staffPortalSupabase
+        .from('gre_chat_messages')
+        .insert([{
+          player_id: playerId,
+          player_name: playerName || 'Unknown Player',
+          message: `[${priority.toUpperCase()}] ${message}`,
+          sender: 'player',
+          sender_name: playerName || 'Unknown Player',
+          status: 'sent',
+          created_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ [UNIFIED CHAT] Database error:', error);
+        return res.status(500).json({ 
+          success: false, 
+          error: 'Failed to create chat request' 
+        });
+      }
+
+      console.log('✅ [UNIFIED CHAT] Message created successfully:', chatRequest.id);
+      console.log(`   Player: ${chatRequest.player_name}`);
+      console.log(`   Status: ${chatRequest.status}`);
+
+      res.json({
+        success: true,
+        request: chatRequest,
+        message: 'Message sent to staff successfully'
+      });
+    } catch (error: any) {
+      console.error('❌ [UNIFIED CHAT] Error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
+  // Get unified chat requests
+  app.get("/api/unified-chat-requests", async (req, res) => {
+    try {
+      console.log('📋 [UNIFIED CHAT] Fetching all chat requests');
+      
+      const { data: requests, error } = await staffPortalSupabase
+        .from('gre_chat_messages')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) {
+        console.error('❌ [UNIFIED CHAT] Error fetching requests:', error);
+        return res.status(500).json({ 
+          success: false, 
+          error: 'Failed to fetch chat requests' 
+        });
+      }
+
+      console.log(`✅ [UNIFIED CHAT] Retrieved ${requests?.length || 0} chat requests`);
+
+      res.json({
+        success: true,
+        requests: requests || []
+      });
+    } catch (error: any) {
+      console.error('❌ [UNIFIED CHAT] Error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
+  // Check unified sync status
+  app.get("/api/unified-sync-status", async (req, res) => {
+    try {
+      console.log('🔍 [UNIFIED CHAT] Checking sync status');
+      
+      // Test database connection using existing gre_chat_messages table
+      const { data: testData, error } = await staffPortalSupabase
+        .from('gre_chat_messages')
+        .select('count(*)')
+        .limit(1);
+
+      const isConnected = !error;
+      const timestamp = new Date().toISOString();
+
+      console.log(`✅ [UNIFIED CHAT] Sync status: ${isConnected ? 'CONNECTED' : 'DISCONNECTED'}`);
+
+      res.json({
+        success: true,
+        status: isConnected ? 'connected' : 'disconnected',
+        timestamp: timestamp,
+        database: 'Staff Portal Supabase',
+        url: 'https://oyhnpnymlezjusnwpjeu.supabase.co'
+      });
+    } catch (error: any) {
+      console.error('❌ [UNIFIED CHAT] Sync status error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
   app.get("/api/gre-chat/messages/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
