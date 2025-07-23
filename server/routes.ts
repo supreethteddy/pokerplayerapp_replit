@@ -4730,102 +4730,187 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ENTERPRISE-GRADE HYBRID GRE CHAT SYSTEM
   // Stores messages in BOTH memory AND Supabase simultaneously
   
-  // Enterprise Hybrid GRE Chat System Class - Inline Implementation for immediate deployment
-  class EnterpriseGreChatSystem {
+  // PURE SUPABASE GRE CHAT SYSTEM - Cross-Portal Database-Only Implementation
+  class PureSupabaseGreChatSystem {
     constructor() {
-      this.tempChatMessages = new Map(); // Memory storage for ultra-fast access
-      this.supabaseClient = staffPortalSupabase; // Database storage for cross-portal sync
-      console.log('🚀 [ENTERPRISE HYBRID] Chat system initialized with dual storage');
+      this.supabaseClient = staffPortalSupabase; // ONLY Supabase database for perfect cross-portal sync
+      console.log('🚀 [PURE SUPABASE] Chat system initialized with database-only storage');
     }
 
     async sendMessage(playerId, playerName, message, sender, senderName) {
       try {
+        console.log(`💾 [SUPABASE ONLY] Storing message directly in Staff Portal Supabase for player ${playerId}`);
+        
+        // Generate proper UUID for session_id or get existing session
+        let sessionId;
+        try {
+          // Try to find existing session for this player
+          const { data: existingSession } = await this.supabaseClient
+            .from('gre_chat_sessions')
+            .select('id')
+            .eq('player_id', playerId)
+            .eq('status', 'active')
+            .single();
+          
+          sessionId = existingSession?.id || crypto.randomUUID();
+        } catch {
+          // Create new session UUID if none exists
+          sessionId = crypto.randomUUID();
+        }
+
+        // Store ONLY in Supabase database for cross-portal access
+        const { data, error } = await this.supabaseClient
+          .from('gre_chat_messages')
+          .insert({
+            session_id: sessionId,  // Fixed: Use proper UUID format
+            player_id: playerId,
+            player_name: playerName,
+            message: message.trim(),
+            sender: sender,  // Fixed: Use 'sender' not 'sender_type'
+            sender_name: senderName,
+            timestamp: new Date().toISOString(),
+            status: 'sent',
+            request_id: 0
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error(`❌ [SUPABASE] Database insert failed:`, error);
+          throw new Error(`Failed to store message: ${error.message}`);
+        }
+
+        console.log(`✅ [SUPABASE] Message stored successfully in database for cross-portal access`);
+        
+        // Return message in Player Portal format
         const messageData = {
-          id: crypto.randomUUID(),
+          id: data.id || crypto.randomUUID(),
           player_id: playerId,
           player_name: playerName,
           message: message.trim(),
           sender: sender,
           sender_name: senderName,
-          timestamp: new Date().toISOString(),
+          timestamp: data.created_at || new Date().toISOString(),
           status: 'sent'
         };
 
-        // DUAL STORAGE: Store in both memory AND database
-        
-        // 1. Memory storage for millisecond performance
-        if (!this.tempChatMessages.has(playerId)) {
-          this.tempChatMessages.set(playerId, []);
-        }
-        this.tempChatMessages.get(playerId).push(messageData);
-        console.log(`⚡ [MEMORY] Message stored for player ${playerId}`);
-
-        // 2. Database storage for cross-portal synchronization  
-        try {
-          const { data, error } = await this.supabaseClient
-            .from('gre_chat_messages')
-            .insert({
-              session_id: `session_${playerId}`,
-              sender_type: sender,
-              sender_name: senderName,
-              message: message.trim(),
-              player_id: playerId,
-              created_at: new Date().toISOString()
-            });
-
-          if (!error) {
-            console.log(`💾 [DATABASE] Message stored in Supabase for cross-portal sync`);
-          }
-        } catch (dbError) {
-          console.log(`⚠️ [DATABASE] Database storage failed, using memory-only mode:`, dbError.message);
-        }
-
         return { success: true, message: messageData };
       } catch (error) {
-        console.error(`❌ [ENTERPRISE HYBRID] Error sending message:`, error);
+        console.error(`❌ [SUPABASE] Error sending message:`, error);
         throw error;
       }
     }
 
     async getMessages(playerId) {
       try {
-        // Always return from memory for ultra-fast performance
-        const messages = this.tempChatMessages.get(playerId) || [];
-        console.log(`📋 [HYBRID] Retrieved ${messages.length} messages for player ${playerId}`);
+        console.log(`📋 [SUPABASE] Fetching messages from database for player ${playerId}`);
+        
+        // Get ALL messages from Supabase database for cross-portal sync
+        const { data: dbMessages, error } = await this.supabaseClient
+          .from('gre_chat_messages')
+          .select('*')
+          .eq('player_id', playerId)
+          .order('created_at', { ascending: true });
+
+        if (error) {
+          console.error(`❌ [SUPABASE] Error fetching messages:`, error);
+          return [];
+        }
+
+        // Convert Supabase format to Player Portal format
+        const messages = dbMessages.map(msg => ({
+          id: msg.id || crypto.randomUUID(),
+          player_id: msg.player_id,
+          player_name: msg.player_name,
+          message: msg.message,
+          sender: msg.sender,  // Fixed: Use 'sender' not 'sender_type'
+          sender_name: msg.sender_name,
+          timestamp: msg.timestamp || msg.created_at,
+          status: msg.status || 'sent'
+        }));
+
+        console.log(`✅ [SUPABASE] Retrieved ${messages.length} messages from database for player ${playerId}`);
         return messages;
       } catch (error) {
-        console.error(`❌ [ENTERPRISE HYBRID] Error getting messages:`, error);
+        console.error(`❌ [SUPABASE] Error getting messages:`, error);
         return [];
       }
     }
 
-    clearChat(playerId) {
+    async clearChat(playerId) {
       try {
-        // Clear from memory storage
-        this.tempChatMessages.delete(playerId);
-        console.log(`🗑️ [HYBRID] Cleared chat for player ${playerId}`);
+        console.log(`🗑️ [SUPABASE] Clearing chat in database for player ${playerId}`);
+        
+        // Clear messages from Supabase database
+        const { error } = await this.supabaseClient
+          .from('gre_chat_messages')
+          .delete()
+          .eq('player_id', playerId);
+
+        if (error) {
+          console.error(`❌ [SUPABASE] Error clearing chat:`, error);
+          throw new Error(`Failed to clear chat: ${error.message}`);
+        }
+
+        console.log(`✅ [SUPABASE] Chat cleared successfully in database for player ${playerId}`);
         return { success: true };
       } catch (error) {
-        console.error(`❌ [ENTERPRISE HYBRID] Error clearing chat:`, error);
+        console.error(`❌ [SUPABASE] Error clearing chat:`, error);
         throw error;
       }
     }
 
-    setPlayerOnline(playerId, playerName) {
-      console.log(`🟢 [HYBRID] Player ${playerId} (${playerName}) set online`);
+    async setPlayerOnline(playerId, playerName) {
+      try {
+        console.log(`🟢 [SUPABASE] Setting player ${playerId} (${playerName}) online in database`);
+        
+        // Create or update session in Supabase using proper UUID
+        const sessionId = crypto.randomUUID();
+        const { data, error } = await this.supabaseClient
+          .from('gre_chat_sessions')
+          .upsert({
+            id: sessionId,  // Fixed: Use proper UUID format
+            player_id: playerId,
+            player_name: playerName,
+            status: 'active',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.log(`⚠️ [SUPABASE] Session creation failed:`, error.message);
+        } else {
+          console.log(`✅ [SUPABASE] Player session created/updated in database`);
+        }
+      } catch (error) {
+        console.log(`⚠️ [SUPABASE] Error setting player online:`, error.message);
+      }
     }
 
-    getSystemHealth() {
-      return {
-        memoryStorage: this.tempChatMessages.size,
-        totalPlayers: Array.from(this.tempChatMessages.keys()).length,
-        totalMessages: Array.from(this.tempChatMessages.values()).reduce((sum, msgs) => sum + msgs.length, 0),
-        status: 'healthy'
-      };
+    async getSystemHealth() {
+      try {
+        const { count, error } = await this.supabaseClient
+          .from('gre_chat_messages')
+          .select('*', { count: 'exact', head: true });
+
+        return {
+          totalMessages: count || 0,
+          databaseConnection: error ? 'failed' : 'healthy',
+          status: error ? 'unhealthy' : 'healthy'
+        };
+      } catch (error) {
+        return {
+          totalMessages: 0,
+          databaseConnection: 'failed',
+          status: 'unhealthy'
+        };
+      }
     }
   }
 
-  const enterpriseGreChat = new EnterpriseGreChatSystem();
+  const pureSupabaseGreChat = new PureSupabaseGreChatSystem();
 
   wss.on('connection', (ws: WebSocket, request) => {
     console.log('🔗 [WEBSOCKET] New connection established');
@@ -4856,11 +4941,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         if (data.type === 'send_message' && playerId) {
-          console.log(`💬 [WEBSOCKET] Processing hybrid chat message from player ${playerId}`);
+          console.log(`💬 [WEBSOCKET] Processing Supabase-only chat message from player ${playerId}`);
           
           try {
-            // Use enterprise hybrid system (memory + database)
-            const result = await enterpriseGreChat.sendMessage(
+            // Use pure Supabase system (database only)
+            const result = await pureSupabaseGreChat.sendMessage(
               playerId,
               data.playerName || `Player ${playerId}`,
               data.message,
@@ -4868,7 +4953,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               data.playerName || `Player ${playerId}`
             );
 
-            console.log(`✅ [WEBSOCKET] Message stored in hybrid system for player ${playerId}`);
+            console.log(`✅ [WEBSOCKET] Message stored in Supabase database for player ${playerId}`);
 
             // Send confirmation to player
             ws.send(JSON.stringify({
@@ -4877,10 +4962,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               messageData: result.message
             }));
 
-            // Broadcast to GRE staff (available in both memory and database)
-            console.log(`📢 [WEBSOCKET] Hybrid message from player ${playerId} available for GRE staff via dual storage`);
+            // Broadcast to GRE staff (available in Supabase database for cross-portal access)
+            console.log(`📢 [WEBSOCKET] Supabase message from player ${playerId} available for GRE staff cross-portal access`);
           } catch (error) {
-            console.error(`❌ [WEBSOCKET] Error sending hybrid message:`, error);
+            console.error(`❌ [WEBSOCKET] Error sending Supabase message:`, error);
             ws.send(JSON.stringify({
               type: 'error',
               message: 'Failed to send message'
@@ -4890,16 +4975,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (data.type === 'get_messages' && playerId) {
           try {
-            // Get messages from enterprise hybrid system
-            const messages = await enterpriseGreChat.getMessages(playerId);
-            console.log(`📋 [WEBSOCKET] Fetching ${messages.length} hybrid messages for player ${playerId}`);
+            // Get messages from pure Supabase system
+            const messages = await pureSupabaseGreChat.getMessages(playerId);
+            console.log(`📋 [WEBSOCKET] Fetching ${messages.length} Supabase messages for player ${playerId}`);
 
             ws.send(JSON.stringify({
               type: 'chat_history',
               messages: messages
             }));
           } catch (error) {
-            console.error(`❌ [WEBSOCKET] Error fetching messages:`, error);
+            console.error(`❌ [WEBSOCKET] Error fetching Supabase messages:`, error);
             ws.send(JSON.stringify({
               type: 'chat_history',
               messages: []
@@ -4909,16 +4994,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (data.type === 'clear_chat' && playerId) {
           try {
-            // Clear messages using enterprise hybrid system
-            const result = enterpriseGreChat.clearChat(playerId);
-            console.log(`🗑️ [WEBSOCKET] Cleared hybrid chat messages for player ${playerId}`);
+            // Clear messages using pure Supabase system
+            const result = await pureSupabaseGreChat.clearChat(playerId);
+            console.log(`🗑️ [WEBSOCKET] Cleared Supabase chat messages for player ${playerId}`);
 
             ws.send(JSON.stringify({
               type: 'chat_cleared',
               message: 'Chat history cleared successfully'
             }));
           } catch (error) {
-            console.error(`❌ [WEBSOCKET] Error clearing chat:`, error);
+            console.error(`❌ [WEBSOCKET] Error clearing Supabase chat:`, error);
             ws.send(JSON.stringify({
               type: 'error',
               message: 'Failed to clear chat'
@@ -5034,14 +5119,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // GRE Chat System API Endpoints - Send Message (Enterprise Hybrid)
+  // GRE Chat System API Endpoints - Send Message (Pure Supabase)
   app.post("/api/gre-chat/send", async (req, res) => {
     try {
       const { playerId, playerName, message, timestamp } = req.body;
-      console.log(`💬 [GRE CHAT] Receiving hybrid message from player ${playerId}: ${playerName}`);
+      console.log(`💬 [GRE CHAT] Receiving Supabase-only message from player ${playerId}: ${playerName}`);
       
-      // Use enterprise hybrid system (memory + database)
-      const result = await enterpriseGreChat.sendMessage(
+      // Use pure Supabase system (database only for cross-portal sync)
+      const result = await pureSupabaseGreChat.sendMessage(
         parseInt(playerId),
         playerName,
         message.trim(),
@@ -5049,13 +5134,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         playerName
       );
 
-      console.log(`✅ [GRE CHAT] Message stored in hybrid system for player ${playerId}`);
+      console.log(`✅ [GRE CHAT] Message stored in Supabase database for player ${playerId}`);
 
       // Broadcast message to all connected WebSocket clients for real-time updates
       const playerConnections = wss.clients;
       playerConnections.forEach((client) => {
         if (client.playerId === parseInt(playerId) && client.readyState === WebSocket.OPEN) {
-          console.log(`📢 [GRE WEBSOCKET] Broadcasting new hybrid message to player ${playerId}`);
+          console.log(`📢 [GRE WEBSOCKET] Broadcasting new Supabase message to player ${playerId}`);
           client.send(JSON.stringify({
             type: 'new_message',
             message: result.message,
@@ -5064,10 +5149,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
       
-      console.log(`✅ [GRE CHAT] Hybrid message sent successfully - ID: ${result.message.id}`);
+      console.log(`✅ [GRE CHAT] Supabase message sent successfully - ID: ${result.message.id}`);
       res.json({ success: true, message: result.message });
     } catch (error: any) {
-      console.error(`❌ [GRE CHAT] Error sending hybrid message:`, error);
+      console.error(`❌ [GRE CHAT] Error sending Supabase message:`, error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -5075,15 +5160,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/gre-chat/messages/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
-      console.log(`💬 [GRE CHAT] Fetching hybrid messages for player ${playerId}`);
+      console.log(`💬 [GRE CHAT] Fetching Supabase messages for player ${playerId}`);
       
-      // Get messages from enterprise hybrid system
-      const messages = await enterpriseGreChat.getMessages(parseInt(playerId));
-      console.log(`✅ [GRE CHAT] Retrieved ${messages.length} hybrid messages for player ${playerId}`);
+      // Get messages from pure Supabase system
+      const messages = await pureSupabaseGreChat.getMessages(parseInt(playerId));
+      console.log(`✅ [GRE CHAT] Retrieved ${messages.length} Supabase messages for player ${playerId}`);
       
       res.json(messages);
     } catch (error: any) {
-      console.error(`❌ [GRE CHAT] Error fetching hybrid messages:`, error);
+      console.error(`❌ [GRE CHAT] Error fetching Supabase messages:`, error);
       res.json([]); // Return empty array instead of error to prevent UI issues
     }
   });
@@ -5092,16 +5177,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/gre-chat/messages/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
-      console.log(`🗑️ [GRE CHAT] Clearing hybrid chat history for player ${playerId}`);
+      console.log(`🗑️ [GRE CHAT] Clearing Supabase chat history for player ${playerId}`);
 
-      // Clear messages using enterprise hybrid system
-      const result = enterpriseGreChat.clearChat(parseInt(playerId));
-      console.log(`✅ [GRE CHAT] Successfully cleared hybrid chat history for player ${playerId}`);
+      // Clear messages using pure Supabase system
+      const result = await pureSupabaseGreChat.clearChat(parseInt(playerId));
+      console.log(`✅ [GRE CHAT] Successfully cleared Supabase chat history for player ${playerId}`);
       
       res.json({ success: true, message: 'Chat history cleared successfully' });
 
     } catch (error) {
-      console.error('❌ [GRE CHAT] Error clearing hybrid chat:', error);
+      console.error('❌ [GRE CHAT] Error clearing Supabase chat:', error);
       res.status(500).json({ error: 'Failed to clear chat history' });
     }
   });
