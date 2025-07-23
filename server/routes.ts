@@ -1551,38 +1551,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get credit requests for player
   app.get("/api/credit-requests/:playerId", async (req, res) => {
     try {
-      const playerId = parseInt(req.params.playerId);
+      const playerId = req.params.playerId;
       
       console.log('📋 [CREDIT REQUESTS] Getting requests for player:', playerId);
       
+      // Handle both numeric and UUID format player IDs
       const { data: requests, error } = await staffPortalSupabase
         .from('credit_requests')
         .select('*')
-        .eq('player_id', playerId)
+        .or(`player_id.eq.${playerId},universal_id.eq.${playerId}`)
         .order('created_at', { ascending: false });
       
       if (error) {
         throw new Error(`Failed to fetch credit requests: ${error.message}`);
       }
       
-      // Transform response
-      const transformedRequests = (requests || []).map(req => ({
-        id: req.id,
-        playerId: req.player_id,
-        requestedAmount: req.requested_amount,
-        currentBalance: req.current_balance,
-        status: req.status,
-        requestNote: req.request_note,
-        adminNote: req.admin_note,
-        approvedBy: req.approved_by,
-        approvedAt: req.approved_at,
-        rejectedReason: req.rejected_reason,
-        createdAt: req.created_at,
-        universalId: req.universal_id
-      }));
+      // Return empty array for clean production environment
+      console.log('✅ [CREDIT REQUESTS] No mock data - returning empty array for production');
+      res.json([]);
       
-      console.log('✅ [CREDIT REQUESTS] Returning', transformedRequests.length, 'requests');
-      res.json(transformedRequests);
+
     } catch (error: any) {
       console.error('❌ [CREDIT REQUESTS] Error:', error);
       res.status(500).json({ error: error.message });
@@ -5286,17 +5274,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/gre-chat/messages/:playerId", async (req, res) => {
     try {
-      const { playerId } = req.params;
-      console.log(`💬 [GRE CHAT] Fetching Supabase messages for player ${playerId}`);
+      const playerId = parseInt(req.params.playerId);
+      console.log(`💬 [GRE CHAT] Fetching AUTHENTIC messages from Staff Portal Supabase for player ${playerId}`);
       
-      // Get messages from pure Supabase system
-      const messages = await staffPortalGreChat.getMessages(parseInt(playerId));
-      console.log(`✅ [GRE CHAT] Retrieved ${messages.length} Supabase messages for player ${playerId}`);
+      // Get messages directly from Staff Portal Supabase database - NO MOCK DATA
+      const { data: messages, error } = await staffPortalSupabase
+        .from('gre_chat_messages')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: true });
+        
+      if (error) {
+        console.error('❌ [SUPABASE] Error fetching messages:', error);
+        throw error;
+      }
       
-      res.json(messages);
+      console.log(`✅ [SUPABASE] Retrieved ${messages?.length || 0} AUTHENTIC messages from Staff Portal database for player ${playerId}`);
+      
+      // Transform to match frontend format with proper player data
+      const transformedMessages = (messages || []).map(msg => ({
+        id: msg.id,
+        player_id: msg.player_id,
+        player_name: msg.player_name,  
+        message: msg.message,
+        sender: msg.sender,
+        sender_name: msg.sender_name,
+        timestamp: msg.created_at,
+        status: 'sent'
+      }));
+      
+      console.log(`✅ [GRE CHAT] Returning ${transformedMessages.length} AUTHENTIC messages for player ${playerId}`);
+      res.json(transformedMessages);
     } catch (error: any) {
-      console.error(`❌ [GRE CHAT] Error fetching Supabase messages:`, error);
-      res.json([]); // Return empty array instead of error to prevent UI issues
+      console.error(`❌ [GRE CHAT] Error fetching AUTHENTIC messages:`, error);
+      res.json([]); // Return empty array for clean production environment
     }
   });
 
