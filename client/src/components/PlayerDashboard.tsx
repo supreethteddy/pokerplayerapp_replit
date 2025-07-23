@@ -52,6 +52,7 @@ import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
+import StaffPortalChatWidget from "./StaffPortalChatWidget";
 
 
 // Scrollable Offers Display Component
@@ -2616,6 +2617,15 @@ export default function PlayerDashboard() {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Staff Portal Chat Widget - TESTING */}
+                {user && (
+                  <StaffPortalChatWidget 
+                    playerId={user.id}
+                    playerName={`${user.firstName} ${user.lastName}`}
+                    playerEmail={user.email}
+                  />
+                )}
 
                 {/* Notifications from Management */}
                 <Card className="bg-slate-800 border-slate-700">
