@@ -4983,45 +4983,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
           playerConnections.set(playerId, ws);
           // Store playerId on WebSocket client for broadcasting
           ws.playerId = playerId;
-          console.log(`🔐 [WEBSOCKET] Player ${playerId} authenticated and connected`);
+          console.log(`🔐 [STAFF PORTAL AUTH] Player ${playerId} (${data.playerName}) authenticated`);
+          console.log(`📧 [STAFF PORTAL AUTH] Email: ${data.playerEmail}`);
           
-          // Send confirmation
+          // Send Staff Portal compatible confirmation
           ws.send(JSON.stringify({
             type: 'authenticated',
             playerId: playerId,
-            message: 'Successfully connected to GRE chat'
+            message: 'Successfully connected to GRE chat',
+            timestamp: new Date().toISOString()
           }));
+
+          // Notify about Staff Portal connection
+          console.log(`✅ [STAFF PORTAL CONNECTION] Player ${data.playerName} connected to Staff Portal GRE system`);
         }
 
         if (data.type === 'player_message' && playerId) {
-          console.log(`💬 [WEBSOCKET] Processing Staff Portal compatible message from player ${playerId}`);
+          console.log(`💬 [WEBSOCKET] Processing EXACT Staff Portal message format from player ${playerId}`);
+          console.log(`📤 [STAFF PORTAL FORMAT] Player: ${data.playerName}, Email: ${data.playerEmail}, Message: ${data.message}`);
           
           try {
-            // Use Staff Portal compatible system
+            // Validate EXACT Staff Portal format requirements
+            if (!data.playerId || !data.playerName || !data.playerEmail || !data.message || !data.messageText || !data.timestamp) {
+              console.error('❌ [STAFF PORTAL FORMAT] Missing required fields for Staff Portal compatibility');
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: 'Invalid message format - missing required Staff Portal fields'
+              }));
+              return;
+            }
+
+            // Use Staff Portal compatible system with EXACT format
             const result = await staffPortalGreChat.sendMessage(
-              playerId,
-              data.playerName || `Player ${playerId}`,
-              data.message || data.messageText,
+              data.playerId,
+              data.playerName,
+              data.message,
               'player',
-              data.playerName || `Player ${playerId}`
+              data.playerName
             );
 
-            console.log(`✅ [WEBSOCKET] Message stored in Supabase database for player ${playerId}`);
+            console.log(`✅ [STAFF PORTAL] Message from ${data.playerName} (${data.playerEmail}) stored in Supabase`);
+            console.log(`📋 [STAFF PORTAL] Message content: "${data.message}"`);
+            console.log(`⏰ [STAFF PORTAL] Timestamp: ${data.timestamp}`);
 
-            // Send Staff Portal compatible acknowledgment
+            // Send EXACT Staff Portal acknowledgment format
             ws.send(JSON.stringify({
               type: 'acknowledgment',
               message: 'Message delivered to GRE staff',
-              messageData: result.message
+              playerId: data.playerId,
+              timestamp: new Date().toISOString()
             }));
 
-            // Broadcast to GRE staff (available in Supabase database for cross-portal access)
-            console.log(`📢 [WEBSOCKET] Supabase message from player ${playerId} available for GRE staff cross-portal access`);
+            // Enhanced Staff Portal logging for maximum visibility
+            console.log(`\n🚨 [URGENT GRE ALERT] NEW PLAYER MESSAGE`);
+            console.log(`============================================`);
+            console.log(`👤 Player: ${data.playerName} (ID: ${data.playerId})`);
+            console.log(`📧 Email: ${data.playerEmail}`);
+            console.log(`💬 Message: "${data.message}"`);
+            console.log(`⏰ Timestamp: ${data.timestamp}`);
+            console.log(`📋 Message ID: ${result.message.id}`);
+            console.log(`🔗 Session ID: ${result.message.session_id}`);
+            console.log(`📊 Status: ${result.message.status}`);
+            console.log(`============================================\n`);
+            
+            // Database confirmation for Staff Portal
+            console.log(`📢 [STAFF PORTAL CONFIRMATION] Message stored in 'gre_chat_messages' table`);
+            console.log(`🎯 [STAFF PORTAL ACCESS] Query: SELECT * FROM gre_chat_messages WHERE player_id = ${data.playerId}`);
+            console.log(`🔍 [STAFF PORTAL VISIBILITY] Message should appear with URGENT priority in GRE interface`);
           } catch (error) {
-            console.error(`❌ [WEBSOCKET] Error sending Supabase message:`, error);
+            console.error(`❌ [STAFF PORTAL] Error processing message:`, error);
             ws.send(JSON.stringify({
               type: 'error',
-              message: 'Failed to send message'
+              message: 'Failed to send message to Staff Portal system',
+              error: error.message
             }));
           }
         }

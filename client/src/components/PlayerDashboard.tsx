@@ -700,12 +700,15 @@ export default function PlayerDashboard() {
         // Add to local state immediately for instant display
         setRealtimeChatMessages(prev => [...prev, newMessage]);
         
+        // EXACT Staff Portal message format - DO NOT CHANGE
         wsConnection.send(JSON.stringify({
-          type: 'send_message',
-          playerId: user.id,
-          playerName: `${user.firstName} ${user.lastName}`,
-          message: chatMessage.trim(),
-          sender: 'player'
+          type: 'player_message',              // EXACT string expected by Staff Portal
+          playerId: user.id,                   // Integer from database
+          playerName: `${user.firstName} ${user.lastName}`, // Player's full name
+          playerEmail: user.email,             // Valid email address
+          message: chatMessage.trim(),         // The actual message content
+          messageText: chatMessage.trim(),     // Duplicate for compatibility
+          timestamp: new Date().toISOString()  // ISO timestamp string
         }));
         
         toast({
@@ -786,7 +789,7 @@ export default function PlayerDashboard() {
   useEffect(() => {
     if (user?.id && !wsConnection) {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}/chat-ws`; // Staff Portal compatible path
+      const wsUrl = `${protocol}//${window.location.host}/chat-ws`; // EXACT Staff Portal WebSocket endpoint
       
       console.log('🔗 [WEBSOCKET] Connecting with ultra-fast optimizations to:', wsUrl);
       // Create WebSocket with optimized protocol for instant messaging
@@ -796,11 +799,12 @@ export default function PlayerDashboard() {
         console.log('✅ [WEBSOCKET] Connected successfully');
         setWsConnected(true);
         
-        // Authenticate with player ID
+        // Staff Portal authentication format
         ws.send(JSON.stringify({
           type: 'authenticate',
           playerId: user.id,
-          playerName: `${user.firstName} ${user.lastName}`
+          playerName: `${user.firstName} ${user.lastName}`,
+          playerEmail: user.email
         }));
         
         // Request chat history
@@ -826,11 +830,48 @@ export default function PlayerDashboard() {
             setRealtimeChatMessages(data.messages);
           }
           
+          // Handle Staff Portal message types
+          if (data.type === 'gre_message') {
+            console.log('💬 [WEBSOCKET] GRE staff response received');
+            const greMessage = {
+              id: Date.now().toString(),
+              player_id: user.id,
+              gre_id: data.greStaffId || 'gre_staff',
+              message: data.content || data.message,
+              sender_type: 'gre',
+              timestamp: data.timestamp || new Date().toISOString(),
+              is_read: false
+            };
+            setRealtimeChatMessages(prev => [...prev, greMessage]);
+            // Also refresh REST API data for consistency
+            queryClient.invalidateQueries({ queryKey: [`/api/gre-chat/messages/${user.id}`] });
+          }
+          
           if (data.type === 'new_message') {
-            console.log('💬 [WEBSOCKET] New message received from GRE');
+            console.log('💬 [WEBSOCKET] New message received');
             setRealtimeChatMessages(prev => [...prev, data.message]);
             // Also refresh REST API data for consistency
             queryClient.invalidateQueries({ queryKey: [`/api/gre-chat/messages/${user.id}`] });
+          }
+          
+          if (data.type === 'session_started') {
+            console.log('✅ [WEBSOCKET] Chat session started with GRE:', data.data?.greStaffName);
+            toast({
+              title: "Chat Connected",
+              description: `Connected with ${data.data?.greStaffName || 'Support Staff'}`,
+            });
+          }
+          
+          if (data.type === 'session_closed') {
+            console.log('🔒 [WEBSOCKET] Chat session closed by GRE:', data.reason);
+            toast({
+              title: "Chat Session Ended",
+              description: data.reason || "Chat session has been closed by support staff",
+            });
+          }
+          
+          if (data.type === 'acknowledgment') {
+            console.log('✅ [WEBSOCKET] Message delivery confirmed');
           }
           
           if (data.type === 'message_sent') {
