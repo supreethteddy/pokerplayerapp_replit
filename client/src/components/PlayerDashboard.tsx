@@ -699,7 +699,7 @@ export default function PlayerDashboard() {
         };
         
         // Add to local state immediately for instant display
-        setRealtimeChatMessages(prev => [...prev, newMessage]);
+        setUnifiedChatMessages(prev => [...prev, newMessage]);
         
         // EXACT Staff Portal message format - DO NOT CHANGE
         wsConnection.send(JSON.stringify({
@@ -738,7 +738,7 @@ export default function PlayerDashboard() {
       };
       
       // Add to local state immediately for instant display
-      setRealtimeChatMessages(prev => [...prev, newMessage]);
+      setUnifiedChatMessages(prev => [...prev, newMessage]);
       
       const response = await apiRequest("POST", "/api/gre-chat/send", {
         playerId: user.id,
@@ -872,7 +872,7 @@ export default function PlayerDashboard() {
             console.log('✅ [WEBSOCKET] Message sent confirmation');
             // Add the sent message to local state immediately for instant display
             if (data.message) {
-              setRealtimeChatMessages(prev => [...prev, data.message]);
+              setUnifiedChatMessages(prev => [...prev, data.message]);
             }
             // Also refresh chat history
             ws.send(JSON.stringify({
@@ -887,9 +887,8 @@ export default function PlayerDashboard() {
             console.log('🔒 [WEBSOCKET] Chat session closed by GRE');
             // Show confirmation dialog
             if (confirm('GRE staff has closed this chat session. Would you like to clear the chat history?')) {
-              setRealtimeChatMessages([]);
+              setUnifiedChatMessages([]);
               setChatMessage("");
-              queryClient.invalidateQueries({ queryKey: [`/api/gre-chat/messages/${user.id}`] });
               toast({
                 title: "Chat Closed",
                 description: "Chat session has been closed and cleared.",
@@ -2529,7 +2528,7 @@ export default function PlayerDashboard() {
                               await apiRequest("DELETE", `/api/gre-chat/messages/${user?.id}`);
                               
                               // Clear local states
-                              setRealtimeChatMessages([]);
+                              setUnifiedChatMessages([]);
                               
                               // Invalidate and refetch queries
                               queryClient.invalidateQueries({ queryKey: [`/api/gre-chat/messages/${user?.id}`] });
