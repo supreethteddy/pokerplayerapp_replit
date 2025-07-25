@@ -4746,7 +4746,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 timestamp: new Date().toISOString()
               }));
 
-              // Load chat history from Staff Portal
+              // Load chat history from Staff Portal - ALWAYS fetch fresh data
               const { data: messages, error } = await staffPortalSupabase
                 .from('gre_chat_messages')
                 .select('*')
@@ -4760,6 +4760,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   messages: messages
                 }));
                 console.log(`📋 [UNIFIED WEBSOCKET] Sent ${messages.length} messages to player ${data.playerId}`);
+                console.log('🔍 [WEBSOCKET DEBUG] Messages sent:', messages.map(m => `${m.sender}: ${m.message.substring(0, 30)}...`));
+              } else {
+                console.error('❌ [UNIFIED WEBSOCKET] Error loading chat history:', error);
               }
               
             } catch (authError) {
@@ -5089,7 +5092,197 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Tournament interest endpoint (sends to GRE) - already handled in GRE chat endpoint
 
+  // **REAL-TIME MESSAGE SYNC FUNCTION**
+  // Call this whenever a new message is added to refresh all connected clients
+  function broadcastMessageUpdate(playerId: number) {
+    const connection = playerConnections.get(playerId);
+    if (connection && connection.readyState === WebSocket.OPEN) {
+      console.log(`🔄 [WEBSOCKET REFRESH] Refreshing messages for player ${playerId}`);
+      
+      // Fetch fresh messages from database
+      staffPortalSupabase
+        .from('gre_chat_messages')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: true })
+        .limit(50)
+        .then(({ data: messages, error }) => {
+          if (!error && messages) {
+            connection.send(JSON.stringify({
+              type: 'chat_history',
+              messages: messages,
+              refresh: true
+            }));
+            console.log(`✅ [WEBSOCKET REFRESH] Sent ${messages.length} updated messages to player ${playerId}`);
+          }
+        });
+    }
+  }
 
+  // **COMPREHENSIVE GRE ADMIN API ENDPOINTS FOR STAFF PORTAL**
+  
+  // Get all active chat sessions for GRE dashboard
+  app.get('/api/gre-admin/chat-sessions', async (req, res) => {
+    try {
+      console.log('📊 [GRE ADMIN] Fetching all active chat sessions');
+      
+      const { data: sessions, error } = await staffPortalSupabase
+        .from('gre_chat_sessions')
+        .select(`
+          *,
+          gre_chat_messages(*)
+        `)
+        .eq('status', 'active')
+        .order('updated_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ [GRE ADMIN] Error fetching sessions:', error);
+        return res.status(500).json({ error: 'Failed to fetch chat sessions' });
+      }
+
+      console.log(`✅ [GRE ADMIN] Found ${sessions?.length || 0} active sessions`);
+      res.json(sessions || []);
+      
+    } catch (err) {
+      console.error('❌ [GRE ADMIN] Chat sessions error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Get messages for specific player
+  app.get('/api/gre-admin/chat-messages/:playerId', async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      console.log(`📨 [GRE ADMIN] Fetching messages for player ${playerId}`);
+      
+      const { data: messages, error } = await staffPortalSupabase
+        .from('gre_chat_messages')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('❌ [GRE ADMIN] Error fetching messages:', error);
+        return res.status(500).json({ error: 'Failed to fetch messages' });
+      }
+
+      console.log(`✅ [GRE ADMIN] Found ${messages?.length || 0} messages for player ${playerId}`);
+      res.json(messages || []);
+      
+    } catch (err) {
+      console.error('❌ [GRE ADMIN] Messages error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Send GRE response message
+  app.post('/api/gre-admin/send-message', async (req, res) => {
+    try {
+      const { playerId, message, greAgentName = 'GRE Support Agent' } = req.body;
+      console.log(`📤 [GRE ADMIN] Sending message to player ${playerId}: ${message.substring(0, 50)}...`);
+      
+      // Find active session
+      const { data: session, error: sessionError } = await staffPortalSupabase
+        .from('gre_chat_sessions')
+        .select('*')
+        .eq('player_id', playerId)
+        .eq('status', 'active')
+        .single();
+
+      if (sessionError || !session) {
+        return res.status(404).json({ error: 'No active chat session found for this player' });
+      }
+
+      // Insert GRE message
+      const greMessage = {
+        session_id: session.id,
+        player_id: playerId,
+        player_name: session.player_name,
+        message: message,
+        sender: 'gre',
+        sender_name: greAgentName,
+        timestamp: new Date().toISOString(),
+        status: 'sent'
+      };
+
+      const { data: savedMessage, error: messageError } = await staffPortalSupabase
+        .from('gre_chat_messages')
+        .insert([greMessage])
+        .select()
+        .single();
+
+      if (messageError) {
+        console.error('❌ [GRE ADMIN] Error saving message:', messageError);
+        return res.status(500).json({ error: 'Failed to save message' });
+      }
+
+      // Broadcast update to player's WebSocket connection
+      broadcastMessageUpdate(playerId);
+
+      console.log(`✅ [GRE ADMIN] Message sent successfully to player ${playerId}`);
+      res.json({ success: true, message: savedMessage });
+      
+    } catch (err) {
+      console.error('❌ [GRE ADMIN] Send message error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Get GRE dashboard summary
+  app.get('/api/gre-admin/dashboard-summary', async (req, res) => {
+    try {
+      console.log('📊 [GRE ADMIN] Fetching dashboard summary');
+      
+      // Get active sessions count
+      const { count: activeSessions } = await staffPortalSupabase
+        .from('gre_chat_sessions')
+        .select('*', { count: 'exact' })
+        .eq('status', 'active');
+
+      // Get total messages today
+      const today = new Date().toISOString().split('T')[0];
+      const { count: messagesToday } = await staffPortalSupabase
+        .from('gre_chat_messages')
+        .select('*', { count: 'exact' })
+        .gte('created_at', today + 'T00:00:00Z');
+
+      // Get unread messages (player messages without GRE response)
+      const { data: unreadSessions, error } = await staffPortalSupabase
+        .from('gre_chat_sessions')
+        .select(`
+          id,
+          player_id,
+          player_name,
+          gre_chat_messages(sender, created_at)
+        `)
+        .eq('status', 'active');
+
+      let unreadCount = 0;
+      if (!error && unreadSessions) {
+        unreadSessions.forEach(session => {
+          const messages = session.gre_chat_messages || [];
+          const lastMessage = messages[messages.length - 1];
+          if (lastMessage && lastMessage.sender === 'player') {
+            unreadCount++;
+          }
+        });
+      }
+
+      const summary = {
+        activeSessions: activeSessions || 0,
+        messagesToday: messagesToday || 0,
+        unreadMessages: unreadCount,
+        timestamp: new Date().toISOString()
+      };
+
+      console.log('✅ [GRE ADMIN] Dashboard summary:', summary);
+      res.json(summary);
+      
+    } catch (err) {
+      console.error('❌ [GRE ADMIN] Dashboard summary error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
 
   return httpServer;
 }
