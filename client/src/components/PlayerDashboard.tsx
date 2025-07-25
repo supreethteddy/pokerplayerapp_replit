@@ -262,8 +262,8 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
     );
   }
 
-  const vipPoints = vipData?.totalVipPoints || 0;
-  const breakdown = vipData;
+  const vipPoints = (vipData as any)?.totalVipPoints || 0;
+  const breakdown = vipData as any;
 
   return (
     <Card className="bg-slate-800 border-slate-700">
@@ -288,16 +288,16 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
             <div className="text-white font-semibold text-sm">Points Breakdown:</div>
             <div className="space-y-1 text-sm">
               <div className="flex justify-between text-slate-300">
-                <span>Big Blind (₹{breakdown.avgBigBlind} × 0.5)</span>
-                <span className="text-yellow-400">{breakdown.bigBlindPoints.toFixed(1)}</span>
+                <span>Big Blind (₹{breakdown?.avgBigBlind || 0} × 0.5)</span>
+                <span className="text-yellow-400">{(breakdown?.bigBlindPoints || 0).toFixed(1)}</span>
               </div>
               <div className="flex justify-between text-slate-300">
-                <span>Rs Played (₹{breakdown.totalRsPlayed} × 0.3)</span>
-                <span className="text-yellow-400">{breakdown.rsPlayedPoints.toFixed(1)}</span>
+                <span>Rs Played (₹{breakdown?.totalRsPlayed || 0} × 0.3)</span>
+                <span className="text-yellow-400">{(breakdown?.rsPlayedPoints || 0).toFixed(1)}</span>
               </div>
               <div className="flex justify-between text-slate-300">
-                <span>Visit Frequency ({breakdown.visitFrequency} days × 0.2)</span>
-                <span className="text-yellow-400">{breakdown.frequencyPoints.toFixed(1)}</span>
+                <span>Visit Frequency ({breakdown?.visitFrequency || 0} days × 0.2)</span>
+                <span className="text-yellow-400">{(breakdown?.frequencyPoints || 0).toFixed(1)}</span>
               </div>
             </div>
           </div>
@@ -1414,16 +1414,16 @@ export default function PlayerDashboard() {
 
                           <div className="flex justify-between items-center">
                             <div className="flex items-center space-x-2">
-                              {isTableJoined(table.id) ? (
+                              {isTableJoined(String(table.id)) ? (
                                 <>
                                   <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
                                     Joined
                                   </Badge>
                                   <span className="text-sm text-slate-400">
-                                    Position: {getWaitListPosition(table.id)}
+                                    Position: {getWaitListPosition(String(table.id))}
                                   </span>
                                   <Button
-                                    onClick={() => handleLeaveWaitList(table.id)}
+                                    onClick={() => handleLeaveWaitList(String(table.id))}
                                     disabled={leaveWaitListMutation.isPending}
                                     size="sm"
                                     variant="outline"
@@ -1437,7 +1437,7 @@ export default function PlayerDashboard() {
                                 </>
                               ) : (
                                 <Button
-                                  onClick={() => handleJoinWaitList(table.id)}
+                                  onClick={() => handleJoinWaitList(String(table.id))}
                                   disabled={joinWaitListMutation.isPending}
                                   size="sm"
                                   className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 border border-emerald-500/30 backdrop-blur-sm"
@@ -1470,7 +1470,7 @@ export default function PlayerDashboard() {
                         </div>
                       ))}
                       
-                      {(!tables || tables.length === 0) && (
+                      {(!(tables as any) || (tables as any)?.length === 0) && (
                         <div className="text-center py-8">
                           <Table className="w-12 h-12 text-slate-600 mx-auto mb-3" />
                           <p className="text-slate-400">No tables available</p>
@@ -1500,7 +1500,7 @@ export default function PlayerDashboard() {
                           </div>
                         ) : (
                           <div className="space-y-4">
-                            {tournaments?.map((tournament) => (
+                            {(tournaments as any)?.map((tournament: any) => (
                               <div
                                 key={tournament.id}
                                 className="bg-slate-700 p-4 rounded-lg"
@@ -1595,7 +1595,7 @@ export default function PlayerDashboard() {
                               </div>
                             ))}
                             
-                            {(!tournaments || tournaments.length === 0) && (
+                            {(!(tournaments as any) || (tournaments as any)?.length === 0) && (
                               <div className="text-center py-8">
                                 <Trophy className="w-12 h-12 text-slate-600 mx-auto mb-3" />
                                 <p className="text-slate-400">No tournaments available</p>
@@ -1852,7 +1852,7 @@ export default function PlayerDashboard() {
                           
                           <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
                             {/* Only show upload/reupload if not approved or if no documents */}
-                            {(getKycDocumentStatus('id') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'government_id' && d.fileUrl).length === 0) && (
+                            {(getKycDocumentStatus('id') !== 'approved' || (kycDocuments as any)?.filter((d: any) => d.documentType === 'government_id' && d.fileUrl).length === 0) && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1861,7 +1861,7 @@ export default function PlayerDashboard() {
                                 className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
                               >
                                 <Upload className="w-4 h-4 mr-1" />
-                                {kycDocuments?.filter(d => d.documentType === 'government_id' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
+                                {(kycDocuments as any)?.filter((d: any) => d.documentType === 'government_id' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
                               </Button>
                             )}
                             
@@ -1908,10 +1908,10 @@ export default function PlayerDashboard() {
                           <div className="flex-1">
                             <p className="text-sm font-medium text-white">Address Proof</p>
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('utility')}</p>
-                            {kycDocuments?.filter(d => d.documentType === 'utility_bill' && d.fileUrl).length > 0 && (
+                            {(kycDocuments as any)?.filter((d: any) => d.documentType === 'utility_bill' && d.fileUrl).length > 0 && (
                               <div className="flex items-center space-x-2 mt-1">
                                 <p className="text-xs text-emerald-500">
-                                  {kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl)[0].fileName}
+                                  {(kycDocuments as any)?.filter((d: any) => d.documentType === 'utility_bill' && d.fileUrl)[0].fileName}
                                 </p>
                               </div>
                             )}
@@ -2621,7 +2621,7 @@ export default function PlayerDashboard() {
                 {/* Staff Portal Chat Widget - TESTING */}
                 {user && (
                   <StaffPortalChatWidget 
-                    playerId={user.id}
+                    playerId={String(user.id)}
                     playerName={`${user.firstName} ${user.lastName}`}
                     playerEmail={user.email}
                   />
