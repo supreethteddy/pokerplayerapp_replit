@@ -52,7 +52,7 @@ import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
-import UnifiedChatSystem from "./UnifiedChatSystem";
+// Removed UnifiedChatSystem import - using embedded chat in feedback tab
 
 
 // Scrollable Offers Display Component
@@ -2429,47 +2429,23 @@ export default function PlayerDashboard() {
                           Loading chat history...
                         </div>
                       ) : (() => {
-                        // Combine both REST API messages and real-time WebSocket messages
+                        // Combine and process messages once
                         const allMessages = [
                           ...(Array.isArray(chatMessages) ? chatMessages : []),
-                          ...realtimeChatMessages
+                          ...(Array.isArray(realtimeChatMessages) ? realtimeChatMessages : [])
                         ];
                         
-                        // Remove duplicates based on timestamp and message content
+                        // Remove duplicates and sort
                         const uniqueMessages = allMessages.filter((message, index, arr) => {
                           return index === arr.findIndex(m => 
                             m.message === message.message && 
                             Math.abs(new Date(m.timestamp || m.created_at).getTime() - new Date(message.timestamp || message.created_at).getTime()) < 1000
                           );
-                        });
-                        
-                        // Sort by timestamp
-                        const sortedMessages = uniqueMessages.sort((a, b) => 
+                        }).sort((a, b) => 
                           new Date(a.timestamp || a.created_at).getTime() - new Date(b.timestamp || b.created_at).getTime()
                         );
                         
-                        return sortedMessages.length > 0;
-                      })() ? (
-                        (() => {
-                          // Same logic as above for rendering
-                          const allMessages = [
-                            ...(Array.isArray(chatMessages) ? chatMessages : []),
-                            ...realtimeChatMessages
-                          ];
-                          
-                          const uniqueMessages = allMessages.filter((message, index, arr) => {
-                            return index === arr.findIndex(m => 
-                              m.message === message.message && 
-                              Math.abs(new Date(m.timestamp || m.created_at).getTime() - new Date(message.timestamp || message.created_at).getTime()) < 1000
-                            );
-                          });
-                          
-                          const sortedMessages = uniqueMessages.sort((a, b) => 
-                            new Date(a.timestamp || a.created_at).getTime() - new Date(b.timestamp || b.created_at).getTime()
-                          );
-                          
-                          return sortedMessages;
-                        })().map((message: any, index: number) => (
+                        return uniqueMessages.length > 0 ? uniqueMessages.map((message: any, index: number) => (
                           <div
                             key={index}
                             className={`flex ${
@@ -2508,18 +2484,18 @@ export default function PlayerDashboard() {
                               )}
                             </div>
                           </div>
-                        ))
-                      ) : (
-                        <div className="text-center text-slate-400 py-8">
-                          <MessageCircle className="w-12 h-12 mx-auto mb-4 text-slate-600" />
-                          <h3 className="text-lg font-medium text-slate-300 mb-2">
-                            Start a Conversation
-                          </h3>
-                          <p className="text-sm">
-                            Our Guest Relations team is here to help you with any questions or concerns.
-                          </p>
-                        </div>
-                      )}
+                        )) : (
+                          <div className="text-center text-slate-400 py-8">
+                            <MessageCircle className="w-12 h-12 mx-auto mb-4 text-slate-600" />
+                            <h3 className="text-lg font-medium text-slate-300 mb-2">
+                              Start a Conversation
+                            </h3>
+                            <p className="text-sm">
+                              Our Guest Relations team is here to help you with any questions or concerns.
+                            </p>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Quick Actions */}
@@ -2618,14 +2594,7 @@ export default function PlayerDashboard() {
                   </CardContent>
                 </Card>
 
-                {/* Unified Chat System - Cross-Portal GRE Communication */}
-                {user && (
-                  <UnifiedChatSystem 
-                    playerId={String(user.id)}
-                    playerName={`${user.firstName} ${user.lastName}`}
-                    playerEmail={user.email}
-                  />
-                )}
+                {/* REMOVED UnifiedChatSystem - Using embedded chat in feedback tab instead */}
 
                 {/* Notifications from Management */}
                 <Card className="bg-slate-800 border-slate-700">

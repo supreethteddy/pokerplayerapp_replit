@@ -32,11 +32,12 @@ interface ChatMessage {
 }
 
 interface UnifiedChatSystemProps {
-  isOpen: boolean;
-  onClose: () => void;
+  playerId: string;
+  playerName: string;
+  playerEmail: string;
 }
 
-export default function UnifiedChatSystem({ isOpen, onClose }: UnifiedChatSystemProps) {
+export default function UnifiedChatSystem({ playerId, playerName, playerEmail }: UnifiedChatSystemProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [message, setMessage] = useState('');
