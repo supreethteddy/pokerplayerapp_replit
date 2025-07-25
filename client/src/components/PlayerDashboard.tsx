@@ -2418,6 +2418,8 @@ export default function PlayerDashboard() {
                       ) : (() => {
                         // Use unified messages - single source of truth
                         const allMessages = unifiedChatMessages;
+                        console.log('🔧 [DEBUG] Rendering chat - allMessages:', allMessages);
+                        console.log('🔧 [DEBUG] allMessages.length:', allMessages.length);
                         
                         // Remove duplicates and sort
                         const uniqueMessages = allMessages.filter((message, index, arr) => {
@@ -2428,6 +2430,9 @@ export default function PlayerDashboard() {
                         }).sort((a, b) => 
                           new Date(a.timestamp || a.created_at).getTime() - new Date(b.timestamp || b.created_at).getTime()
                         );
+                        
+                        console.log('🔧 [DEBUG] After filtering - uniqueMessages:', uniqueMessages);
+                        console.log('🔧 [DEBUG] uniqueMessages.length:', uniqueMessages.length);
                         
                         return uniqueMessages.length > 0 ? uniqueMessages.map((message: any, index: number) => (
                           <div
