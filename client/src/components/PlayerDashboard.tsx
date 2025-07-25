@@ -754,11 +754,10 @@ export default function PlayerDashboard() {
           description: "Your message has been sent to our team",
         });
         setChatMessage("");
-        // Trigger chat messages refresh
-        queryClient.invalidateQueries({ queryKey: [`/api/gre-chat/messages/${user.id}`] });
+        // Message successfully sent - no need for REST API refresh since WebSocket handles real-time updates
       } else {
         // Remove the message from local state if sending failed
-        setRealtimeChatMessages(prev => prev.filter(msg => msg.id !== newMessage.id));
+        setUnifiedChatMessages(prev => prev.filter(msg => msg.id !== newMessage.id));
         throw new Error(result.error || "Failed to send message");
       }
     } catch (error: any) {
@@ -772,28 +771,22 @@ export default function PlayerDashboard() {
     }
   };
 
-  // Fetch GRE chat messages
-  const { data: chatMessages, isLoading: chatLoading } = useQuery({
-    queryKey: [`/api/gre-chat/messages/${user?.id}`],
-    enabled: !!user?.id,
-    refetchInterval: 100, // Ultra-fast 100ms updates for millisecond-level performance
-    refetchOnWindowFocus: true,
-    staleTime: 0
-  });
-
+  // UNIFIED CHAT MESSAGE MANAGEMENT - Single source of truth
+  const [unifiedChatMessages, setUnifiedChatMessages] = useState<any[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  
   // WebSocket connection for real-time GRE chat
   const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
-  const [realtimeChatMessages, setRealtimeChatMessages] = useState<any[]>([]);
 
-  // Initialize ultra-fast WebSocket connection for millisecond-level performance
+  // Initialize WebSocket connection for real-time chat
   useEffect(() => {
     if (user?.id && !wsConnection) {
+      setChatLoading(true);
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}/chat-ws`; // EXACT Staff Portal WebSocket endpoint
+      const wsUrl = `${protocol}//${window.location.host}/chat-ws`;
       
-      console.log('🔗 [WEBSOCKET] Connecting with ultra-fast optimizations to:', wsUrl);
-      // Create WebSocket with optimized protocol for instant messaging
+      console.log('🔗 [WEBSOCKET] Connecting to:', wsUrl);
       const ws = new WebSocket(wsUrl);
       
       ws.onopen = () => {
@@ -828,7 +821,9 @@ export default function PlayerDashboard() {
             console.log('📋 [WEBSOCKET] Chat history received:', data.messages.length, 'messages');
             console.log('🔗 [DEBUG] WebSocket Chat messages:', data.messages);
             console.log('🔗 [DEBUG] WebSocket Chat messages length:', data.messages.length);
-            setRealtimeChatMessages(data.messages);
+            // Set unified messages - single source of truth
+            setUnifiedChatMessages(data.messages || []);
+            setChatLoading(false);
           }
           
           // Handle Staff Portal message types
@@ -843,16 +838,14 @@ export default function PlayerDashboard() {
               timestamp: data.timestamp || new Date().toISOString(),
               is_read: false
             };
-            setRealtimeChatMessages(prev => [...prev, greMessage]);
-            // Also refresh REST API data for consistency
-            queryClient.invalidateQueries({ queryKey: [`/api/gre-chat/messages/${user.id}`] });
+            setUnifiedChatMessages(prev => [...prev, greMessage]);
+            // Real-time message added via WebSocket - no REST API refresh needed
           }
           
           if (data.type === 'new_message') {
             console.log('💬 [WEBSOCKET] New message received');
-            setRealtimeChatMessages(prev => [...prev, data.message]);
-            // Also refresh REST API data for consistency
-            queryClient.invalidateQueries({ queryKey: [`/api/gre-chat/messages/${user.id}`] });
+            setUnifiedChatMessages(prev => [...prev, data.message]);
+            // Real-time message added via WebSocket - no REST API refresh needed
           }
           
           if (data.type === 'session_started') {
@@ -931,17 +924,12 @@ export default function PlayerDashboard() {
     };
   }, [user?.id]);
 
-  // Debug: Log chat messages to console
+  // Debug: Log unified messages to console
   useEffect(() => {
-    if (chatMessages) {
-      console.log('💬 [DEBUG] REST API Chat messages received:', chatMessages);
-      console.log('💬 [DEBUG] REST API Chat messages length:', Array.isArray(chatMessages) ? chatMessages.length : 0);
+    if (unifiedChatMessages.length > 0) {
+      console.log('💬 [UNIFIED] Chat messages:', unifiedChatMessages.length, 'total messages');
     }
-    if (realtimeChatMessages.length > 0) {
-      console.log('🔗 [DEBUG] WebSocket Chat messages:', realtimeChatMessages);
-      console.log('🔗 [DEBUG] WebSocket Chat messages length:', realtimeChatMessages.length);
-    }
-  }, [chatMessages, realtimeChatMessages]);
+  }, [unifiedChatMessages]);
 
   // Submit credit request mutation
   const submitCreditRequestMutation = useMutation({
@@ -2429,11 +2417,8 @@ export default function PlayerDashboard() {
                           Loading chat history...
                         </div>
                       ) : (() => {
-                        // Combine and process messages once
-                        const allMessages = [
-                          ...(Array.isArray(chatMessages) ? chatMessages : []),
-                          ...(Array.isArray(realtimeChatMessages) ? realtimeChatMessages : [])
-                        ];
+                        // Use unified messages - single source of truth
+                        const allMessages = unifiedChatMessages;
                         
                         // Remove duplicates and sort
                         const uniqueMessages = allMessages.filter((message, index, arr) => {
