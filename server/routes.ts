@@ -41,6 +41,16 @@ const kycUploadSchema = z.object({
   dataUrl: z.string()
 });
 
+// **UNIFIED CHAT WEBSOCKET SERVER - Enterprise Grade**
+interface AuthenticatedWebSocket extends WebSocket {
+  playerId?: number;
+  playerName?: string;
+  playerEmail?: string;
+  isAuthenticated?: boolean;
+}
+
+const connectedClients = new Map<number, AuthenticatedWebSocket>();
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Test endpoint to verify Supabase connection
   app.get("/api/test-supabase", async (req, res) => {
@@ -4694,433 +4704,167 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
 
-  // WebSocket server for Staff Portal compatible GRE chat
+  // **UNIFIED CHAT WEBSOCKET SERVER - Expert Level Implementation**
   const wss = new WebSocketServer({ 
     server: httpServer, 
-    path: '/chat-ws', // Staff Portal expects /chat-ws path
-    perMessageDeflate: false,
-    maxPayload: 16 * 1024,
-    skipUTF8Validation: true,
-    clientTracking: true
+    path: '/chat-ws',
+    verifyClient: (info) => {
+      console.log('🔐 [UNIFIED WEBSOCKET] Client connecting from:', info.origin);
+      return true;
+    }
   });
   
-  // Store active WebSocket connections by player ID for instant message delivery
-  const playerConnections = new Map<number, WebSocket>();
+  // Store active WebSocket connections by player ID
+  const playerConnections = new Map<number, AuthenticatedWebSocket>();
   
-  // Store temporary chat messages in memory (not database) - cleared on session end
-  // ENTERPRISE-GRADE HYBRID GRE CHAT SYSTEM
-  // Stores messages in BOTH memory AND Supabase simultaneously
-  
-  // STAFF PORTAL COMPATIBLE GRE CHAT SYSTEM - Exact Logic Replication
-  class StaffPortalCompatibleGreChatSystem {
-    constructor() {
-      this.supabaseClient = staffPortalSupabase;
-      console.log('🚀 [STAFF PORTAL LOGIC] GRE Chat system initialized with identical Staff Portal logic');
-    }
-
-    async getOrCreateSession(playerId, playerName) {
-      try {
-        // First, try to find existing active session
-        const { data: existingSession } = await this.supabaseClient
-          .from('gre_chat_sessions')
-          .select('*')
-          .eq('player_id', playerId)
-          .eq('status', 'active')
-          .single();
-
-        if (existingSession) {
-          console.log(`🔄 [SESSION] Found existing session ${existingSession.id} for player ${playerId}`);
-          return existingSession;
-        }
-
-        // Find available GRE agent
-        const { data: availableAgent } = await this.supabaseClient
-          .from('gre_online_status')
-          .select('gre_id, gre_name, current_sessions, max_sessions')
-          .eq('is_online', true)
-          .eq('status', 'available')
-          .order('current_sessions', { ascending: true })
-          .limit(1)
-          .single();
-
-        // Create new session with or without agent assignment  
-        const sessionData = {
-          id: crypto.randomUUID(),
-          player_id: playerId,
-          gre_id: availableAgent?.gre_id || null,
-          status: 'active',
-          started_at: new Date().toISOString(),
-          last_message_at: new Date().toISOString(),
-          priority: 'normal',
-          category: 'general_support'
-        };
-
-        const { data: newSession, error } = await this.supabaseClient
-          .from('gre_chat_sessions')
-          .insert(sessionData)
-          .select()
-          .single();
-
-        if (error) {
-          console.error(`❌ [SESSION] Failed to create session:`, error);
-          throw new Error(`Session creation failed: ${error.message}`);
-        }
-
-        // Update agent's session count if assigned
-        if (availableAgent && availableAgent.current_sessions < availableAgent.max_sessions) {
-          await this.supabaseClient
-            .from('gre_online_status')
-            .update({ 
-              current_sessions: (availableAgent.current_sessions || 0) + 1,
-              last_seen: new Date().toISOString()
-            })
-            .eq('gre_id', availableAgent.gre_id);
-          
-          console.log(`✅ [SESSION] New session ${newSession.id} created and assigned to agent ${availableAgent.gre_name}`);
-        } else {
-          console.log(`⏳ [SESSION] New session ${newSession.id} created, waiting for available agent`);
-        }
-
-        return newSession;
-      } catch (error) {
-        console.error(`❌ [SESSION] Error managing session:`, error);
-        throw error;
-      }
-    }
-
-    async sendMessage(playerId, playerName, message, sender = 'player', senderName = null) {
-      try {
-        console.log(`💬 [STAFF PORTAL LOGIC] Processing message from ${sender} ${playerId}: ${playerName}`);
-        
-        // Get or create session using Staff Portal logic
-        const session = await this.getOrCreateSession(playerId, playerName);
-        
-        // Store message in exact Staff Portal format
-        const messageData = {
-          id: crypto.randomUUID(),
-          session_id: session.id,
-          player_id: playerId,
-          player_name: playerName,
-          message: message.trim(),
-          sender: sender,
-          sender_name: senderName || playerName,
-          timestamp: new Date().toISOString(),
-          status: 'sent',
-          request_id: null
-        };
-
-        const { data, error } = await this.supabaseClient
-          .from('gre_chat_messages')
-          .insert(messageData)
-          .select()
-          .single();
-
-        if (error) {
-          console.error(`❌ [STAFF PORTAL LOGIC] Message insert failed:`, error);
-          throw new Error(`Failed to store message: ${error.message}`);
-        }
-
-        // Update session's last message timestamp
-        await this.supabaseClient
-          .from('gre_chat_sessions')
-          .update({ last_message_at: new Date().toISOString() })
-          .eq('id', session.id);
-
-        console.log(`✅ [STAFF PORTAL LOGIC] Message stored successfully in session ${session.id}`);
-        
-        // UNIFIED CROSS-PORTAL REAL-TIME BROADCASTING
-        this.broadcastToAllConnectedClients({
-          type: 'new_message',
-          message: data,
-          playerId: playerId,
-          senderType: sender
-        });
-        
-        return { success: true, message: data };
-      } catch (error) {
-        console.error(`❌ [STAFF PORTAL LOGIC] Error sending message:`, error);
-        throw error;
-      }
-    }
-
-    async getMessages(playerId) {
-      try {
-        console.log(`📋 [SUPABASE] Fetching messages from database for player ${playerId}`);
-        
-        // Get ALL messages from Supabase database for cross-portal sync
-        const { data: dbMessages, error } = await this.supabaseClient
-          .from('gre_chat_messages')
-          .select('*')
-          .eq('player_id', playerId)
-          .order('created_at', { ascending: true });
-
-        if (error) {
-          console.error(`❌ [SUPABASE] Error fetching messages:`, error);
-          return [];
-        }
-
-        // Convert Supabase format to Player Portal format
-        const messages = dbMessages.map(msg => ({
-          id: msg.id || crypto.randomUUID(),
-          player_id: msg.player_id,
-          player_name: msg.player_name,
-          message: msg.message,
-          sender: msg.sender,  // Fixed: Use 'sender' not 'sender_type'
-          sender_name: msg.sender_name,
-          timestamp: msg.timestamp || msg.created_at,
-          status: msg.status || 'sent'
-        }));
-
-        console.log(`✅ [SUPABASE] Retrieved ${messages.length} messages from database for player ${playerId}`);
-        return messages;
-      } catch (error) {
-        console.error(`❌ [SUPABASE] Error getting messages:`, error);
-        return [];
-      }
-    }
-
-    // UNIFIED CROSS-PORTAL BROADCASTING SYSTEM
-    broadcastToAllConnectedClients(data) {
-      try {
-        // Broadcast to Player Portal WebSocket connections
-        if (typeof playerConnections !== 'undefined' && playerConnections.has(data.playerId)) {
-          const playerWs = playerConnections.get(data.playerId);
-          if (playerWs && playerWs.readyState === 1) { // WebSocket.OPEN = 1
-            playerWs.send(JSON.stringify(data));
-            console.log(`📢 [CROSS-PORTAL] Message broadcasted to Player Portal for player ${data.playerId}`);
-          }
-        }
-
-        // Enhanced Staff Portal visibility logging
-        console.log(`\n🚨 [CROSS-PORTAL ALERT] REAL-TIME MESSAGE UPDATE`);
-        console.log(`============================================`);
-        console.log(`👤 Player ID: ${data.playerId}`);
-        console.log(`📨 Message ID: ${data.message.id}`);
-        console.log(`💬 Content: "${data.message.message}"`);
-        console.log(`🔗 Session: ${data.message.session_id}`);
-        console.log(`👤 Sender: ${data.senderType} (${data.message.sender_name})`);
-        console.log(`📊 Status: ${data.message.status}`);
-        console.log(`⏰ Timestamp: ${data.message.timestamp || data.message.created_at}`);
-        console.log(`============================================`);
-        console.log(`📢 [STAFF PORTAL] Message instantly available in GRE interface`);
-        console.log(`🎯 [STAFF PORTAL] Real-time query ready: gre_chat_messages WHERE session_id = '${data.message.session_id}'`);
-        console.log(`🔄 [UNIFIED SYSTEM] Cross-portal synchronization complete\n`);
-        
-      } catch (error) {
-        console.error(`❌ [CROSS-PORTAL] Broadcasting error:`, error);
-      }
-    }
-
-    async clearChat(playerId) {
-      try {
-        console.log(`🗑️ [SUPABASE] Clearing chat in database for player ${playerId}`);
-        
-        // Clear messages from Supabase database
-        const { error } = await this.supabaseClient
-          .from('gre_chat_messages')
-          .delete()
-          .eq('player_id', playerId);
-
-        if (error) {
-          console.error(`❌ [SUPABASE] Error clearing chat:`, error);
-          throw new Error(`Failed to clear chat: ${error.message}`);
-        }
-
-        console.log(`✅ [SUPABASE] Chat cleared successfully in database for player ${playerId}`);
-        return { success: true };
-      } catch (error) {
-        console.error(`❌ [SUPABASE] Error clearing chat:`, error);
-        throw error;
-      }
-    }
-
-    async setPlayerOnline(playerId, playerName) {
-      try {
-        console.log(`🟢 [SUPABASE] Setting player ${playerId} (${playerName}) online in database`);
-        
-        // Create or update session in Supabase using proper UUID
-        const sessionId = crypto.randomUUID();
-        const { data, error } = await this.supabaseClient
-          .from('gre_chat_sessions')
-          .upsert({
-            id: sessionId,  // Fixed: Use proper UUID format
-            player_id: playerId,
-            player_name: playerName,
-            status: 'active',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .select()
-          .single();
-
-        if (error) {
-          console.log(`⚠️ [SUPABASE] Session creation failed:`, error.message);
-        } else {
-          console.log(`✅ [SUPABASE] Player session created/updated in database`);
-        }
-      } catch (error) {
-        console.log(`⚠️ [SUPABASE] Error setting player online:`, error.message);
-      }
-    }
-
-    async getSystemHealth() {
-      try {
-        const { count, error } = await this.supabaseClient
-          .from('gre_chat_messages')
-          .select('*', { count: 'exact', head: true });
-
-        return {
-          totalMessages: count || 0,
-          databaseConnection: error ? 'failed' : 'healthy',
-          status: error ? 'unhealthy' : 'healthy'
-        };
-      } catch (error) {
-        return {
-          totalMessages: 0,
-          databaseConnection: 'failed',
-          status: 'unhealthy'
-        };
-      }
-    }
-  }
-
-  const staffPortalGreChat = new StaffPortalCompatibleGreChatSystem();
-
-  wss.on('connection', (ws: WebSocket, request) => {
-    console.log('🔗 [WEBSOCKET] New connection established');
-    
-    let playerId: number | null = null;
+  // **UNIFIED WEBSOCKET CONNECTION HANDLER**
+  wss.on('connection', (ws: AuthenticatedWebSocket, request) => {
+    console.log('🔗 [UNIFIED WEBSOCKET] New client connected');
+    ws.isAuthenticated = false;
 
     ws.on('message', async (message) => {
       try {
         const data = JSON.parse(message.toString());
-        console.log('📨 [WEBSOCKET] Received message:', data);
-        console.log('📨 [WEBSOCKET] Message type:', data.type);
-        console.log('📨 [WEBSOCKET] Player ID from message:', data.playerId);
-        console.log('📨 [WEBSOCKET] Current authenticated playerId:', playerId);
+        console.log('📨 [UNIFIED WEBSOCKET] Received:', data.type);
 
-        if (data.type === 'authenticate') {
-          playerId = data.playerId;
-          playerConnections.set(playerId, ws);
-          // Store playerId on WebSocket client for broadcasting
-          ws.playerId = playerId;
-          console.log(`🔐 [STAFF PORTAL AUTH] Player ${playerId} (${data.playerName}) authenticated`);
-          console.log(`📧 [STAFF PORTAL AUTH] Email: ${data.playerEmail}`);
-          
-          // Send Staff Portal compatible confirmation
-          ws.send(JSON.stringify({
-            type: 'authenticated',
-            playerId: playerId,
-            message: 'Successfully connected to GRE chat',
-            timestamp: new Date().toISOString()
-          }));
+        switch (data.type) {
+          case 'authenticate':
+            try {
+              ws.playerId = data.playerId;
+              ws.playerName = data.playerName;
+              ws.playerEmail = data.playerEmail;
+              ws.isAuthenticated = true;
+              
+              playerConnections.set(data.playerId, ws);
+              
+              console.log(`✅ [UNIFIED WEBSOCKET] Player ${data.playerId} authenticated: ${data.playerName}`);
+              
+              ws.send(JSON.stringify({
+                type: 'authenticated',
+                playerId: data.playerId,
+                message: 'Successfully connected to GRE chat',
+                timestamp: new Date().toISOString()
+              }));
 
-          // Notify about Staff Portal connection
-          console.log(`✅ [STAFF PORTAL CONNECTION] Player ${data.playerName} connected to Staff Portal GRE system`);
-        }
+              // Load chat history from Staff Portal
+              const { data: messages, error } = await staffPortalSupabase
+                .from('gre_chat_messages')
+                .select('*')
+                .eq('player_id', data.playerId)
+                .order('created_at', { ascending: true })
+                .limit(50);
 
-        if (data.type === 'player_message' && playerId) {
-          console.log(`💬 [WEBSOCKET] Processing EXACT Staff Portal message format from player ${playerId}`);
-          console.log(`📤 [STAFF PORTAL FORMAT] Player: ${data.playerName}, Email: ${data.playerEmail}, Message: ${data.message}`);
-          
-          try {
-            // Validate EXACT Staff Portal format requirements
-            if (!data.playerId || !data.playerName || !data.playerEmail || !data.message || !data.messageText || !data.timestamp) {
-              console.error('❌ [STAFF PORTAL FORMAT] Missing required fields for Staff Portal compatibility');
+              if (!error && messages) {
+                ws.send(JSON.stringify({
+                  type: 'chat_history',
+                  messages: messages
+                }));
+                console.log(`📋 [UNIFIED WEBSOCKET] Sent ${messages.length} messages to player ${data.playerId}`);
+              }
+              
+            } catch (authError) {
+              console.error('❌ [UNIFIED WEBSOCKET] Authentication failed:', authError);
               ws.send(JSON.stringify({
                 type: 'error',
-                message: 'Invalid message format - missing required Staff Portal fields'
+                message: 'Authentication failed'
+              }));
+            }
+            break;
+
+          case 'player_message':
+            if (!ws.isAuthenticated) {
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: 'Not authenticated'
               }));
               return;
             }
 
-            // Use Staff Portal compatible system with EXACT format
-            const result = await staffPortalGreChat.sendMessage(
-              data.playerId,
-              data.playerName,
-              data.message,
-              'player',
-              data.playerName
-            );
+            try {
+              console.log(`📤 [UNIFIED WEBSOCKET] Processing message from player ${ws.playerId}`);
+              
+              // Find or create chat session
+              let { data: session, error: sessionError } = await staffPortalSupabase
+                .from('gre_chat_sessions')
+                .select('*')
+                .eq('player_id', ws.playerId)
+                .eq('status', 'active')
+                .single();
 
-            console.log(`✅ [STAFF PORTAL] Message from ${data.playerName} (${data.playerEmail}) stored in Supabase`);
-            console.log(`📋 [STAFF PORTAL] Message content: "${data.message}"`);
-            console.log(`⏰ [STAFF PORTAL] Timestamp: ${data.timestamp}`);
+              if (sessionError || !session) {
+                const { data: newSession, error: createError } = await staffPortalSupabase
+                  .from('gre_chat_sessions')
+                  .insert({
+                    player_id: ws.playerId,
+                    player_name: ws.playerName,
+                    status: 'active',
+                    last_message_at: new Date().toISOString()
+                  })
+                  .select()
+                  .single();
 
-            // Send EXACT Staff Portal acknowledgment format
-            ws.send(JSON.stringify({
-              type: 'acknowledgment',
-              message: 'Message delivered to GRE staff',
-              playerId: data.playerId,
-              timestamp: new Date().toISOString()
-            }));
+                if (createError) {
+                  throw new Error(`Failed to create session: ${createError.message}`);
+                }
+                session = newSession;
+                console.log(`✅ [UNIFIED WEBSOCKET] Created new session: ${session.id}`);
+              }
 
-            // Enhanced Staff Portal logging for maximum visibility
-            console.log(`\n🚨 [URGENT GRE ALERT] NEW PLAYER MESSAGE`);
-            console.log(`============================================`);
-            console.log(`👤 Player: ${data.playerName} (ID: ${data.playerId})`);
-            console.log(`📧 Email: ${data.playerEmail}`);
-            console.log(`💬 Message: "${data.message}"`);
-            console.log(`⏰ Timestamp: ${data.timestamp}`);
-            console.log(`📋 Message ID: ${result.message.id}`);
-            console.log(`🔗 Session ID: ${result.message.session_id}`);
-            console.log(`📊 Status: ${result.message.status}`);
-            console.log(`============================================\n`);
-            
-            // Database confirmation for Staff Portal
-            console.log(`📢 [STAFF PORTAL CONFIRMATION] Message stored in 'gre_chat_messages' table`);
-            console.log(`🎯 [STAFF PORTAL ACCESS] Query: SELECT * FROM gre_chat_messages WHERE player_id = ${data.playerId}`);
-            console.log(`🔍 [STAFF PORTAL VISIBILITY] Message should appear with URGENT priority in GRE interface`);
-          } catch (error) {
-            console.error(`❌ [STAFF PORTAL] Error processing message:`, error);
-            ws.send(JSON.stringify({
-              type: 'error',
-              message: 'Failed to send message to Staff Portal system',
-              error: error.message
-            }));
-          }
-        }
+              // Save message to Staff Portal Supabase
+              const { data: savedMessage, error: messageError } = await staffPortalSupabase
+                .from('gre_chat_messages')
+                .insert({
+                  session_id: session.id,
+                  player_id: ws.playerId,
+                  player_name: ws.playerName,
+                  message: data.message,
+                  sender: 'player',
+                  sender_name: ws.playerName,
+                  timestamp: new Date().toISOString(),
+                  status: 'sent'
+                })
+                .select()
+                .single();
 
-        if (data.type === 'get_messages' && playerId) {
-          try {
-            // Get messages from pure Supabase system
-            const messages = await staffPortalGreChat.getMessages(playerId);
-            console.log(`📋 [WEBSOCKET] Fetching ${messages.length} Supabase messages for player ${playerId}`);
+              if (messageError) {
+                throw new Error(`Failed to save message: ${messageError.message}`);
+              }
 
-            ws.send(JSON.stringify({
-              type: 'chat_history',
-              messages: messages
-            }));
-          } catch (error) {
-            console.error(`❌ [WEBSOCKET] Error fetching Supabase messages:`, error);
-            ws.send(JSON.stringify({
-              type: 'chat_history',
-              messages: []
-            }));
-          }
-        }
+              console.log(`✅ [UNIFIED WEBSOCKET] Message saved to Staff Portal: ${savedMessage.id}`);
 
-        if (data.type === 'clear_chat' && playerId) {
-          try {
-            // Clear messages using pure Supabase system
-            const result = await pureSupabaseGreChat.clearChat(playerId);
-            console.log(`🗑️ [WEBSOCKET] Cleared Supabase chat messages for player ${playerId}`);
+              // Update session
+              await staffPortalSupabase
+                .from('gre_chat_sessions')
+                .update({ 
+                  last_message_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', session.id);
 
-            ws.send(JSON.stringify({
-              type: 'chat_cleared',
-              message: 'Chat history cleared successfully'
-            }));
-          } catch (error) {
-            console.error(`❌ [WEBSOCKET] Error clearing Supabase chat:`, error);
-            ws.send(JSON.stringify({
-              type: 'error',
-              message: 'Failed to clear chat'
-            }));
-          }
+              // Send confirmation
+              ws.send(JSON.stringify({
+                type: 'message_sent',
+                message: savedMessage,
+                timestamp: new Date().toISOString()
+              }));
+
+              console.log(`📡 [UNIFIED WEBSOCKET] Message broadcasted to Staff Portal systems`);
+
+            } catch (error: any) {
+              console.error('❌ [UNIFIED WEBSOCKET] Error processing message:', error);
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: error.message || 'Failed to send message'
+              }));
+            }
+            break;
+
+          default:
+            console.log(`❓ [UNIFIED WEBSOCKET] Unknown message type: ${data.type}`);
         }
 
       } catch (error) {
-        console.error('❌ [WEBSOCKET] Error processing message:', error);
+        console.error('❌ [UNIFIED WEBSOCKET] Error parsing message:', error);
         ws.send(JSON.stringify({
           type: 'error',
           message: 'Invalid message format'
@@ -5129,1184 +4873,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
 
     ws.on('close', () => {
-      if (playerId) {
-        playerConnections.delete(playerId);
-        console.log(`🔌 [WEBSOCKET] Player ${playerId} disconnected`);
+      if (ws.playerId) {
+        playerConnections.delete(ws.playerId);
+        console.log(`🔌 [UNIFIED WEBSOCKET] Player ${ws.playerId} disconnected`);
       }
     });
 
     ws.on('error', (error) => {
-      console.error('❌ [WEBSOCKET] Connection error:', error);
+      console.error('❌ [UNIFIED WEBSOCKET] WebSocket error:', error);
     });
   });
 
-  // Function to send messages to specific players (for GRE staff replies)
-  app.post('/api/gre-chat/send-to-player', async (req, res) => {
+  console.log('🚀 [UNIFIED WEBSOCKET] Chat system initialized on /chat-ws');
+
+  // ===== UNIFIED CHAT REST API ENDPOINTS =====
+  
+  // Unified chat message sending endpoint
+  app.post('/api/unified-chat/send', async (req, res) => {
     try {
-      const { playerId, message, greStaffName = 'Guest Relations Team' } = req.body;
-      console.log(`🔄 [GRE WEBSOCKET] Sending temporary message to player ${playerId}`);
-      console.log(`💬 [GRE WEBSOCKET] Message: "${message}" from ${greStaffName}`);
-      
-      // Create temporary GRE message data (stored only in memory)
-      const messageData = {
-        id: crypto.randomUUID(),
-        player_id: parseInt(playerId),
-        player_name: 'Player',
-        message: message.trim(),
-        sender: 'gre',
-        sender_name: greStaffName,
-        timestamp: new Date().toISOString(),
-        status: 'sent'
-      };
-
-      // Get or create temporary message array for this player
-      if (!tempChatMessages.has(parseInt(playerId))) {
-        tempChatMessages.set(parseInt(playerId), []);
-      }
-      
-      // Add GRE message to temporary memory storage (not database)
-      tempChatMessages.get(parseInt(playerId))!.push(messageData);
-      console.log(`✅ [GRE WEBSOCKET] GRE message stored temporarily in memory for player ${playerId}`);
-      console.log(`📊 [GRE WEBSOCKET] Player ${playerId} now has ${tempChatMessages.get(parseInt(playerId))!.length} temporary messages`);
-      
-      // Check WebSocket connection
-      const playerWs = playerConnections.get(parseInt(playerId));
-      console.log(`🔍 [GRE WEBSOCKET] Player ${playerId} WebSocket status:`, {
-        connected: !!playerWs,
-        readyState: playerWs?.readyState || 'not connected',
-        totalConnections: playerConnections.size
-      });
-      
-      if (playerWs && playerWs.readyState === WebSocket.OPEN) {
-        // Send instant WebSocket message with complete message data
-        const wsMessage = {
-          type: 'new_message',
-          message: messageData,
-          timestamp: new Date().toISOString()
-        };
-        
-        playerWs.send(JSON.stringify(wsMessage));
-        console.log(`⚡ [GRE WEBSOCKET] INSTANT delivery to player ${playerId} - millisecond performance`);
-        res.json({ success: true, message: 'Message sent to player via WebSocket', stored: true, messageData });
-      } else {
-        console.log('❌ [GRE WEBSOCKET] Player not connected via WebSocket');
-        res.json({ success: false, message: 'Player not connected via WebSocket', stored: true, messageData });
-      }
-    } catch (error: any) {
-      console.error('❌ [GRE WEBSOCKET] Error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Feedback System API Endpoints
-  app.post("/api/feedback", async (req, res) => {
-    try {
-      const { playerId, message } = req.body;
-      console.log(`📬 [FEEDBACK] Receiving feedback from player ${playerId}`);
-      
-      // Insert feedback into local Supabase
-      const { data, error } = await localSupabase
-        .from('player_feedback')
-        .insert({
-          player_id: playerId,
-          message: message.trim(),
-          status: 'unread'
-        })
-        .select()
-        .single();
-      
-      if (error) {
-        throw new Error(`Failed to submit feedback: ${error.message}`);
-      }
-      
-      console.log(`✅ [FEEDBACK] Feedback submitted successfully - ID: ${data.id}`);
-      res.json({ success: true, feedback: data });
-    } catch (error: any) {
-      console.error(`❌ [FEEDBACK] Error submitting feedback:`, error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // GRE Chat System API Endpoints - Send Message (Pure Supabase)
-  app.post("/api/gre-chat/send", async (req, res) => {
-    try {
-      const { playerId, playerName, message, timestamp } = req.body;
-      console.log(`💬 [GRE CHAT] Receiving Supabase-only message from player ${playerId}: ${playerName}`);
-      
-      // Use pure Supabase system (database only for cross-portal sync)
-      const result = await pureSupabaseGreChat.sendMessage(
-        parseInt(playerId),
-        playerName,
-        message.trim(),
-        'player',
-        playerName
-      );
-
-      console.log(`✅ [GRE CHAT] Message stored in Supabase database for player ${playerId}`);
-
-      // Broadcast message to all connected WebSocket clients for real-time updates
-      const playerConnections = wss.clients;
-      playerConnections.forEach((client) => {
-        if (client.playerId === parseInt(playerId) && client.readyState === WebSocket.OPEN) {
-          console.log(`📢 [GRE WEBSOCKET] Broadcasting new Supabase message to player ${playerId}`);
-          client.send(JSON.stringify({
-            type: 'new_message',
-            message: result.message,
-            timestamp: new Date().toISOString()
-          }));
-        }
-      });
-      
-      console.log(`✅ [GRE CHAT] Supabase message sent successfully - ID: ${result.message.id}`);
-      res.json({ success: true, message: result.message });
-    } catch (error: any) {
-      console.error(`❌ [GRE CHAT] Error sending Supabase message:`, error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // STAFF PORTAL CHAT INTEGRATION - Backend Only (No Widget)
-  // POST /api/chat/send - Send message to staff (connects to Staff Portal's chat_requests table)
-  app.post('/api/chat/send', async (req, res) => {
-    try {
-      console.log('🚀 [STAFF CHAT] Received message for Staff Portal integration');
-      
-      const { playerId, playerName, playerEmail, message, priority = 'urgent' } = req.body;
-      
-      if (!playerId || !playerName || !message) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Missing required fields: playerId, playerName, message' 
-        });
-      }
-
-      console.log(`📤 [STAFF CHAT] Creating chat request for player ${playerId}: "${message}"`);
-      
-      // Save to Staff Portal's chat_requests table as specified
-      const { data, error } = await staffPortalSupabase
-        .from('chat_requests')
-        .insert({
-          player_id: playerId,
-          player_name: playerName,
-          player_email: playerEmail || 'no-email@example.com',
-          subject: message,
-          priority: priority,
-          status: 'waiting'
-          // Note: source column removed due to schema cache issue - default value 'player_portal' will be used
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('❌ [STAFF CHAT] Database error:', error);
-        return res.status(500).json({ 
-          success: false, 
-          error: error.message 
-        });
-      }
-
-      console.log('✅ [STAFF CHAT] Message created successfully:', data.id);
-      console.log(`   Player: ${data.player_name}`);
-      console.log(`   Status: ${data.status}`);
-
-      res.json({ 
-        success: true, 
-        request: data 
-      });
-
-    } catch (error: any) {
-      console.error('❌ [STAFF CHAT] Error:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: 'Internal server error' 
-      });
-    }
-  });
-
-  // GET /api/chat/status/:playerId - Check chat status
-  app.get('/api/chat/status/:playerId', async (req, res) => {
-    try {
-      const { playerId } = req.params;
-      console.log(`📋 [STAFF CHAT] Getting chat status for player ${playerId}`);
-      
-      const { data, error } = await staffPortalSupabase
-        .from('chat_requests')
-        .select('*')
-        .eq('player_id', playerId)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (error) {
-        console.error('❌ [STAFF CHAT] Database error:', error);
-        return res.status(500).json({ 
-          success: false, 
-          error: error.message 
-        });
-      }
-
-      console.log(`✅ [STAFF CHAT] Found ${data?.length || 0} chat requests for player ${playerId}`);
-
-      res.json({ 
-        success: true, 
-        messages: data 
-      });
-
-    } catch (error: any) {
-      console.error('❌ [STAFF CHAT] Error:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: 'Internal server error' 
-      });
-    }
-  });
-
-  // UNIFIED CHAT INTEGRATION - Staff Portal Compatible System (Keep for compatibility)
-  app.post("/api/unified-chat-requests", async (req, res) => {
-    try {
-      console.log('🚀 [UNIFIED CHAT] Received message via unified API');
-      const { playerId, playerName, playerEmail, message, priority = "urgent", source = "poker_room_tracker" } = req.body;
+      const { playerId, playerName, message, senderType = 'player' } = req.body;
       
       if (!playerId || !message) {
-        return res.status(400).json({ 
-          success: false, 
-          error: "playerId and message are required" 
-        });
+        return res.status(400).json({ error: 'Player ID and message are required' });
       }
 
-      console.log(`📤 [UNIFIED CHAT] Creating message for player ${playerId}: "${message}"`);
+      console.log(`📤 [UNIFIED CHAT] Sending message from ${senderType} ${playerId}: ${playerName}`);
       
-      // Create unified chat request using existing gre_chat_messages table structure
-      // Staff Portal has cleared unified system, so we adapt to existing structure
-      const { data: chatRequest, error } = await staffPortalSupabase
+      // Store message in Staff Portal Supabase database
+      const messageData = {
+        id: crypto.randomUUID(),
+        session_id: crypto.randomUUID(), // Create session if needed
+        player_id: playerId,
+        player_name: playerName,
+        message: message.trim(),
+        sender: senderType,
+        sender_name: playerName,
+        timestamp: new Date().toISOString(),
+        status: 'sent'
+      };
+
+      const { data, error } = await staffPortalSupabase
         .from('gre_chat_messages')
-        .insert([{
-          player_id: playerId,
-          player_name: playerName || 'Unknown Player',
-          message: `[${priority.toUpperCase()}] ${message}`,
-          sender: 'player',
-          sender_name: playerName || 'Unknown Player',
-          status: 'sent',
-          created_at: new Date().toISOString()
-        }])
+        .insert(messageData)
         .select()
         .single();
 
       if (error) {
-        console.error('❌ [UNIFIED CHAT] Database error:', error);
-        return res.status(500).json({ 
-          success: false, 
-          error: 'Failed to create chat request' 
-        });
+        console.error(`❌ [UNIFIED CHAT] Message insert failed:`, error);
+        throw new Error(`Failed to store message: ${error.message}`);
       }
 
-      console.log('✅ [UNIFIED CHAT] Message created successfully:', chatRequest.id);
-      console.log(`   Player: ${chatRequest.player_name || chatRequest.sender_name}`);
-      console.log(`   Status: ${chatRequest.status}`);
-
-      // Return in format expected by integration guide
-      res.json({
-        success: true,
-        request: {
-          id: chatRequest.id,
-          player_id: chatRequest.player_id,
-          player_name: chatRequest.player_name || chatRequest.sender_name,
-          message: chatRequest.message,
-          status: chatRequest.status,
-          created_at: chatRequest.created_at
-        },
-        message: 'Message sent to staff successfully'
-      });
-    } catch (error: any) {
-      console.error('❌ [UNIFIED CHAT] Error:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: error.message 
-      });
-    }
-  });
-
-  // Get unified chat requests
-  app.get("/api/unified-chat-requests", async (req, res) => {
-    try {
-      console.log('📋 [UNIFIED CHAT] Fetching all chat requests');
-      
-      const { data: requests, error } = await staffPortalSupabase
-        .from('gre_chat_messages')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (error) {
-        console.error('❌ [UNIFIED CHAT] Error fetching requests:', error);
-        return res.status(500).json({ 
-          success: false, 
-          error: 'Failed to fetch chat requests' 
-        });
+      // Broadcast to WebSocket connections
+      if (playerConnections.has(playerId)) {
+        const ws = playerConnections.get(playerId);
+        if (ws && ws.readyState === 1) {
+          ws.send(JSON.stringify({
+            type: 'new_message',
+            message: data,
+            playerId: playerId
+          }));
+        }
       }
 
-      console.log(`✅ [UNIFIED CHAT] Retrieved ${requests?.length || 0} chat requests`);
-
-      res.json({
-        success: true,
-        requests: requests || []
-      });
-    } catch (error: any) {
+      console.log(`✅ [UNIFIED CHAT] Message stored and broadcasted successfully`);
+      res.json({ success: true, message: data });
+    } catch (error) {
       console.error('❌ [UNIFIED CHAT] Error:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: error.message 
-      });
+      res.status(500).json({ error: error.message });
     }
   });
 
-  // Check unified sync status
-  app.get("/api/unified-sync-status", async (req, res) => {
+  // Get chat messages for a player
+  app.get('/api/unified-chat/messages/:playerId', async (req, res) => {
     try {
-      console.log('🔍 [UNIFIED CHAT] Checking sync status');
+      const { playerId } = req.params;
       
-      // Test database connection using existing gre_chat_messages table
-      const { data: testData, error } = await staffPortalSupabase
-        .from('gre_chat_messages')
-        .select('count(*)')
-        .limit(1);
-
-      const isConnected = !error;
-      const timestamp = new Date().toISOString();
-
-      console.log(`✅ [UNIFIED CHAT] Sync status: ${isConnected ? 'CONNECTED' : 'DISCONNECTED'}`);
-
-      res.json({
-        success: true,
-        status: isConnected ? 'connected' : 'disconnected',
-        timestamp: timestamp,
-        database: 'Staff Portal Supabase',
-        url: 'https://oyhnpnymlezjusnwpjeu.supabase.co'
-      });
-    } catch (error: any) {
-      console.error('❌ [UNIFIED CHAT] Sync status error:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: error.message 
-      });
-    }
-  });
-
-  app.get("/api/gre-chat/messages/:playerId", async (req, res) => {
-    try {
-      const playerId = parseInt(req.params.playerId);
-      console.log(`💬 [GRE CHAT] Fetching AUTHENTIC messages from Staff Portal Supabase for player ${playerId}`);
-      
-      // Get messages directly from Staff Portal Supabase database - NO MOCK DATA
       const { data: messages, error } = await staffPortalSupabase
         .from('gre_chat_messages')
         .select('*')
         .eq('player_id', playerId)
-        .order('created_at', { ascending: true });
-        
-      if (error) {
-        console.error('❌ [SUPABASE] Error fetching messages:', error);
-        throw error;
-      }
-      
-      console.log(`✅ [SUPABASE] Retrieved ${messages?.length || 0} AUTHENTIC messages from Staff Portal database for player ${playerId}`);
-      
-      // Transform to match frontend format with proper player data
-      const transformedMessages = (messages || []).map(msg => ({
-        id: msg.id,
-        player_id: msg.player_id,
-        player_name: msg.player_name,  
-        message: msg.message,
-        sender: msg.sender,
-        sender_name: msg.sender_name,
-        timestamp: msg.created_at,
-        status: 'sent'
-      }));
-      
-      console.log(`✅ [GRE CHAT] Returning ${transformedMessages.length} AUTHENTIC messages for player ${playerId}`);
-      res.json(transformedMessages);
-    } catch (error: any) {
-      console.error(`❌ [GRE CHAT] Error fetching AUTHENTIC messages:`, error);
-      res.json([]); // Return empty array for clean production environment
-    }
-  });
-
-  // Clear chat messages for a player (used by clear chat button)
-  app.delete("/api/gre-chat/messages/:playerId", async (req, res) => {
-    try {
-      const { playerId } = req.params;
-      console.log(`🗑️ [GRE CHAT] Clearing Supabase chat history for player ${playerId}`);
-
-      // Clear messages using pure Supabase system
-      const result = await staffPortalGreChat.clearChat(parseInt(playerId));
-      console.log(`✅ [GRE CHAT] Successfully cleared Supabase chat history for player ${playerId}`);
-      
-      res.json({ success: true, message: 'Chat history cleared successfully' });
-
-    } catch (error) {
-      console.error('❌ [GRE CHAT] Error clearing Supabase chat:', error);
-      res.status(500).json({ error: 'Failed to clear chat history' });
-    }
-  });
-
-  // GRE Chat Close Session Endpoint
-  app.post("/api/gre-chat/close-session/:playerId", async (req, res) => {
-    try {
-      const { playerId } = req.params;
-      const { greStaffName = 'Guest Relations Team' } = req.body;
-      console.log(`🔒 [GRE CHAT] Closing chat session for player ${playerId} by ${greStaffName}`);
-      
-      // Close the chat session in Staff Portal Supabase
-      const { data: session, error } = await staffPortalSupabase
-        .from('gre_chat_sessions')
-        .update({ 
-          status: 'closed',
-          closed_at: new Date().toISOString(),
-          closed_by: greStaffName,
-          updated_at: new Date().toISOString()
-        })
-        .eq('player_id', parseInt(playerId))
-        .eq('status', 'active')
-        .select()
-        .single();
-      
-      if (error) {
-        console.log(`❌ [GRE CHAT] Error closing session:`, error);
-        throw new Error(`Failed to close chat session: ${error.message}`);
-      }
-      
-      // Send close notification via WebSocket
-      const playerConnections = wss.clients;
-      playerConnections.forEach((client) => {
-        if (client.playerId === parseInt(playerId) && client.readyState === WebSocket.OPEN) {
-          console.log(`📢 [GRE WEBSOCKET] Sending close notification to player ${playerId}`);
-          client.send(JSON.stringify({
-            type: 'chat_closed',
-            sessionId: session?.id,
-            message: `Chat session closed by ${greStaffName}`,
-            timestamp: new Date().toISOString()
-          }));
-        }
-      });
-      
-      console.log(`✅ [GRE CHAT] Session closed successfully for player ${playerId}`);
-      res.json({ success: true, message: 'Chat session closed successfully', session });
-    } catch (error: any) {
-      console.error(`❌ [GRE CHAT] Error closing session:`, error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // GRE Staff Portal API Endpoints
-  app.get("/api/gre-chat/requests", async (req, res) => {
-    try {
-      console.log(`📋 [GRE REQUESTS] Fetching all pending chat requests`);
-      
-      // Fetch all pending/unassigned chat requests
-      const { data, error } = await localSupabase
-        .from('gre_chat_requests')
-        .select('*')
-        .in('status', ['pending', 'assigned', 'active'])
-        .order('created_at', { ascending: false })
-        .limit(20);
-      
-      if (error) {
-        throw new Error(`Failed to fetch chat requests: ${error.message}`);
-      }
-      
-      console.log(`✅ [GRE REQUESTS] Retrieved ${data?.length || 0} chat requests`);
-      res.json(data || []);
-    } catch (error: any) {
-      console.error(`❌ [GRE REQUESTS] Error fetching requests:`, error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/gre-chat/assign/:requestId", async (req, res) => {
-    try {
-      const { requestId } = req.params;
-      const { greId, greName } = req.body;
-      console.log(`👤 [GRE ASSIGN] GRE ${greName} (${greId}) taking request ${requestId}`);
-      
-      // Assign the request to the GRE
-      const { data, error } = await localSupabase
-        .from('gre_chat_requests')
-        .update({
-          status: 'assigned',
-          assigned_gre_id: greId,
-          assigned_gre_name: greName,
-          assigned_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', requestId)
-        .eq('status', 'pending') // Only assign if still pending
-        .select()
-        .single();
-      
-      if (error) {
-        throw new Error(`Failed to assign chat request: ${error.message}`);
-      }
-      
-      if (!data) {
-        return res.status(409).json({ error: 'Request already assigned to another GRE' });
-      }
-      
-      console.log(`✅ [GRE ASSIGN] Request ${requestId} assigned to ${greName}`);
-      res.json({ success: true, request: data });
-    } catch (error: any) {
-      console.error(`❌ [GRE ASSIGN] Error assigning request:`, error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/gre-chat/gre-message", async (req, res) => {
-    try {
-      const { requestId, greId, greName, message } = req.body;
-      console.log(`💬 [GRE MESSAGE] GRE ${greName} sending message for request ${requestId}`);
-      
-      // Get request details
-      const { data: request, error: requestError } = await localSupabase
-        .from('gre_chat_requests')
-        .select('*')
-        .eq('id', requestId)
-        .single();
-      
-      if (requestError || !request) {
-        throw new Error(`Chat request not found: ${requestError?.message || 'Request does not exist'}`);
-      }
-      
-      // Insert GRE message
-      const { data, error } = await localSupabase
-        .from('gre_chat_messages')
-        .insert({
-          player_id: request.player_id,
-          player_name: request.player_name,
-          message: message.trim(),
-          sender: 'gre',
-          sender_name: greName,
-          request_id: requestId,
-          timestamp: new Date().toISOString(),
-          status: 'sent'
-        })
-        .select()
-        .single();
-      
-      if (error) {
-        throw new Error(`Failed to send GRE message: ${error.message}`);
-      }
-      
-      // Update request status to active
-      await localSupabase
-        .from('gre_chat_requests')
-        .update({
-          status: 'active',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', requestId);
-      
-      console.log(`✅ [GRE MESSAGE] Message sent successfully - ID: ${data.id}`);
-      res.json({ success: true, message: data });
-    } catch (error: any) {
-      console.error(`❌ [GRE MESSAGE] Error sending message:`, error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // VIP Points Calculation System API Endpoints
-  app.post("/api/vip-points/record-session", async (req, res) => {
-    try {
-      const { playerId, tableId, bigBlindAmount, rsPlayed, sessionDuration } = req.body;
-      console.log(`🏆 [VIP POINTS] Recording session for player ${playerId} - Rs ${rsPlayed} played`);
-      
-      // Record game session
-      const { data: session, error: sessionError } = await localSupabase
-        .from('game_sessions_vip')
-        .insert({
-          player_id: playerId,
-          table_id: tableId,
-          big_blind_amount: bigBlindAmount,
-          rs_played: rsPlayed,
-          session_end: new Date().toISOString()
-        })
-        .select()
-        .single();
-      
-      if (sessionError) {
-        throw new Error(`Failed to record session: ${sessionError.message}`);
-      }
-      
-      // Update player's total Rs played
-      await localSupabase
-        .from('players')
-        .update({
-          total_rs_played: `total_rs_played + ${rsPlayed}`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', playerId);
-      
-      // Record daily visit
-      const today = new Date().toISOString().split('T')[0];
-      await localSupabase
-        .from('daily_visits')
-        .upsert({
-          player_id: playerId,
-          visit_date: today
-        }, {
-          onConflict: 'player_id,visit_date'
-        });
-      
-      console.log(`✅ [VIP POINTS] Session recorded successfully - ID: ${session.id}`);
-      res.json({ success: true, session });
-    } catch (error: any) {
-      console.error(`❌ [VIP POINTS] Error recording session:`, error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.get("/api/vip-points/calculate/:playerId", async (req, res) => {
-    try {
-      const { playerId } = req.params;
-      const currentMonth = new Date().toISOString().substring(0, 7); // YYYY-MM format
-      console.log(`🏆 [VIP POINTS] Calculating VIP points for player ${playerId} - Month: ${currentMonth}`);
-      
-      // For demonstration purposes, use realistic sample data until Supabase tables are created
-      // This can be replaced with actual database queries once VIP tables are set up
-      
-      // Sample game sessions data
-      const sampleSessions = [
-        { buy_in_amount: 5000, hours_played: 2.5 },
-        { buy_in_amount: 10000, hours_played: 4.0 },
-        { buy_in_amount: 7500, hours_played: 3.2 }
-      ];
-      
-      // Sample daily visits (19 days in July)
-      const sampleVisitFrequency = 19;
-      
-      // Sample total Hours played
-      const sampleTotalHoursPlayed = 15.5;
-      
-      // Calculate VIP Points using the updated formula
-      // Formula: VIP Points = (Buy-in × 0.1) + (Hours Played × 3) + (Visit Frequency × 5)
-      
-      const avgBuyIn = sampleSessions.length > 0 ? 
-        sampleSessions.reduce((sum, s) => sum + s.buy_in_amount, 0) / sampleSessions.length : 0;
-      const totalHoursPlayed = sampleTotalHoursPlayed;
-      const visitFrequency = sampleVisitFrequency;
-      
-      const buyInPoints = avgBuyIn * 0.1;
-      const hoursPlayedPoints = totalHoursPlayed * 3;
-      const frequencyPoints = visitFrequency * 5;
-      const totalVipPoints = buyInPoints + hoursPlayedPoints + frequencyPoints;
-      
-      console.log(`✅ [VIP POINTS] Calculated ${totalVipPoints} points for player ${playerId}`);
-      console.log(`📊 [VIP POINTS] Breakdown: BuyIn(${avgBuyIn}×0.1=${buyInPoints}) + Hours(${totalHoursPlayed}×3=${hoursPlayedPoints}) + Visits(${visitFrequency}×5=${frequencyPoints})`);
-      
-      res.json({
-        success: true,
-        calculation: {
-          avgBuyIn,
-          totalHoursPlayed,
-          visitFrequency,
-          buyInPoints,
-          hoursPlayedPoints,
-          frequencyPoints,
-          totalVipPoints,
-          formula: 'VIP Points = (Buy-in × 0.1) + (Hours Played × 3) + (Visit Frequency × 5)',
-          note: 'Using sample data - connect to Supabase VIP tables for live data'
-        }
-      });
-    } catch (error: any) {
-      console.error(`❌ [VIP POINTS] Error calculating points:`, error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // VIP Points Redemption Endpoint
-  app.post("/api/vip-points/redeem", async (req, res) => {
-    try {
-      const { playerId, redemptionType, pointsRequired } = req.body;
-      console.log(`🏆 [VIP REDEMPTION] Player ${playerId} requesting ${redemptionType} for ${pointsRequired} points`);
-      
-      // For demonstration purposes, create a mock redemption request
-      // This would typically save to a database table like 'vip_redemption_requests'
-      const redemptionRequest = {
-        id: `req_${Date.now()}`,
-        playerId,
-        redemptionType,
-        pointsRequired,
-        status: 'pending_approval',
-        requestedAt: new Date().toISOString(),
-        approvedBy: null,
-        approvedAt: null
-      };
-      
-      console.log(`✅ [VIP REDEMPTION] Created redemption request:`, redemptionRequest);
-      
-      res.json({
-        success: true,
-        redemptionRequest,
-        message: `Your ${redemptionType} redemption request has been submitted for approval.`
-      });
-    } catch (error: any) {
-      console.error(`❌ [VIP REDEMPTION] Error processing redemption:`, error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/vip-points/redeem", async (req, res) => {
-    try {
-      const { playerId, redemptionType, pointsRequired } = req.body;
-      console.log(`🎁 [VIP REDEMPTION] Player ${playerId} requesting ${redemptionType} for ${pointsRequired} points`);
-      
-      // Check if player has enough points
-      const { data: player, error: playerError } = await localSupabase
-        .from('players')
-        .select('current_vip_points, first_name, last_name')
-        .eq('id', playerId)
-        .single();
-      
-      if (playerError || !player) {
-        throw new Error(`Player not found: ${playerError?.message || 'Player does not exist'}`);
-      }
-      
-      const currentPoints = parseFloat(player.current_vip_points || '0');
-      if (currentPoints < pointsRequired) {
-        return res.status(400).json({ 
-          error: 'Insufficient VIP points',
-          currentPoints,
-          required: pointsRequired
-        });
-      }
-      
-      // Create redemption request for approval
-      const { data: redemption, error: redemptionError } = await localSupabase
-        .from('vip_redemption_requests')
-        .insert({
-          player_id: playerId,
-          redemption_type: redemptionType,
-          points_required: pointsRequired,
-          points_redeemed: pointsRequired,
-          status: 'pending'
-        })
-        .select()
-        .single();
-      
-      if (redemptionError) {
-        throw new Error(`Failed to create redemption request: ${redemptionError.message}`);
-      }
-      
-      console.log(`✅ [VIP REDEMPTION] Request created - ID: ${redemption.id} (Pending approval)`);
-      res.json({ 
-        success: true, 
-        redemption,
-        message: 'Redemption request sent for approval to Cashier and Admin'
-      });
-    } catch (error: any) {
-      console.error(`❌ [VIP REDEMPTION] Error creating request:`, error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Cashier and Admin approval endpoints
-  app.post("/api/vip-points/approve-cashier/:redemptionId", async (req, res) => {
-    try {
-      const { redemptionId } = req.params;
-      const { cashierId, cashierName } = req.body;
-      console.log(`💰 [CASHIER APPROVAL] Cashier ${cashierName} approving redemption ${redemptionId}`);
-      
-      const { data, error } = await localSupabase
-        .from('vip_redemption_requests')
-        .update({
-          cashier_approved_by: cashierId,
-          cashier_approved_at: new Date().toISOString(),
-          status: 'approved',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', redemptionId)
-        .eq('status', 'pending')
-        .select()
-        .single();
-      
-      if (error || !data) {
-        throw new Error(`Failed to approve redemption: ${error?.message || 'Request not found or already processed'}`);
-      }
-      
-      console.log(`✅ [CASHIER APPROVAL] Redemption ${redemptionId} approved by cashier`);
-      res.json({ success: true, redemption: data });
-    } catch (error: any) {
-      console.error(`❌ [CASHIER APPROVAL] Error:`, error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post("/api/vip-points/approve-admin/:redemptionId", async (req, res) => {
-    try {
-      const { redemptionId } = req.params;
-      const { adminId, adminName } = req.body;
-      console.log(`👑 [ADMIN APPROVAL] Admin ${adminName} approving redemption ${redemptionId}`);
-      
-      const { data, error } = await localSupabase
-        .from('vip_redemption_requests')
-        .update({
-          admin_approved_by: adminId,
-          admin_approved_at: new Date().toISOString(),
-          status: 'completed',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', redemptionId)
-        .eq('status', 'approved')
-        .select()
-        .single();
-      
-      if (error || !data) {
-        throw new Error(`Failed to complete redemption: ${error?.message || 'Request not found or not cashier-approved'}`);
-      }
-      
-      // Deduct points from player after final approval
-      await localSupabase
-        .from('players')
-        .update({
-          current_vip_points: `current_vip_points - ${data.points_redeemed}`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', data.player_id);
-      
-      console.log(`✅ [ADMIN APPROVAL] Redemption ${redemptionId} completed and points deducted`);
-      res.json({ success: true, redemption: data });
-    } catch (error: any) {
-      console.error(`❌ [ADMIN APPROVAL] Error:`, error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Push Notifications API Endpoints (Updated - remove duplicate)
-  // This endpoint is handled above with staffPortalSupabase - removing duplicate
-
-  app.post("/api/push-notifications", async (req, res) => {
-    try {
-      const { 
-        senderId, 
-        senderName, 
-        senderRole, 
-        targetPlayerId, 
-        title, 
-        message, 
-        priority = 'normal',
-        broadcastToAll = false 
-      } = req.body;
-      
-      console.log(`📱 [PUSH_NOTIFICATION] Sending notification: ${title}`);
-      
-      // Insert notification into local Supabase
-      const { data, error } = await localSupabase
-        .from('push_notifications')
-        .insert({
-          sender_id: senderId,
-          sender_name: senderName,
-          sender_role: senderRole,
-          target_player_id: targetPlayerId,
-          title: title,
-          message: message,
-          priority: priority,
-          broadcast_to_all: broadcastToAll,
-          status: 'sent'
-        })
-        .select()
-        .single();
-      
-      if (error) {
-        throw new Error(`Failed to send notification: ${error.message}`);
-      }
-      
-      console.log(`✅ [PUSH_NOTIFICATION] Notification sent successfully - ID: ${data.id}`);
-      res.json({ success: true, notification: data });
-    } catch (error: any) {
-      console.error(`❌ [PUSH_NOTIFICATION] Error sending notification:`, error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Enable GRE chat for all existing players
-  app.post("/api/gre-chat/enable-all-players", async (req, res) => {
-    try {
-      console.log(`🔧 [GRE CHAT] Enabling chat for all existing players...`);
-      
-      // Get all players from Player Portal (local Supabase)
-      const { data: players, error: playersError } = await localSupabase
-        .from('players')
-        .select('id, first_name, last_name, email')
-        .eq('is_active', true);
-
-      if (playersError) {
-        throw new Error(`Failed to fetch players: ${playersError.message}`);
-      }
-
-      let enabledCount = 0;
-      let errorCount = 0;
-
-      for (const player of players || []) {
-        try {
-          // Check if chat session already exists
-          const { data: existingSession } = await staffPortalSupabase
-            .from('gre_chat_sessions')
-            .select('id')
-            .eq('player_id', player.id)
-            .single();
-
-          if (!existingSession) {
-            // Create new chat session
-            const { error: sessionError } = await staffPortalSupabase
-              .from('gre_chat_sessions')
-              .insert({
-                player_id: player.id,
-                status: 'active',
-                created_at: new Date().toISOString(),
-                last_message_at: new Date().toISOString()
-              });
-
-            if (sessionError) {
-              console.error(`❌ [GRE CHAT] Error creating session for player ${player.id}:`, sessionError);
-              errorCount++;
-            } else {
-              console.log(`✅ [GRE CHAT] Created session for player ${player.id} (${player.first_name} ${player.last_name})`);
-              enabledCount++;
-            }
-          } else {
-            console.log(`⚡ [GRE CHAT] Session already exists for player ${player.id}`);
-            enabledCount++;
-          }
-        } catch (error) {
-          console.error(`❌ [GRE CHAT] Error processing player ${player.id}:`, error);
-          errorCount++;
-        }
-      }
-
-      console.log(`✅ [GRE CHAT] Chat enablement completed: ${enabledCount} enabled, ${errorCount} errors`);
-      res.json({
-        success: true,
-        message: `GRE chat enabled for ${enabledCount} players`,
-        enabledCount,
-        errorCount,
-        totalPlayers: players?.length || 0
-      });
-    } catch (error: any) {
-      console.error(`❌ [GRE CHAT] Error enabling chat for all players:`, error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Enable GRE chat for specific player
-  app.post("/api/gre-chat/enable-player/:playerId", async (req, res) => {
-    const { playerId } = req.params;
-    try {
-      console.log(`🔧 [GRE CHAT] Enabling chat for player ${playerId}...`);
-      
-      // Check if chat session already exists
-      const { data: existingSession } = await staffPortalSupabase
-        .from('gre_chat_sessions')
-        .select('id')
-        .eq('player_id', parseInt(playerId))
-        .single();
-
-      if (existingSession) {
-        return res.json({
-          success: true,
-          message: `Chat already enabled for player ${playerId}`,
-          sessionId: existingSession.id
-        });
-      }
-
-      // Create new chat session
-      const { data: newSession, error: sessionError } = await staffPortalSupabase
-        .from('gre_chat_sessions')
-        .insert({
-          player_id: parseInt(playerId),
-          status: 'active',
-          created_at: new Date().toISOString(),
-          last_message_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (sessionError) {
-        throw new Error(`Failed to create chat session: ${sessionError.message}`);
-      }
-
-      console.log(`✅ [GRE CHAT] Chat session created for player ${playerId}`);
-      res.json({
-        success: true,
-        message: `Chat enabled for player ${playerId}`,
-        sessionId: newSession.id
-      });
-    } catch (error: any) {
-      console.error(`❌ [GRE CHAT] Error enabling chat for player ${playerId}:`, error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Real-time chat health check
-  app.get("/api/gre-chat/health", async (req, res) => {
-    try {
-      console.log(`🔍 [GRE CHAT] Checking system health...`);
-      
-      // Check Staff Portal Supabase connection
-      const { data: sessions, error: sessionsError } = await staffPortalSupabase
-        .from('gre_chat_sessions')
-        .select('id')
-        .limit(1);
-
-      const { data: messages, error: messagesError } = await staffPortalSupabase
-        .from('gre_chat_messages')
-        .select('id')
-        .limit(1);
-
-      const { data: agents, error: agentsError } = await staffPortalSupabase
-        .from('gre_online_status')
-        .select('gre_id')
-        .limit(1);
-
-      const health = {
-        timestamp: new Date().toISOString(),
-        staffPortalConnection: !sessionsError,
-        chatSessionsTable: !sessionsError,
-        chatMessagesTable: !messagesError,
-        onlineStatusTable: !agentsError,
-        errors: {
-          sessions: sessionsError?.message || null,
-          messages: messagesError?.message || null,
-          agents: agentsError?.message || null
-        }
-      };
-
-      const allHealthy = health.staffPortalConnection && 
-                         health.chatSessionsTable && 
-                         health.chatMessagesTable && 
-                         health.onlineStatusTable;
-
-      console.log(`✅ [GRE CHAT] Health check completed - Status: ${allHealthy ? 'Healthy' : 'Issues Detected'}`);
-      res.json({
-        healthy: allHealthy,
-        ...health
-      });
-    } catch (error: any) {
-      console.error(`❌ [GRE CHAT] Health check error:`, error);
-      res.status(500).json({
-        healthy: false,
-        error: error.message,
-        timestamp: new Date().toISOString()
-      });
-    }
-  });
-
-  // GRE Admin API endpoints for Staff Portal integration
-  app.get("/api/gre-admin/chat-sessions", async (req, res) => {
-    try {
-      console.log('🎯 [GRE ADMIN] Fetching all active chat sessions...');
-      
-      const { data: sessions, error } = await staffPortalSupabase
-        .from('gre_chat_sessions')
-        .select(`
-          *,
-          gre_chat_messages(*)
-        `)
-        .eq('status', 'active')
-        .order('last_message_at', { ascending: false });
-      
-      if (error) {
-        console.error('❌ [GRE ADMIN] Error fetching chat sessions:', error);
-        return res.status(500).json({ error: "Failed to fetch chat sessions" });
-      }
-      
-      console.log(`✅ [GRE ADMIN] Retrieved ${sessions?.length || 0} active chat sessions`);
-      res.json(sessions || []);
-    } catch (error: any) {
-      console.error('❌ [GRE ADMIN] Error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.get("/api/gre-admin/chat-sessions/:sessionId/messages", async (req, res) => {
-    try {
-      const { sessionId } = req.params;
-      console.log(`🎯 [GRE ADMIN] Fetching messages for session: ${sessionId}`);
-      
-      const { data: messages, error } = await staffPortalSupabase
-        .from('gre_chat_messages')
-        .select('*')
-        .eq('session_id', sessionId)
         .order('timestamp', { ascending: true });
-      
+
       if (error) {
-        console.error('❌ [GRE ADMIN] Error fetching messages:', error);
-        return res.status(500).json({ error: "Failed to fetch messages" });
+        console.error(`❌ [UNIFIED CHAT] Error fetching messages:`, error);
+        return res.status(500).json({ error: error.message });
       }
-      
-      console.log(`✅ [GRE ADMIN] Retrieved ${messages?.length || 0} messages for session ${sessionId}`);
+
       res.json(messages || []);
-    } catch (error: any) {
-      console.error('❌ [GRE ADMIN] Error:', error);
+    } catch (error) {
+      console.error('❌ [UNIFIED CHAT] Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
-
-  app.post("/api/gre-admin/chat-sessions/:sessionId/reply", async (req, res) => {
-    try {
-      const { sessionId } = req.params;
-      const { message, greId, greName } = req.body;
-      
-      console.log(`🎯 [GRE ADMIN] Sending reply to session: ${sessionId}`);
-      
-      // Get session details
-      const { data: session, error: sessionError } = await staffPortalSupabase
-        .from('gre_chat_sessions')
-        .select('player_id')
-        .eq('id', sessionId)
-        .single();
-      
-      if (sessionError) {
-        throw new Error(`Session not found: ${sessionError.message}`);
-      }
-      
-      // Insert GRE reply message
-      const { data: replyMessage, error: messageError } = await staffPortalSupabase
-        .from('gre_chat_messages')
-        .insert({
-          session_id: sessionId,
-          player_id: session.player_id,
-          message: message.trim(),
-          sender: 'gre',
-          sender_name: greName || 'Guest Relations',
-          timestamp: new Date().toISOString(),
-          status: 'sent',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          request_id: 0
-        })
-        .select()
-        .single();
-      
-      if (messageError) {
-        throw new Error(`Failed to send reply: ${messageError.message}`);
-      }
-      
-      // Update session with GRE assignment and last message time
-      await staffPortalSupabase
-        .from('gre_chat_sessions')
-        .update({
-          gre_id: greId,
-          last_message_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', sessionId);
-      
-      console.log(`✅ [GRE ADMIN] Reply sent successfully - Message ID: ${replyMessage.id}`);
-      res.json({ success: true, message: replyMessage });
-    } catch (error: any) {
-      console.error('❌ [GRE ADMIN] Error sending reply:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Tournament Management API endpoints
   
   // Get all tournaments from staff portal
   app.get("/api/tournaments", async (req, res) => {

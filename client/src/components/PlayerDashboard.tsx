@@ -52,7 +52,7 @@ import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
-import StaffPortalChatWidget from "./StaffPortalChatWidget";
+import UnifiedChatSystem from "./UnifiedChatSystem";
 
 
 // Scrollable Offers Display Component
@@ -2618,9 +2618,9 @@ export default function PlayerDashboard() {
                   </CardContent>
                 </Card>
 
-                {/* Staff Portal Chat Widget - TESTING */}
+                {/* Unified Chat System - Cross-Portal GRE Communication */}
                 {user && (
-                  <StaffPortalChatWidget 
+                  <UnifiedChatSystem 
                     playerId={String(user.id)}
                     playerName={`${user.firstName} ${user.lastName}`}
                     playerEmail={user.email}
