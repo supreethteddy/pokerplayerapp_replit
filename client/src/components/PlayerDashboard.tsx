@@ -2621,25 +2621,108 @@ export default function PlayerDashboard() {
                           });
                         });
                         
-                        // Remove duplicates and sort WITH LOGGING
-                        const uniqueMessages = allMessages.filter((message, index, arr) => {
-                          const isDuplicate = index !== arr.findIndex(m => 
-                            m.message === message.message && 
-                            Math.abs(new Date(m.timestamp || m.created_at).getTime() - new Date(message.timestamp || message.created_at).getTime()) < 1000
-                          );
+                        // 🚨 GOD-LEVEL FILTER BYPASS FOR DEBUG - SHOW ALL MESSAGES
+                        console.log('🚨 GOD-LEVEL FILTER BYPASS ACTIVE - SHOWING ALL MESSAGES');
+                        
+                        // Log every field comparison for user ID matching
+                        allMessages.forEach((msg, idx) => {
+                          console.log(`🔍 RAW MSG ${idx + 1}:`, msg);
                           
-                          if (isDuplicate) {
-                            console.log(`🔄 DUPLICATE REMOVED: Message ${index + 1}`, {
-                              messageId: message.id,
-                              messagePreview: message.message?.substring(0, 30) + '...',
-                              reason: 'DUPLICATE_CONTENT_AND_TIMESTAMP'
+                          // Test all possible field/type combinations
+                          const fieldTests = [
+                            { field: 'playerId', value: msg.playerId, type: typeof msg.playerId },
+                            { field: 'player_id', value: msg.player_id, type: typeof msg.player_id },
+                            { field: 'playerid', value: msg.playerid, type: typeof msg.playerid },
+                            { field: 'PlayerId', value: msg.PlayerId, type: typeof msg.PlayerId }
+                          ];
+                          
+                          const userIdTests = [
+                            { field: 'user.id', value: user.id, type: typeof user.id },
+                            { field: 'user.id (string)', value: String(user.id), type: typeof String(user.id) },
+                            { field: 'user.id (number)', value: Number(user.id), type: typeof Number(user.id) }
+                          ];
+                          
+                          console.log(`[FILTER-TEST] Message ${idx + 1} Field Tests:`, fieldTests);
+                          console.log(`[FILTER-TEST] User ID Tests:`, userIdTests);
+                          
+                          // Test all combinations
+                          fieldTests.forEach(field => {
+                            userIdTests.forEach(userId => {
+                              const matches = field.value === userId.value;
+                              const typesMatch = field.type === userId.type;
+                              console.log(`[FILTER-TEST] ${field.field}(${field.value},${field.type}) === ${userId.field}(${userId.value},${userId.type}) = ${matches} (types match: ${typesMatch})`);
+                            });
+                          });
+                          
+                          // Current filter result
+                          const currentFilterResult = (msg.player_id || msg.playerId) === user.id;
+                          console.log(`[CURRENT-FILTER] Message ${idx + 1} would be ${currentFilterResult ? 'INCLUDED' : 'DROPPED'}`);
+                          
+                          if (!currentFilterResult) {
+                            console.warn('❌ [FILTER-DROP] Message details:', {
+                              messageId: msg.id,
+                              allFields: Object.keys(msg),
+                              playerIdFields: {
+                                playerId: msg.playerId,
+                                player_id: msg.player_id,
+                                playerid: msg.playerid,
+                                PlayerId: msg.PlayerId
+                              },
+                              userIdValue: user.id,
+                              userIdType: typeof user.id,
+                              reason: 'FIELD_TYPE_MISMATCH_OR_MISSING'
                             });
                           }
-                          
-                          return !isDuplicate;
-                        }).sort((a, b) => 
-                          new Date(a.timestamp || a.created_at).getTime() - new Date(b.timestamp || b.created_at).getTime()
-                        );
+                        });
+
+                        // 🎯 GOD-LEVEL NORMALIZED FILTER - HANDLE ALL FIELD/TYPE VARIANTS
+                        function normalizeId(id) {
+                          if (id === null || id === undefined) return null;
+                          // Convert to string, remove leading zeros, then convert back to number
+                          const stringId = String(id).replace(/^0+/, '') || '0';
+                          return parseInt(stringId);
+                        }
+                        
+                        const currentUserId = normalizeId(user.id);
+                        console.log('🎯 NORMALIZED CURRENT USER ID:', currentUserId);
+                        
+                        const uniqueMessages = allMessages
+                          .filter((message, index, arr) => {
+                            // Remove exact duplicates first
+                            const isDuplicate = index !== arr.findIndex(m => 
+                              m.id === message.id || (
+                                m.message === message.message && 
+                                Math.abs(new Date(m.timestamp || m.created_at).getTime() - new Date(message.timestamp || message.created_at).getTime()) < 1000
+                              )
+                            );
+                            
+                            if (isDuplicate) {
+                              console.log(`🔄 DUPLICATE REMOVED: Message ${index + 1}`, {
+                                messageId: message.id,
+                                messagePreview: message.message?.substring(0, 30) + '...',
+                                reason: 'DUPLICATE_CONTENT_AND_TIMESTAMP'
+                              });
+                              return false;
+                            }
+                            
+                            // Apply normalized user filter
+                            const messagePlayerId = normalizeId(message.player_id || message.playerId || message.playerid || message.PlayerId);
+                            const belongs = messagePlayerId === currentUserId;
+                            
+                            console.log(`🎯 NORMALIZED FILTER: Message ${index + 1}:`, {
+                              messageId: message.id,
+                              rawPlayerId: message.player_id || message.playerId,
+                              normalizedPlayerId: messagePlayerId,
+                              currentUserId,
+                              belongs,
+                              decision: belongs ? 'INCLUDE' : 'EXCLUDE'
+                            });
+                            
+                            return belongs;
+                          })
+                          .sort((a, b) => 
+                            new Date(a.timestamp || a.created_at).getTime() - new Date(b.timestamp || b.created_at).getTime()
+                          );
                         
                         console.log('✅ GOD-LEVEL DEBUG: DEDUPLICATION COMPLETE');
                         console.log('UNIQUE MESSAGES COUNT:', uniqueMessages.length);
@@ -2657,6 +2740,9 @@ export default function PlayerDashboard() {
                           totalMessagesToRender: uniqueMessages.length
                         });
                         
+                        console.log('🎯 SHOWING NORMALIZED FILTERED MESSAGES FOR CURRENT USER');
+                        console.log('TOTAL MESSAGES TO RENDER:', uniqueMessages.length);
+                        
                         return uniqueMessages.length > 0 ? uniqueMessages.map((message: any, index: number) => {
                           // Log each message as it's being rendered
                           console.log(`RENDERING MESSAGE ${index + 1}:`, {
@@ -2664,7 +2750,10 @@ export default function PlayerDashboard() {
                             sender: message.sender || message.sender_type,
                             isPlayer: message.sender === 'player' || message.sender_type === 'player',
                             isGRE: message.sender === 'gre' || message.sender_type === 'gre',
-                            messageText: message.message?.substring(0, 50) + '...'
+                            messageText: message.message?.substring(0, 50) + '...',
+                            belongsToCurrentUser: (message.player_id || message.playerId) === user.id ? 'YES' : 'NO',
+                            playerIdField: message.player_id || message.playerId,
+                            currentUserId: user.id
                           });
                           
                           return (
@@ -2689,6 +2778,10 @@ export default function PlayerDashboard() {
                                   }`}
                                 >
                                   <p className="text-sm">{message.message}</p>
+                                  {/* 🚨 DEBUG: Show message metadata */}
+                                  <div className="text-xs opacity-60 mt-1 font-mono">
+                                    ID: {message.id?.substring(0,8)}... | Player: {message.player_id || message.playerId} | User: {user.id} | Match: {(message.player_id || message.playerId) === user.id ? 'YES' : 'NO'}
+                                  </div>
                                 </div>
                                 <div className="flex items-center mt-1 space-x-2">
                                   <span className="text-xs text-slate-500">

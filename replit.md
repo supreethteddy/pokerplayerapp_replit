@@ -36,7 +36,7 @@ Preferred communication style: Simple, everyday language.
 - **Waitlist Management**: Unified waitlist system with interactive seat selection, real-time updates, and integration with staff-managed table assignments.
 - **Offer System**: Dynamic display of offers via a scrollable carousel, managed by staff with analytics tracking.
 - **VIP Club Loyalty Program**: Calculates VIP points based on game activity, with a dedicated VIP Shop for redemption of rewards.
-- **Guest Relations (GRE) Chat**: Production-ready real-time bidirectional chat with unified ID mapping, enterprise-grade debug logging, and comprehensive field transformation handling both camelCase/snake_case formats for seamless Player-Staff Portal integration.
+- **Guest Relations (GRE) Chat**: Production-ready real-time bidirectional chat with unified ID mapping, enterprise-grade debug logging, comprehensive field transformation handling both camelCase/snake_case formats, and god-level diagnostic capabilities for immediate issue identification. Includes complete filter bypass mechanisms, normalized field handling, and expert-level troubleshooting infrastructure for seamless Player-Staff Portal integration.
 - **Tournament System**: Displays tournaments from the Staff Portal, allowing players to express interest or register.
 - **Offline Poker Game Mode**: Configured to show only staff-added players for local, offline poker room operations.
 
