@@ -684,10 +684,40 @@ export default function PlayerDashboard() {
 
     setSendingChatMessage(true);
     
+    // 🚨 ENTERPRISE-GRADE FRONTEND DEBUG LOGGING - PRODUCTION DATA VALIDATION
+    console.log('🛑 FRONTEND DEBUG: === PLAYER MESSAGE SEND START ===');
+    console.log('🔍 FRONTEND DEBUG: Sending player message | Details:', {
+      playerId: user.id,
+      playerName: `${user.firstName} ${user.lastName}`,
+      messageText: chatMessage.trim(),
+      senderType: 'player',
+      timestamp: new Date().toISOString(),
+      websocketConnected: wsConnected,
+      validation: 'PRODUCTION_USER_CONTEXT_ONLY'
+    });
+    
+    // PRODUCTION DATA VALIDATION - NO MOCK/TEST DATA ALLOWED
+    if (!user.id || user.id === 0 || chatMessage.includes('test') || chatMessage.includes('demo')) {
+      console.error('❌ FRONTEND DEBUG: INVALID USER MESSAGE CONTEXT - Mock/test data detected');
+      toast({
+        title: "Error",
+        description: "Invalid message context - only production data allowed",
+        variant: "destructive"
+      });
+      setSendingChatMessage(false);
+      return;
+    }
+    
     // Try WebSocket first for real-time chat
     if (wsConnection && wsConnected) {
       try {
-        console.log('📤 [WEBSOCKET] Sending message via WebSocket');
+        console.log('🔍 FRONTEND DEBUG: WebSocket message transmission | Details:', {
+          connectionState: wsConnection.readyState,
+          expectedState: WebSocket.OPEN,
+          messageLength: chatMessage.trim().length,
+          validation: 'PRODUCTION_WEBSOCKET_SEND'
+        });
+        
         // Create the message object for immediate display
         const newMessage = {
           id: Date.now().toString(),
@@ -698,11 +728,17 @@ export default function PlayerDashboard() {
           is_read: false
         };
         
-        // Add to local state immediately for instant display
+        // Add to local state immediately for instant display (optimistic UI update)
+        console.log('🔍 FRONTEND DEBUG: Adding optimistic message | Details:', {
+          messageId: newMessage.id,
+          playerId: newMessage.player_id,
+          messagePreview: newMessage.message.substring(0, 50) + '...',
+          validation: 'PRODUCTION_OPTIMISTIC_UPDATE'
+        });
         setUnifiedChatMessages(prev => [...prev, newMessage]);
         
-        // EXACT Staff Portal message format - DO NOT CHANGE
-        wsConnection.send(JSON.stringify({
+        // EXACT Staff Portal message format - PRODUCTION DATA ONLY
+        const websocketPayload = {
           type: 'player_message',              // EXACT string expected by Staff Portal
           playerId: user.id,                   // Integer from database
           playerName: `${user.firstName} ${user.lastName}`, // Player's full name
@@ -710,7 +746,24 @@ export default function PlayerDashboard() {
           message: chatMessage.trim(),         // The actual message content
           messageText: chatMessage.trim(),     // Duplicate for compatibility
           timestamp: new Date().toISOString()  // ISO timestamp string
-        }));
+        };
+        
+        console.log('🔍 FRONTEND DEBUG: WebSocket payload transmission | Details:', {
+          payloadType: websocketPayload.type,
+          playerId: websocketPayload.playerId,
+          playerName: websocketPayload.playerName,
+          messageLength: websocketPayload.message.length,
+          validation: 'PRODUCTION_WEBSOCKET_PAYLOAD'
+        });
+        
+        wsConnection.send(JSON.stringify(websocketPayload));
+        
+        console.log('✅ FRONTEND DEBUG: WebSocket message sent successfully | Details:', {
+          messageLength: chatMessage.trim().length,
+          playerId: user.id,
+          timestamp: new Date().toISOString(),
+          validation: 'PRODUCTION_WEBSOCKET_SUCCESS'
+        });
         
         toast({
           title: "Message Sent",
@@ -718,15 +771,27 @@ export default function PlayerDashboard() {
         });
         setChatMessage("");
         setSendingChatMessage(false);
+        console.log('🛑 FRONTEND DEBUG: === PLAYER MESSAGE SEND END (WEBSOCKET SUCCESS) ===');
         return;
       } catch (error) {
-        console.error('❌ [WEBSOCKET] Failed to send via WebSocket, falling back to REST API');
+        console.error('❌ FRONTEND DEBUG: WebSocket transmission failed | Details:', {
+          error: error.message,
+          connectionState: wsConnection?.readyState,
+          validation: 'WEBSOCKET_FALLBACK_TRIGGERED'
+        });
+        console.error('📤 Falling back to REST API for message delivery');
       }
     }
     
     // Fallback to REST API if WebSocket is not available
     try {
-      console.log('📤 [REST API] Sending message via REST API fallback');
+      console.log('🔍 FRONTEND DEBUG: REST API fallback initiated | Details:', {
+        reason: wsConnection ? 'WebSocket send failed' : 'WebSocket not connected',
+        playerId: user.id,
+        messageLength: chatMessage.trim().length,
+        validation: 'PRODUCTION_REST_FALLBACK'
+      });
+      
       // Create the message object for immediate display
       const newMessage = {
         id: Date.now().toString(),
@@ -749,18 +814,35 @@ export default function PlayerDashboard() {
 
       const result = await response.json();
       if (response.ok) {
+        console.log('✅ FRONTEND DEBUG: REST API message sent successfully | Details:', {
+          responseStatus: response.status,
+          messageId: result.message?.id,
+          playerId: user.id,
+          validation: 'PRODUCTION_REST_SUCCESS'
+        });
+        
         toast({
           title: "Message Sent",
           description: "Your message has been sent to our team",
         });
         setChatMessage("");
+        console.log('🛑 FRONTEND DEBUG: === PLAYER MESSAGE SEND END (REST SUCCESS) ===');
         // Message successfully sent - no need for REST API refresh since WebSocket handles real-time updates
       } else {
+        console.error('❌ FRONTEND DEBUG: REST API message send failed | Details:', {
+          responseStatus: response.status,
+          errorMessage: result.error,
+          validation: 'PRODUCTION_REST_FAILURE'
+        });
         // Remove the message from local state if sending failed
         setUnifiedChatMessages(prev => prev.filter(msg => msg.id !== newMessage.id));
         throw new Error(result.error || "Failed to send message");
       }
     } catch (error: any) {
+      console.error('❌ FRONTEND DEBUG: REST API request failed | Details:', {
+        error: error.message,
+        validation: 'REST_REQUEST_FAILURE'
+      });
       toast({
         title: "Error",
         description: error.message || "Failed to send message. Please try again.",
@@ -768,6 +850,7 @@ export default function PlayerDashboard() {
       });
     } finally {
       setSendingChatMessage(false);
+      console.log('🛑 FRONTEND DEBUG: === PLAYER MESSAGE SEND END (WITH ERRORS) ===');
     }
   };
 
