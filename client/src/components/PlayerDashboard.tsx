@@ -907,11 +907,35 @@ export default function PlayerDashboard() {
           
           if (data.type === 'chat_history') {
             console.log('📋 [WEBSOCKET] Chat history received:', data.messages.length, 'messages');
-            console.log('🔗 [DEBUG] WebSocket Chat messages:', data.messages);
-            console.log('🔗 [DEBUG] WebSocket Chat messages length:', data.messages.length);
+            
+            // 🛑 GOD-LEVEL DEBUG: COMPLETE CHAT HISTORY ANALYSIS
+            console.log('🛑 GOD-LEVEL DEBUG === CHAT HISTORY PROCESSING ===');
+            console.log('INCOMING MESSAGES FROM WS/DB:', JSON.stringify(data.messages, null, 2));
+            console.log('CURRENT FILTER VARS:', {
+              currentUserId: user.id,
+              currentUserIdType: typeof user.id,
+              totalMessages: data.messages?.length || 0
+            });
+            
+            // Analyze each message for filtering compatibility
+            data.messages?.forEach((msg, index) => {
+              console.log(`MESSAGE ${index + 1} ANALYSIS:`, {
+                messageKeys: Object.keys(msg),
+                playerId: msg.player_id,
+                playerIdType: typeof msg.player_id,
+                sessionId: msg.session_id,
+                sender: msg.sender,
+                messagePreview: msg.message?.substring(0, 30) + '...',
+                willBeFiltered: msg.player_id !== user.id ? 'YES - DROPPED' : 'NO - INCLUDED',
+                filterReason: msg.player_id !== user.id ? `${msg.player_id} !== ${user.id}` : 'ID MATCH'
+              });
+            });
+            
             // Set unified messages - single source of truth
             setUnifiedChatMessages(data.messages || []);
             setChatLoading(false);
+            
+            console.log('✅ GOD-LEVEL DEBUG: Chat history state updated with', data.messages?.length || 0, 'messages');
           }
           
           // 🛑 CRITICAL: GRE MESSAGE PROCESSING WITH COMPLETE DEBUG
@@ -2568,20 +2592,82 @@ export default function PlayerDashboard() {
                           Loading chat history...
                         </div>
                       ) : (() => {
+                        // 🛑 GOD-LEVEL DEBUG: COMPLETE MESSAGE RENDERING ANALYSIS
+                        console.log('🛑 GOD-LEVEL DEBUG === CHAT MESSAGE RENDERING START ===');
+                        console.log('UNIFIED CHAT MESSAGES RAW:', unifiedChatMessages);
+                        console.log('UNIFIED CHAT MESSAGES COUNT:', unifiedChatMessages.length);
+                        console.log('CURRENT USER CONTEXT:', {
+                          userId: user.id,
+                          userIdType: typeof user.id,
+                          userName: `${user.firstName} ${user.lastName}`,
+                          userEmail: user.email
+                        });
+                        
                         // Use unified messages - single source of truth
                         const allMessages = unifiedChatMessages;
                         
-                        // Remove duplicates and sort
+                        // Log every message before deduplication
+                        allMessages.forEach((msg, index) => {
+                          console.log(`RAW MESSAGE ${index + 1} ANALYSIS:`, {
+                            messageId: msg.id,
+                            player_id: msg.player_id,
+                            playerId: msg.playerId,
+                            sender: msg.sender,
+                            sender_type: msg.sender_type,
+                            messagePreview: msg.message?.substring(0, 50) + '...',
+                            timestamp: msg.timestamp || msg.created_at,
+                            rawMessageKeys: Object.keys(msg),
+                            belongsToCurrentUser: (msg.player_id || msg.playerId) === user.id ? 'YES' : 'NO'
+                          });
+                        });
+                        
+                        // Remove duplicates and sort WITH LOGGING
                         const uniqueMessages = allMessages.filter((message, index, arr) => {
-                          return index === arr.findIndex(m => 
+                          const isDuplicate = index !== arr.findIndex(m => 
                             m.message === message.message && 
                             Math.abs(new Date(m.timestamp || m.created_at).getTime() - new Date(message.timestamp || message.created_at).getTime()) < 1000
                           );
+                          
+                          if (isDuplicate) {
+                            console.log(`🔄 DUPLICATE REMOVED: Message ${index + 1}`, {
+                              messageId: message.id,
+                              messagePreview: message.message?.substring(0, 30) + '...',
+                              reason: 'DUPLICATE_CONTENT_AND_TIMESTAMP'
+                            });
+                          }
+                          
+                          return !isDuplicate;
                         }).sort((a, b) => 
                           new Date(a.timestamp || a.created_at).getTime() - new Date(b.timestamp || b.created_at).getTime()
                         );
                         
-                        return uniqueMessages.length > 0 ? uniqueMessages.map((message: any, index: number) => (
+                        console.log('✅ GOD-LEVEL DEBUG: DEDUPLICATION COMPLETE');
+                        console.log('UNIQUE MESSAGES COUNT:', uniqueMessages.length);
+                        console.log('MESSAGES TO RENDER:', uniqueMessages.map(m => ({
+                          id: m.id,
+                          sender: m.sender || m.sender_type,
+                          preview: m.message?.substring(0, 30) + '...',
+                          belongsToUser: (m.player_id || m.playerId) === user.id ? 'YES' : 'NO'
+                        })));
+                        
+                        // 🛑 GOD-LEVEL DEBUG: FINAL RENDERING DECISION
+                        console.log('🛑 GOD-LEVEL DEBUG: FINAL RENDERING DECISION:', {
+                          hasMessages: uniqueMessages.length > 0,
+                          willShowMessages: uniqueMessages.length > 0 ? 'YES' : 'NO - SHOWING EMPTY STATE',
+                          totalMessagesToRender: uniqueMessages.length
+                        });
+                        
+                        return uniqueMessages.length > 0 ? uniqueMessages.map((message: any, index: number) => {
+                          // Log each message as it's being rendered
+                          console.log(`RENDERING MESSAGE ${index + 1}:`, {
+                            messageId: message.id,
+                            sender: message.sender || message.sender_type,
+                            isPlayer: message.sender === 'player' || message.sender_type === 'player',
+                            isGRE: message.sender === 'gre' || message.sender_type === 'gre',
+                            messageText: message.message?.substring(0, 50) + '...'
+                          });
+                          
+                          return (
                           <div
                             key={index}
                             className={`flex ${
@@ -2620,7 +2706,8 @@ export default function PlayerDashboard() {
                               )}
                             </div>
                           </div>
-                        )) : (
+                        );
+                        }) : (
                           <div className="text-center text-slate-400 py-8">
                             <MessageCircle className="w-12 h-12 mx-auto mb-4 text-slate-600" />
                             <h3 className="text-lg font-medium text-slate-300 mb-2">
