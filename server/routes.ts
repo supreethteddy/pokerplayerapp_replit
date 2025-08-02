@@ -5180,20 +5180,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // **REAL-TIME MESSAGE SYNC FUNCTION**
   // Call this whenever a new message is added to refresh all connected clients
   function broadcastMessageUpdate(playerId: number) {
-    console.log('🛑 WEBSOCKET DEBUG: === BIDIRECTIONAL MESSAGE BROADCAST START ===');
+    console.log('🛑 WEBSOCKET DEBUG: === UNIFIED ID MAPPING BROADCAST START ===');
     console.log('🔍 WEBSOCKET DEBUG: Real-time message routing | Details:', {
-      playerId: playerId,
+      targetPlayerId: playerId,
+      playerIdType: typeof playerId,
       routingType: 'TARGETED_PLAYER_ONLY',
       broadcastMode: 'NO_BROADCAST_ALL',
-      validation: 'PRODUCTION_SESSION_MAPPING'
+      validation: 'UNIFIED_ID_MAPPING_APPLIED'
     });
     
-    const connection = playerConnections.get(playerId);
-    console.log('🔍 WEBSOCKET DEBUG: Connection status check | Details:', {
+    // UNIFIED ID MAPPING FIX - Ensure playerId is consistently treated as number
+    const normalizedPlayerId = parseInt(playerId.toString());
+    const connection = playerConnections.get(normalizedPlayerId);
+    
+    console.log('🔍 WEBSOCKET DEBUG: Connection lookup with unified ID | Details:', {
+      originalPlayerId: playerId,
+      normalizedPlayerId: normalizedPlayerId,
       connectionExists: !!connection,
       connectionState: connection?.readyState,
       expectedState: WebSocket.OPEN,
-      playerConnectionsTotal: playerConnections.size
+      playerConnectionsTotal: playerConnections.size,
+      allConnectedPlayerIds: Array.from(playerConnections.keys()),
+      validation: 'UNIFIED_CONNECTION_MAPPING'
     });
     
     if (connection && connection.readyState === WebSocket.OPEN) {

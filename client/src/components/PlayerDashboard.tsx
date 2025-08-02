@@ -909,25 +909,76 @@ export default function PlayerDashboard() {
             setChatLoading(false);
           }
           
-          // Handle Staff Portal message types
+          // 🚨 UNIFIED ID FIELD MAPPING FIX - Handle Staff Portal message types
           if (data.type === 'gre_message') {
-            console.log('💬 [WEBSOCKET] GRE staff response received');
-            const greMessage = {
-              id: Date.now().toString(),
-              player_id: user.id,
-              gre_id: data.greStaffId || 'gre_staff',
-              message: data.content || data.message,
-              sender_type: 'gre',
-              timestamp: data.timestamp || new Date().toISOString(),
-              is_read: false
+            console.log('🔍 FRONTEND DEBUG: GRE message received | Raw payload:', data);
+            
+            // STANDARDIZED MESSAGE TRANSFORMATION - Convert all to consistent camelCase
+            const normalizedGreMessage = {
+              id: data.messageId || data.id || Date.now().toString(),
+              player_id: parseInt(data.playerId) || parseInt(data.player_id) || user.id,
+              session_id: data.sessionId || data.session_id,
+              message: data.message || data.content || data.messageText,
+              sender: 'gre',
+              sender_name: data.greStaffName || data.gre_staff_name || data.sender_name || 'GRE Staff',
+              timestamp: data.timestamp,
+              status: 'sent'
             };
-            setUnifiedChatMessages(prev => [...prev, greMessage]);
-            // Real-time message added via WebSocket - no REST API refresh needed
+            
+            console.log('🔍 FRONTEND DEBUG: Normalized GRE message | Details:', {
+              originalPlayerId: data.playerId || data.player_id,
+              normalizedPlayerId: normalizedGreMessage.player_id,
+              currentUserId: user.id,
+              messagePreview: normalizedGreMessage.message?.substring(0, 50),
+              validation: 'UNIFIED_ID_MAPPING_APPLIED'
+            });
+            
+            // PRODUCTION DATA VALIDATION - Only add if IDs match exactly
+            if (normalizedGreMessage.player_id === user.id) {
+              setUnifiedChatMessages(prev => [...prev, normalizedGreMessage]);
+              console.log('✅ FRONTEND DEBUG: GRE message added to UI | PlayerId match confirmed');
+            } else {
+              console.warn('❌ FRONTEND DEBUG: GRE message rejected - PlayerId mismatch:', {
+                receivedPlayerId: normalizedGreMessage.player_id,
+                expectedPlayerId: user.id,
+                validation: 'ID_MISMATCH_BLOCKED'
+              });
+            }
           }
           
           if (data.type === 'new_message') {
-            console.log('💬 [WEBSOCKET] New message received');
-            setUnifiedChatMessages(prev => [...prev, data.message]);
+            console.log('🔍 FRONTEND DEBUG: New message received | Raw payload:', data);
+            
+            // STANDARDIZED MESSAGE TRANSFORMATION
+            const normalizedMessage = {
+              id: data.message?.id || data.id || Date.now().toString(),
+              player_id: parseInt(data.message?.player_id) || parseInt(data.playerId) || user.id,
+              session_id: data.message?.session_id || data.sessionId,
+              message: data.message?.message || data.content,
+              sender: data.message?.sender || data.sender,
+              sender_name: data.message?.sender_name || data.senderName,
+              timestamp: data.message?.timestamp || data.timestamp,
+              status: data.message?.status || 'sent'
+            };
+            
+            console.log('🔍 FRONTEND DEBUG: Normalized new message | Details:', {
+              originalPlayerId: data.message?.player_id || data.playerId,
+              normalizedPlayerId: normalizedMessage.player_id,
+              currentUserId: user.id,
+              validation: 'UNIFIED_ID_MAPPING_APPLIED'
+            });
+            
+            // PRODUCTION DATA VALIDATION - Only add if IDs match exactly
+            if (normalizedMessage.player_id === user.id) {
+              setUnifiedChatMessages(prev => [...prev, normalizedMessage]);
+              console.log('✅ FRONTEND DEBUG: New message added to UI | PlayerId match confirmed');
+            } else {
+              console.warn('❌ FRONTEND DEBUG: New message rejected - PlayerId mismatch:', {
+                receivedPlayerId: normalizedMessage.player_id,
+                expectedPlayerId: user.id,
+                validation: 'ID_MISMATCH_BLOCKED'
+              });
+            }
             // Real-time message added via WebSocket - no REST API refresh needed
           }
           
