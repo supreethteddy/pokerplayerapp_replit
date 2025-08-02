@@ -4782,7 +4782,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
               // Load chat history from Staff Portal - ALWAYS fetch fresh data
               const { data: messages, error } = await staffPortalSupabase
-                .from('gre_chat_messages')
+                .from('chat_messages')
                 .select('*')
                 .eq('player_id', data.playerId)
                 .order('created_at', { ascending: true })
@@ -4860,44 +4860,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               console.log(`📤 [UNIFIED WEBSOCKET] Processing message from player ${ws.playerId}`);
               
-              // Find or create chat session
-              let { data: session, error: sessionError } = await staffPortalSupabase
-                .from('gre_chat_sessions')
+              // Find or create chat request
+              let { data: chatRequest, error: requestError } = await staffPortalSupabase
+                .from('chat_requests')
                 .select('*')
                 .eq('player_id', ws.playerId)
-                .eq('status', 'active')
+                .in('status', ['waiting', 'active'])
                 .single();
 
-              if (sessionError || !session) {
-                const { data: newSession, error: createError } = await staffPortalSupabase
-                  .from('gre_chat_sessions')
+              if (requestError || !chatRequest) {
+                const { data: newRequest, error: createError } = await staffPortalSupabase
+                  .from('chat_requests')
                   .insert({
                     player_id: ws.playerId,
                     player_name: ws.playerName,
-                    status: 'active',
+                    subject: data.message.substring(0, 200),
+                    message: data.message,
+                    status: 'waiting',
+                    priority: 'normal',
+                    category: 'support',
                     last_message_at: new Date().toISOString()
                   })
                   .select()
                   .single();
 
                 if (createError) {
-                  throw new Error(`Failed to create session: ${createError.message}`);
+                  throw new Error(`Failed to create chat request: ${createError.message}`);
                 }
-                session = newSession;
-                console.log(`✅ [UNIFIED WEBSOCKET] Created new session: ${session.id}`);
+                chatRequest = newRequest;
+                console.log(`✅ [UNIFIED WEBSOCKET] Created new chat request: ${chatRequest.id}`);
               }
 
-              console.log('🔍 WEBSOCKET DEBUG: Session management | Details:', {
-                sessionId: session.id,
-                playerId: session.player_id,
-                playerName: session.player_name,
-                status: session.status,
-                validation: 'PRODUCTION_SESSION_VERIFIED'
+              console.log('🔍 WEBSOCKET DEBUG: Chat request management | Details:', {
+                requestId: chatRequest.id,
+                playerId: chatRequest.player_id,
+                playerName: chatRequest.player_name,
+                status: chatRequest.status,
+                validation: 'PRODUCTION_REQUEST_VERIFIED'
               });
 
               // Prepare message data for insertion
               const messageData = {
-                session_id: session.id,
+                session_id: chatRequest.id, // Use chat request ID as session ID
                 player_id: ws.playerId,
                 player_name: ws.playerName,
                 message: data.message,
@@ -4919,7 +4923,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
               // Save message to Staff Portal Supabase
               const { data: savedMessage, error: messageError } = await staffPortalSupabase
-                .from('gre_chat_messages')
+                .from('chat_messages')
                 .insert(messageData)
                 .select()
                 .single();
@@ -4940,14 +4944,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 validation: 'PRODUCTION_DATA_CONFIRMED'
               });
 
-              // Update session
+              // Update chat request
               await staffPortalSupabase
-                .from('gre_chat_sessions')
+                .from('chat_requests')
                 .update({ 
                   last_message_at: new Date().toISOString(),
                   updated_at: new Date().toISOString()
                 })
-                .eq('id', session.id);
+                .eq('id', chatRequest.id);
 
               // Send confirmation
               ws.send(JSON.stringify({
@@ -5104,10 +5108,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Just insert the message directly
       console.log('📝 [UUID CHAT] Skipping session creation for development - inserting message directly');
       
-      // Insert message with UUID using development database
-      console.log(`🔗 [UUID CHAT] Using development database for message insert`);
+      // Insert message using unified chat_messages table
+      console.log(`🔗 [UUID CHAT] Using unified chat_messages table for insert`);
       const { data: newMessage, error: messageError } = await supabase
-        .from('gre_chat_messages_uuid')
+        .from('chat_messages')
         .insert({
           player_id: playerUUID,
           player_name: playerName || 'Player',
@@ -5129,7 +5133,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Also create a chat request for Staff Portal visibility
       try {
         await supabase
-          .from('chat_requests_uuid')
+          .from('chat_requests')
           .insert({
             player_id: playerUUID,
             player_name: playerName || 'Player',
@@ -5139,7 +5143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             priority: 'normal',
             category: 'support'
           });
-        console.log('✅ [UUID CHAT] Chat request created in development database');
+        console.log('✅ [UUID CHAT] Chat request created in unified database');
       } catch (requestError) {
         console.log('⚠️ [UUID CHAT] Chat request creation failed, continuing:', requestError);
       }
@@ -5208,7 +5212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`🔗 [UUID MESSAGES] Using Development Database (main Supabase connection)`);
       
       const { data: messages, error } = await supabase
-        .from('gre_chat_messages_uuid')
+        .from('chat_messages')
         .select('*')
         .eq('player_id', playerUUID)
         .order('created_at', { ascending: true });
@@ -5261,7 +5265,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create UUID-based chat messages table directly
-      console.log('📋 [UUID SETUP] Creating gre_chat_messages_uuid table...');
+      console.log('📋 [UUID SETUP] Creating unified chat_messages table...');
       
       // Let's test if the tables already exist by attempting to select from them
       const { data: existingRequests, error: requestsCheckError } = await staffPortalSupabase
@@ -5270,7 +5274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .limit(1);
       
       const { data: existingMessages, error: messagesCheckError } = await staffPortalSupabase
-        .from('gre_chat_messages_uuid')
+        .from('chat_messages')
         .select('count')
         .limit(1);
         
@@ -5303,7 +5307,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .single();
           
         const { data: testMessage, error: testMessageError } = await staffPortalSupabase
-          .from('gre_chat_messages_uuid')
+          .from('chat_messages')
           .insert({
             id: 'test-msg-' + crypto.randomUUID(),
             player_id: 'e0953527-a5d5-402c-9e00-8ed590d19cde',
@@ -5377,37 +5381,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Step 2: Get or create a valid session for this player
       let sessionId;
       try {
-        const { data: existingSession } = await staffPortalSupabase
-          .from('gre_chat_sessions')
+        const { data: existingRequest } = await staffPortalSupabase
+          .from('chat_requests')
           .select('id')
           .eq('player_id', playerId)
-          .eq('status', 'active')
+          .in('status', ['waiting', 'active'])
           .maybeSingle();
         
-        if (existingSession) {
-          sessionId = existingSession.id;
-          console.log('✅ [SESSION] Using existing session:', sessionId);
+        if (existingRequest) {
+          sessionId = existingRequest.id;
+          console.log('✅ [REQUEST] Using existing chat request:', sessionId);
         } else {
-          // Create new session for this player
-          const { data: newSession, error: sessionError } = await staffPortalSupabase
-            .from('gre_chat_sessions')
+          // Create new chat request for this player
+          const { data: newRequest, error: requestError } = await staffPortalSupabase
+            .from('chat_requests')
             .insert({
               player_id: parseInt(playerId.toString()),
-              status: 'active',
-              started_at: new Date().toISOString(),
+              player_name: playerName || 'Player',
+              subject: message.substring(0, 200),
+              message: message,
+              status: 'waiting',
+              priority: 'normal',
+              category: 'support',
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             })
             .select('id')
             .single();
           
-          if (sessionError) {
-            console.error('❌ [SESSION] Failed to create session:', sessionError);
-            throw new Error('Failed to create session: ' + sessionError.message);
+          if (requestError) {
+            console.error('❌ [REQUEST] Failed to create chat request:', requestError);
+            throw new Error('Failed to create chat request: ' + requestError.message);
           }
           
-          sessionId = newSession.id;
-          console.log('✅ [SESSION] Created new session:', sessionId);
+          sessionId = newRequest.id;
+          console.log('✅ [REQUEST] Created new chat request:', sessionId);
         }
       } catch (sessionException) {
         console.error('❌ [SESSION] Exception:', sessionException);
@@ -5429,7 +5437,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sender: senderType,
         sender_name: playerName || 'Unknown Player',
         timestamp: new Date().toISOString(),
-        status: 'sent', // Use 'sent' - 'waiting' violates gre_chat_messages constraint
+        status: 'sent', // Use 'sent' - standard chat_messages status
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -5460,14 +5468,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .single();
 
         if (requestError) {
-          console.error('❌ [CHAT REQUEST] Failed to insert, continuing with gre_chat_messages only:', requestError);
-          // Continue with gre_chat_messages insert even if chat_requests fails
+          console.error('❌ [CHAT REQUEST] Failed to insert, continuing with chat_messages only:', requestError);
+          // Continue with chat_messages insert even if chat_requests fails
         } else {
           console.log('✅ [CHAT REQUEST] Successfully created for Staff Portal with waiting status:', requestData.id);
         }
       } catch (requestException) {
-        console.error('❌ [CHAT REQUEST] Exception, continuing with gre_chat_messages:', requestException.message);
-        // Continue with gre_chat_messages insert even if chat_requests fails
+        console.error('❌ [CHAT REQUEST] Exception, continuing with chat_messages:', requestException.message);
+        // Continue with chat_messages insert even if chat_requests fails
       }
 
       // Step 4: Database Insert with Comprehensive Error Handling
@@ -5491,7 +5499,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('🔧 [CLEAN INSERT] Data without problematic fields:', JSON.stringify(cleanData, null, 2));
         
         const { data, error } = await staffPortalSupabase
-          .from('gre_chat_messages')
+          .from('chat_messages')
           .insert(cleanData)
           .select()
           .single();
@@ -5528,7 +5536,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Step 4: Post-Insert Verification
       try {
         const { data: verificationData, error: verifyError } = await staffPortalSupabase
-          .from('gre_chat_messages')
+          .from('chat_messages')
           .select('*')
           .eq('id', insertResult.id)
           .single();
@@ -5637,7 +5645,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Step 2: Build Query with Staff Portal Support
       let query = staffPortalSupabase
-        .from('gre_chat_messages')
+        .from('chat_messages')
         .select('*')
         .eq('player_id', normalizedPlayerId);
 
@@ -5915,7 +5923,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Fetch fresh messages from database
       staffPortalSupabase
-        .from('gre_chat_messages')
+        .from('chat_messages')
         .select('*')
         .eq('player_id', playerId)
         .order('created_at', { ascending: true })
@@ -6031,28 +6039,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ error: updateError.message });
       }
       
-      // Create or update chat session
-      const { data: session, error: sessionError } = await staffPortalSupabase
-        .from('gre_chat_sessions')
-        .upsert({
-          id: crypto.randomUUID(),
-          player_id: updatedRequest.player_id,
-          gre_id: greId || null,
-          status: 'active',
-          started_at: new Date().toISOString(),
-          priority: 'normal',
-          category: 'support',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single();
+      // Chat request is already managed, no need for separate session table
+      console.log('📝 [ACCEPT] Chat request managed directly, no separate session needed');
       
-      console.log('✅ [ACCEPT] Request accepted and session created');
+      console.log('✅ [ACCEPT] Request accepted successfully');
       res.json({
         success: true,
         request: updatedRequest,
-        session: session,
         operationId
       });
       
@@ -6090,18 +6083,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ error: updateError.message });
       }
       
-      // End associated chat session
-      await staffPortalSupabase
-        .from('gre_chat_sessions')
-        .update({
-          status: 'closed',
-          ended_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('player_id', resolvedRequest.player_id)
-        .eq('status', 'active');
+      // Chat request status is already updated to 'resolved', no separate session to close
+      console.log('📝 [RESOLVE] Chat request resolved directly, no separate session to close');
       
-      console.log('✅ [RESOLVE] Request resolved and session closed');
+      console.log('✅ [RESOLVE] Request resolved successfully');
       res.json({
         success: true,
         request: resolvedRequest,
@@ -6122,7 +6107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Fetch all messages for the session
       const { data: messages, error } = await staffPortalSupabase
-        .from('gre_chat_messages')
+        .from('chat_messages')
         .select('*')
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true });
@@ -6180,10 +6165,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Step 2: Fetch ALL chat messages first (no session dependency)
       let allMessages = [];
       try {
-        console.log('🔍 [DEBUG] Querying ALL gre_chat_messages without filters...');
+        console.log('🔍 [DEBUG] Querying ALL chat_messages without filters...');
         
         const { data: rawMessages, error: messageError } = await staffPortalSupabase
-          .from('gre_chat_messages_uuid')
+          .from('chat_messages')
           .select('*')
           .order('created_at', { ascending: false });
         
@@ -6206,7 +6191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (messageQueryError) {
         const dbError = handleChatError(messageQueryError, 'STAFF_MESSAGE_QUERY', {
           operationId,
-          query: 'gre_chat_messages_uuid'
+          query: 'chat_messages_uuid'
         });
         return res.status(500).json({
           error: 'Failed to fetch messages for staff portal',
@@ -6233,11 +6218,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             updated_at: message.created_at,
             assigned_to: null,
             notes: '',
-            gre_chat_messages: []
+            chat_messages: []
           });
         }
         
-        playerSessions.get(playerId).gre_chat_messages.push(message);
+        playerSessions.get(playerId).chat_messages.push(message);
         
         // Update session timestamps
         const session = playerSessions.get(playerId);
@@ -6251,7 +6236,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Step 4: Convert Map to Array and process for Staff Portal display
       const processedSessions = Array.from(playerSessions.values()).map(session => {
-        const messages = session.gre_chat_messages.sort((a, b) => 
+        const messages = session.chat_messages.sort((a, b) => 
           new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         );
         
@@ -6261,7 +6246,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         return {
           ...session,
-          gre_chat_messages: messages, // Include all messages sorted chronologically
+          chat_messages: messages, // Include all messages sorted chronologically
           lastMessage: lastMessage?.message || 'No messages yet',
           lastMessageTime: lastMessage?.created_at || session.created_at,
           messageCount: messages.length,
@@ -6321,7 +6306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`📨 [GRE ADMIN] Fetching messages for player ${playerId}`);
       
       const { data: messages, error } = await staffPortalSupabase
-        .from('gre_chat_messages')
+        .from('chat_messages')
         .select('*')
         .eq('player_id', playerId)
         .order('created_at', { ascending: true });
@@ -6366,7 +6351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Find active session
       const { data: session, error: sessionError } = await staffPortalSupabase
-        .from('gre_chat_sessions')
+        .from('chat_requests')
         .select('*')
         .eq('player_id', playerId)
         .eq('status', 'active')
@@ -6407,7 +6392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const { data: savedMessage, error: messageError } = await staffPortalSupabase
-        .from('gre_chat_messages')
+        .from('chat_messages')
         .insert([greMessage])
         .select()
         .single();
@@ -6456,43 +6441,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log('📊 [GRE ADMIN] Fetching dashboard summary');
       
-      // Get active sessions count
-      const { count: activeSessions } = await staffPortalSupabase
-        .from('gre_chat_sessions')
+      // Get active requests count
+      const { count: activeRequests } = await staffPortalSupabase
+        .from('chat_requests')
         .select('*', { count: 'exact' })
-        .eq('status', 'active');
+        .in('status', ['waiting', 'in_progress']);
 
       // Get total messages today
       const today = new Date().toISOString().split('T')[0];
       const { count: messagesToday } = await staffPortalSupabase
-        .from('gre_chat_messages')
+        .from('chat_messages')
         .select('*', { count: 'exact' })
         .gte('created_at', today + 'T00:00:00Z');
 
-      // Get unread messages (player messages without GRE response)
-      const { data: unreadSessions, error } = await staffPortalSupabase
-        .from('gre_chat_sessions')
-        .select(`
-          id,
-          player_id,
-          player_name,
-          gre_chat_messages(sender, created_at)
-        `)
-        .eq('status', 'active');
+      // Get unread messages (recent player messages without GRE response)
+      const { data: recentMessages, error } = await staffPortalSupabase
+        .from('chat_messages')
+        .select('*')
+        .eq('sender', 'player')
+        .gte('created_at', today + 'T00:00:00Z')
+        .order('created_at', { ascending: false });
 
       let unreadCount = 0;
-      if (!error && unreadSessions) {
-        unreadSessions.forEach(session => {
-          const messages = session.gre_chat_messages || [];
-          const lastMessage = messages[messages.length - 1];
-          if (lastMessage && lastMessage.sender === 'player') {
-            unreadCount++;
-          }
-        });
+      if (!error && recentMessages) {
+        unreadCount = recentMessages.length;
       }
 
       const summary = {
-        activeSessions: activeSessions || 0,
+        activeRequests: activeRequests || 0,
         messagesToday: messagesToday || 0,
         unreadMessages: unreadCount,
         timestamp: new Date().toISOString()
