@@ -1,0 +1,54 @@
+# 🔍 FINAL CROSS-PORTAL CHAT VISIBILITY TROUBLESHOOTING CHECKLIST
+
+## Step 1: **Direct Database Log — Are New Requests Saved?**
+- Go to DB tool or Supabase console. After Player Portal sends a request, run:
+    ```
+    SELECT * FROM chat_requests ORDER BY created_at DESC LIMIT 20;
+    ```
+- If your request is NOT present:
+    - **Player Portal**: Print/log every sent payload and API response. Add a hard fail if "insert succeeded" is not present in API/network response.
+    - **Backend**: In chat request POST handler (`/api/chat-request/create` or similar), log the _exact_ payload, every DB error, and the result of insert. Ensure nothing swallows failures (no `try { /* blank */ } catch {}`).
+    - **Supabase**: Check for RLS (Row Level Security) policies that may block user-level inserts for this environment.
+
+## Step 2: **Field Mapping Audit — What Gets Inserted?**
+- Check the *actual* fields recorded for a test request:
+    - Must include required: `player_id`, `status`, `session_id`, `message_text`, `created_at`.
+    - All must be present, *not null/undefined*, and in **snake_case**.
+- Print/log the stored request—in both API response and in-table.
+
+## Step 3: **Config/Policy Audit (Supabase/Backend)**
+- Temporarily **disable all RLS** on the chat_requests table.
+- Remove session/token requirements for test—try an insert as admin. Does row appear?
+- Ensure Player Portal uses the same Supabase/project instance (same keys, env) as GRE Portal and server API.
+
+## Step 4: **Server/API Hardening**
+- Turn *all* API responses (even errors) into toast/pop-up/in-app debug overlays for users and admins.
+    - Show all silent errors.
+- Print/log *why* an insert is denied or row not created. Print err.code, err.message, and db/state at every step.
+- After every request creation attempt, show instant DB echo: “Request for player_id=X at YYYY-MM-DD inserted” (or error).
+
+## Step 5: **Universal Mapping Failsafe**
+- One final time, **print the outgoing payload from Player Portal AND the backend pre-insert object**.
+- Verify transformations happen in both directions (camelCase, snake_case) on *every* endpoint.
+
+## Step 6: **Test Again, Step-by-Step**
+- Send request as Player. If/when present in DB, refresh GRE tab—with filter removed—and look for request by email/id/timestamp.
+- If missing, trace logs and print to both terminal and on-screen debug panes.
+- If present but still not visible, only then focus on frontend logic in GRE fetch/render.
+
+---
+
+## 🏁 **What Has Been Fixed/Improved**
+
+- [x] All code paths use universal camelCase <-> snake_case field mapping.
+- [x] Type/ID normalization (strings only), UI filter bypass, debug overlays/logs, and a working test suite.
+- [x] Complete error handling and printouts for all API/DB failures, in both consoles and UI.
+
+---
+
+## 🔥 **What Remains**
+
+- Your core issue is now one of DB/insert reality—not code logic.
+- New requests **must show up in the table** before render or event subscription matter.
+- **Resolve insert visibility or RLS issue first; only then debug fetch/render on the GRE side.**
+- Do not proceed until after direct DB validation.
