@@ -1592,11 +1592,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log('📋 [CREDIT REQUESTS] Getting requests for player:', playerId);
       
-      // Handle both numeric and UUID format player IDs
+      // Handle both numeric and UUID format player IDs  
       const { data: requests, error } = await staffPortalSupabase
         .from('credit_requests')
         .select('*')
-        .or(`player_id.eq.${playerId},universal_id.eq.${playerId}`)
+        .eq('player_id', playerId)
         .order('created_at', { ascending: false });
       
       if (error) {

@@ -1,0 +1,77 @@
+# 🟦 Player Portal Chat Integration Alignment Prompt
+
+**Objective:**  
+Unify Player Portal chat logic, UI, and API contract with Staff Portal so that chat, support requests, and message flows operate *seamlessly* across both systems. All chat data must be stored and retrieved from the same unified Supabase tables, and the frontend/backend must use the same schema as the staff portal.
+
+---
+
+## 🔹 What the Staff Portal is Doing
+
+- **Uses ONLY these tables:**  
+  - `chat_requests` (for chat session info, status, and assignment)
+  - `chat_messages` (for individual chat messages)
+- **All columns are in `snake_case`.**  
+  - Chat request fields: `id` (UUID), `player_id`, `status` (`waiting`, `active`, `resolved`), `category`, `subject`, `priority`, `gre_staff_id`, etc.
+  - Chat message fields: `id` (UUID), `chat_request_id`, `player_id`, `sender_id`, `sender_type` (`player`/`gre`), `message_text`, `created_at`.
+- **No camelCase fields or legacy tables allowed.**
+- **All connections use Supabase Auth for UUID-based player/staff identification.**
+- **Messages, assignment, and status updates are in real time via either Supabase subscriptions or WebSocket.**
+- **RLS (Row-Level Security) policies ensure only relevant players and staff can access/chat.**
+
+---
+
+## 🔹 Player Portal Task List
+
+1. **Refactor all chat flows to use ONLY `chat_requests` and `chat_messages`.**
+2. **All API calls must use snake_case field names to match DB** (e.g., `player_id`, not `playerId`).
+3. **When the user sends a support message:**
+     - Check for existing `chat_requests` in `waiting` or `active` for the player.
+     - If not present, create a new `chat_requests` row with `category: 'support'`, `status: 'waiting'`, and related data.
+     - Insert messages into `chat_messages` with correct `chat_request_id` and `player_id`.
+4. **Display all chat request statuses (“waiting”, “active”, “resolved”) just like the staff portal.**
+5. **Sync status changes, assignment, and resolution between staff and player portals in real time.**
+6. **Never reference legacy chat tables or old column names.**
+7. **All frontend models and TypeScript types must match the unified schema.**
+
+---
+
+## 🔹 API Contract Example
+
+**Insert a New Chat Request:**
+{
+player_id: "player-uuid-here",
+category: "support",
+status: "waiting",
+subject: "Issue or Question",
+priority: "normal",
+// ...more fields as required
+}
+
+text
+
+**Insert a Chat Message:**
+{
+chat_request_id: "uuid-from-above",
+player_id: "player-uuid-here",
+sender_id: "player-uuid-here",
+sender_type: "player",
+message_text: "Help, I have a problem!",
+created_at: "auto"
+}
+
+text
+
+---
+
+## 🔹 Final Test
+
+- If a chat is created/resolved in one portal, UI and real-time feed must show the change in the other.
+- If there are *any* discrepancies in chat display or sync, debug for field/table mismatches or stale component logic.
+
+---
+
+**Summary:**  
+_The Player Portal must exactly mirror the Staff Portal’s chat architecture—with no legacy code, schemas, or API contract drift.  
+Test by creating/resolving chats on both sides and verifying cross-portal state and real-time updates._
+
+---

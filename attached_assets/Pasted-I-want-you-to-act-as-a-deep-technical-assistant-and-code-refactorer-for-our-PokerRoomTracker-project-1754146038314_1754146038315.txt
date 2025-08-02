@@ -1,0 +1,63 @@
+I want you to act as a deep technical assistant and code refactorer for our PokerRoomTracker project (and all related portals: Staff, Player, Admin, GRE, HR, Cashier, Master Admin).
+
+Context and Powers Provided:
+
+All source files and project tabs (including shared/schema.ts, client/src/components, pages, server/routes.ts, etc.) are open and available for search and modification.
+
+You can scan, update, and commit changes to both frontend (client, components, forms, ui) and backend/server/api code.
+
+The production Supabase database is fully updated and follows the unified schema:
+
+ONLY use chat_requests and chat_messages for all chat functions.
+
+Core required columns include category, player_id, chat_request_id, gre_staff_id, status, message_text, created_at, timestamp, etc., all in snake_case.
+
+All legacy/old tables such as gre_chat_messages, chat_sessions, chat_messages_uuid must be purged.
+
+Both portals are using Supabase Auth and must use UUIDs for all user/chatter IDs.
+
+The Drizzle ORM schema must exactly match the live Supabase schema (no extra or missing fields, all types correct).
+
+Your AI assignment is to:
+
+Scan the codebase (backend and frontend) for any remaining:
+
+Legacy references to old tables or columns (e.g., camelCase fields, old chat table names).
+
+Any usage of columns or tables that do not exist in Supabase.
+
+Any mismatched field names/types between Drizzle/ORM schema and Supabase.
+
+For all chat flows:
+
+Ensure both player and staff portals only read/write to/from the canonical chat tables and use correct columns.
+
+Refactor any queries, mutations, or models/components (e.g., PlayerDashboard, GreChatDialog, routes.ts) that aren't snake_case or that reference old models.
+
+End-to-end checks:
+
+After each file edit, confirm that all flows (player support chat, staff chat, seat reqs, waitlists) are wired to the unified tables, with correct status changes and joined fields.
+
+Pay special attention to status field handling (waiting/active/resolved), category, created_at/timestamp references, and real UUID usages.
+
+If you find any API or socket event that references the wrong table/column or that would break with the current schema, automatically rewrite it.
+
+Summarize a list of concrete file/line changes or patches made, so Prasidh or any developer can review/merge.
+
+You may:
+
+Move directly into the right files as needed (both client and server).
+
+Generate and paste patches for files like shared/schema.ts, server/routes.ts, and any React UI components that touch the chat or support flows.
+
+Print the before-and-after code for each key change so that it can be copy-pasted/reviewed quickly.
+
+DO NOT:
+
+Leave any legacy table or field reference in use.
+
+Change or guess field names/types that do not align with the current Supabase schema.
+
+Introduce camelCase anywhere; always use snake_case, as per the latest schema.
+
+After refactoring, print instructions or test steps so a human can verify chat, waitlist, and KYC flows are working in the production app.
