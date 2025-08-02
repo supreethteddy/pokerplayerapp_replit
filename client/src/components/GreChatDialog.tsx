@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
+import { createClient } from '@supabase/supabase-js';
 import { useAuth } from "@/hooks/useAuth";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,11 @@ import {
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
+// Initialize Supabase client for UUID authentication
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 interface GreChatDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -27,12 +33,16 @@ interface GreChatDialogProps {
 
 interface ChatMessage {
   id: string;
-  player_id: number;
-  gre_id?: string;
+  player_id: string; // Updated to UUID
+  session_id?: string;
+  player_name?: string;
   message: string;
-  sender_type: 'player' | 'gre';
+  sender: 'player' | 'gre';
+  sender_name?: string;
   timestamp: string;
-  is_read: boolean;
+  status: 'sent' | 'delivered' | 'read';
+  created_at: string;
+  updated_at: string;
 }
 
 export default function GreChatDialog({ isOpen, onClose, messages = [], wsConnection, wsConnected }: GreChatDialogProps) {
@@ -40,67 +50,193 @@ export default function GreChatDialog({ isOpen, onClose, messages = [], wsConnec
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [newMessage, setNewMessage] = useState("");
+  const [uuidChatRequests, setUuidChatRequests] = useState<any[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // UNIFIED CHAT SYSTEM - Staff Portal Integration (EXACT IMPLEMENTATION FROM INTEGRATION GUIDE)
+  // Fetch UUID-based chat requests for current player
+  const { data: chatRequests, isLoading: requestsLoading } = useQuery({
+    queryKey: ['/api/uuid-chat/requests'],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const playerUUID = session?.user?.id;
+      
+      if (!playerUUID) return [];
+      
+      const response = await fetch('/api/uuid-chat/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerUUID })
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch chat requests');
+      return response.json();
+    },
+    refetchInterval: 3000, // Poll every 3 seconds for updates
+    enabled: isOpen && !!user
+  });
+
+  // Hybrid UUID/Legacy message fetching with smart fallback
+  const { data: uuidMessages, isLoading: messagesLoading } = useQuery({
+    queryKey: ['/api/hybrid-chat/messages'],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const playerUUID = session?.user?.id;
+      
+      if (!playerUUID) {
+        console.log('⚠️ [HYBRID] No UUID available, trying legacy approach...');
+        // Fallback to existing legacy message system
+        if (messages && messages.length > 0) {
+          console.log(`✅ [HYBRID] Using legacy messages: ${messages.length}`);
+          return messages;
+        }
+        return [];
+      }
+      
+      // Try UUID-based approach first
+      try {
+        console.log(`🔄 [HYBRID] Attempting UUID fetch for: ${playerUUID}`);
+        const uuidResponse = await fetch('/api/uuid-chat/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerUUID })
+        });
+        
+        if (uuidResponse.ok) {
+          const uuidData = await uuidResponse.json();
+          console.log(`✅ [HYBRID] UUID success: ${uuidData?.length || 0} messages`);
+          return uuidData || [];
+        } else {
+          console.log('⚠️ [HYBRID] UUID failed, status:', uuidResponse.status);
+        }
+      } catch (uuidError) {
+        console.log('⚠️ [HYBRID] UUID error:', uuidError);
+      }
+      
+      // Fallback to legacy system
+      console.log('🔄 [HYBRID] Falling back to legacy messages...');
+      if (messages && messages.length > 0) {
+        console.log(`✅ [HYBRID] Legacy fallback: ${messages.length} messages`);
+        return messages;
+      }
+      
+      // Last resort: empty array
+      console.log('⚠️ [HYBRID] No messages available from any source');
+      return [];
+    },
+    refetchInterval: 3000, // Poll every 3 seconds for new messages
+    enabled: isOpen && !!user
+  });
+
+  // HYBRID CHAT SYSTEM - UUID with Legacy Fallback
   const sendMessage = useMutation({
     mutationFn: async (message: string) => {
-      console.log('🚀 Sending message to Staff Portal via unified API...');
+      console.log('🚀 [HYBRID CHAT] Attempting to send message...');
       
-      // Use Staff Portal's unified chat system - EXACT API FROM INTEGRATION GUIDE
-      const STAFF_PORTAL_API = "http://localhost:5000/api";
+      // Try UUID-based system first
+      const { data: { session } } = await supabase.auth.getSession();
+      const playerUUID = session?.user?.id;
       
-      const playerData = {
-        id: user?.id,
-        fullName: `${user?.firstName} ${user?.lastName}`,
-        email: user?.email || 'no-email@example.com'
-      };
+      if (playerUUID) {
+        try {
+          console.log('📋 [HYBRID] Trying UUID system with UUID:', playerUUID);
+          
+          const playerData = {
+            playerUUID: playerUUID,
+            playerName: `${user?.firstName} ${user?.lastName}`,
+            message: message.trim(),
+            senderType: 'player'
+          };
 
-      const response = await fetch(`${STAFF_PORTAL_API}/chat/send`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache'
-        },
-        body: JSON.stringify({
-          playerId: playerData.id,
-          playerName: playerData.fullName,
-          playerEmail: playerData.email,
+          const response = await fetch('/api/uuid-chat/send', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache'
+            },
+            body: JSON.stringify(playerData)
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            console.log('✅ [HYBRID] UUID system success:', result.message?.id);
+            return {
+              success: true,
+              messageId: result.message?.id,
+              message: 'Message sent via UUID system',
+              system: 'uuid'
+            };
+          } else {
+            console.log('⚠️ [HYBRID] UUID system failed, status:', response.status);
+          }
+        } catch (uuidError) {
+          console.log('⚠️ [HYBRID] UUID system error:', uuidError);
+        }
+      }
+      
+      // Fallback to legacy WebSocket/REST system
+      console.log('🔄 [HYBRID] Falling back to legacy system...');
+      
+      if (wsConnection && wsConnected && wsConnection.readyState === WebSocket.OPEN) {
+        // Use WebSocket for real-time messaging
+        console.log('📤 [HYBRID] Using WebSocket legacy system');
+        const playerMessage = {
+          type: 'player_message',
+          playerId: user?.id,
+          playerName: `${user?.firstName} ${user?.lastName}`,
+          playerEmail: user?.email,
           message: message.trim(),
-          priority: "urgent",
-          source: "poker_room_tracker"
-        })
-      });
-
-      const result = await response.json();
-      
-      if (result.success) {
-        console.log('✅ Message sent to Staff Portal:', result.request.id);
-        console.log('   Player:', result.request.player_name);
-        console.log('   Status:', result.request.status);
-        return {
-          success: true,
-          messageId: result.request.id,
-          message: 'Message sent to staff successfully'
+          messageText: message.trim(),
+          timestamp: new Date().toISOString(),
+          universalId: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          portalOrigin: 'PokerRoomTracker', 
+          targetPortal: 'PokerStaffPortal',
+          messageFormat: 'universal'
+        };
+        
+        wsConnection.send(JSON.stringify(playerMessage));
+        return { 
+          success: true, 
+          message: 'Message sent via WebSocket', 
+          system: 'websocket' 
         };
       } else {
-        throw new Error(result.error || 'Failed to send message');
+        // REST API fallback
+        console.log('🔄 [HYBRID] Using REST API legacy system');
+        const result = await apiRequest("POST", "/api/gre-chat/send", {
+          playerId: user?.id,
+          playerName: `${user?.firstName} ${user?.lastName}`,
+          message,
+          timestamp: new Date().toISOString()
+        });
+        return { 
+          success: true, 
+          message: 'Message sent via REST API', 
+          system: 'rest',
+          ...result 
+        };
       }
     },
     onSuccess: (result) => {
       setNewMessage("");
+      
+      const systemName = result.system === 'uuid' ? 'UUID System' : 
+                        result.system === 'websocket' ? 'WebSocket' : 'REST API';
+      
       toast({
         title: "Message Sent Successfully",
-        description: `Message sent to Staff Portal (ID: ${result.messageId?.substring(0, 8)})`,
+        description: `Message sent via ${systemName}${result.messageId ? ` (ID: ${result.messageId.substring(0, 8)})` : ''}`,
       });
-      // Refresh messages to show the new message
-      queryClient.invalidateQueries({ queryKey: ['/api/gre-chat/messages', user?.id] });
+      
+      // Refresh both UUID and legacy message queries
+      queryClient.invalidateQueries({ queryKey: ['/api/hybrid-chat/messages'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/uuid-chat/messages'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/gre-chat/messages'] });
     },
     onError: (error: Error) => {
-      console.error('❌ [UNIFIED CHAT] Failed to send message:', error);
+      console.error('❌ [HYBRID CHAT] Failed to send message:', error);
       toast({
-        title: "Error",
-        description: `Failed to send message: ${error.message}`,
+        title: "Message Send Failed",
+        description: `All chat systems failed: ${error.message}`,
         variant: "destructive",
       });
     },
@@ -216,7 +352,7 @@ export default function GreChatDialog({ isOpen, onClose, messages = [], wsConnec
                 <MessageCircle className="w-8 h-8 mx-auto mb-2 animate-pulse" />
                 Loading chat history...
               </div>
-            ) : messages.length === 0 ? (
+            ) : (uuidMessages || []).length === 0 ? (
               <div className="text-center text-slate-400 py-8">
                 <MessageCircle className="w-12 h-12 mx-auto mb-4 text-slate-600" />
                 <h3 className="text-lg font-medium text-slate-300 mb-2">
@@ -227,15 +363,15 @@ export default function GreChatDialog({ isOpen, onClose, messages = [], wsConnec
                 </p>
               </div>
             ) : (
-              messages.map((message: ChatMessage) => (
+              (uuidMessages || []).map((message: ChatMessage) => (
                 <div
                   key={message.id}
                   className={`flex ${
-                    message.sender_type === 'player' ? 'justify-end' : 'justify-start'
+                    message.sender === 'player' ? 'justify-end' : 'justify-start'
                   }`}
                 >
                   <div className="flex items-end space-x-2 max-w-[80%]">
-                    {message.sender_type === 'gre' && (
+                    {message.sender === 'gre' && (
                       <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
                         <Headphones className="w-4 h-4 text-white" />
                       </div>
@@ -243,7 +379,7 @@ export default function GreChatDialog({ isOpen, onClose, messages = [], wsConnec
                     <div>
                       <div
                         className={`rounded-lg px-3 py-2 ${
-                          message.sender_type === 'player'
+                          message.sender === 'player'
                             ? 'bg-blue-600 text-white'
                             : 'bg-slate-700 text-slate-100'
                         }`}
@@ -252,16 +388,16 @@ export default function GreChatDialog({ isOpen, onClose, messages = [], wsConnec
                       </div>
                       <div className="flex items-center mt-1 space-x-2">
                         <span className="text-xs text-slate-500">
-                          {formatTime(message.timestamp)}
+                          {formatTime(message.timestamp || message.created_at)}
                         </span>
-                        {message.sender_type === 'player' && (
+                        {message.sender === 'player' && (
                           <Badge variant="secondary" className="text-xs px-1 py-0">
-                            {message.is_read ? 'Read' : 'Sent'}
+                            {message.status === 'read' ? 'Read' : 'Sent'}
                           </Badge>
                         )}
                       </div>
                     </div>
-                    {message.sender_type === 'player' && (
+                    {message.sender === 'player' && (
                       <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                         <User className="w-4 h-4 text-white" />
                       </div>

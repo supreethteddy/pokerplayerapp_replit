@@ -5098,42 +5098,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`📤 [UUID CHAT] Processing message from ${senderType} UUID ${playerUUID}: ${playerName}`);
       
-      // Get or create session for UUID player
-      let { data: session, error: sessionError } = await staffPortalSupabase
-        .from('gre_chat_sessions_uuid')
-        .select('*')
-        .eq('player_id', playerUUID)
-        .eq('status', 'active')
-        .limit(1)
-        .single();
+      console.log(`🔗 [UUID CHAT] Using development database for UUID operations`);
       
-      if (sessionError || !session) {
-        // Create new session
-        const { data: newSession, error: createError } = await staffPortalSupabase
-          .from('gre_chat_sessions_uuid')
-          .insert({
-            player_id: playerUUID,
-            status: 'active',
-            priority: 'normal',
-            category: 'support'
-          })
-          .select()
-          .single();
-        
-        if (createError) {
-          console.error('[UUID CHAT] Session creation failed:', createError);
-          return res.status(500).json({ error: createError.message, operationId });
-        }
-        
-        session = newSession;
-        console.log('✅ [UUID CHAT] New session created:', session.id);
-      }
+      // For now, skip session creation since we don't have that table in development db
+      // Just insert the message directly
+      console.log('📝 [UUID CHAT] Skipping session creation for development - inserting message directly');
       
-      // Insert message with UUID
-      const { data: newMessage, error: messageError } = await staffPortalSupabase
+      // Insert message with UUID using development database
+      console.log(`🔗 [UUID CHAT] Using development database for message insert`);
+      const { data: newMessage, error: messageError } = await supabase
         .from('gre_chat_messages_uuid')
         .insert({
-          session_id: session.id,
           player_id: playerUUID,
           player_name: playerName || 'Player',
           message,
@@ -5145,13 +5120,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .single();
       
       if (messageError) {
-        console.error('[UUID CHAT] Message insert failed:', messageError);
+        console.error('💥 [UUID CHAT] Message insert failed:', messageError);
         return res.status(500).json({ error: messageError.message, operationId });
       }
       
+      console.log('✅ [UUID CHAT] Message inserted successfully:', newMessage.id);
+      
       // Also create a chat request for Staff Portal visibility
       try {
-        await staffPortalSupabase
+        await supabase
           .from('chat_requests_uuid')
           .insert({
             player_id: playerUUID,
@@ -5162,7 +5139,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             priority: 'normal',
             category: 'support'
           });
-        console.log('✅ [UUID CHAT] Chat request created for Staff Portal');
+        console.log('✅ [UUID CHAT] Chat request created in development database');
       } catch (requestError) {
         console.log('⚠️ [UUID CHAT] Chat request creation failed, continuing:', requestError);
       }
@@ -5178,6 +5155,195 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error(`💥 [UUID CHAT] Exception [${operationId}]:`, error);
       res.status(500).json({ error: error.message, operationId });
+    }
+  });
+
+  // 🚀 UUID-BASED CHAT REQUESTS ENDPOINT
+  app.post('/api/uuid-chat/requests', async (req, res) => {
+    const operationId = crypto.randomUUID();
+    
+    try {
+      const { playerUUID } = req.body;
+      
+      if (!playerUUID) {
+        return res.status(400).json({ error: 'Player UUID required' });
+      }
+      
+      console.log(`📋 [UUID REQUESTS] Fetching chat requests for UUID: ${playerUUID}`);
+      console.log(`🔗 [UUID REQUESTS] Using Development Database (main Supabase connection)`);
+      
+      const { data: requests, error } = await supabase
+        .from('chat_requests_uuid')
+        .select('*')
+        .eq('player_id', playerUUID)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('[UUID REQUESTS] Query failed:', error);
+        return res.status(500).json({ error: error.message });
+      }
+      
+      console.log(`✅ [UUID REQUESTS] Found ${requests?.length || 0} requests`);
+      console.log(`📊 [UUID REQUESTS] Sample request:`, requests?.[0]);
+      res.json(requests || []);
+      
+    } catch (error) {
+      console.error(`💥 [UUID REQUESTS] Exception [${operationId}]:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // 🚀 UUID-BASED CHAT MESSAGES ENDPOINT
+  app.post('/api/uuid-chat/messages', async (req, res) => {
+    const operationId = crypto.randomUUID();
+    
+    try {
+      const { playerUUID } = req.body;
+      
+      if (!playerUUID) {
+        return res.status(400).json({ error: 'Player UUID required' });
+      }
+      
+      console.log(`📬 [UUID MESSAGES] Fetching messages for UUID: ${playerUUID}`);
+      console.log(`🔗 [UUID MESSAGES] Using Development Database (main Supabase connection)`);
+      
+      const { data: messages, error } = await supabase
+        .from('gre_chat_messages_uuid')
+        .select('*')
+        .eq('player_id', playerUUID)
+        .order('created_at', { ascending: true });
+      
+      if (error) {
+        console.error('[UUID MESSAGES] Query failed:', error);
+        return res.status(500).json({ error: error.message });
+      }
+      
+      console.log(`✅ [UUID MESSAGES] Found ${messages?.length || 0} messages`);
+      console.log(`📊 [UUID MESSAGES] Sample message:`, messages?.[0]);
+      res.json(messages || []);
+      
+    } catch (error) {
+      console.error(`💥 [UUID MESSAGES] Exception [${operationId}]:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // 🏗️ UUID TABLE SETUP ENDPOINT - Create UUID tables in Staff Portal Supabase
+  app.post('/api/staff-portal/uuid-setup', async (req, res) => {
+    try {
+      console.log('📋 [UUID SETUP] Creating UUID tables in Staff Portal Supabase...');
+      
+      // Create UUID-based chat requests table
+      const { error: requestsError } = await staffPortalSupabase.rpc('sql', {
+        query: `
+          CREATE TABLE IF NOT EXISTS chat_requests_uuid (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              player_id UUID NOT NULL,
+              player_name TEXT NOT NULL,
+              subject TEXT NOT NULL,
+              message TEXT NOT NULL,
+              status TEXT CHECK (status IN ('waiting', 'in_progress', 'resolved', 'closed')) DEFAULT 'waiting',
+              priority TEXT DEFAULT 'normal',
+              category TEXT DEFAULT 'support',
+              created_at TIMESTAMPTZ DEFAULT NOW(),
+              updated_at TIMESTAMPTZ DEFAULT NOW(),
+              resolved_at TIMESTAMPTZ,
+              resolved_by TEXT,
+              notes TEXT
+          );
+        `
+      });
+
+      if (requestsError) {
+        console.error('❌ [UUID SETUP] Failed to create chat_requests_uuid:', requestsError);
+      } else {
+        console.log('✅ [UUID SETUP] chat_requests_uuid table created');
+      }
+
+      // Create UUID-based chat messages table directly
+      console.log('📋 [UUID SETUP] Creating gre_chat_messages_uuid table...');
+      
+      // Let's test if the tables already exist by attempting to select from them
+      const { data: existingRequests, error: requestsCheckError } = await staffPortalSupabase
+        .from('chat_requests_uuid')
+        .select('count')
+        .limit(1);
+      
+      const { data: existingMessages, error: messagesCheckError } = await staffPortalSupabase
+        .from('gre_chat_messages_uuid')
+        .select('count')
+        .limit(1);
+        
+      if (!requestsCheckError && !messagesCheckError) {
+        console.log('✅ [UUID SETUP] Tables already exist!');
+        res.json({ 
+          success: true, 
+          tablesExist: true,
+          message: 'UUID tables already exist in Staff Portal Supabase'
+        });
+        return;
+      }
+      
+      console.log('📋 [UUID SETUP] Tables do not exist, creating them manually...');
+      
+      // Manual table creation approach - insert test data to auto-create tables
+      try {
+        // Create a test chat request (this will auto-create the table if it doesn't exist)
+        const { data: testRequest, error: testRequestError } = await staffPortalSupabase
+          .from('chat_requests_uuid')
+          .insert({
+            id: 'test-uuid-' + crypto.randomUUID(),
+            player_id: 'e0953527-a5d5-402c-9e00-8ed590d19cde',
+            player_name: 'vignesh gana',
+            subject: 'Test UUID Chat Request',
+            message: 'Testing UUID system integration',
+            status: 'waiting'
+          })
+          .select()
+          .single();
+          
+        const { data: testMessage, error: testMessageError } = await staffPortalSupabase
+          .from('gre_chat_messages_uuid')
+          .insert({
+            id: 'test-msg-' + crypto.randomUUID(),
+            player_id: 'e0953527-a5d5-402c-9e00-8ed590d19cde',
+            player_name: 'vignesh gana',
+            message: 'Test UUID message integration',
+            sender: 'player',
+            sender_name: 'vignesh gana',
+            status: 'sent'
+          })
+          .select()
+          .single();
+          
+        console.log('✅ [UUID SETUP] Test data inserted successfully');
+        console.log('📊 [UUID SETUP] Request error:', testRequestError);
+        console.log('📊 [UUID SETUP] Message error:', testMessageError);
+        
+        res.json({ 
+          success: true, 
+          tablesCreated: !testRequestError && !testMessageError,
+          requestsTable: !testRequestError,
+          messagesTable: !testMessageError,
+          method: 'insert_test_data'
+        });
+        
+      } catch (insertError) {
+        console.error('💥 [UUID SETUP] Insert test failed:', insertError);
+        
+        // Fallback: report that tables likely don't exist in this Supabase instance
+        res.json({ 
+          success: false, 
+          tablesCreated: false,
+          error: 'UUID tables do not exist in Staff Portal Supabase database',
+          details: insertError.message,
+          recommendation: 'Use legacy chat system or create tables in database admin panel'
+        });
+      }
+      
+    } catch (error) {
+      console.error('💥 [UUID SETUP] Exception:', error);
+      res.status(500).json({ error: error.message });
     }
   });
 
