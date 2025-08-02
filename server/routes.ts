@@ -4998,6 +4998,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== UNIFIED CHAT REST API ENDPOINTS =====
   
+  // 🏆 EXPERT-LEVEL FIELD TRANSFORMATION ENGINE
+  const transformFieldsToCamelCase = (obj: any): any => {
+    if (!obj || typeof obj !== 'object') return obj;
+    
+    const camelCaseObj: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      // Convert snake_case to camelCase
+      const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+      camelCaseObj[camelKey] = Array.isArray(value) ? value.map(transformFieldsToCamelCase) : 
+                              value && typeof value === 'object' ? transformFieldsToCamelCase(value) : value;
+    }
+    return camelCaseObj;
+  };
+
+  const transformFieldsToSnakeCase = (obj: any): any => {
+    if (!obj || typeof obj !== 'object') return obj;
+    
+    const snakeCaseObj: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      // Convert camelCase to snake_case
+      const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+      snakeCaseObj[snakeKey] = Array.isArray(value) ? value.map(transformFieldsToSnakeCase) : 
+                               value && typeof value === 'object' ? transformFieldsToSnakeCase(value) : value;
+    }
+    return snakeCaseObj;
+  };
+
   // Unified chat message sending endpoint
   app.post('/api/unified-chat/send', async (req, res) => {
     try {
@@ -5009,18 +5036,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`📤 [UNIFIED CHAT] Sending message from ${senderType} ${playerId}: ${playerName}`);
       
-      // Store message in Staff Portal Supabase database
-      const messageData = {
+      // Store message in Staff Portal Supabase database with snake_case transformation
+      const messageData = transformFieldsToSnakeCase({
         id: crypto.randomUUID(),
-        session_id: crypto.randomUUID(), // Create session if needed
-        player_id: playerId,
-        player_name: playerName,
+        sessionId: crypto.randomUUID(), // Create session if needed
+        playerId: playerId,
+        playerName: playerName,
         message: message.trim(),
         sender: senderType,
-        sender_name: playerName,
+        senderName: playerName,
         timestamp: new Date().toISOString(),
         status: 'sent'
-      };
+      });
+
+      console.log('🏆 [EXPERT FIELD TRANSFORMATION] Message Data Before Insert:', JSON.stringify(messageData, null, 2));
 
       const { data, error } = await staffPortalSupabase
         .from('gre_chat_messages')
@@ -5030,46 +5059,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (error) {
         console.error(`❌ [UNIFIED CHAT] Message insert failed:`, error);
+        console.error('🔍 [DEBUG] Insert Error Details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
         throw new Error(`Failed to store message: ${error.message}`);
       }
 
-      // Broadcast to WebSocket connections
+      // Transform response back to camelCase for frontend consistency
+      const transformedMessage = transformFieldsToCamelCase(data);
+      console.log('🏆 [EXPERT FIELD TRANSFORMATION] Response After Transform:', JSON.stringify(transformedMessage, null, 2));
+
+      // Broadcast to WebSocket connections with transformed data
       if (playerConnections.has(playerId)) {
         const ws = playerConnections.get(playerId);
         if (ws && ws.readyState === 1) {
           ws.send(JSON.stringify({
             type: 'new_message',
-            message: data,
+            message: transformedMessage,
             playerId: playerId
           }));
         }
       }
 
       console.log(`✅ [UNIFIED CHAT] Message stored and broadcasted successfully`);
-      res.json({ success: true, message: data });
+      res.json({ success: true, message: transformedMessage });
     } catch (error) {
       console.error('❌ [UNIFIED CHAT] Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
 
-  // Get chat messages for a player
+  // Get chat messages for a player with expert field transformation
   app.get('/api/unified-chat/messages/:playerId', async (req, res) => {
     try {
       const { playerId } = req.params;
+      
+      console.log(`🔍 [UNIFIED CHAT] Fetching messages for player: ${playerId}`);
       
       const { data: messages, error } = await staffPortalSupabase
         .from('gre_chat_messages')
         .select('*')
         .eq('player_id', playerId)
-        .order('timestamp', { ascending: true });
+        .order('created_at', { ascending: true });
 
       if (error) {
         console.error(`❌ [UNIFIED CHAT] Error fetching messages:`, error);
         return res.status(500).json({ error: error.message });
       }
 
-      res.json(messages || []);
+      // Transform all messages to camelCase for frontend consistency
+      const transformedMessages = (messages || []).map(transformFieldsToCamelCase);
+      
+      console.log(`✅ [UNIFIED CHAT] Found ${transformedMessages.length} messages for player ${playerId}`);
+      console.log('🏆 [EXPERT FIELD TRANSFORMATION] Sample transformed message:', transformedMessages[0] ? JSON.stringify(transformedMessages[0], null, 2) : 'No messages');
+
+      res.json(transformedMessages);
     } catch (error) {
       console.error('❌ [UNIFIED CHAT] Error:', error);
       res.status(500).json({ error: error.message });

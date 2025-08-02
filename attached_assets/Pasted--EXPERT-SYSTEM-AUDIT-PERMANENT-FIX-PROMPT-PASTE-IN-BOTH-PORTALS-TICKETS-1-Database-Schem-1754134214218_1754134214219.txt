@@ -1,0 +1,99 @@
+🛡️ EXPERT SYSTEM AUDIT & PERMANENT FIX PROMPT (PASTE IN BOTH PORTALS & TICKETS)
+1. Database & Schema (Supabase Deep-Dive)
+All core chat and player tables (chat_requests, chat_sessions, chat_messages, gre_availability, players) are defined in snake_case: e.g., player_id, player_name, created_at, etc..
+
+Player table in shared/schema.ts also uses snake_case for ALL fields in DB, but code sometimes references camelCase (supabaseId, dateOfBirth, etc.). Always map at boundary! Never use camelCase in DB column names!
+
+Source: create-chat-tables.sql, shared/schema.ts
+
+Check ALL migration and SQL files: NO camelCase columns in any table, especially not in chat/notification tables.
+
+All timestamp fields (created_at, updated_at, etc.) MUST be used consistently—never store or query with createdAt.
+
+2. Backend / Server (TS/JS/WS/API)
+Core backend logic in:
+server/api/chat-routes.ts, server/api/real-time-chat-sync.ts, websocket-handler.ts, push-notification-routes.ts
+
+Data mapping:
+
+All inbound API and WS payloads should transform camelCase to snake_case before DB save, and the reverse for outbound.
+
+e.g., { sessionId, playerId, messageText } → { session_id, player_id, message_text }
+
+Log and test for any missed or forgotten transform steps.
+
+Dates must always be stored as UTC in created_at and used consistently for sorting and filtering in every API/DB query.
+
+Comprehensive debug logging present—every step of message/notification flow must be logged, including payload before/after mapping.
+
+Test for:
+
+Bypassed/missing mapping for new fields (new features: emoji, file, system messages—always check!).
+
+Old endpoints still referencing camelCase in queries/inserts—correct these at source.
+
+3. Frontend / React/TS
+Main components:
+client/src/components/RealPlayerChatSystem.tsx
+client/src/components/ChatSystem.tsx
+client/src/components/PushNotifications.tsx
+
+Filter/render bypass debug:
+
+Temporarily render and log the ENTIRE incoming message/notification payload as JSON, bypassing ALL filters.
+
+All message/comparison code must check both camelCase and snake_case:
+
+js
+msg.playerId || msg.player_id
+msg.sessionId || msg.session_id
+msg.created_at // (never createdAt)
+IDs must be explicitly coerced to string before comparison (String(msg.player_id) === String(currentPlayerId)).
+
+Push notification debug:
+
+Ensure client code logs, renders, and displays every received notification, regardless of type or payload structure.
+
+UI must display every notification, updating badge/alert, and log to console for QA pass.
+
+4. Notification System Special Review
+Check all scripts named:
+push-notification-routes.ts, COMPLETE_MEDIA_PUSH_NOTIFICATIONS.sql, COMPLETE_NOTIFICATION_SYSTEM_SETUP.sql, create_notification_tables.sql
+
+Notification and chat tables must have matching snake_case naming: NO camelCase ever.
+
+Every channel and event handler, in code and DB, logs and handles all notification types, including media and custom events.
+
+5. Cross-Portal, Type, and ID Consistency
+No “test” or mock code left in production branches.
+
+All IDs (player, session, GRE, request, notification) must compare as strings, not numbers.
+
+All “created_at” and timestamp usage must be in UTC, not local time.
+
+Check all cross-portal integration scripts:
+COMPLETE_CHAT_SYSTEM_FIX.md, COMPLETE_UNIFIED_SYSTEM_SOLUTION.md, BIDIRECTIONAL_CHAT_INTEGRATION_GUIDE.md.
+
+6. Production Regression/Debug Checklist
+Add chat/notification debug panes in every UI route/component.
+
+Log and compare incoming/outgoing message/notification payloads, especially for field presence, type, case (snake/camel), date format, and ID type.
+
+Confirm every step of message flow:
+
+Player sends → to server → to DB → to GRE → GRE portal UI and notification
+
+GRE sends → to server → to DB → to player → player portal UI and notification
+
+7. Critical Permanent Correction Actions
+To permanently harden and future-proof the platform:
+
+Run ALL DB migrations (including any called FIXED_CHAT_SYSTEM_SQL.sql, fix-chat-schema.sql, COMPLETE_DATABASE_FIX.sql) and confirm all table columns are snake_case.
+
+Re-audit and harden backend mapping code, explicitly mapping every public field to DB fields and the reverse.
+
+Enforce strict field/ID normalization in all filtering, sorting, and UI code.
+
+Run and pass end-to-end debug test scripts in both portals (“comprehensive-chat-diagnostic.js”, “comprehensive-cross-portal-test.js”).
+
+Add a new production integration QA markdown documenting all IDs, field names, and end-to-end proofs for both Player and GRE sides.
