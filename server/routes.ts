@@ -4998,7 +4998,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== UNIFIED CHAT REST API ENDPOINTS =====
   
-  // 🏆 EXPERT-LEVEL FIELD TRANSFORMATION ENGINE
+  // 🏆 EXPERT-LEVEL FIELD TRANSFORMATION ENGINE WITH AUDIT LOGGING
   const transformFieldsToCamelCase = (obj: any): any => {
     if (!obj || typeof obj !== 'object') return obj;
     
@@ -5025,101 +5025,374 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return snakeCaseObj;
   };
 
-  // Unified chat message sending endpoint
-  app.post('/api/unified-chat/send', async (req, res) => {
+  // 🛡️ GLOBAL ERROR HANDLER FOR CHAT OPERATIONS
+  const handleChatError = (error: any, operation: string, context: any = {}) => {
+    const errorDetails = {
+      operation,
+      error: error.message,
+      stack: error.stack,
+      context,
+      timestamp: new Date().toISOString(),
+      severity: 'HIGH'
+    };
+    
+    console.error(`🚨 [CHAT ERROR] ${operation}:`, errorDetails);
+    
+    // Log to file system for permanent audit trail
     try {
+      const fs = require('fs');
+      const logEntry = `${new Date().toISOString()} - CHAT_ERROR - ${operation}: ${JSON.stringify(errorDetails)}\n`;
+      fs.appendFileSync('/tmp/chat-errors.log', logEntry);
+    } catch (logError) {
+      console.error('Failed to write to error log:', logError);
+    }
+    
+    return errorDetails;
+  };
+
+  // 🔍 FIELD VALIDATION & AUDIT LOGGING
+  const validateAndAuditChatFields = (data: any, operation: string) => {
+    const auditLog = {
+      operation,
+      timestamp: new Date().toISOString(),
+      originalData: JSON.stringify(data),
+      validation: {
+        hasPlayerId: !!(data.playerId || data.player_id),
+        hasMessage: !!(data.message),
+        hasSender: !!(data.sender || data.senderType),
+        fieldCount: Object.keys(data).length,
+        fieldTypes: Object.entries(data).map(([k, v]) => `${k}:${typeof v}`)
+      }
+    };
+    
+    console.log(`🔍 [FIELD AUDIT] ${operation}:`, auditLog);
+    
+    // Check for required fields
+    const requiredFields = ['message'];
+    const missingFields = requiredFields.filter(field => 
+      !data[field] && !data[field.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)]
+    );
+    
+    if (missingFields.length > 0) {
+      throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+    }
+    
+    return auditLog;
+  };
+
+  // 🏆 ENHANCED CHAT REQUEST CREATION WITH COMPREHENSIVE AUDIT & RECOVERY
+  app.post('/api/unified-chat/send', async (req, res) => {
+    const operationId = crypto.randomUUID();
+    const startTime = Date.now();
+    
+    try {
+      console.log(`\n🛡️ === CHAT REQUEST AUDIT START [${operationId}] ===`);
+      console.log('📋 [AUDIT] Raw Request Body:', JSON.stringify(req.body, null, 2));
+      console.log('📋 [AUDIT] Request Headers:', JSON.stringify(req.headers, null, 2));
+      
+      // Step 1: Field Validation & Audit
+      const auditResult = validateAndAuditChatFields(req.body, 'CHAT_SEND');
+      
       const { playerId, playerName, message, senderType = 'player' } = req.body;
       
       if (!playerId || !message) {
-        return res.status(400).json({ error: 'Player ID and message are required' });
+        const validationError = { 
+          error: 'Player ID and message are required',
+          received: { playerId: !!playerId, message: !!message },
+          operationId 
+        };
+        console.error('❌ [VALIDATION] Missing required fields:', validationError);
+        return res.status(400).json(validationError);
       }
 
-      console.log(`📤 [UNIFIED CHAT] Sending message from ${senderType} ${playerId}: ${playerName}`);
+      console.log(`📤 [UNIFIED CHAT] Processing message from ${senderType} ${playerId}: ${playerName}`);
       
-      // Store message in Staff Portal Supabase database with snake_case transformation
-      const messageData = transformFieldsToSnakeCase({
+      // Step 2: Universal Field Mapping (camelCase → snake_case)
+      const normalizedData = {
         id: crypto.randomUUID(),
-        sessionId: crypto.randomUUID(), // Create session if needed
-        playerId: playerId,
-        playerName: playerName,
+        session_id: crypto.randomUUID(),
+        player_id: parseInt(playerId.toString()),
+        player_name: playerName || 'Unknown Player',
         message: message.trim(),
         sender: senderType,
-        senderName: playerName,
+        sender_name: playerName || 'Unknown Player',
         timestamp: new Date().toISOString(),
-        status: 'sent'
-      });
+        status: 'sent',
+        request_id: operationId
+      };
 
-      console.log('🏆 [EXPERT FIELD TRANSFORMATION] Message Data Before Insert:', JSON.stringify(messageData, null, 2));
+      console.log('🏆 [FIELD MAPPING] Normalized Data for DB:', JSON.stringify(normalizedData, null, 2));
 
-      const { data, error } = await staffPortalSupabase
-        .from('gre_chat_messages')
-        .insert(messageData)
-        .select()
-        .single();
+      // Step 3: Database Insert with Comprehensive Error Handling
+      let insertResult;
+      try {
+        const { data, error } = await staffPortalSupabase
+          .from('gre_chat_messages')
+          .insert(normalizedData)
+          .select()
+          .single();
 
-      if (error) {
-        console.error(`❌ [UNIFIED CHAT] Message insert failed:`, error);
-        console.error('🔍 [DEBUG] Insert Error Details:', {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint
+        if (error) {
+          const dbError = handleChatError(error, 'DATABASE_INSERT', {
+            operationId,
+            playerId,
+            normalizedData: normalizedData
+          });
+          return res.status(500).json({ 
+            error: 'Database insert failed', 
+            details: dbError,
+            operationId 
+          });
+        }
+        
+        insertResult = data;
+        console.log('✅ [DATABASE] Message inserted successfully:', insertResult.id);
+        
+      } catch (dbException) {
+        const criticalError = handleChatError(dbException, 'DATABASE_CRITICAL_FAILURE', {
+          operationId,
+          playerId,
+          message: message.substring(0, 100)
         });
-        throw new Error(`Failed to store message: ${error.message}`);
+        return res.status(500).json({ 
+          error: 'Critical database failure',
+          details: criticalError,
+          operationId 
+        });
       }
 
-      // Transform response back to camelCase for frontend consistency
-      const transformedMessage = transformFieldsToCamelCase(data);
-      console.log('🏆 [EXPERT FIELD TRANSFORMATION] Response After Transform:', JSON.stringify(transformedMessage, null, 2));
+      // Step 4: Post-Insert Verification
+      try {
+        const { data: verificationData, error: verifyError } = await staffPortalSupabase
+          .from('gre_chat_messages')
+          .select('*')
+          .eq('id', insertResult.id)
+          .single();
 
-      // Broadcast to WebSocket connections with transformed data
-      if (playerConnections.has(playerId)) {
-        const ws = playerConnections.get(playerId);
+        if (verifyError || !verificationData) {
+          console.error('⚠️ [VERIFICATION] Message insert verification failed:', verifyError);
+        } else {
+          console.log('✅ [VERIFICATION] Message exists in database:', verificationData.id);
+        }
+      } catch (verifyException) {
+        console.error('⚠️ [VERIFICATION] Verification check failed:', verifyException);
+      }
+
+      // Step 5: Transform Response for Frontend (snake_case → camelCase)
+      const frontendResponse = transformFieldsToCamelCase(insertResult);
+      console.log('🏆 [RESPONSE TRANSFORM] Frontend Response:', JSON.stringify(frontendResponse, null, 2));
+
+      // Step 6: Real-time Broadcasting
+      if (playerConnections.has(parseInt(playerId.toString()))) {
+        const ws = playerConnections.get(parseInt(playerId.toString()));
         if (ws && ws.readyState === 1) {
           ws.send(JSON.stringify({
             type: 'new_message',
-            message: transformedMessage,
-            playerId: playerId
+            message: frontendResponse,
+            playerId: playerId,
+            operationId
           }));
+          console.log('✅ [WEBSOCKET] Message broadcasted to player connection');
+        } else {
+          console.log('⚠️ [WEBSOCKET] Player connection not ready or unavailable');
         }
+      } else {
+        console.log('⚠️ [WEBSOCKET] No active connection for player:', playerId);
       }
 
-      console.log(`✅ [UNIFIED CHAT] Message stored and broadcasted successfully`);
-      res.json({ success: true, message: transformedMessage });
-    } catch (error) {
-      console.error('❌ [UNIFIED CHAT] Error:', error);
-      res.status(500).json({ error: error.message });
+      // Step 7: Success Response with Comprehensive Data
+      const duration = Date.now() - startTime;
+      const successResponse = {
+        success: true,
+        message: frontendResponse,
+        audit: {
+          operationId,
+          duration: `${duration}ms`,
+          timestamp: new Date().toISOString(),
+          databaseId: insertResult.id,
+          playerId: playerId
+        }
+      };
+
+      console.log(`✅ [UNIFIED CHAT] Operation completed successfully in ${duration}ms`);
+      console.log(`🛡️ === CHAT REQUEST AUDIT END [${operationId}] ===\n`);
+      
+      res.json(successResponse);
+      
+    } catch (error: any) {
+      const duration = Date.now() - startTime;
+      const criticalError = handleChatError(error, 'CHAT_SEND_CRITICAL', {
+        operationId,
+        duration: `${duration}ms`,
+        requestBody: req.body
+      });
+      
+      console.log(`🛡️ === CHAT REQUEST AUDIT END [${operationId}] - FAILED ===\n`);
+      
+      res.status(500).json({ 
+        error: 'Chat request failed',
+        details: criticalError,
+        operationId,
+        timestamp: new Date().toISOString()
+      });
     }
   });
 
-  // Get chat messages for a player with expert field transformation
+  // 🏆 ENHANCED CHAT MESSAGES FETCH WITH COMPREHENSIVE AUDIT & STAFF PORTAL SUPPORT
   app.get('/api/unified-chat/messages/:playerId', async (req, res) => {
+    const operationId = crypto.randomUUID();
+    const startTime = Date.now();
+    
     try {
+      console.log(`\n🛡️ === CHAT MESSAGES FETCH AUDIT START [${operationId}] ===`);
+      
       const { playerId } = req.params;
+      const { bypassStatusFilter, staffPortalMode } = req.query;
       
-      console.log(`🔍 [UNIFIED CHAT] Fetching messages for player: ${playerId}`);
+      console.log('📋 [AUDIT] Fetch Parameters:', {
+        playerId,
+        bypassStatusFilter,
+        staffPortalMode,
+        operationId,
+        userAgent: req.headers['user-agent']
+      });
       
-      const { data: messages, error } = await staffPortalSupabase
+      // Step 1: Validate Player ID
+      const normalizedPlayerId = parseInt(playerId);
+      if (isNaN(normalizedPlayerId)) {
+        const validationError = {
+          error: 'Invalid player ID format',
+          received: playerId,
+          operationId
+        };
+        console.error('❌ [VALIDATION] Invalid player ID:', validationError);
+        return res.status(400).json(validationError);
+      }
+      
+      console.log(`🔍 [UNIFIED CHAT] Fetching messages for player: ${normalizedPlayerId}`);
+      
+      // Step 2: Build Query with Staff Portal Support
+      let query = staffPortalSupabase
         .from('gre_chat_messages')
         .select('*')
-        .eq('player_id', playerId)
-        .order('created_at', { ascending: true });
+        .eq('player_id', normalizedPlayerId);
 
-      if (error) {
-        console.error(`❌ [UNIFIED CHAT] Error fetching messages:`, error);
-        return res.status(500).json({ error: error.message });
+      // Staff Portal Mode: Remove status filters for comprehensive visibility
+      if (staffPortalMode === 'true' || bypassStatusFilter === 'true') {
+        console.log('🚀 [STAFF MODE] Bypassing status filters for comprehensive message visibility');
+        // No additional filters - fetch ALL messages for this player
+      } else {
+        // Player Portal Mode: Apply standard filters
+        query = query.in('status', ['sent', 'delivered', 'read']);
       }
-
-      // Transform all messages to camelCase for frontend consistency
-      const transformedMessages = (messages || []).map(transformFieldsToCamelCase);
       
-      console.log(`✅ [UNIFIED CHAT] Found ${transformedMessages.length} messages for player ${playerId}`);
-      console.log('🏆 [EXPERT FIELD TRANSFORMATION] Sample transformed message:', transformedMessages[0] ? JSON.stringify(transformedMessages[0], null, 2) : 'No messages');
-
-      res.json(transformedMessages);
-    } catch (error) {
-      console.error('❌ [UNIFIED CHAT] Error:', error);
-      res.status(500).json({ error: error.message });
+      // Order by creation time for chronological display
+      query = query.order('created_at', { ascending: true });
+      
+      // Step 3: Execute Query with Error Handling
+      let queryResult;
+      try {
+        const { data: messages, error } = await query;
+        
+        if (error) {
+          const queryError = handleChatError(error, 'MESSAGE_FETCH_QUERY', {
+            operationId,
+            playerId: normalizedPlayerId,
+            query: query.toString()
+          });
+          return res.status(500).json({
+            error: 'Failed to fetch messages',
+            details: queryError,
+            operationId
+          });
+        }
+        
+        queryResult = messages || [];
+        console.log(`✅ [DATABASE] Retrieved ${queryResult.length} messages from database`);
+        
+        // Step 4: Database Content Audit (sample first/last messages)
+        if (queryResult.length > 0) {
+          console.log('🔍 [AUDIT] Sample Messages:', {
+            firstMessage: {
+              id: queryResult[0].id,
+              sender: queryResult[0].sender,
+              preview: queryResult[0].message?.substring(0, 50) + '...',
+              created_at: queryResult[0].created_at
+            },
+            lastMessage: {
+              id: queryResult[queryResult.length - 1].id,
+              sender: queryResult[queryResult.length - 1].sender,
+              preview: queryResult[queryResult.length - 1].message?.substring(0, 50) + '...',
+              created_at: queryResult[queryResult.length - 1].created_at
+            }
+          });
+        }
+        
+      } catch (queryException) {
+        const criticalError = handleChatError(queryException, 'MESSAGE_FETCH_CRITICAL', {
+          operationId,
+          playerId: normalizedPlayerId
+        });
+        return res.status(500).json({
+          error: 'Critical query failure',
+          details: criticalError,
+          operationId
+        });
+      }
+      
+      // Step 5: Universal Field Transformation (snake_case → camelCase)
+      const transformedMessages = queryResult.map((message, index) => {
+        try {
+          return transformFieldsToCamelCase(message);
+        } catch (transformError) {
+          console.error(`⚠️ [TRANSFORM] Failed to transform message ${index}:`, transformError);
+          // Return original message if transformation fails
+          return message;
+        }
+      });
+      
+      // Step 6: Response Preparation with Audit Data
+      const duration = Date.now() - startTime;
+      const response = {
+        messages: transformedMessages,
+        meta: {
+          total: transformedMessages.length,
+          playerId: normalizedPlayerId,
+          staffPortalMode: staffPortalMode === 'true',
+          bypassStatusFilter: bypassStatusFilter === 'true',
+          audit: {
+            operationId,
+            duration: `${duration}ms`,
+            timestamp: new Date().toISOString(),
+            queryExecuted: true
+          }
+        }
+      };
+      
+      console.log(`✅ [UNIFIED CHAT] Successfully fetched ${transformedMessages.length} messages for player ${normalizedPlayerId}`);
+      console.log('🏆 [EXPERT FIELD TRANSFORMATION] First transformed message sample:', 
+        transformedMessages[0] ? JSON.stringify(transformedMessages[0], null, 2) : 'No messages');
+      console.log(`🛡️ === CHAT MESSAGES FETCH AUDIT END [${operationId}] ===\n`);
+      
+      // Return just messages array for compatibility, but include meta in development
+      res.json(process.env.NODE_ENV === 'development' ? response : transformedMessages);
+      
+    } catch (error: any) {
+      const duration = Date.now() - startTime;
+      const criticalError = handleChatError(error, 'MESSAGE_FETCH_CRITICAL', {
+        operationId,
+        duration: `${duration}ms`,
+        playerId: req.params.playerId
+      });
+      
+      console.log(`🛡️ === CHAT MESSAGES FETCH AUDIT END [${operationId}] - FAILED ===\n`);
+      
+      res.status(500).json({
+        error: 'Message fetch failed',
+        details: criticalError,
+        operationId,
+        timestamp: new Date().toISOString()
+      });
     }
   });
   
@@ -5316,31 +5589,166 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // **COMPREHENSIVE GRE ADMIN API ENDPOINTS FOR STAFF PORTAL**
   
-  // Get all active chat sessions for GRE dashboard
+  // 🚀 ENHANCED GRE CHAT SESSIONS WITH FAIL-SAFE & COMPREHENSIVE VISIBILITY
   app.get('/api/gre-admin/chat-sessions', async (req, res) => {
+    const operationId = crypto.randomUUID();
+    const startTime = Date.now();
+    
     try {
-      console.log('📊 [GRE ADMIN] Fetching all active chat sessions');
+      console.log(`\n🛡️ === GRE STAFF PORTAL CHAT SESSIONS AUDIT START [${operationId}] ===`);
+      console.log('📊 [GRE ADMIN] Fetching all chat sessions for staff portal');
       
-      const { data: sessions, error } = await staffPortalSupabase
-        .from('gre_chat_sessions')
-        .select(`
-          *,
-          gre_chat_messages(*)
-        `)
-        .eq('status', 'active')
-        .order('updated_at', { ascending: false });
+      const { 
+        bypassStatusFilter = 'true', // Default to bypass for staff visibility
+        includeAllMessages = 'true',
+        debugMode = req.query.debug || 'false'
+      } = req.query;
+      
+      console.log('📋 [AUDIT] Staff Portal Parameters:', {
+        bypassStatusFilter,
+        includeAllMessages,
+        debugMode,
+        operationId,
+        timestamp: new Date().toISOString()
+      });
 
-      if (error) {
-        console.error('❌ [GRE ADMIN] Error fetching sessions:', error);
-        return res.status(500).json({ error: 'Failed to fetch chat sessions' });
+      // Step 1: TEMPORARILY REMOVE STATUS FILTERS for comprehensive visibility
+      console.log('🚀 [STAFF MODE] Removing ALL status filters for maximum session visibility');
+      
+      // Step 2: Fetch ALL chat messages first (no session dependency)
+      let allMessages = [];
+      try {
+        console.log('🔍 [DEBUG] Querying ALL gre_chat_messages without filters...');
+        
+        const { data: rawMessages, error: messageError } = await staffPortalSupabase
+          .from('gre_chat_messages')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (messageError) {
+          console.error('❌ [DEBUG] Raw message query failed:', messageError);
+          throw messageError;
+        }
+        
+        allMessages = rawMessages || [];
+        console.log(`✅ [DEBUG] Retrieved ${allMessages.length} total messages from database`);
+        
+        // Debug: Log all records retrieved
+        if (debugMode === 'true' && allMessages.length > 0) {
+          console.log('🔍 [DEBUG] Sample raw messages:');
+          allMessages.slice(0, 3).forEach((msg, idx) => {
+            console.log(`  ${idx + 1}. ID: ${msg.id}, Player: ${msg.player_id}, Sender: ${msg.sender}, Preview: ${msg.message?.substring(0, 50)}...`);
+          });
+        }
+        
+      } catch (messageQueryError) {
+        const dbError = handleChatError(messageQueryError, 'STAFF_MESSAGE_QUERY', {
+          operationId,
+          query: 'gre_chat_messages'
+        });
+        return res.status(500).json({
+          error: 'Failed to fetch messages for staff portal',
+          details: dbError,
+          operationId
+        });
       }
 
-      console.log(`✅ [GRE ADMIN] Found ${sessions?.length || 0} active sessions`);
-      res.json(sessions || []);
+      // Step 3: Group messages by player_id to create virtual sessions
+      const playerSessions = new Map();
       
-    } catch (err) {
-      console.error('❌ [GRE ADMIN] Chat sessions error:', err);
-      res.status(500).json({ error: 'Internal server error' });
+      allMessages.forEach(message => {
+        const playerId = message.player_id;
+        if (!playerSessions.has(playerId)) {
+          playerSessions.set(playerId, {
+            id: message.session_id || `virtual_${playerId}`,
+            player_id: playerId,
+            player_name: message.player_name || `Player ${playerId}`,
+            player_email: `player${playerId}@example.com`, // Virtual email
+            session_id: message.session_id || `virtual_${playerId}`,
+            status: 'active', // Always show as active for staff visibility
+            priority: 'normal',
+            created_at: message.created_at,
+            updated_at: message.created_at,
+            assigned_to: null,
+            notes: '',
+            gre_chat_messages: []
+          });
+        }
+        
+        playerSessions.get(playerId).gre_chat_messages.push(message);
+        
+        // Update session timestamps
+        const session = playerSessions.get(playerId);
+        if (new Date(message.created_at) > new Date(session.updated_at)) {
+          session.updated_at = message.created_at;
+        }
+        if (new Date(message.created_at) < new Date(session.created_at)) {
+          session.created_at = message.created_at;
+        }
+      });
+
+      // Step 4: Convert Map to Array and process for Staff Portal display
+      const processedSessions = Array.from(playerSessions.values()).map(session => {
+        const messages = session.gre_chat_messages.sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+        
+        const lastMessage = messages[messages.length - 1];
+        const playerMessages = messages.filter(m => m.sender === 'player');
+        const greMessages = messages.filter(m => m.sender === 'gre');
+        
+        return {
+          ...session,
+          gre_chat_messages: messages, // Include all messages sorted chronologically
+          lastMessage: lastMessage?.message || 'No messages yet',
+          lastMessageTime: lastMessage?.created_at || session.created_at,
+          messageCount: messages.length,
+          playerMessageCount: playerMessages.length,
+          greMessageCount: greMessages.length,
+          unreadCount: playerMessages.length, // All player messages considered "unread" for staff attention
+          lastSender: lastMessage?.sender || 'unknown'
+        };
+      });
+
+      // Step 5: Sort by most recent activity
+      processedSessions.sort((a, b) => 
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      );
+
+      const duration = Date.now() - startTime;
+      
+      console.log(`✅ [GRE ADMIN] Successfully processed ${processedSessions.length} chat sessions`);
+      console.log('📊 [STATISTICS]:', {
+        totalSessions: processedSessions.length,
+        totalMessages: allMessages.length,
+        activeSessions: processedSessions.filter(s => s.messageCount > 0).length,
+        duration: `${duration}ms`
+      });
+      
+      if (debugMode === 'true') {
+        console.log('🔍 [DEBUG] Sample processed session:', 
+          processedSessions[0] ? JSON.stringify(processedSessions[0], null, 2) : 'No sessions');
+      }
+      
+      console.log(`🛡️ === GRE STAFF PORTAL CHAT SESSIONS AUDIT END [${operationId}] ===\n`);
+      
+      res.json(processedSessions);
+      
+    } catch (error: any) {
+      const duration = Date.now() - startTime;
+      const criticalError = handleChatError(error, 'GRE_ADMIN_SESSIONS_CRITICAL', {
+        operationId,
+        duration: `${duration}ms`
+      });
+      
+      console.log(`🛡️ === GRE STAFF PORTAL CHAT SESSIONS AUDIT END [${operationId}] - FAILED ===\n`);
+      
+      res.status(500).json({
+        error: 'GRE admin sessions fetch failed',
+        details: criticalError,
+        operationId,
+        timestamp: new Date().toISOString()
+      });
     }
   });
 
