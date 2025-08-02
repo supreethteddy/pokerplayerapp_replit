@@ -4818,8 +4818,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
 
             try {
-              // 🚨 ENTERPRISE-GRADE DEBUG LOGGING - PRODUCTION DATA VALIDATION
-              console.log('🛑 WEBSOCKET DEBUG: === PLAYER MESSAGE PROCESSING START ===');
+              // 🛑 CRITICAL DEBUG: COMPLETE PLAYER MESSAGE PAYLOAD LOGGING
+              console.log('🛑 CRITICAL DEBUG === PLAYER MESSAGE PROCESSING START ===');
+              console.log('PLAYER SEND RAW PAYLOAD:', JSON.stringify(data, null, 2));
+              console.log('PLAYER SEND PAYLOAD KEYS:', Object.keys(data));
+              console.log('PLAYER SEND PAYLOAD TYPES:', Object.entries(data).map(([k,v]) => `${k}: ${typeof v}`));
+              console.log('PLAYER SEND playerId variants:', {
+                playerId: data.playerId,
+                player_id: data.player_id,
+                wsPlayerId: ws.playerId,
+                playerIdType: typeof data.playerId,
+                player_idType: typeof data.player_id,
+                wsPlayerIdType: typeof ws.playerId
+              });
+              
+              // CRITICAL: ID STANDARDIZATION AND VALIDATION
+              const normalizedPlayerId = parseInt(data.playerId) || parseInt(data.player_id) || parseInt(ws.playerId);
+              console.log('PLAYER SEND - ID STANDARDIZATION:', {
+                normalizedPlayerId,
+                originalDataPlayerId: data.playerId,
+                originalDataPlayer_id: data.player_id,
+                wsPlayerId: ws.playerId,
+                finalIdType: typeof normalizedPlayerId
+              });
+              
               console.log('🔍 WEBSOCKET DEBUG: Processing send_message | Details:', {
                 playerId: ws.playerId,
                 playerName: ws.playerName,

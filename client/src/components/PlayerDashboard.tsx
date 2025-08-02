@@ -894,7 +894,12 @@ export default function PlayerDashboard() {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('📨 [WEBSOCKET] Received:', data);
+          
+          // 🛑 CRITICAL DEBUG: COMPLETE MESSAGE PAYLOAD LOGGING
+          console.log('🛑 CRITICAL DEBUG === WEBSOCKET RECEIVE START ===');
+          console.log('RECV RAW PAYLOAD:', JSON.stringify(data, null, 2));
+          console.log('RECV PAYLOAD KEYS:', Object.keys(data));
+          console.log('RECV PAYLOAD TYPES:', Object.entries(data).map(([k,v]) => `${k}: ${typeof v}`));
           
           if (data.type === 'authenticated') {
             console.log('🔐 [WEBSOCKET] Authentication successful');
@@ -909,39 +914,52 @@ export default function PlayerDashboard() {
             setChatLoading(false);
           }
           
-          // 🚨 UNIFIED ID FIELD MAPPING FIX - Handle Staff Portal message types
+          // 🛑 CRITICAL: GRE MESSAGE PROCESSING WITH COMPLETE DEBUG
           if (data.type === 'gre_message') {
-            console.log('🔍 FRONTEND DEBUG: GRE message received | Raw payload:', data);
+            console.log('🛑 CRITICAL DEBUG: GRE MESSAGE PROCESSING');
+            console.log('GRE RECV - Original Keys:', Object.keys(data));
+            console.log('GRE RECV - playerId variants:', {
+              playerId: data.playerId,
+              player_id: data.player_id,
+              playerIdType: typeof data.playerId,
+              player_idType: typeof data.player_id
+            });
+            console.log('GRE RECV - Current User ID:', user.id, typeof user.id);
             
-            // STANDARDIZED MESSAGE TRANSFORMATION - Convert all to consistent camelCase
-            const normalizedGreMessage = {
-              id: data.messageId || data.id || Date.now().toString(),
-              player_id: parseInt(data.playerId) || parseInt(data.player_id) || user.id,
-              session_id: data.sessionId || data.session_id,
-              message: data.message || data.content || data.messageText,
-              sender: 'gre',
-              sender_name: data.greStaffName || data.gre_staff_name || data.sender_name || 'GRE Staff',
-              timestamp: data.timestamp,
-              status: 'sent'
-            };
+            // CRITICAL: COMPREHENSIVE ID STANDARDIZATION
+            const normalizedPlayerId = parseInt(data.playerId) || parseInt(data.player_id) || parseInt(data.targetPlayerId) || user.id;
+            const messageMatch = normalizedPlayerId === user.id;
             
-            console.log('🔍 FRONTEND DEBUG: Normalized GRE message | Details:', {
-              originalPlayerId: data.playerId || data.player_id,
-              normalizedPlayerId: normalizedGreMessage.player_id,
+            console.log('GRE RECV - ID VALIDATION:', {
+              normalizedPlayerId,
               currentUserId: user.id,
-              messagePreview: normalizedGreMessage.message?.substring(0, 50),
-              validation: 'UNIFIED_ID_MAPPING_APPLIED'
+              messageMatch,
+              shouldDisplay: messageMatch
             });
             
-            // PRODUCTION DATA VALIDATION - Only add if IDs match exactly
-            if (normalizedGreMessage.player_id === user.id) {
-              setUnifiedChatMessages(prev => [...prev, normalizedGreMessage]);
-              console.log('✅ FRONTEND DEBUG: GRE message added to UI | PlayerId match confirmed');
+            if (messageMatch) {
+              const normalizedGreMessage = {
+                id: data.messageId || data.id || Date.now().toString(),
+                player_id: normalizedPlayerId,
+                session_id: data.sessionId || data.session_id,
+                message: data.message || data.content || data.messageText,
+                sender: 'gre',
+                sender_name: data.greStaffName || data.gre_staff_name || data.sender_name || 'GRE Staff',
+                timestamp: data.timestamp || new Date().toISOString(),
+                status: 'sent'
+              };
+              
+              console.log('✅ GRE RECV - ADDING TO UI:', normalizedGreMessage);
+              setUnifiedChatMessages(prev => {
+                const updated = [...prev, normalizedGreMessage];
+                console.log('✅ GRE RECV - UI STATE UPDATED:', updated.length, 'total messages');
+                return updated;
+              });
             } else {
-              console.warn('❌ FRONTEND DEBUG: GRE message rejected - PlayerId mismatch:', {
-                receivedPlayerId: normalizedGreMessage.player_id,
-                expectedPlayerId: user.id,
-                validation: 'ID_MISMATCH_BLOCKED'
+              console.warn('❌ GRE RECV - MESSAGE REJECTED - ID MISMATCH:', {
+                receivedId: normalizedPlayerId,
+                expectedId: user.id,
+                reason: 'PLAYER_ID_MISMATCH'
               });
             }
           }
