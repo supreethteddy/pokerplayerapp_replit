@@ -5107,14 +5107,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`📤 [UNIFIED CHAT] Processing message from ${senderType} ${playerId}: ${playerName}`);
       
-      // Step 2: Get the existing session for player 29 (created during setup)
-      const existingSessionId = '892e26af-735d-4e8b-97a0-fff0ce7dcb46'; // From database query
+      // Step 2: Get or create a valid session for this player
+      let sessionId;
+      try {
+        const { data: existingSession } = await staffPortalSupabase
+          .from('gre_chat_sessions')
+          .select('id')
+          .eq('player_id', playerId)
+          .eq('status', 'active')
+          .maybeSingle();
+        
+        if (existingSession) {
+          sessionId = existingSession.id;
+          console.log('✅ [SESSION] Using existing session:', sessionId);
+        } else {
+          // Create new session for this player
+          const { data: newSession, error: sessionError } = await staffPortalSupabase
+            .from('gre_chat_sessions')
+            .insert({
+              player_id: parseInt(playerId.toString()),
+              status: 'active',
+              started_at: new Date().toISOString(),
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .select('id')
+            .single();
+          
+          if (sessionError) {
+            console.error('❌ [SESSION] Failed to create session:', sessionError);
+            throw new Error('Failed to create session: ' + sessionError.message);
+          }
+          
+          sessionId = newSession.id;
+          console.log('✅ [SESSION] Created new session:', sessionId);
+        }
+      } catch (sessionException) {
+        console.error('❌ [SESSION] Exception:', sessionException);
+        return res.status(500).json({ 
+          error: 'Failed to manage session',
+          details: sessionException.message,
+          operationId 
+        });
+      }
       
       // Step 3: Universal Field Mapping (camelCase → snake_case)
       // Removed request_id temporarily to resolve schema issues
       const normalizedData = {
         id: crypto.randomUUID(),
-        session_id: existingSessionId, // Use the existing session to avoid constraint issues
+        session_id: sessionId, // Use the valid session ID
         player_id: parseInt(playerId.toString()),
         player_name: playerName || 'Unknown Player',
         message: message.trim(),
@@ -5128,7 +5169,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log('🏆 [FIELD MAPPING] Normalized Data for DB:', JSON.stringify(normalizedData, null, 2));
 
-      // Step 3: Database Insert with Comprehensive Error Handling
+      // Skip chat_requests for now due to Supabase schema cache issues - focus on gre_chat_messages
+
+      // Step 4: Database Insert with Comprehensive Error Handling
       let insertResult;
       try {
         // Insert without problematic fields for immediate troubleshooting success
