@@ -123,6 +123,8 @@ export const averageStackData = pgTable("average_stack_data", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+
+
 export const offerBanners = pgTable("offer_banners", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
