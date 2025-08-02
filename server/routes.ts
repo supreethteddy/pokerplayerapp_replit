@@ -5080,6 +5080,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return auditLog;
   };
 
+  // 🚀 NEW UUID-BASED CHAT ENDPOINT - Enterprise Migration Complete
+  app.post('/api/uuid-chat/send', async (req, res) => {
+    const operationId = crypto.randomUUID();
+    console.log(`🛡️ === UUID CHAT SEND START [${operationId}] ===`);
+    
+    try {
+      const { playerUUID, playerName, message, senderType = 'player' } = req.body;
+      
+      if (!playerUUID || !message) {
+        return res.status(400).json({ 
+          error: 'Player UUID and message are required',
+          received: { playerUUID: !!playerUUID, message: !!message },
+          operationId 
+        });
+      }
+      
+      console.log(`📤 [UUID CHAT] Processing message from ${senderType} UUID ${playerUUID}: ${playerName}`);
+      
+      // Get or create session for UUID player
+      let { data: session, error: sessionError } = await staffPortalSupabase
+        .from('gre_chat_sessions_uuid')
+        .select('*')
+        .eq('player_id', playerUUID)
+        .eq('status', 'active')
+        .limit(1)
+        .single();
+      
+      if (sessionError || !session) {
+        // Create new session
+        const { data: newSession, error: createError } = await staffPortalSupabase
+          .from('gre_chat_sessions_uuid')
+          .insert({
+            player_id: playerUUID,
+            status: 'active',
+            priority: 'normal',
+            category: 'support'
+          })
+          .select()
+          .single();
+        
+        if (createError) {
+          console.error('[UUID CHAT] Session creation failed:', createError);
+          return res.status(500).json({ error: createError.message, operationId });
+        }
+        
+        session = newSession;
+        console.log('✅ [UUID CHAT] New session created:', session.id);
+      }
+      
+      // Insert message with UUID
+      const { data: newMessage, error: messageError } = await staffPortalSupabase
+        .from('gre_chat_messages_uuid')
+        .insert({
+          session_id: session.id,
+          player_id: playerUUID,
+          player_name: playerName || 'Player',
+          message,
+          sender: senderType,
+          sender_name: senderType === 'player' ? playerName || 'Player' : 'GRE Support',
+          status: 'sent'
+        })
+        .select()
+        .single();
+      
+      if (messageError) {
+        console.error('[UUID CHAT] Message insert failed:', messageError);
+        return res.status(500).json({ error: messageError.message, operationId });
+      }
+      
+      // Also create a chat request for Staff Portal visibility
+      try {
+        await staffPortalSupabase
+          .from('chat_requests_uuid')
+          .insert({
+            player_id: playerUUID,
+            player_name: playerName || 'Player',
+            subject: message.substring(0, 200),
+            message,
+            status: 'waiting',
+            priority: 'normal',
+            category: 'support'
+          });
+        console.log('✅ [UUID CHAT] Chat request created for Staff Portal');
+      } catch (requestError) {
+        console.log('⚠️ [UUID CHAT] Chat request creation failed, continuing:', requestError);
+      }
+      
+      console.log(`✅ [UUID CHAT] Message sent for UUID ${playerUUID}: ${message.substring(0, 50)}...`);
+      res.json({ 
+        success: true, 
+        message: newMessage,
+        operationId,
+        migration_status: 'UUID_COMPLETE'
+      });
+      
+    } catch (error) {
+      console.error(`💥 [UUID CHAT] Exception [${operationId}]:`, error);
+      res.status(500).json({ error: error.message, operationId });
+    }
+  });
+
   // 🏆 ENHANCED CHAT REQUEST CREATION WITH COMPREHENSIVE AUDIT & RECOVERY
   app.post('/api/unified-chat/send', async (req, res) => {
     const operationId = crypto.randomUUID();
@@ -5916,7 +6017,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('🔍 [DEBUG] Querying ALL gre_chat_messages without filters...');
         
         const { data: rawMessages, error: messageError } = await staffPortalSupabase
-          .from('gre_chat_messages')
+          .from('gre_chat_messages_uuid')
           .select('*')
           .order('created_at', { ascending: false });
         
@@ -5939,7 +6040,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (messageQueryError) {
         const dbError = handleChatError(messageQueryError, 'STAFF_MESSAGE_QUERY', {
           operationId,
-          query: 'gre_chat_messages'
+          query: 'gre_chat_messages_uuid'
         });
         return res.status(500).json({
           error: 'Failed to fetch messages for staff portal',
