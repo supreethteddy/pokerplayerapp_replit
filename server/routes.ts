@@ -4784,6 +4784,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
 
             try {
+              // 🔍 COMPREHENSIVE DEBUG LOGGING
+              console.log('🛑 [DEBUG] === PLAYER MESSAGE DEBUG START ===');
+              console.log('🔍 [DEBUG] WebSocket Player ID:', ws.playerId);
+              console.log('🔍 [DEBUG] WebSocket Player Name:', ws.playerName);
+              console.log('🔍 [DEBUG] WebSocket Player Email:', ws.playerEmail);
+              console.log('🔍 [DEBUG] Message Content:', data.message);
+              console.log('🔍 [DEBUG] Message Type:', data.type);
+              console.log('🔍 [DEBUG] Full Message Data:', JSON.stringify(data, null, 2));
+              
               console.log(`📤 [UNIFIED WEBSOCKET] Processing message from player ${ws.playerId}`);
               
               // Find or create chat session
@@ -4813,27 +4822,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 console.log(`✅ [UNIFIED WEBSOCKET] Created new session: ${session.id}`);
               }
 
+              console.log('🔍 [DEBUG] Session Found/Created:', {
+                sessionId: session.id,
+                playerId: session.player_id,
+                playerName: session.player_name,
+                status: session.status
+              });
+
+              // Prepare message data for insertion
+              const messageData = {
+                session_id: session.id,
+                player_id: ws.playerId,
+                player_name: ws.playerName,
+                message: data.message,
+                sender: 'player',
+                sender_name: ws.playerName,
+                timestamp: new Date().toISOString(),
+                status: 'sent'
+              };
+
+              console.log('🔍 [DEBUG] Message Data to Insert:', JSON.stringify(messageData, null, 2));
+
               // Save message to Staff Portal Supabase
               const { data: savedMessage, error: messageError } = await staffPortalSupabase
                 .from('gre_chat_messages')
-                .insert({
-                  session_id: session.id,
-                  player_id: ws.playerId,
-                  player_name: ws.playerName,
-                  message: data.message,
-                  sender: 'player',
-                  sender_name: ws.playerName,
-                  timestamp: new Date().toISOString(),
-                  status: 'sent'
-                })
+                .insert(messageData)
                 .select()
                 .single();
 
               if (messageError) {
+                console.error(`❌ [UNIFIED WEBSOCKET] Message insert failed:`, messageError);
+                console.error('🔍 [DEBUG] Insert Error Details:', JSON.stringify(messageError, null, 2));
                 throw new Error(`Failed to save message: ${messageError.message}`);
               }
 
               console.log(`✅ [UNIFIED WEBSOCKET] Message saved to Staff Portal: ${savedMessage.id}`);
+              console.log('🔍 [DEBUG] Saved Message Full Data:', JSON.stringify(savedMessage, null, 2));
 
               // Update session
               await staffPortalSupabase
@@ -4852,9 +4876,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }));
 
               console.log(`📡 [UNIFIED WEBSOCKET] Message broadcasted to Staff Portal systems`);
+              console.log('🛑 [DEBUG] === PLAYER MESSAGE DEBUG END ===');
 
             } catch (error: any) {
               console.error('❌ [UNIFIED WEBSOCKET] Error processing message:', error);
+              console.error('🔍 [DEBUG] Full Error Details:', JSON.stringify(error, null, 2));
               ws.send(JSON.stringify({
                 type: 'error',
                 message: error.message || 'Failed to send message'
@@ -5095,7 +5121,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // **REAL-TIME MESSAGE SYNC FUNCTION**
   // Call this whenever a new message is added to refresh all connected clients
   function broadcastMessageUpdate(playerId: number) {
+    console.log('🛑 [DEBUG] === BROADCAST MESSAGE UPDATE DEBUG START ===');
+    console.log('🔍 [DEBUG] Broadcast requested for player:', playerId);
+    
     const connection = playerConnections.get(playerId);
+    console.log('🔍 [DEBUG] Connection found:', !!connection);
+    console.log('🔍 [DEBUG] Connection ready state:', connection?.readyState);
+    console.log('🔍 [DEBUG] WebSocket OPEN constant:', WebSocket.OPEN);
+    
     if (connection && connection.readyState === WebSocket.OPEN) {
       console.log(`🔄 [WEBSOCKET REFRESH] Refreshing messages for player ${playerId}`);
       
@@ -5107,16 +5140,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .order('created_at', { ascending: true })
         .limit(50)
         .then(({ data: messages, error }) => {
+          console.log('🔍 [DEBUG] Fresh messages fetched:', {
+            messageCount: messages?.length,
+            error: error
+          });
+          
           if (!error && messages) {
-            connection.send(JSON.stringify({
+            const updatePayload = {
               type: 'chat_history',
               messages: messages,
               refresh: true
-            }));
+            };
+            
+            console.log('🔍 [DEBUG] Sending WebSocket update:', {
+              messageCount: messages.length,
+              lastMessage: messages[messages.length - 1]?.message?.substring(0, 50) + '...'
+            });
+            
+            connection.send(JSON.stringify(updatePayload));
             console.log(`✅ [WEBSOCKET REFRESH] Sent ${messages.length} updated messages to player ${playerId}`);
+          } else {
+            console.error('❌ [WEBSOCKET REFRESH] Error fetching messages:', error);
           }
         });
+    } else {
+      console.log('❌ [WEBSOCKET REFRESH] No active connection for player:', playerId);
     }
+    
+    console.log('🛑 [DEBUG] === BROADCAST MESSAGE UPDATE DEBUG END ===');
   }
 
   // **COMPREHENSIVE GRE ADMIN API ENDPOINTS FOR STAFF PORTAL**
@@ -5179,6 +5230,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/gre-admin/send-message', async (req, res) => {
     try {
       const { playerId, message, greAgentName = 'GRE Support Agent' } = req.body;
+      
+      // 🔍 COMPREHENSIVE GRE DEBUG LOGGING
+      console.log('🛑 [DEBUG] === GRE SEND MESSAGE DEBUG START ===');
+      console.log('🔍 [DEBUG] Request Body:', JSON.stringify(req.body, null, 2));
+      console.log('🔍 [DEBUG] Player ID:', playerId);
+      console.log('🔍 [DEBUG] Message:', message);
+      console.log('🔍 [DEBUG] GRE Agent Name:', greAgentName);
+      
       console.log(`📤 [GRE ADMIN] Sending message to player ${playerId}: ${message.substring(0, 50)}...`);
       
       // Find active session
@@ -5189,7 +5248,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .eq('status', 'active')
         .single();
 
+      console.log('🔍 [DEBUG] Session Query Result:', { session, sessionError });
+
       if (sessionError || !session) {
+        console.log('❌ [DEBUG] No active session found for player:', playerId);
         return res.status(404).json({ error: 'No active chat session found for this player' });
       }
 
@@ -5205,6 +5267,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'sent'
       };
 
+      console.log('🔍 [DEBUG] GRE Message to Insert:', JSON.stringify(greMessage, null, 2));
+
       const { data: savedMessage, error: messageError } = await staffPortalSupabase
         .from('gre_chat_messages')
         .insert([greMessage])
@@ -5213,17 +5277,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (messageError) {
         console.error('❌ [GRE ADMIN] Error saving message:', messageError);
+        console.error('🔍 [DEBUG] Message Error Details:', JSON.stringify(messageError, null, 2));
         return res.status(500).json({ error: 'Failed to save message' });
       }
+
+      console.log('🔍 [DEBUG] Saved GRE Message:', JSON.stringify(savedMessage, null, 2));
+
+      // Check if player has active WebSocket connection
+      const connection = playerConnections.get(playerId);
+      console.log('🔍 [DEBUG] Player WebSocket Connection Status:', {
+        hasConnection: !!connection,
+        connectionReady: connection?.readyState === WebSocket.OPEN,
+        playerConnectionsSize: playerConnections.size
+      });
 
       // Broadcast update to player's WebSocket connection
       broadcastMessageUpdate(playerId);
 
       console.log(`✅ [GRE ADMIN] Message sent successfully to player ${playerId}`);
+      console.log('🛑 [DEBUG] === GRE SEND MESSAGE DEBUG END ===');
+      
       res.json({ success: true, message: savedMessage });
       
     } catch (err) {
       console.error('❌ [GRE ADMIN] Send message error:', err);
+      console.error('🔍 [DEBUG] Full GRE Error:', JSON.stringify(err, null, 2));
       res.status(500).json({ error: 'Internal server error' });
     }
   });
