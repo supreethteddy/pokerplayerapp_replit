@@ -1,0 +1,98 @@
+# 🟦 Staff Portal Integration and Audit Prompt
+
+**Primary Objective:**  
+Ensure the Staff Portal is perfectly unified with the Player Portal and fully aligned to the live Supabase Poker Pro 2 production schema. Every chat, support, seat, or waitlist action must use the canonical, current schema and reference only those tables and fields actually present in Supabase and shared with the Player Portal.
+
+---
+
+## 🔹 Live-State Checklist
+
+1. **Supabase Poker Pro 2 Project Tables to Use (and ONLY These):**
+   - `chat_requests` (all user/staff chat sessions)
+   - `chat_messages` (all chat content)
+   - `seat_requests` (for seat/waitlist flow)
+   - `players`, `staff`, `kyc_documents`, as required for support/audit
+
+2. **NO Legacy Tables:**
+   - *Purge all references* to: `gre_chat_messages`, `chat_sessions`, `chat_messages_uuid`, or any old/camelCase/deprecated table or field.
+   - Codebase (`server/routes.ts`, React components, queries, mutations, utils) must be **free of all legacy chat artifacts**.
+
+3. **Field Naming Rules:**
+   - All fields are `snake_case`—never `camelCase`.
+   - All table column names, queries, payloads, and TS models must match the latest Supabase schema.
+
+4. **Required Columns (with Typings):**
+   - `chat_requests`:  
+     - `id` (UUID, PK), `player_id` (UUID), `category` (TEXT), `status` (TEXT: `'waiting'|'active'|'resolved'`), `priority`, `subject`, `gre_staff_id`, `created_at`
+   - `chat_messages`:
+     - `id` (UUID, PK), `chat_request_id` (UUID, FK), `player_id` (UUID, FK), `sender_id` (UUID), `sender_type` (TEXT: `'player'|'gre'`), `message_text` (TEXT), `created_at` (TIMESTAMPTZ)
+
+5. **Supabase Auth/UUIDs:**
+   - All assignment, message, and player/staff lookups use UUIDs from Supabase Auth.
+   - No integer/legacy id mapping or mismatched identify sources.
+
+6. **API/Socket Flows:**
+   - Staff should only “take” chats by updating `status` in `chat_requests` and setting `gre_staff_id`.
+   - Messages are inserted into `chat_messages` with proper foreign key linkage.
+   - All updates are delivered in real time via WebSocket or Supabase subscription.
+
+7. **Row-Level Security:**
+   - RLS must allow only permitted staff/players to see or update relevant chats (test live, do not assume).
+   - Any API or Supabase error related to insert/select/update means misaligned field or broken RLS.
+
+---
+
+## 🔹 Final Integration Steps
+
+1. **Do a project-wide search/replace** for any legacy chat table or camelCase field. Eliminate or rewrite.
+2. **Validate all server and client code** (TS models, SQL queries, React state flows) for true snake_case & table/column name alignment with the latest schema.
+3. **Test chat creation, assignment, resolution:**  
+   - In staff: create/take/resolve player chats;
+   - In player: send/receive support messages;
+   - Verify state and messages are perfectly mirrored cross-portal in real time.
+4. **Test waitlist, KYC, and seat flows** the same way.
+5. **If any function or endpoint fails:**  
+   - Print or log the SQL/query/payload and Supabase schema for immediate fix.
+
+---
+
+## 🔹 Verification Example (API)
+
+**Take chat request:**
+supabase
+.from('chat_requests')
+.update({ status: 'active', gre_staff_id: STAFF_UUID })
+.eq('id', CHAT_REQUEST_UUID)
+
+text
+
+**Insert chat message:**
+supabase
+.from('chat_messages')
+.insert([{
+chat_request_id: CHAT_REQUEST_UUID,
+player_id: PLAYER_UUID,
+sender_id: STAFF_UUID,
+sender_type: 'gre',
+message_text: 'Hello, how can I help?',
+}])
+
+text
+
+---
+
+## 🔹 Final Quality Bar
+
+**If any of the following are true, you’re NOT ready:**
+- Any code references a non-Supabase table/field.
+- Any camelCase fields appear in payloads/queries.
+- Any chat/request fails to sync between staff and player views in real time.
+- Any “column not found” or “key violation” API error occurs in logs.
+- RLS/permissions breaks for any valid user.
+
+---
+
+**Summary:**  
+_Staff Portal must be 100% schema-aligned, real-time, and legacy-free.  
+All business logic, query, and mutation code must match the shared canonical schema above.  
+Upon successful alignment, both Player and Staff Portals will offer seamless support chat and support flows._  

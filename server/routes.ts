@@ -5162,72 +5162,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // 🚀 UUID-BASED CHAT REQUESTS ENDPOINT
-  app.post('/api/uuid-chat/requests', async (req, res) => {
+  // UNIFIED CHAT REQUESTS - STAFF PORTAL ALIGNED (snake_case fields)
+  app.post('/api/unified-chat/requests', async (req, res) => {
     const operationId = crypto.randomUUID();
     
     try {
-      const { playerUUID } = req.body;
+      const { player_id, status } = req.body;
       
-      if (!playerUUID) {
-        return res.status(400).json({ error: 'Player UUID required' });
+      if (!player_id) {
+        return res.status(400).json({ error: 'player_id required in snake_case format' });
       }
       
-      console.log(`📋 [UUID REQUESTS] Fetching chat requests for UUID: ${playerUUID}`);
-      console.log(`🔗 [UUID REQUESTS] Using Development Database (main Supabase connection)`);
+      console.log(`📋 [UNIFIED REQUESTS] Fetching chat requests for player_id: ${player_id}`);
+      console.log(`🔗 [UNIFIED REQUESTS] Using Staff Portal Supabase (unified tables)`);
       
-      const { data: requests, error } = await supabase
-        .from('chat_requests_uuid')
+      let query = staffPortalSupabase
+        .from('chat_requests')
         .select('*')
-        .eq('player_id', playerUUID)
+        .eq('player_id', player_id);
+      
+      if (status) {
+        query = query.eq('status', status);
+      }
+      
+      const { data: requests, error } = await query
         .order('created_at', { ascending: false });
       
       if (error) {
-        console.error('[UUID REQUESTS] Query failed:', error);
+        console.error('[UNIFIED REQUESTS] Query failed:', error);
         return res.status(500).json({ error: error.message });
       }
       
-      console.log(`✅ [UUID REQUESTS] Found ${requests?.length || 0} requests`);
-      console.log(`📊 [UUID REQUESTS] Sample request:`, requests?.[0]);
+      console.log(`✅ [UNIFIED REQUESTS] Found ${requests?.length || 0} requests`);
+      console.log(`📊 [UNIFIED REQUESTS] Sample request:`, requests?.[0]);
       res.json(requests || []);
       
     } catch (error) {
-      console.error(`💥 [UUID REQUESTS] Exception [${operationId}]:`, error);
+      console.error(`💥 [UNIFIED REQUESTS] Exception [${operationId}]:`, error);
       res.status(500).json({ error: error.message });
     }
   });
 
   // 🚀 UUID-BASED CHAT MESSAGES ENDPOINT
-  app.post('/api/uuid-chat/messages', async (req, res) => {
+  // UNIFIED CHAT MESSAGES - STAFF PORTAL ALIGNED (snake_case fields)
+  app.post('/api/unified-chat/messages', async (req, res) => {
     const operationId = crypto.randomUUID();
     
     try {
-      const { playerUUID } = req.body;
+      const { player_id, chat_request_id } = req.body;
       
-      if (!playerUUID) {
-        return res.status(400).json({ error: 'Player UUID required' });
+      if (!player_id) {
+        return res.status(400).json({ error: 'player_id required in snake_case format' });
       }
       
-      console.log(`📬 [UUID MESSAGES] Fetching messages for UUID: ${playerUUID}`);
-      console.log(`🔗 [UUID MESSAGES] Using Development Database (main Supabase connection)`);
+      console.log(`📬 [UNIFIED MESSAGES] Fetching messages for player_id: ${player_id}`);
+      console.log(`🔗 [UNIFIED MESSAGES] Using Staff Portal Supabase (unified tables)`);
       
-      const { data: messages, error } = await supabase
+      let query = staffPortalSupabase
         .from('chat_messages')
         .select('*')
-        .eq('player_id', playerUUID)
+        .eq('player_id', player_id);
+      
+      if (chat_request_id) {
+        query = query.eq('chat_request_id', chat_request_id);
+      }
+      
+      const { data: messages, error } = await query
         .order('created_at', { ascending: true });
       
       if (error) {
-        console.error('[UUID MESSAGES] Query failed:', error);
+        console.error('[UNIFIED MESSAGES] Query failed:', error);
         return res.status(500).json({ error: error.message });
       }
       
-      console.log(`✅ [UUID MESSAGES] Found ${messages?.length || 0} messages`);
-      console.log(`📊 [UUID MESSAGES] Sample message:`, messages?.[0]);
+      console.log(`✅ [UNIFIED MESSAGES] Found ${messages?.length || 0} messages`);
+      console.log(`📊 [UNIFIED MESSAGES] Sample message:`, messages?.[0]);
       res.json(messages || []);
       
     } catch (error) {
-      console.error(`💥 [UUID MESSAGES] Exception [${operationId}]:`, error);
+      console.error(`💥 [UNIFIED MESSAGES] Exception [${operationId}]:`, error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // UNIFIED CHAT SEND MESSAGE - STAFF PORTAL ALIGNED (snake_case fields)
+  app.post('/api/unified-chat/send', async (req, res) => {
+    const { sendUnifiedChatMessage } = await import('./unified-chat-system-complete.js');
+    
+    try {
+      const { player_id, message_text, sender, sender_name, chat_request_id } = req.body;
+      
+      if (!player_id || !message_text || !sender) {
+        return res.status(400).json({ 
+          error: 'Required fields: player_id, message_text, sender (all in snake_case format)' 
+        });
+      }
+      
+      const result = await sendUnifiedChatMessage({
+        playerId: player_id,
+        message: message_text,
+        sender: sender,
+        senderName: sender_name,
+        requestId: chat_request_id
+      });
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(500).json({ error: result.error });
+      }
+      
+    } catch (error) {
+      console.error('[UNIFIED SEND] Error:', error);
       res.status(500).json({ error: error.message });
     }
   });

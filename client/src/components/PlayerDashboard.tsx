@@ -52,7 +52,7 @@ import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
-// Removed UnifiedChatSystem import - using embedded chat in feedback tab
+import UnifiedGreChatDialog from "./UnifiedGreChatDialog";
 
 
 // Scrollable Offers Display Component
@@ -861,6 +861,7 @@ export default function PlayerDashboard() {
   // WebSocket connection for real-time GRE chat
   const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
+  const [unifiedChatOpen, setUnifiedChatOpen] = useState(false);
 
   // Initialize WebSocket connection for real-time chat
   useEffect(() => {
@@ -2565,513 +2566,66 @@ export default function PlayerDashboard() {
                   </CardContent>
                 </Card>
 
-                {/* Guest Relations Support */}
+                {/* Guest Relations Support - Unified Chat System */}
                 <Card className="bg-slate-800 border-slate-700">
                   <CardHeader className="pb-4 border-b border-slate-700">
-                    <div className="flex items-center space-x-3">
-                      <div className="p-2 bg-emerald-500/20 rounded-full">
-                        <MessageCircle className="w-5 h-5 text-emerald-400" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-white text-lg">
-                          Guest Relations Support
-                        </CardTitle>
-                        <div className="flex items-center space-x-2 text-sm text-slate-400">
-                          <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-400 animate-pulse' : 'bg-orange-400'}`}></div>
-                          <span>{wsConnected ? 'Real-time chat connected' : 'Available 24/7'}</span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-emerald-500/20 rounded-full">
+                          <MessageCircle className="w-5 h-5 text-emerald-400" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-white text-lg">
+                            Guest Relations Support
+                          </CardTitle>
+                          <div className="flex items-center space-x-2 text-sm text-slate-400">
+                            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                            <span>Unified Chat System Active</span>
+                          </div>
                         </div>
                       </div>
+                      <Button
+                        onClick={() => setUnifiedChatOpen(true)}
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                        size="sm"
+                      >
+                        <MessageCircle className="w-4 h-4 mr-2" />
+                        Open Chat
+                      </Button>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {/* Chat Messages Display */}
-                    <div className="max-h-[400px] overflow-y-auto space-y-4 bg-slate-900 p-4 rounded-lg">
-                      {chatLoading ? (
-                        <div className="text-center text-slate-400 py-8">
-                          <MessageCircle className="w-8 h-8 mx-auto mb-2 animate-pulse" />
-                          Loading chat history...
-                        </div>
-                      ) : (() => {
-                        // 🛑 GOD-LEVEL DEBUG: COMPLETE MESSAGE RENDERING ANALYSIS
-                        console.log('🛑 GOD-LEVEL DEBUG === CHAT MESSAGE RENDERING START ===');
-                        console.log('UNIFIED CHAT MESSAGES RAW:', unifiedChatMessages);
-                        console.log('UNIFIED CHAT MESSAGES COUNT:', unifiedChatMessages.length);
-                        console.log('CURRENT USER CONTEXT:', {
-                          userId: user.id,
-                          userIdType: typeof user.id,
-                          userName: `${user.firstName} ${user.lastName}`,
-                          userEmail: user.email
-                        });
-                        
-                        // Use unified messages - single source of truth
-                        const allMessages = unifiedChatMessages;
-                        
-                        // Log every message before deduplication
-                        allMessages.forEach((msg, index) => {
-                          console.log(`RAW MESSAGE ${index + 1} ANALYSIS:`, {
-                            messageId: msg.id,
-                            player_id: msg.player_id,
-                            playerId: msg.playerId,
-                            sender: msg.sender,
-                            sender_type: msg.sender_type,
-                            messagePreview: msg.message?.substring(0, 50) + '...',
-                            timestamp: msg.timestamp || msg.created_at,
-                            rawMessageKeys: Object.keys(msg),
-                            belongsToCurrentUser: (msg.player_id || msg.playerId) === user.id ? 'YES' : 'NO'
-                          });
-                        });
-                        
-                        // 🚨 GOD-LEVEL FILTER BYPASS FOR DEBUG - SHOW ALL MESSAGES
-                        console.log('🚨 GOD-LEVEL FILTER BYPASS ACTIVE - SHOWING ALL MESSAGES');
-                        
-                        // Log every field comparison for user ID matching
-                        allMessages.forEach((msg, idx) => {
-                          console.log(`🔍 RAW MSG ${idx + 1}:`, msg);
-                          
-                          // Test all possible field/type combinations
-                          const fieldTests = [
-                            { field: 'playerId', value: msg.playerId, type: typeof msg.playerId },
-                            { field: 'player_id', value: msg.player_id, type: typeof msg.player_id },
-                            { field: 'playerid', value: msg.playerid, type: typeof msg.playerid },
-                            { field: 'PlayerId', value: msg.PlayerId, type: typeof msg.PlayerId }
-                          ];
-                          
-                          const userIdTests = [
-                            { field: 'user.id', value: user.id, type: typeof user.id },
-                            { field: 'user.id (string)', value: String(user.id), type: typeof String(user.id) },
-                            { field: 'user.id (number)', value: Number(user.id), type: typeof Number(user.id) }
-                          ];
-                          
-                          console.log(`[FILTER-TEST] Message ${idx + 1} Field Tests:`, fieldTests);
-                          console.log(`[FILTER-TEST] User ID Tests:`, userIdTests);
-                          
-                          // Test all combinations
-                          fieldTests.forEach(field => {
-                            userIdTests.forEach(userId => {
-                              const matches = field.value === userId.value;
-                              const typesMatch = field.type === userId.type;
-                              console.log(`[FILTER-TEST] ${field.field}(${field.value},${field.type}) === ${userId.field}(${userId.value},${userId.type}) = ${matches} (types match: ${typesMatch})`);
-                            });
-                          });
-                          
-                          // Current filter result
-                          const currentFilterResult = (msg.player_id || msg.playerId) === user.id;
-                          console.log(`[CURRENT-FILTER] Message ${idx + 1} would be ${currentFilterResult ? 'INCLUDED' : 'DROPPED'}`);
-                          
-                          if (!currentFilterResult) {
-                            console.warn('❌ [FILTER-DROP] Message details:', {
-                              messageId: msg.id,
-                              allFields: Object.keys(msg),
-                              playerIdFields: {
-                                playerId: msg.playerId,
-                                player_id: msg.player_id,
-                                playerid: msg.playerid,
-                                PlayerId: msg.PlayerId
-                              },
-                              userIdValue: user.id,
-                              userIdType: typeof user.id,
-                              reason: 'FIELD_TYPE_MISMATCH_OR_MISSING'
-                            });
-                          }
-                        });
-
-                        // 🎯 GOD-LEVEL NORMALIZED FILTER - HANDLE ALL FIELD/TYPE VARIANTS
-                        function normalizeId(id) {
-                          if (id === null || id === undefined) return null;
-                          // Convert to string, remove leading zeros, then convert back to number
-                          const stringId = String(id).replace(/^0+/, '') || '0';
-                          return parseInt(stringId);
-                        }
-                        
-                        const currentUserId = normalizeId(user.id);
-                        console.log('🎯 NORMALIZED CURRENT USER ID:', currentUserId);
-                        
-                        const uniqueMessages = allMessages
-                          .filter((message, index, arr) => {
-                            // Remove exact duplicates first
-                            const isDuplicate = index !== arr.findIndex(m => 
-                              m.id === message.id || (
-                                m.message === message.message && 
-                                Math.abs(new Date(m.timestamp || m.created_at).getTime() - new Date(message.timestamp || message.created_at).getTime()) < 1000
-                              )
-                            );
-                            
-                            if (isDuplicate) {
-                              console.log(`🔄 DUPLICATE REMOVED: Message ${index + 1}`, {
-                                messageId: message.id,
-                                messagePreview: message.message?.substring(0, 30) + '...',
-                                reason: 'DUPLICATE_CONTENT_AND_TIMESTAMP'
-                              });
-                              return false;
-                            }
-                            
-                            // Apply normalized user filter
-                            const messagePlayerId = normalizeId(message.player_id || message.playerId || message.playerid || message.PlayerId);
-                            const belongs = messagePlayerId === currentUserId;
-                            
-                            console.log(`🎯 NORMALIZED FILTER: Message ${index + 1}:`, {
-                              messageId: message.id,
-                              rawPlayerId: message.player_id || message.playerId,
-                              normalizedPlayerId: messagePlayerId,
-                              currentUserId,
-                              belongs,
-                              decision: belongs ? 'INCLUDE' : 'EXCLUDE'
-                            });
-                            
-                            return belongs;
-                          })
-                          .sort((a, b) => 
-                            new Date(a.timestamp || a.created_at).getTime() - new Date(b.timestamp || b.created_at).getTime()
-                          );
-                        
-                        console.log('✅ GOD-LEVEL DEBUG: DEDUPLICATION COMPLETE');
-                        console.log('UNIQUE MESSAGES COUNT:', uniqueMessages.length);
-                        console.log('MESSAGES TO RENDER:', uniqueMessages.map(m => ({
-                          id: m.id,
-                          sender: m.sender || m.sender_type,
-                          preview: m.message?.substring(0, 30) + '...',
-                          belongsToUser: (m.player_id || m.playerId) === user.id ? 'YES' : 'NO'
-                        })));
-                        
-                        // 🛑 GOD-LEVEL DEBUG: FINAL RENDERING DECISION
-                        console.log('🛑 GOD-LEVEL DEBUG: FINAL RENDERING DECISION:', {
-                          hasMessages: uniqueMessages.length > 0,
-                          willShowMessages: uniqueMessages.length > 0 ? 'YES' : 'NO - SHOWING EMPTY STATE',
-                          totalMessagesToRender: uniqueMessages.length
-                        });
-                        
-                        console.log('🎯 SHOWING NORMALIZED FILTERED MESSAGES FOR CURRENT USER');
-                        console.log('TOTAL MESSAGES TO RENDER:', uniqueMessages.length);
-                        
-                        return uniqueMessages.length > 0 ? uniqueMessages.map((message: any, index: number) => {
-                          // Log each message as it's being rendered
-                          console.log(`RENDERING MESSAGE ${index + 1}:`, {
-                            messageId: message.id,
-                            sender: message.sender || message.sender_type,
-                            isPlayer: message.sender === 'player' || message.sender_type === 'player',
-                            isGRE: message.sender === 'gre' || message.sender_type === 'gre',
-                            messageText: message.message?.substring(0, 50) + '...',
-                            belongsToCurrentUser: (message.player_id || message.playerId) === user.id ? 'YES' : 'NO',
-                            playerIdField: message.player_id || message.playerId,
-                            currentUserId: user.id
-                          });
-                          
-                          return (
-                          <div
-                            key={index}
-                            className={`flex ${
-                              message.sender === 'player' || message.sender_type === 'player' ? 'justify-end' : 'justify-start'
-                            }`}
-                          >
-                            <div className="flex items-end space-x-2 max-w-[80%]">
-                              {(message.sender === 'gre' || message.sender_type === 'gre') && (
-                                <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center">
-                                  <MessageCircle className="w-4 h-4 text-white" />
-                                </div>
-                              )}
-                              <div>
-                                <div
-                                  className={`rounded-lg px-3 py-2 ${
-                                    message.sender === 'player' || message.sender_type === 'player'
-                                      ? 'bg-blue-600 text-white'
-                                      : 'bg-slate-700 text-slate-100'
-                                  }`}
-                                >
-                                  <p className="text-sm">{message.message}</p>
-                                  {/* 🚨 DEBUG: Show message metadata */}
-                                  <div className="text-xs opacity-60 mt-1 font-mono">
-                                    ID: {message.id?.substring(0,8)}... | Player: {message.player_id || message.playerId} | User: {user.id} | Match: {(message.player_id || message.playerId) === user.id ? 'YES' : 'NO'}
-                                  </div>
-                                </div>
-                                <div className="flex items-center mt-1 space-x-2">
-                                  <span className="text-xs text-slate-500">
-                                    {new Date(message.timestamp || message.created_at).toLocaleTimeString([], { 
-                                      hour: '2-digit', 
-                                      minute: '2-digit' 
-                                    })}
-                                  </span>
-                                </div>
-                              </div>
-                              {(message.sender === 'player' || message.sender_type === 'player') && (
-                                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                                  <span className="text-xs text-white font-medium">You</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                        }) : (
-                          <div className="text-center text-slate-400 py-8">
-                            <MessageCircle className="w-12 h-12 mx-auto mb-4 text-slate-600" />
-                            <h3 className="text-lg font-medium text-slate-300 mb-2">
-                              Start a Conversation
-                            </h3>
-                            <p className="text-sm">
-                              Our Guest Relations team is here to help you with any questions or concerns.
-                            </p>
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* Quick Actions */}
-                    <div className="space-y-2">
-                      <div className="text-xs text-slate-400 font-medium">Quick Actions:</div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {[
-                          "I need help with my account",
-                          "Technical support",
-                          "Payment history",
-                          "Game assistance"
-                        ].map((quickMessage) => (
-                          <Button
-                            key={quickMessage}
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setChatMessage(quickMessage)}
-                            className="text-xs border-slate-600 text-slate-300 hover:bg-slate-700 h-auto py-2 px-3 text-left justify-start"
-                          >
-                            {quickMessage}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Chat Input */}
-                    <div className="flex gap-2 pt-4 border-t border-slate-700">
-                      <Input
-                        value={chatMessage}
-                        onChange={(e) => setChatMessage(e.target.value)}
-                        placeholder="Type your message..."
-                        className="flex-1 bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                        disabled={sendingChatMessage}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            sendChatMessage();
-                          }
-                        }}
-                      />
-                      <Button 
-                        onClick={async () => {
-                          if (confirm('Are you sure you want to clear the chat history?')) {
-                            try {
-                              // Clear chat via API
-                              await apiRequest("DELETE", `/api/gre-chat/messages/${user?.id}`);
-                              
-                              // Clear local states
-                              setUnifiedChatMessages([]);
-                              
-                              // Invalidate and refetch queries
-                              queryClient.invalidateQueries({ queryKey: [`/api/gre-chat/messages/${user?.id}`] });
-                              
-                              // Clear WebSocket message via WebSocket if connected
-                              if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
-                                wsConnection.send(JSON.stringify({
-                                  type: 'clear_chat',
-                                  playerId: user.id,
-                                  playerName: `${user.firstName} ${user.lastName}`,
-                                  timestamp: new Date().toISOString()
-                                }));
-                              }
-                              
-                              toast({
-                                title: "Chat Cleared",
-                                description: "Chat history has been permanently cleared",
-                              });
-                            } catch (error) {
-                              toast({
-                                title: "Error",
-                                description: "Failed to clear chat history",
-                                variant: "destructive"
-                              });
-                            }
-                          }
-                        }}
-                        variant="outline"
-                        size="sm"
-                        className="border-slate-600 text-slate-300 hover:bg-slate-700"
-                        title="Clear Chat"
+                    <div className="text-center py-8">
+                      <MessageCircle className="w-12 h-12 mx-auto mb-4 text-emerald-400" />
+                      <h3 className="text-lg font-semibold text-white mb-2">
+                        Professional Support Available
+                      </h3>
+                      <p className="text-slate-400 mb-4">
+                        Connect with our Guest Relations team for immediate assistance with any questions or concerns.
+                      </p>
+                      <Button
+                        onClick={() => setUnifiedChatOpen(true)}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <MessageCircle className="w-5 h-5 mr-2" />
+                        Start Chat Conversation
                       </Button>
-                      <Button 
-                        onClick={sendChatMessage}
-                        disabled={sendingChatMessage || !chatMessage.trim()}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                      >
-                        {sendingChatMessage ? (
-                          <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                        ) : (
-                          <Send className="w-4 h-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* REMOVED UnifiedChatSystem - Using embedded chat in feedback tab instead */}
-
-                {/* Notifications from Management */}
-                <Card className="bg-slate-800 border-slate-700">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center">
-                      <Bell className="w-5 h-5 mr-2 text-emerald-500" />
-                      Notifications from Management
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="max-h-[400px] overflow-y-auto space-y-3">
-                      {notificationsLoading ? (
-                        <div className="space-y-3">
-                          {[1, 2, 3].map((i) => (
-                            <div key={i} className="bg-slate-700 p-3 rounded-lg animate-pulse">
-                              <div className="h-4 bg-slate-600 rounded mb-2"></div>
-                              <div className="h-3 bg-slate-600 rounded w-3/4"></div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : Array.isArray(notifications) && notifications.length > 0 ? (
-                        notifications.map((notification: any) => (
-                          <div 
-                            key={notification.id} 
-                            className={`p-4 rounded-lg border-l-4 ${
-                              notification.priority === 'urgent' ? 'border-red-500 bg-red-900/20' :
-                              notification.priority === 'high' ? 'border-yellow-500 bg-yellow-900/20' :
-                              'border-emerald-500 bg-emerald-900/20'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <h4 className="font-medium text-white mb-1">{notification.title}</h4>
-                                <p className="text-slate-300 text-sm mb-2">{notification.message}</p>
-                                <div className="flex items-center text-xs text-slate-400">
-                                  <span className="bg-slate-700 px-2 py-1 rounded mr-2">
-                                    {(notification.sender_role || notification.sent_by_role || 'SYSTEM')?.toString().toUpperCase() || 'SYSTEM'}
-                                  </span>
-                                  <span>{notification.sender_name}</span>
-                                  <span className="mx-2">•</span>
-                                  <span>{new Date(notification.created_at).toLocaleString()}</span>
-                                </div>
-                              </div>
-                              {notification.priority === 'urgent' && (
-                                <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 ml-2" />
-                              )}
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-8">
-                          <Bell className="w-12 h-12 text-slate-500 mx-auto mb-3" />
-                          <p className="text-slate-400 text-sm">No notifications yet</p>
-                          <p className="text-slate-500 text-xs">You'll receive real-time messages from staff here</p>
-                        </div>
-                      )}
                     </div>
                   </CardContent>
                 </Card>
               </div>
             </TabsContent>
+          </Tabs>
+        </div>
 
-            {/* Notifications Management Tab */}
-            <TabsContent value="notifications" className="space-y-4 w-full max-w-full">
-              <Card className="bg-slate-800/80 border-slate-700/50 w-full max-w-full overflow-hidden backdrop-blur-sm">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-white flex items-center justify-between">
-                    <div className="flex items-center">
-                      <Bell className="w-5 h-5 mr-2 text-blue-500" />
-                      Notifications
-                    </div>
-                    <span className="text-sm font-normal text-slate-400">
-                      Last 24 hours
-                    </span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {notificationsLoading ? (
-                    <div className="space-y-4">
-                      {[1, 2, 3].map((i) => (
-                        <div key={i} className="animate-pulse flex space-x-3">
-                          <div className="rounded-full bg-slate-700 h-8 w-8"></div>
-                          <div className="flex-1 space-y-2">
-                            <div className="h-4 bg-slate-700 rounded w-3/4"></div>
-                            <div className="h-3 bg-slate-700 rounded w-1/2"></div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : notifications && notifications.length > 0 ? (
-                    <div className="space-y-3 max-h-96 overflow-y-auto">
-                      {notifications.map((notification: any) => (
-                        <div 
-                          key={notification.id}
-                          className={`p-4 rounded-lg border ${
-                            notification.priority === 'urgent' 
-                              ? 'bg-red-900/20 border-red-500/30' 
-                              : notification.priority === 'high'
-                              ? 'bg-yellow-900/20 border-yellow-500/30'
-                              : 'bg-slate-700/30 border-slate-600/30'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-center space-x-2">
-                              {notification.priority === 'urgent' ? (
-                                <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                              ) : notification.priority === 'high' ? (
-                                <Bell className="w-4 h-4 text-yellow-500 flex-shrink-0" />
-                              ) : (
-                                <Info className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                              )}
-                              <span className="text-xs font-medium text-white bg-slate-700/60 px-2 py-1 rounded">
-                                {(notification.sender_role || notification.sent_by_role || 'SYSTEM')?.toString().toUpperCase() || 'SYSTEM'}
-                              </span>
-                            </div>
-                            <span className="text-xs text-slate-400">
-                              {new Date(notification.created_at || notification.sent_at).toLocaleTimeString()}
-                            </span>
-                          </div>
-                          
-                          <h4 className="text-white font-semibold text-sm mb-1">
-                            {notification.title}
-                          </h4>
-                          
-                          <p className="text-slate-300 text-sm mb-2 leading-relaxed">
-                            {notification.message}
-                          </p>
-                          
-                          {notification.media_url && (
-                            <div className="mt-2 p-2 bg-slate-800/50 rounded border border-slate-600/50">
-                              <div className="flex items-center space-x-2 text-xs text-slate-400">
-                                <span>📎 Media attachment:</span>
-                                <span className="text-blue-400">{notification.media_description || 'View attachment'}</span>
-                              </div>
-                            </div>
-                          )}
-                          
-                          <div className="flex items-center justify-between mt-2 text-xs text-slate-400">
-                            <span>From: {notification.sender_name || notification.sent_by_name || 'System'}</span>
-                            <span>{new Date(notification.created_at || notification.sent_at).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <Bell className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-                      <p className="text-slate-400">No notifications in the last 24 hours</p>
-                      <p className="text-slate-500 text-sm mt-1">New notifications will appear here</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
+        {/* Unified GRE Chat Dialog */}
+        <UnifiedGreChatDialog 
+          isOpen={unifiedChatOpen}
+          onClose={() => setUnifiedChatOpen(false)}
+        />
 
-          </div>
-        </Tabs>
       </div>
-      
-      {/* Seat selection dialog removed - direct waitlist joining only */}
+    );
+  };
 
-    </div>
-  );
-}
+export default PlayerDashboard;
