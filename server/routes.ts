@@ -5684,6 +5684,204 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log('🛑 [DEBUG] === BROADCAST MESSAGE UPDATE DEBUG END ===');
   }
 
+  // **ENTERPRISE-READY GRE PORTAL API ENDPOINTS**
+  
+  // 1. Debug API for all chat requests - Enterprise visibility
+  app.get('/api/chat-requests/debug-all', async (req, res) => {
+    const operationId = crypto.randomUUID();
+    console.log(`🛡️ === CHAT REQUESTS DEBUG START [${operationId}] ===`);
+    
+    try {
+      // Fetch all chat requests without filters for enterprise visibility
+      const { data: allRequests, error } = await staffPortalSupabase
+        .from('chat_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('❌ [DEBUG ALL] Error fetching chat requests:', error);
+        return res.status(500).json({ error: error.message });
+      }
+      
+      // Group by status for enterprise dashboard
+      const statusGroups = {
+        pending: allRequests?.filter(r => r.status === 'waiting') || [],
+        active: allRequests?.filter(r => r.status === 'in_progress') || [],
+        resolved: allRequests?.filter(r => r.status === 'resolved') || [],
+        closed: allRequests?.filter(r => r.status === 'closed') || []
+      };
+      
+      console.log('✅ [DEBUG ALL] Chat requests by status:', {
+        pending: statusGroups.pending.length,
+        active: statusGroups.active.length,
+        resolved: statusGroups.resolved.length,
+        closed: statusGroups.closed.length,
+        total: allRequests?.length || 0
+      });
+      
+      res.json({
+        success: true,
+        meta: {
+          total: allRequests?.length || 0,
+          operationId,
+          timestamp: new Date().toISOString()
+        },
+        requests: {
+          all: allRequests || [],
+          byStatus: statusGroups
+        }
+      });
+      
+    } catch (error: any) {
+      console.error('❌ [DEBUG ALL] Critical error:', error);
+      res.status(500).json({ error: error.message, operationId });
+    }
+  });
+  
+  // 2. Accept chat request - Move from Pending to Active
+  app.post('/api/chat-requests/:requestId/accept', async (req, res) => {
+    const { requestId } = req.params;
+    const { greId, greName } = req.body;
+    const operationId = crypto.randomUUID();
+    
+    try {
+      console.log(`🎯 [ACCEPT] Processing chat request ${requestId}`);
+      
+      // Update request status to active and assign GRE
+      const { data: updatedRequest, error: updateError } = await staffPortalSupabase
+        .from('chat_requests')
+        .update({
+          status: 'in_progress',
+          updated_at: new Date().toISOString(),
+          resolved_by: greName || 'GRE Staff'
+        })
+        .eq('id', requestId)
+        .select()
+        .single();
+      
+      if (updateError) {
+        console.error('❌ [ACCEPT] Update error:', updateError);
+        return res.status(500).json({ error: updateError.message });
+      }
+      
+      // Create or update chat session
+      const { data: session, error: sessionError } = await staffPortalSupabase
+        .from('gre_chat_sessions')
+        .upsert({
+          id: crypto.randomUUID(),
+          player_id: updatedRequest.player_id,
+          gre_id: greId || null,
+          status: 'active',
+          started_at: new Date().toISOString(),
+          priority: 'normal',
+          category: 'support',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+      
+      console.log('✅ [ACCEPT] Request accepted and session created');
+      res.json({
+        success: true,
+        request: updatedRequest,
+        session: session,
+        operationId
+      });
+      
+    } catch (error: any) {
+      console.error('❌ [ACCEPT] Critical error:', error);
+      res.status(500).json({ error: error.message, operationId });
+    }
+  });
+  
+  // 3. Resolve chat request - Move from Active to Closed
+  app.post('/api/chat-requests/:requestId/resolve', async (req, res) => {
+    const { requestId } = req.params;
+    const { resolution, greName } = req.body;
+    const operationId = crypto.randomUUID();
+    
+    try {
+      console.log(`🎯 [RESOLVE] Resolving chat request ${requestId}`);
+      
+      // Update request status to resolved
+      const { data: resolvedRequest, error: updateError } = await staffPortalSupabase
+        .from('chat_requests')
+        .update({
+          status: 'resolved',
+          resolved_at: new Date().toISOString(),
+          resolved_by: greName || 'GRE Staff',
+          notes: resolution || 'Request resolved by GRE',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', requestId)
+        .select()
+        .single();
+      
+      if (updateError) {
+        console.error('❌ [RESOLVE] Update error:', updateError);
+        return res.status(500).json({ error: updateError.message });
+      }
+      
+      // End associated chat session
+      await staffPortalSupabase
+        .from('gre_chat_sessions')
+        .update({
+          status: 'closed',
+          ended_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('player_id', resolvedRequest.player_id)
+        .eq('status', 'active');
+      
+      console.log('✅ [RESOLVE] Request resolved and session closed');
+      res.json({
+        success: true,
+        request: resolvedRequest,
+        operationId
+      });
+      
+    } catch (error: any) {
+      console.error('❌ [RESOLVE] Critical error:', error);
+      res.status(500).json({ error: error.message, operationId });
+    }
+  });
+  
+  // 4. Get chat session messages with full transcript
+  app.get('/api/chat-sessions/:sessionId/messages', async (req, res) => {
+    const { sessionId } = req.params;
+    const operationId = crypto.randomUUID();
+    
+    try {
+      // Fetch all messages for the session
+      const { data: messages, error } = await staffPortalSupabase
+        .from('gre_chat_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: true });
+      
+      if (error) {
+        console.error('❌ [MESSAGES] Error fetching session messages:', error);
+        return res.status(500).json({ error: error.message });
+      }
+      
+      console.log(`✅ [MESSAGES] Retrieved ${messages?.length || 0} messages for session ${sessionId}`);
+      res.json({
+        success: true,
+        messages: messages || [],
+        meta: {
+          sessionId,
+          total: messages?.length || 0,
+          operationId
+        }
+      });
+      
+    } catch (error: any) {
+      console.error('❌ [MESSAGES] Critical error:', error);
+      res.status(500).json({ error: error.message, operationId });
+    }
+  });
+  
   // **COMPREHENSIVE GRE ADMIN API ENDPOINTS FOR STAFF PORTAL**
   
   // 🚀 ENHANCED GRE CHAT SESSIONS WITH FAIL-SAFE & COMPREHENSIVE VISIBILITY
