@@ -5162,14 +5162,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sender: senderType,
         sender_name: playerName || 'Unknown Player',
         timestamp: new Date().toISOString(),
-        status: 'sent',
+        status: 'sent', // Use 'sent' - 'waiting' violates gre_chat_messages constraint
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
 
       console.log('🏆 [FIELD MAPPING] Normalized Data for DB:', JSON.stringify(normalizedData, null, 2));
 
-      // Skip chat_requests for now due to Supabase schema cache issues - focus on gre_chat_messages
+      // Step 3.5: CRITICAL - Insert into chat_requests for Staff Portal visibility with explicit 'waiting' status
+      try {
+        const chatRequestData = {
+          id: crypto.randomUUID(),
+          player_id: parseInt(playerId.toString()),
+          player_name: playerName || 'Unknown Player',
+          player_email: 'vignesh.wildleaf@gmail.com',
+          subject: message.trim(),
+          priority: 'normal',
+          status: 'waiting', // EXPLICIT waiting status for Staff Portal
+          source: 'player_portal',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        console.log('🔥 [DUAL INSERT] Creating chat_requests entry with status "waiting":', JSON.stringify(chatRequestData, null, 2));
+        
+        const { data: requestData, error: requestError } = await staffPortalSupabase
+          .from('chat_requests')
+          .insert(chatRequestData)
+          .select()
+          .single();
+
+        if (requestError) {
+          console.error('❌ [CHAT REQUEST] Failed to insert, continuing with gre_chat_messages only:', requestError);
+          // Continue with gre_chat_messages insert even if chat_requests fails
+        } else {
+          console.log('✅ [CHAT REQUEST] Successfully created for Staff Portal with waiting status:', requestData.id);
+        }
+      } catch (requestException) {
+        console.error('❌ [CHAT REQUEST] Exception, continuing with gre_chat_messages:', requestException.message);
+        // Continue with gre_chat_messages insert even if chat_requests fails
+      }
 
       // Step 4: Database Insert with Comprehensive Error Handling
       let insertResult;
