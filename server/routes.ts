@@ -6170,7 +6170,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { data: rawMessages, error: messageError } = await staffPortalSupabase
           .from('chat_messages')
           .select('*')
-          .order('created_at', { ascending: false });
+          .order('timestamp', { ascending: false });
         
         if (messageError) {
           console.error('❌ [DEBUG] Raw message query failed:', messageError);
@@ -6184,14 +6184,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (debugMode === 'true' && allMessages.length > 0) {
           console.log('🔍 [DEBUG] Sample raw messages:');
           allMessages.slice(0, 3).forEach((msg, idx) => {
-            console.log(`  ${idx + 1}. ID: ${msg.id}, Player: ${msg.player_id}, Sender: ${msg.sender}, Preview: ${msg.message?.substring(0, 50)}...`);
+            console.log(`  ${idx + 1}. ID: ${msg.id}, Player: ${msg.player_id}, Sender: ${msg.sender}, Preview: ${msg.message_text?.substring(0, 50)}...`);
           });
         }
         
       } catch (messageQueryError) {
         const dbError = handleChatError(messageQueryError, 'STAFF_MESSAGE_QUERY', {
           operationId,
-          query: 'chat_messages_uuid'
+          query: 'chat_messages'
         });
         return res.status(500).json({
           error: 'Failed to fetch messages for staff portal',
@@ -6214,8 +6214,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             session_id: message.session_id || `virtual_${playerId}`,
             status: 'active', // Always show as active for staff visibility
             priority: 'normal',
-            created_at: message.created_at,
-            updated_at: message.created_at,
+            created_at: message.timestamp,
+            updated_at: message.timestamp,
             assigned_to: null,
             notes: '',
             chat_messages: []
@@ -6226,18 +6226,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Update session timestamps
         const session = playerSessions.get(playerId);
-        if (new Date(message.created_at) > new Date(session.updated_at)) {
-          session.updated_at = message.created_at;
+        if (new Date(message.timestamp) > new Date(session.updated_at)) {
+          session.updated_at = message.timestamp;
         }
-        if (new Date(message.created_at) < new Date(session.created_at)) {
-          session.created_at = message.created_at;
+        if (new Date(message.timestamp) < new Date(session.created_at)) {
+          session.created_at = message.timestamp;
         }
       });
 
       // Step 4: Convert Map to Array and process for Staff Portal display
       const processedSessions = Array.from(playerSessions.values()).map(session => {
         const messages = session.chat_messages.sort((a, b) => 
-          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
         );
         
         const lastMessage = messages[messages.length - 1];
@@ -6247,8 +6247,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return {
           ...session,
           chat_messages: messages, // Include all messages sorted chronologically
-          lastMessage: lastMessage?.message || 'No messages yet',
-          lastMessageTime: lastMessage?.created_at || session.created_at,
+          lastMessage: lastMessage?.message_text || 'No messages yet',
+          lastMessageTime: lastMessage?.timestamp || session.created_at,
           messageCount: messages.length,
           playerMessageCount: playerMessages.length,
           greMessageCount: greMessages.length,

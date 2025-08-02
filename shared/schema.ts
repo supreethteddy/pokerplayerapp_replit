@@ -170,6 +170,41 @@ export const offerViews = pgTable("offer_views", {
   viewedAt: timestamp("viewed_at").defaultNow(),
 });
 
+// === UNIFIED CHAT SYSTEM - TWO-TABLE ARCHITECTURE ===
+
+export const chatRequests = pgTable("chat_requests", {
+  id: text("id").primaryKey().default("gen_random_uuid()"), // UUID
+  playerId: integer("player_id").notNull(),
+  playerName: text("player_name").notNull(),
+  playerEmail: text("player_email"),
+  subject: text("subject").notNull(),
+  priority: text("priority").default("urgent"),
+  status: text("status").default("waiting"), // waiting, in_progress, resolved
+  source: text("source").default("player_portal"),
+  category: text("category").default("support"),
+  assignedTo: text("assigned_to"),
+  greStaffId: text("gre_staff_id"),
+  initialMessage: text("initial_message"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: text("resolved_by"),
+});
+
+export const chatMessages = pgTable("chat_messages", {
+  id: text("id").primaryKey().default("gen_random_uuid()"), // UUID
+  requestId: text("request_id").references(() => chatRequests.id, { onDelete: "cascade" }),
+  playerId: integer("player_id").notNull(),
+  messageText: text("message_text").notNull(),
+  sender: text("sender").notNull(), // 'player' or 'gre'
+  senderName: text("sender_name"),
+  timestamp: timestamp("timestamp").defaultNow(),
+  status: text("status").default("sent"), // sent, delivered, read
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Enterprise-grade sync activity log for cross-portal integration
 export const syncActivityLog = pgTable("sync_activity_log", {
   id: serial("id").primaryKey(),
@@ -242,6 +277,15 @@ export type InsertSyncActivityLog = z.infer<typeof insertSyncActivityLogSchema>;
 export const insertStaffOfferSchema = createInsertSchema(staffOffers).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertStaffOffer = z.infer<typeof insertStaffOfferSchema>;
 export type StaffOffer = typeof staffOffers.$inferSelect;
+
+// === UNIFIED CHAT SYSTEM TYPES ===
+export const insertChatRequestSchema = createInsertSchema(chatRequests).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertChatRequest = z.infer<typeof insertChatRequestSchema>;
+export type ChatRequest = typeof chatRequests.$inferSelect;
+
+export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
+export type ChatMessage = typeof chatMessages.$inferSelect;
 
 export const insertCarouselItemSchema = createInsertSchema(carouselItems).omit({ id: true, createdAt: true });
 export type InsertCarouselItem = z.infer<typeof insertCarouselItemSchema>;
