@@ -292,8 +292,13 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
               onClick={sendMessage}
               disabled={!newMessage.trim() || isLoading}
               size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              <Send className="h-4 w-4" />
+              {isLoading ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
             </Button>
           </div>
         </CardContent>
