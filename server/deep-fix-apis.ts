@@ -1,5 +1,6 @@
 import { Express } from 'express';
 import { createClient } from '@supabase/supabase-js';
+import Pusher from 'pusher';
 
 // Deep fix for all production APIs with direct SQL execution for reliability
 export function setupDeepFixAPIs(app: Express) {
@@ -8,7 +9,16 @@ export function setupDeepFixAPIs(app: Express) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  console.log('🛠️ [DEEP FIX] Setting up comprehensive API fixes...');
+  // Initialize Pusher for real-time chat
+  const pusher = new Pusher({
+    appId: process.env.PUSHER_APP_ID!,
+    key: process.env.PUSHER_KEY!,
+    secret: process.env.PUSHER_SECRET!,
+    cluster: process.env.PUSHER_CLUSTER || 'ap2',
+    useTLS: true
+  });
+
+  console.log('🛠️ [DEEP FIX] Setting up comprehensive API fixes with Pusher real-time...');
 
   // Deep Fix: Offers API - Working with authentic database data
   app.get("/api/staff-offers", async (req, res) => {
@@ -99,14 +109,15 @@ export function setupDeepFixAPIs(app: Express) {
       const messageTimestamp = timestamp || new Date().toISOString();
       console.log(`📤 [ULTIMATE CHAT] Sending message from ${player_name} (${player_id}): "${message}"`);
 
-      // Store in database
+      // Store in multiple tables for cross-portal visibility
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      const messageData = {
+      // 1. Store in push_notifications for general cross-portal access
+      const notificationData = {
         title: 'Player Message',
         message: message,
         target_audience: 'staff_portal',
@@ -118,15 +129,60 @@ export function setupDeepFixAPIs(app: Express) {
         sent_at: messageTimestamp
       };
 
-      const { data: savedMessage, error } = await supabase
+      const { data: notificationMessage, error: notificationError } = await supabase
         .from('push_notifications')
-        .insert([messageData])
+        .insert([notificationData])
         .select()
         .single();
 
-      if (error) {
-        console.error('❌ [ULTIMATE CHAT] Database save failed:', error);
+      if (notificationError) {
+        console.error('❌ [ULTIMATE CHAT] Notification save failed:', notificationError);
+      }
+
+      // 2. Store in gre_chat_messages for dedicated GRE portal access
+      const { v4: uuidv4 } = await import('uuid');
+      const chatMessageData = {
+        id: uuidv4(),
+        session_id: uuidv4(),
+        player_id: player_id,
+        player_name: player_name,
+        message: message,
+        sender: 'player',
+        sender_name: player_name,
+        timestamp: messageTimestamp,
+        status: 'sent',
+        created_at: messageTimestamp
+      };
+
+      const { data: savedMessage, error: chatError } = await supabase
+        .from('gre_chat_messages')
+        .insert([chatMessageData])
+        .select()
+        .single();
+
+      if (chatError) {
+        console.error('❌ [ULTIMATE CHAT] GRE chat save failed:', chatError);
         return res.status(500).json({ error: 'Failed to save message' });
+      }
+
+      // 3. Create or update chat session for GRE visibility
+      const sessionData = {
+        player_id: player_id,
+        player_name: player_name,
+        status: 'waiting',
+        last_message_at: messageTimestamp,
+        created_at: messageTimestamp
+      };
+
+      const { error: sessionError } = await supabase
+        .from('gre_chat_sessions')
+        .upsert([sessionData], { 
+          onConflict: 'player_id',
+          ignoreDuplicates: false 
+        });
+
+      if (sessionError) {
+        console.warn('⚠️ [ULTIMATE CHAT] Session upsert warning:', sessionError);
       }
 
       console.log('✅ [ULTIMATE CHAT] Message saved to database');
@@ -143,11 +199,18 @@ export function setupDeepFixAPIs(app: Express) {
           status: 'sent'
         };
 
-        // Trigger Pusher event (if pusher is available)
-        if (typeof pusher !== 'undefined') {
-          await pusher.trigger(pusherChannel, 'new-message', pusherData);
-          console.log(`🔥 [ULTIMATE CHAT] Pusher triggered on ${pusherChannel}`);
-        }
+        // Trigger Pusher event for real-time delivery
+        await pusher.trigger(pusherChannel, 'new-message', { message: pusherData });
+        
+        // Also trigger staff portal channel for GRE to see
+        await pusher.trigger('staff-portal', 'new-player-message', {
+          player_id: player_id,
+          player_name: player_name,
+          message: message,
+          timestamp: messageTimestamp
+        });
+        
+        console.log(`🔥 [ULTIMATE CHAT] Pusher triggered on ${pusherChannel} and staff-portal`);
       } catch (pusherError) {
         console.warn('⚠️ [ULTIMATE CHAT] Pusher failed:', pusherError);
       }
