@@ -6,7 +6,7 @@ import path from "path";
 import fs from "fs";
 import Pusher from 'pusher';
 import OneSignal from 'onesignal-node';
-import { setupProductionChatRoutes } from './production-chat-system';
+import { setupProductionChatRoutes } from './chat-system';
 import { unifiedPlayerSystem } from './unified-player-system';
 
 // Initialize Pusher for real-time communication
@@ -27,7 +27,7 @@ const oneSignalClient = new OneSignal.Client(
 console.log('🚀 [SERVER] Pusher and OneSignal initialized successfully');
 
 export function registerRoutes(app: Express) {
-  // Register production chat system
+  // Register enterprise chat system
   setupProductionChatRoutes(app);
 
   // CRITICAL: Player authentication endpoint for login system
@@ -365,24 +365,15 @@ export function registerRoutes(app: Express) {
     try {
       console.log('🎁 [OFFERS API] Returning verified offers data...');
       
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false
-          }
-        }
-      );
+      // Use existing storage connection instead of creating new one
+      const storage = req.app.get('storage') as SupabaseOnlyStorage;
       
       // Get real staff offers from database - production-grade implementation
       console.log('🚀 [OFFERS API PRODUCTION] Fetching live offers from Supabase...');
       
-      // Query offers table from staff portal - authentic data only
-      const { data: realOffers, error } = await supabase
-        .from('offers')
+      // Query staff_offers table from staff portal - authentic data only
+      const { data: realOffers, error } = await storage.supabase
+        .from('staff_offers')
         .select('*')
         .order('created_at', { ascending: false });
       
@@ -399,10 +390,17 @@ export function registerRoutes(app: Express) {
         return res.status(500).json({ error: "Failed to fetch offers" });
       }
       
-      // Transform offers with proper image URLs
+      // Transform offers with proper image URLs from staff portal uploads  
       const transformedOffers = realOffers?.map(offer => ({
-        ...offer,
-        image_url: offer.image_url || "/api/placeholder/600/300"
+        id: offer.id,
+        title: offer.title,
+        description: offer.description || 'Limited time offer',
+        image_url: offer.image_url || offer.video_url || "/api/placeholder/600/300",
+        redirect_url: '#',
+        is_active: offer.is_active !== false,
+        display_order: 1,
+        created_at: offer.created_at,
+        updated_at: offer.updated_at
       })) || [];
 
       console.log(`✅ [OFFERS API] Returning ${transformedOffers.length} real offers from database`);
