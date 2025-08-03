@@ -88,14 +88,7 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
     queryFn: async () => {
       if (!user?.id) return [];
       
-      const response = await fetch('/api/unified-chat/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          player_id: user.id,
-          chat_request_id: activeRequestId || undefined
-        })
-      });
+      const response = await fetch(`/api/unified-chat/messages/${user.id}`);
       
       if (!response.ok) throw new Error('Failed to fetch messages');
       const data = await response.json();

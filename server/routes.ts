@@ -5445,6 +5445,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 🔥 NEW WORKING CHAT FETCH (Uses push_notifications table)
+  app.get('/api/chat/messages/:playerId', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      const normalizedPlayerId = parseInt(playerId);
+      
+      console.log(`🔍 [NEW CHAT FETCH] Getting messages for player: ${normalizedPlayerId}`);
+      
+      // Query push_notifications table for chat messages from this player
+      const { data: notifications, error } = await staffPortalSupabase
+        .from('push_notifications')
+        .select('*')
+        .eq('sent_by', `player_${normalizedPlayerId}`)
+        .eq('target_audience', 'staff')
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('❌ [NEW CHAT FETCH] Error:', error);
+        return res.status(500).json({ error: 'Failed to fetch messages' });
+      }
+
+      // Transform to expected format
+      const messages = (notifications || []).map(notification => ({
+        id: notification.id,
+        playerId: normalizedPlayerId,
+        playerName: notification.sent_by_name,
+        message: notification.message,
+        senderType: notification.sent_by_role || 'player',
+        timestamp: notification.created_at,
+        status: 'sent'
+      }));
+
+      console.log(`✅ [NEW CHAT FETCH] Found ${messages.length} messages`);
+      res.json(messages);
+      
+    } catch (error) {
+      console.error('💥 [NEW CHAT FETCH] Exception:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // 🏆 ENHANCED CHAT MESSAGES FETCH WITH COMPREHENSIVE AUDIT & STAFF PORTAL SUPPORT
   app.get('/api/unified-chat/messages/:playerId', async (req, res) => {
     const operationId = crypto.randomUUID();
@@ -5478,111 +5519,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`🔍 [UNIFIED CHAT] Fetching messages for player: ${normalizedPlayerId}`);
       
-      // Step 2: Build Query with Staff Portal Support
-      let query = staffPortalSupabase
-        .from('chat_messages')
+      // Step 2: Query push_notifications table for chat messages
+      console.log('🔍 [FETCH] Querying push_notifications table for chat messages');
+      
+      const { data: notifications, error } = await staffPortalSupabase
+        .from('push_notifications')
         .select('*')
-        .eq('player_id', normalizedPlayerId);
+        .eq('sent_by', `player_${normalizedPlayerId}`)
+        .eq('target_audience', 'staff')
+        .order('created_at', { ascending: true });
 
-      // Staff Portal Mode: Remove status filters for comprehensive visibility
-      if (staffPortalMode === 'true' || bypassStatusFilter === 'true') {
-        console.log('🚀 [STAFF MODE] Bypassing status filters for comprehensive message visibility');
-        // No additional filters - fetch ALL messages for this player
-      } else {
-        // Player Portal Mode: Apply standard filters
-        query = query.in('status', ['sent', 'delivered', 'read']);
-      }
-      
-      // Order by creation time for chronological display
-      query = query.order('created_at', { ascending: true });
-      
-      // Step 3: Execute Query with Error Handling
-      let queryResult;
-      try {
-        const { data: messages, error } = await query;
-        
-        if (error) {
-          const queryError = handleChatError(error, 'MESSAGE_FETCH_QUERY', {
-            operationId,
-            playerId: normalizedPlayerId,
-            query: query.toString()
-          });
-          return res.status(500).json({
-            error: 'Failed to fetch messages',
-            details: queryError,
-            operationId
-          });
-        }
-        
-        queryResult = messages || [];
-        console.log(`✅ [DATABASE] Retrieved ${queryResult.length} messages from database`);
-        
-        // Step 4: Database Content Audit (sample first/last messages)
-        if (queryResult.length > 0) {
-          console.log('🔍 [AUDIT] Sample Messages:', {
-            firstMessage: {
-              id: queryResult[0].id,
-              sender: queryResult[0].sender,
-              preview: queryResult[0].message?.substring(0, 50) + '...',
-              created_at: queryResult[0].created_at
-            },
-            lastMessage: {
-              id: queryResult[queryResult.length - 1].id,
-              sender: queryResult[queryResult.length - 1].sender,
-              preview: queryResult[queryResult.length - 1].message?.substring(0, 50) + '...',
-              created_at: queryResult[queryResult.length - 1].created_at
-            }
-          });
-        }
-        
-      } catch (queryException) {
-        const criticalError = handleChatError(queryException, 'MESSAGE_FETCH_CRITICAL', {
-          operationId,
-          playerId: normalizedPlayerId
+      if (error) {
+        console.error('❌ [FETCH] Database error:', error);
+        return res.status(500).json({ 
+          error: 'Failed to fetch messages', 
+          details: error.message, 
+          operationId 
         });
-        return res.status(500).json({
-          error: 'Critical query failure',
-          details: criticalError,
-          operationId
+      }
+
+      // Transform to chat message format
+      const queryResult = (notifications || []).map(notification => ({
+        id: notification.id,
+        playerId: normalizedPlayerId,
+        playerName: notification.sent_by_name,
+        message: notification.message,
+        messageText: notification.message,
+        sender: notification.sent_by_role || 'player',
+        sender_name: notification.sent_by_name,
+        senderType: notification.sent_by_role || 'player',
+        timestamp: notification.created_at,
+        status: 'sent',
+        created_at: notification.created_at,
+        createdAt: notification.created_at
+      }));
+
+      console.log(`✅ [DATABASE] Retrieved ${queryResult.length} messages from push_notifications table`);
+      
+      if (queryResult.length > 0) {
+        console.log('📝 [SAMPLE] First message:', {
+          id: queryResult[0].id,
+          message: queryResult[0].message?.substring(0, 50) + '...',
+          timestamp: queryResult[0].timestamp
         });
       }
       
-      // Step 5: Universal Field Transformation (snake_case → camelCase)
-      const transformedMessages = queryResult.map((message, index) => {
-        try {
-          return transformFieldsToCamelCase(message);
-        } catch (transformError) {
-          console.error(`⚠️ [TRANSFORM] Failed to transform message ${index}:`, transformError);
-          // Return original message if transformation fails
-          return message;
-        }
-      });
-      
-      // Step 6: Response Preparation with Audit Data
-      const duration = Date.now() - startTime;
-      const response = {
-        messages: transformedMessages,
-        meta: {
-          total: transformedMessages.length,
-          playerId: normalizedPlayerId,
-          staffPortalMode: staffPortalMode === 'true',
-          bypassStatusFilter: bypassStatusFilter === 'true',
-          audit: {
-            operationId,
-            duration: `${duration}ms`,
-            timestamp: new Date().toISOString(),
-            queryExecuted: true
-          }
-        }
-      };
-      
-      console.log(`✅ [UNIFIED CHAT] Successfully fetched ${transformedMessages.length} messages for player ${normalizedPlayerId}`);
-      console.log('🏆 [EXPERT FIELD TRANSFORMATION] First transformed message sample:', 
-        transformedMessages[0] ? JSON.stringify(transformedMessages[0], null, 2) : 'No messages');
+      console.log(`✅ [UNIFIED CHAT] Successfully fetched ${queryResult.length} messages for player ${normalizedPlayerId}`);
       console.log(`🛡️ === CHAT MESSAGES FETCH AUDIT END [${operationId}] ===\n`);
       
-      // Return just messages array for compatibility, but include meta in development
-      res.json(process.env.NODE_ENV === 'development' ? response : transformedMessages);
+      // Return messages array
+      res.json(queryResult);
       
     } catch (error: any) {
       const duration = Date.now() - startTime;
