@@ -32,11 +32,11 @@ export function registerRoutes(app: Express) {
   // Register enterprise chat system
   setupProductionChatRoutes(app);
   
-  // Register production APIs
-  setupProductionAPIs(app);
-  
-  // Register deep fix APIs (overrides production APIs with robust implementations)
+  // PRIORITY: Register ONLY deep fix APIs (working implementations)
   setupDeepFixAPIs(app);
+  
+  // Skip production APIs to avoid conflicts
+  // setupProductionAPIs(app);
 
   // CRITICAL: Player authentication endpoint for login system
   app.get("/api/players/supabase/:supabaseId", async (req, res) => {

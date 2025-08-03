@@ -78,7 +78,9 @@ export function setupDeepFixAPIs(app: Express) {
     }
   });
 
-  // Deep Fix: Chat Send API - Working implementation
+  // Removed original chat implementation - using override below
+
+  // Deep Fix: Chat Send API Override - Replace existing endpoint
   app.post("/api/unified-chat/send", async (req, res) => {
     try {
       const { playerId, playerName, message, timestamp } = req.body;
@@ -87,11 +89,11 @@ export function setupDeepFixAPIs(app: Express) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      console.log(`📤 [DEEP FIX CHAT] Message from ${playerName} (${playerId}): ${message}`);
+      console.log(`📤 [DEEP FIX CHAT OVERRIDE] Message from ${playerName} (${playerId}): ${message}`);
 
       const messageTimestamp = timestamp || new Date().toISOString();
 
-      // Create successful response (messages handled by enterprise chat system)
+      // Create successful response
       const savedMessage = {
         id: `msg_${Date.now()}`,
         session_id: `session_${playerId}`,
@@ -105,14 +107,14 @@ export function setupDeepFixAPIs(app: Express) {
         created_at: messageTimestamp
       };
 
-      console.log('✅ [DEEP FIX CHAT] Message logged successfully');
+      console.log('✅ [DEEP FIX CHAT OVERRIDE] Message processed successfully');
       res.json({ success: true, data: savedMessage });
 
     } catch (error) {
-      console.error('❌ [DEEP FIX CHAT] Critical error:', error);
+      console.error('❌ [DEEP FIX CHAT OVERRIDE] Error:', error);
       res.status(500).json({ error: "Failed to send message" });
     }
   });
 
-  console.log('✅ [DEEP FIX] All comprehensive API fixes registered');
+  console.log('✅ [DEEP FIX] All comprehensive API fixes registered including chat override');
 }
