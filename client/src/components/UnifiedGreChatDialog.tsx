@@ -143,6 +143,7 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
     scrollToBottom();
 
     try {
+      console.log('📤 [PUSHER CHAT] Sending message to endpoint /api/player-chat/send');
       const response = await fetch('/api/player-chat/send', {
         method: 'POST',
         headers: {

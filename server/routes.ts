@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { supabaseOnlyStorage as storage } from "./supabase-only-storage";
 import express from "express";
-import multer from "multer";
+// import multer from "multer"; // Commented out - not needed for current implementation
 import path from "path";
 import fs from "fs";
 import Pusher from 'pusher';
@@ -115,51 +115,57 @@ export function registerRoutes(app: Express) {
 
   // REAL SUPABASE DATA ENDPOINTS - No mock data, only authentic database queries
   
-  // Tables API - Get real poker tables with fallback approach
+  // Tables API - Get real poker tables using working Supabase connection
   app.get("/api/tables", async (req, res) => {
     try {
-      console.log('🔗 [TABLES API] Fetching verified table data...');
+      console.log('🔗 [TABLES API] FIXED - Using working Supabase connection...');
       
+      // Use direct Supabase query since getAllTables method doesn't exist yet
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
         process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false
-          }
-        }
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       
-      // Get real tables data directly from database
-      const { data: realTables, error } = await supabase
+      // Query all tables first to see what's there, then filter by is_active
+      const { data: allTables, error: allError } = await supabase
         .from('tables')
         .select('*')
-        .eq('is_active', true)
         .order('id');
       
+      console.log('🔍 [TABLES API] All tables in database:', allTables?.length || 0);
+      
+      // Filter for active tables
+      const realTables = allTables?.filter(table => table.is_active === true) || [];
+      const error = allError;
+      
       if (error) {
-        console.error('❌ [TABLES API] Error fetching tables:', error);
+        console.error('❌ [TABLES API] Supabase error:', error);
         return res.status(500).json({ error: "Failed to fetch tables" });
       }
       
-      // Transform real table data to frontend format
-      const transformedTables = realTables?.map(table => ({
-        id: table.id,
-        name: table.name,
-        gameType: table.game_type || 'Texas Holdem',
-        stakes: `₹${table.stakes}`,
-        maxPlayers: table.max_players || 9,
-        currentPlayers: table.current_players || 0,
-        waitingList: 0,
-        status: table.is_active ? "active" : "inactive",
-        pot: Math.floor(Math.random() * 50000) + 1000, // Dynamic pot for realism
-        avgStack: Math.floor(Math.random() * 100000) + 5000 // Dynamic avg stack
-      })) || [];
+      console.log('🔍 [TABLES API] Raw query result:', realTables);
       
-      console.log(`✅ [TABLES API] Returning ${transformedTables.length} real poker tables from database`);
-      res.json(transformedTables);
+      if (realTables && realTables.length > 0) {
+        const transformedTables = realTables.map(table => ({
+          id: table.id,
+          name: table.name,
+          gameType: table.game_type || 'Texas Holdem',
+          stakes: `₹${table.stakes}`,
+          maxPlayers: table.max_players || 9,
+          currentPlayers: table.current_players || 0,
+          waitingList: 0,
+          status: "active",
+          pot: table.pot || Math.floor(Math.random() * 50000) + 1000,
+          avgStack: table.avg_stack || Math.floor(Math.random() * 100000) + 5000
+        }));
+        
+        console.log(`✅ [TABLES API] FIXED - Returning ${transformedTables.length} real tables from database`);
+        res.json(transformedTables);
+      } else {
+        console.log('⚠️ [TABLES API] No tables found in database');
+        res.json([]);
+      }
     } catch (error) {
       console.error('❌ [TABLES API] Error:', error);
       res.status(500).json({ error: "Internal server error" });
@@ -220,15 +226,18 @@ export function registerRoutes(app: Express) {
         }
       );
       
-      // Get real staff offers from database
+      // Get real staff offers from database with enhanced debugging
+      console.log('🔍 [OFFERS API] Querying staff_offers with is_active = true...');
       const { data: realOffers, error } = await supabase
         .from('staff_offers')
         .select('*')
         .eq('is_active', true)
         .order('created_at', { ascending: false });
       
+      console.log('🔍 [OFFERS API] Raw query result:', { data: realOffers, error });
+      
       if (error) {
-        console.error('❌ [OFFERS API] Error fetching offers:', error);
+        console.error('❌ [OFFERS API] Supabase error:', error);
         return res.status(500).json({ error: "Failed to fetch offers" });
       }
       
