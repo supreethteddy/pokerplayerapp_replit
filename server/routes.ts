@@ -11,7 +11,8 @@ import { unifiedPlayerSystem } from "./unified-player-system";
 // SUPABASE EXCLUSIVE MODE - Using Supabase direct queries instead of schema imports
 import { z } from "zod";
 import { createInsertSchema } from "drizzle-zod";
-import { kycDocuments, insertSeatRequestSchema, insertPlayerSchema, insertPlayerPrefsSchema } from "@shared/schema";
+import { kycDocuments, insertSeatRequestSchema, insertPlayerSchema, insertPlayerPrefsSchema, insertTransactionSchema, transactions, players } from "@shared/schema";
+import { eq } from 'drizzle-orm';
 // SUPABASE EXCLUSIVE MODE - No Drizzle ORM imports needed
 import { createClient } from '@supabase/supabase-js';
 import { debugAllTables } from './debug-tables';
@@ -622,13 +623,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const playerId = parseInt(req.params.playerId);
       console.log('🗑️ Route: Deleting orphaned player:', playerId);
       
-      // Import database
-      const { db } = await import('./db');
-      const { players } = await import('../shared/schema');
-      const { eq } = await import('drizzle-orm');
+      // Delete from Supabase database directly
+      const { data, error } = await supabase
+        .from('players')
+        .delete()
+        .eq('id', playerId);
       
-      // Delete from database
-      await db.delete(players).where(eq(players.id, playerId));
+      if (error) {
+        throw new Error(`Failed to delete player: ${error.message}`);
+      }
       
       res.json({ success: true, message: 'Orphaned player deleted' });
     } catch (error: any) {
@@ -1318,7 +1321,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `)
         .eq('table_id', tableId)
         .eq('status', 'waiting')
-        .order('seat_number', { ascending: true, nullsLast: true })
+        .order('seat_number', { ascending: true, nullsFirst: false })
         .order('position', { ascending: true });
       
       if (error) {
@@ -2604,7 +2607,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const transactionData = insertTransactionSchema.parse(req.body);
       // Transaction operations not available in Supabase storage yet
       return res.status(501).json({ error: "Transaction operations not implemented for Supabase" });
-      res.json(transaction);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -2615,7 +2617,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const playerId = parseInt(req.params.playerId);
       // Transaction operations not available in Supabase storage yet
       return res.status(501).json({ error: "Transaction operations not implemented for Supabase" });
-      res.json(transactions);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -2633,7 +2634,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Balance operations not available in Supabase storage yet
       return res.status(501).json({ error: "Balance operations not implemented for Supabase" });
-      res.json(player);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -2667,12 +2667,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sync all players to Supabase for admin portal
   app.post("/api/sync-to-supabase", async (req, res) => {
     try {
-      const success = await databaseSync.syncAllPlayersToSupabase();
-      const message = success 
-        ? "All players synced to Supabase successfully"
-        : "Some players failed to sync - check logs for details";
-      
-      res.json({ success, message });
+      // Sync operations not available
+      return res.status(501).json({ error: "Sync operations not implemented" });
     } catch (error: any) {
       console.error("Sync error:", error);
       res.status(500).json({ error: error.message });
@@ -2683,13 +2679,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/sync-player/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
-      const success = await databaseSync.syncPlayerToSupabase(playerId);
-      
-      const message = success 
-        ? `Player ${playerId} synced to Supabase successfully`
-        : `Player ${playerId} sync failed - check logs for details`;
-      
-      res.json({ success, message });
+      // Sync operations not available
+      return res.status(501).json({ error: "Sync operations not implemented" });
     } catch (error: any) {
       console.error("Sync error:", error);
       res.status(500).json({ error: error.message });
@@ -2701,17 +2692,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const email = req.params.email;
       
-      // Test direct database query 
-      const directResult = await db.select().from(players).where(eq(players.email, email));
-      
-      // Test supabase query
+      // Test supabase query only (no direct db access)
       const { data, error } = await supabase
         .from('players')
         .select('*')
         .eq('email', email);
       
       res.json({ 
-        directQuery: directResult,
         supabaseQuery: { data, error }
       });
     } catch (error: any) {
@@ -4163,8 +4150,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get player ID from auth if available
       let playerId = null;
-      if (req.user) {
-        playerId = req.user.id;
+      if ((req as any).user) {
+        playerId = (req as any).user.id;
       }
 
       const { data: view, error } = await supabase
@@ -4291,7 +4278,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/vip-club/points/:playerId', async (req, res) => {
     try {
       const { playerId } = req.params;
-      const player = await storage.getPlayer(parseInt(playerId));
+      const player = await supabaseOnlyStorage.getPlayer(parseInt(playerId));
       
       if (!player) {
         return res.status(404).json({ error: 'Player not found' });
@@ -4318,7 +4305,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { playerId, rewardType, pointsCost } = req.body;
       
-      const player = await storage.getPlayer(parseInt(playerId));
+      const player = await supabaseOnlyStorage.getPlayer(parseInt(playerId));
       if (!player) {
         return res.status(404).json({ error: 'Player not found' });
       }

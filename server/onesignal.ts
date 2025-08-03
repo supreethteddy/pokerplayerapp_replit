@@ -1,5 +1,5 @@
 // OneSignal Push Notification Service
-import fetch from 'node-fetch';
+// Using built-in fetch API (Node.js 18+)
 
 export interface PushNotification {
   title: string;
