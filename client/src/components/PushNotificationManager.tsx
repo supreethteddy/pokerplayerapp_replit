@@ -17,13 +17,28 @@ interface PushNotification {
   mediaUrl?: string;
 }
 
+interface NotificationData {
+  id: number;
+  title: string;
+  message: string;
+  type: string;
+  timestamp: Date;
+  priority: string;
+  senderName: string;
+  senderRole: string;
+  mediaUrl?: string;
+}
+
 interface NotificationPopupProps {
-  notification: PushNotification;
+  notification: NotificationData;
   onDismiss: (id: number) => void;
 }
 
 const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onDismiss }) => {
   const [isVisible, setIsVisible] = useState(true);
+
+  // Get notification priority with safe fallback
+  const notificationPriority = notification?.priority || 'normal';
 
   // Auto-dismiss after delay based on priority
   useEffect(() => {
@@ -34,14 +49,13 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onD
       urgent: 20000 // Urgent notifications stay longer
     };
 
-    const notificationPriority = notification?.priority || 'normal';
     const timer = setTimeout(() => {
       setIsVisible(false);
       setTimeout(() => onDismiss(notification?.id || 0), 300);
-    }, dismissDelay[notificationPriority]);
+    }, dismissDelay[notificationPriority as keyof typeof dismissDelay] || 8000);
 
     return () => clearTimeout(timer);
-  }, [notification?.id, notification?.priority, onDismiss]);
+  }, [notification?.id, notificationPriority, onDismiss]);
 
   const priorityConfig = {
     low: { 
@@ -66,7 +80,6 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onD
     }
   };
 
-  const notificationPriority = notification?.priority || 'normal';
   const config = priorityConfig[notificationPriority as keyof typeof priorityConfig] || priorityConfig.normal;
   const IconComponent = config.icon;
 
@@ -138,7 +151,7 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onD
 
 export const PushNotificationManager: React.FC = () => {
   const { user } = useAuth();
-  const [notifications, setNotifications] = useState<PushNotification[]>([]);
+  const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [permission, setPermission] = useState<NotificationPermission>('default');
 
   // Request notification permission
@@ -187,14 +200,15 @@ export const PushNotificationManager: React.FC = () => {
           // Show new notifications as popups
           recentNotifications.forEach((notif: any) => {
             if (!notifications.find(n => n.id === notif.id)) {
-              const newNotification: PushNotification = {
+              const newNotification: NotificationData = {
                 id: notif.id,
                 title: notif.title,
                 message: notif.message,
+                type: notif.type || 'info',
+                timestamp: new Date(notif.created_at),
                 priority: notif.priority || 'normal',
                 senderName: notif.sent_by_name || notif.sent_by || 'Unknown',
                 senderRole: notif.sent_by_role || 'System',
-                createdAt: notif.created_at,
                 mediaUrl: notif.media_url
               };
 
@@ -256,7 +270,7 @@ export const PushNotificationManager: React.FC = () => {
       <div className="space-y-2 p-4 pointer-events-auto">
         {notifications.map((notification, index) => (
           <div
-            key={notification.id}
+            key={`notification-${notification.id}-${index}`}
             style={{ 
               transform: `translateY(${index * 10}px)`,
               zIndex: 9999 - index
