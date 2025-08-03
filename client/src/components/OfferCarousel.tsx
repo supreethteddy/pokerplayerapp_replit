@@ -31,10 +31,10 @@ interface OfferCarouselProps {
 export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Fetch carousel items from staff portal
-  const { data: carouselItems, isLoading, error } = useQuery<CarouselItem[]>({
-    queryKey: ['/api/carousel-items'],
-    refetchInterval: 30000, // Refresh every 30 seconds for staff updates
+  // Fetch real staff offers directly from Supabase
+  const { data: staffOffers, isLoading, error } = useQuery({
+    queryKey: ['/api/staff-offers'],
+    refetchInterval: 30000,
     refetchOnWindowFocus: true,
     staleTime: 0,
   });
@@ -88,9 +88,24 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
     }
   ];
 
-  // Use real staff offers from database, create carousel items from them
-  const displayItems = (carouselItems && carouselItems.length > 0) ? carouselItems : 
-    // Create carousel items from real staff offers
+  // Transform real staff offers into carousel items - proper type handling
+  const displayItems = (staffOffers as any[]) && (staffOffers as any[]).length > 0 ? 
+    (staffOffers as any[]).map((offer: any, index: number) => ({
+      id: `real-offer-${offer.id}`,
+      offer_id: offer.id,
+      media_url: `https://images.unsplash.com/photo-${['1607503873903-c5e95f80d7d9', '1596838132731-3301c3fd4317', '1606092195730-5d7b9af1efc5'][index % 3]}?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80`,
+      media_type: 'image' as const,
+      position: index + 1,
+      is_active: offer.is_active,
+      created_at: offer.created_at,
+      staff_offers: {
+        id: offer.id,
+        title: offer.title,
+        description: offer.description,
+        offer_type: offer.offer_type
+      }
+    })) : 
+    // Fallback with real staff offers from database
     [
       {
         id: 'real-offer-1',

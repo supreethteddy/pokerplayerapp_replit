@@ -143,15 +143,16 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
     scrollToBottom();
 
     try {
-      const response = await fetch('/api/production-chat/send', {
+      const response = await fetch('/api/player-chat/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           playerId: playerId,
+          playerName: playerName,
           message: messageText,
-          playerName: playerName
+          timestamp: new Date().toISOString()
         }),
       });
 
