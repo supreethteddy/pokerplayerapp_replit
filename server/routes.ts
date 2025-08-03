@@ -19,6 +19,8 @@ import { comprehensiveTableCheck, checkDatabaseConnection } from './comprehensiv
 import { testDirectTableQuery } from './direct-table-test';
 import { addTablesToSupabase } from './add-tables-to-supabase';
 import { cleanupSupabaseTables } from './cleanup-supabase-tables';
+import { pusher, broadcastToPlayer, broadcastToStaff, ChatMessage } from './pusher';
+import { sendChatNotification, sendPushNotification } from './onesignal';
 
 // STAFF PORTAL EXCLUSIVE MODE - Using ONLY Staff Portal Supabase for ALL operations
 // No local or fallback databases - everything goes through Staff Portal system
@@ -5426,6 +5428,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log('✅ [SUCCESS] Chat message saved successfully:', data.id);
+      
+      // 🚀 PUSHER INTEGRATION: Broadcast message via Pusher Channels
+      const chatMessage: ChatMessage = {
+        id: data.id.toString(),
+        senderId: `player_${playerId}`,
+        senderName: playerName || 'Unknown Player',
+        senderType: senderType as 'player' | 'staff' | 'gre',
+        message: message,
+        timestamp: data.created_at,
+        playerId: playerId
+      };
+      
+      // Broadcast to staff portal for real-time updates
+      await broadcastToStaff({
+        type: 'new-chat-message',
+        data: chatMessage,
+        playerId: playerId
+      });
+      
+      // 🔔 ONESIGNAL INTEGRATION: Send push notification to staff
+      await sendPushNotification({
+        title: `New message from ${playerName || 'Player'}`,
+        message: message.length > 100 ? message.substring(0, 100) + '...' : message,
+        data: {
+          type: 'chat',
+          playerId: playerId,
+          messageId: data.id,
+          senderName: playerName
+        }
+      });
+      
+      console.log('📡 [REALTIME] Message broadcasted via Pusher and OneSignal');
       
       res.json({
         success: true,

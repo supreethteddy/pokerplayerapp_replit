@@ -1,1 +1,8 @@
-react-onesignal
+{
+  "name": "poker-room-player-portal",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "npx tsx server/index.ts"
+  }
+}

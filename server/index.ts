@@ -1,75 +1,42 @@
-import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+// Poker Room Player Portal Server with Pusher/OneSignal Integration
+import express from 'express';
+import { registerRoutes } from './routes';
+import { serve } from './vite';
 
 const app = express();
-// Increase payload limits for file uploads (10MB limit)
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: false, limit: '10mb' }));
+const PORT = process.env.PORT || 5000;
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+console.log('🚀 Starting Poker Room Player Portal Server...');
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
+// Register API routes
+registerRoutes(app);
 
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
+// Serve the frontend in production
+app.use(serve);
 
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
-  next();
+// Start the server
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Server running on http://0.0.0.0:${PORT}`);
+  console.log('🔌 Pusher Channels integration active');
+  console.log('🔔 OneSignal push notifications enabled');
+  console.log('💬 Real-time chat system ready');
 });
 
-(async () => {
-  // Initialize Supabase connection - no mock data in production
-  const { supabaseStorage } = await import("./supabase-storage");
-  await supabaseStorage.initializeSampleData();
-  
-  const server = await registerRoutes(app);
-
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM received, shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
   });
+});
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
-  }
-
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
+process.on('SIGINT', () => {
+  console.log('🛑 SIGINT received, shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
   });
-})();
+});
+
+export default app;
