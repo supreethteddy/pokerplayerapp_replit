@@ -346,7 +346,7 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
   );
 };
 
-export default function PlayerDashboard() {
+function PlayerDashboard() {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -2615,7 +2615,8 @@ export default function PlayerDashboard() {
                 </Card>
               </div>
             </TabsContent>
-          </Tabs>
+          </div>
+        </Tabs>
         </div>
 
         {/* Unified GRE Chat Dialog */}
