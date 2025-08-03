@@ -1,9 +1,8 @@
 // Poker Room Player Portal Server with Pusher/OneSignal Integration
 import express from 'express';
 import { registerRoutes } from './routes';
+import { serveStatic, setupVite } from './vite';
 import { createServer } from 'http';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -18,25 +17,11 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // Register API routes
 registerRoutes(app);
 
-// Serve static files or provide API-only mode
+// Setup Vite in development or serve static files in production
 if (process.env.NODE_ENV === 'production') {
-  // Serve static files in production
-  const distPath = path.resolve(import.meta.dirname, 'dist/public');
-  app.use(express.static(distPath));
-  app.get('*', (req, res) => {
-    res.sendFile(path.resolve(distPath, 'index.html'));
-  });
+  serveStatic(app);
 } else {
-  // Development mode - API only for now
-  console.log('🔧 Running in development mode - API server ready');
-  app.get('/', (req, res) => {
-    res.json({ 
-      message: 'Poker Room Player Portal API',
-      timestamp: new Date().toISOString(),
-      mode: 'development',
-      status: 'running'
-    });
-  });
+  setupVite(app, server);
 }
 
 // Start the server
