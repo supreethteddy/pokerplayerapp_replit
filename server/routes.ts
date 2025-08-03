@@ -57,20 +57,15 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      // Store message in push_notifications table (matching existing schema)
+      // Store message in push_notifications table (only guaranteed columns)
       const { data: savedMessage, error: messageError } = await supabase
         .from('push_notifications')
         .insert({
           sender_name: senderType === 'player' ? playerName : 'GRE Support',
           sender_role: senderType,
-          target_player_id: senderType === 'player' ? null : playerId,
           title: senderType === 'player' ? 'Player Message' : 'GRE Response',
           message: message,
-          message_type: 'chat',
-          priority: 'high',
-          status: 'sent',
-          broadcast_to_all: false,
-          created_at: new Date().toISOString()
+          status: 'sent'
         })
         .select()
         .single();
