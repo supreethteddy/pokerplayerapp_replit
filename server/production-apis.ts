@@ -8,29 +8,51 @@ export function setupProductionAPIs(app: Express) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // Fixed Offers API - Working Implementation
+  // Comprehensive Offers API - Fixed Implementation
   app.get("/api/staff-offers", async (req, res) => {
     try {
-      console.log('🎁 [UNIFIED OFFERS] Fetching offers from offer_banners table...');
+      console.log('🎁 [COMPREHENSIVE FIX] Fetching offers...');
       
-      const { data: offers, error } = await supabase
+      // First try offer_banners, then fallback to staff_offers
+      let offers = null;
+      let error = null;
+
+      // Try offer_banners first
+      const { data: bannerOffers, error: bannerError } = await supabase
         .from('offer_banners')
         .select('*')
         .eq('is_active', true)
-        .order('created_at', { ascending: false });
+        .order('display_order', { ascending: true });
+
+      if (!bannerError && bannerOffers && bannerOffers.length > 0) {
+        offers = bannerOffers;
+        console.log(`✅ [COMPREHENSIVE FIX] Found ${offers.length} offers from offer_banners`);
+      } else {
+        // Fallback to staff_offers
+        const { data: staffOffers, error: staffError } = await supabase
+          .from('staff_offers')
+          .select('*')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+
+        if (!staffError && staffOffers) {
+          offers = staffOffers;
+          console.log(`✅ [COMPREHENSIVE FIX] Found ${offers.length} offers from staff_offers`);
+        } else {
+          error = staffError || bannerError;
+        }
+      }
       
-      if (error) {
-        console.error('❌ [UNIFIED OFFERS] Database error:', error);
+      if (error || !offers) {
+        console.error('❌ [COMPREHENSIVE FIX] Database error:', error);
         return res.status(500).json({ error: "Failed to fetch offers" });
       }
       
-      console.log(`✅ [UNIFIED OFFERS] Found ${offers?.length || 0} active offers`);
-      
-      // Transform using exact column names from offer_banners
-      const transformedOffers = offers?.map((offer: any) => ({
+      // Transform to unified format
+      const transformedOffers = offers.map((offer: any) => ({
         id: offer.id,
         title: offer.title,
-        description: offer.offer_description || 'Limited time offer',
+        description: offer.offer_description || offer.description || 'Limited time offer',
         image_url: offer.image_url || "/api/placeholder/600/300",
         redirect_url: offer.redirect_url || '#',
         is_active: offer.is_active,
@@ -38,16 +60,16 @@ export function setupProductionAPIs(app: Express) {
         display_order: offer.display_order || 1,
         created_at: offer.created_at,
         updated_at: offer.updated_at
-      })) || [];
+      }));
 
       res.json(transformedOffers);
     } catch (error) {
-      console.error('❌ [UNIFIED OFFERS] Error:', error);
+      console.error('❌ [COMPREHENSIVE FIX] Error:', error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
 
-  // Unified Chat Send API - Working Implementation
+  // Comprehensive Chat Send API - Fixed Implementation
   app.post("/api/unified-chat/send", async (req, res) => {
     try {
       const { playerId, playerName, message, timestamp } = req.body;
@@ -56,14 +78,19 @@ export function setupProductionAPIs(app: Express) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      console.log(`📤 [UNIFIED CHAT] Sending message from ${playerName} (${playerId}): ${message}`);
+      console.log(`📤 [COMPREHENSIVE CHAT] Sending message from ${playerName} (${playerId}): ${message}`);
 
       const messageTimestamp = timestamp || new Date().toISOString();
+      const { v4: uuidv4 } = await import('uuid');
+      const messageId = uuidv4();
+      const sessionId = uuidv4();
 
-      // Store in GRE chat messages using exact column structure
+      // Store in GRE chat messages with minimal required fields
       const { data: savedMessage, error: chatError } = await supabase
         .from('gre_chat_messages')
         .insert([{
+          id: messageId,
+          session_id: sessionId,
           player_id: parseInt(playerId),
           player_name: playerName,
           message: message,
@@ -77,11 +104,11 @@ export function setupProductionAPIs(app: Express) {
         .single();
 
       if (chatError) {
-        console.error('❌ [UNIFIED CHAT] Error saving message:', chatError);
+        console.error('❌ [COMPREHENSIVE CHAT] Error saving message:', chatError);
         return res.status(500).json({ error: 'Failed to save chat message' });
       }
 
-      console.log('✅ [UNIFIED CHAT] Message saved successfully');
+      console.log('✅ [COMPREHENSIVE CHAT] Message saved successfully');
 
       res.json({
         success: true,
@@ -89,7 +116,7 @@ export function setupProductionAPIs(app: Express) {
       });
 
     } catch (error) {
-      console.error('❌ [UNIFIED CHAT] Error:', error);
+      console.error('❌ [COMPREHENSIVE CHAT] Error:', error);
       res.status(500).json({ error: "Failed to send message" });
     }
   });
@@ -136,33 +163,37 @@ export function setupProductionAPIs(app: Express) {
     }
   });
 
-  // Unified Waitlist Join API - Using correct seat_requests columns
+  // Comprehensive Waitlist Join API - Fixed Implementation
   app.post("/api/waitlist/join", async (req, res) => {
     try {
       const { playerId, tableId, preferredSeat, tableName } = req.body;
       
-      console.log(`🎯 [UNIFIED WAITLIST] Player ${playerId} joining waitlist for table ${tableName}`);
+      console.log(`🎯 [COMPREHENSIVE WAITLIST] Player ${playerId} joining waitlist for table ${tableName}`);
 
-      // Insert using exact column names from seat_requests table
+      // Generate UUID for the entry
+      const { v4: uuidv4 } = await import('uuid');
+      const entryId = uuidv4();
+
+      // Insert with minimal required fields
       const { data: waitlistEntry, error } = await supabase
         .from('seat_requests')
         .insert([{
+          id: entryId,
           player_id: playerId,
           table_id: tableId,
           status: 'waiting',
-          position: preferredSeat,
-          notes: `Player joining ${tableName}`,
+          position: preferredSeat || 1,
           created_at: new Date().toISOString()
         }])
         .select()
         .single();
 
       if (error) {
-        console.error('❌ [UNIFIED WAITLIST] Error:', error);
+        console.error('❌ [COMPREHENSIVE WAITLIST] Error:', error);
         return res.status(500).json({ error: 'Failed to join waitlist' });
       }
 
-      console.log('✅ [UNIFIED WAITLIST] Player added successfully');
+      console.log('✅ [COMPREHENSIVE WAITLIST] Player added successfully');
 
       res.json({
         success: true,
@@ -170,7 +201,7 @@ export function setupProductionAPIs(app: Express) {
       });
 
     } catch (error) {
-      console.error('❌ [UNIFIED WAITLIST] Error:', error);
+      console.error('❌ [COMPREHENSIVE WAITLIST] Error:', error);
       res.status(500).json({ error: "Failed to join waitlist" });
     }
   });

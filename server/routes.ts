@@ -8,6 +8,7 @@ import Pusher from 'pusher';
 import OneSignal from 'onesignal-node';
 import { setupProductionChatRoutes } from './chat-system';
 import { setupProductionAPIs } from './production-apis';
+import { setupDeepFixAPIs } from './deep-fix-apis';
 import { unifiedPlayerSystem } from './unified-player-system';
 
 // Initialize Pusher for real-time communication
@@ -33,6 +34,9 @@ export function registerRoutes(app: Express) {
   
   // Register production APIs
   setupProductionAPIs(app);
+  
+  // Register deep fix APIs (overrides production APIs with robust implementations)
+  setupDeepFixAPIs(app);
 
   // CRITICAL: Player authentication endpoint for login system
   app.get("/api/players/supabase/:supabaseId", async (req, res) => {
