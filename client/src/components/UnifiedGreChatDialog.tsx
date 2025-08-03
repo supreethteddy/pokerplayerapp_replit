@@ -90,15 +90,15 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
     if (!playerId) return;
 
     try {
-      const response = await fetch(`/api/chat/messages/${playerId}`);
+      const response = await fetch(`/api/production-chat/messages/${playerId}`);
       if (response.ok) {
         const chatHistory = await response.json();
-        console.log('📋 [PUSHER CHAT] Loaded chat history:', chatHistory.length, 'messages');
+        console.log('📋 [PRODUCTION CHAT] Loaded chat history:', chatHistory.length, 'messages');
         setMessages(chatHistory);
         setTimeout(scrollToBottom, 100);
       }
     } catch (error) {
-      console.error('❌ [PUSHER CHAT] Error loading chat history:', error);
+      console.error('❌ [PRODUCTION CHAT] Error loading chat history:', error);
     }
   };
 
@@ -127,7 +127,7 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
     scrollToBottom();
 
     try {
-      const response = await fetch('/api/chat/send', {
+      const response = await fetch('/api/production-chat/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
