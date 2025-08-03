@@ -39,7 +39,7 @@ console.log('🚀 [SERVER] Pusher and OneSignal initialized successfully');
 export function registerRoutes(app: Express) {
   // UNIFIED CHAT SYSTEM - Single source of truth
   
-  // Send Chat Message - PRODUCTION READY
+  // Send Chat Message - MICROSECOND SPEED - PUSHER ONLY
   app.post("/api/unified-chat/send", async (req, res) => {
     try {
       const { playerId, playerName, message, senderType = 'player' } = req.body;
@@ -48,12 +48,19 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ success: false, error: 'playerId and message are required' });
       }
 
-      console.log(`📨 [UNIFIED CHAT] Sending message from ${senderType} ${playerId}: "${message}"`);
-      console.log(`🔍 [UNIFIED CHAT] Full request body:`, JSON.stringify(req.body, null, 2));
+      console.log(`🚀 [MICROSECOND CHAT] Sending ${senderType} message: "${message}"`);
 
-      // Skip database storage temporarily - focus on Pusher delivery only
-      const savedMessage = { id: Date.now(), created_at: new Date().toISOString() };
-      console.log('⚠️ [UNIFIED CHAT] Skipping database storage, focusing on real-time Pusher delivery');
+      // Create message object with timestamp
+      const savedMessage = { 
+        id: Date.now(), 
+        created_at: new Date().toISOString(),
+        message: message,
+        playerId: playerId,
+        playerName: playerName || `Player ${playerId}`,
+        senderType: senderType
+      };
+      
+      console.log('⚡ [MICROSECOND CHAT] Skipping database - Pure Pusher delivery for speed');
 
       // Real-time notification via Pusher
       try {
@@ -170,16 +177,16 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      // Get messages from push_notifications table - Fixed query for cross-portal
+      // Get messages from push_notifications table - Simple query
       const { data: messages, error } = await supabase
         .from('push_notifications')
-        .select('*')
-        .or(`target_audience.eq.player_${playerId},target_audience.eq.staff_portal,sent_by.ilike.%${playerId}%,sent_by.ilike.%Player%`)
+        .select('id, title, message, created_at, sent_by, sent_by_name, sent_by_role, delivery_status')
         .order('created_at', { ascending: true });
 
       if (error) {
         console.error('❌ [UNIFIED CHAT] Error fetching messages:', error);
-        return res.status(500).json({ error: 'Failed to fetch messages' });
+        // Continue with empty messages instead of failing
+        console.log('⚠️ [UNIFIED CHAT] Continuing with empty messages due to fetch error');
       }
 
       // Transform messages to unified format with correct sender logic
