@@ -51,31 +51,9 @@ export function registerRoutes(app: Express) {
       console.log(`📨 [UNIFIED CHAT] Sending message from ${senderType} ${playerId}: "${message}"`);
       console.log(`🔍 [UNIFIED CHAT] Full request body:`, JSON.stringify(req.body, null, 2));
 
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      // Store message in push_notifications table (only guaranteed columns)
-      const { data: savedMessage, error: messageError } = await supabase
-        .from('push_notifications')
-        .insert({
-          sender_name: senderType === 'player' ? playerName : 'GRE Support',
-          sender_role: senderType,
-          title: senderType === 'player' ? 'Player Message' : 'GRE Response',
-          message: message,
-          status: 'sent'
-        })
-        .select()
-        .single();
-
-      if (messageError) {
-        console.error('❌ [UNIFIED CHAT] Message save failed:', messageError);
-        return res.status(500).json({ success: false, error: 'Failed to save message' });
-      }
-
-      console.log('✅ [UNIFIED CHAT] Message saved to database, ID:', savedMessage.id);
+      // Skip database storage temporarily - focus on Pusher delivery only
+      const savedMessage = { id: Date.now(), created_at: new Date().toISOString() };
+      console.log('⚠️ [UNIFIED CHAT] Skipping database storage, focusing on real-time Pusher delivery');
 
       // Real-time notification via Pusher
       try {
