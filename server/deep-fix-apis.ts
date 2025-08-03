@@ -9,16 +9,16 @@ export function setupDeepFixAPIs(app: Express) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // Initialize Pusher for real-time chat - using correct ap2 cluster
+  // Initialize Pusher for real-time chat - using fresh credentials
   const pusher = new Pusher({
-    appId: '1919992',
-    key: '4a89de838fee5a34eb20',
-    secret: 'f8c9b5951b89cfb14b29',
-    cluster: 'ap2',
+    appId: process.env.PUSHER_APP_ID || '2031604',
+    key: process.env.PUSHER_KEY || '81b98cb04ef7aeef2baa',
+    secret: process.env.PUSHER_SECRET || '6e3b7d709ee1fd09937e',
+    cluster: process.env.PUSHER_CLUSTER || 'ap2',
     useTLS: true
   });
   
-  console.log('🔗 [PUSHER BACKEND] Initialized with cluster: ap2, key: 4a89de838fee5a34eb20');
+  console.log('🔗 [FRESH PUSHER] Initialized with cluster: ap2, key: 81b98cb04ef7aeef2baa');
 
   console.log('🛠️ [DEEP FIX] Setting up comprehensive API fixes with Pusher real-time...');
 
