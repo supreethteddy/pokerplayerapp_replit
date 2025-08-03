@@ -200,16 +200,18 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
     initializePusher();
   }, [isOpen, playerId]);
 
-  // Load existing messages with real-time refresh
+  // Load existing messages ONLY ONCE when chat opens
+  const messagesLoadedRef = useRef(false);
+  
   useEffect(() => {
-    if (!isOpen || !playerId) return;
+    if (!isOpen || !playerId || messagesLoadedRef.current) return;
 
     const loadMessages = async () => {
       try {
         const response = await fetch(`/api/unified-chat/messages/${playerId}`);
         if (response.ok) {
           const data = await response.json();
-          console.log('📨 [MESSAGES] Loaded existing messages:', data.length);
+          console.log('📨 [MESSAGES] Initial load - existing messages:', data.length);
 
           const formattedMessages: ChatMessage[] = data.map((msg: any, index: number) => ({
             id: msg.id || `loaded-${index}-${Date.now()}`,
@@ -221,6 +223,9 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
           }));
 
           setMessages(formattedMessages);
+          messagesLoadedRef.current = true; // Mark as loaded to prevent re-loading
+          console.log('✅ [MESSAGES] Initial load complete - messages preserved for real-time updates');
+          
           // Instant scroll to bottom when messages load
           setTimeout(() => scrollToBottom(), 0);
         }
@@ -230,10 +235,14 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
     };
 
     loadMessages();
-    
-    // No automatic refresh - rely on Pusher real-time updates instead
-    // This prevents sent messages from disappearing due to database refreshes
   }, [isOpen, playerId]);
+
+  // Reset loaded flag when chat closes to allow fresh load next time
+  useEffect(() => {
+    if (!isOpen) {
+      messagesLoadedRef.current = false;
+    }
+  }, [isOpen]);
 
   const scrollToBottom = () => {
     // Instant scroll for real-time chat feel
