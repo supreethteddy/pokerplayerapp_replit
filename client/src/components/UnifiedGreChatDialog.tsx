@@ -158,7 +158,7 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
           console.log('🔔 [PUSHER] New GRE message received:', data);
 
           const newMsg: ChatMessage = {
-            id: data.messageId || Date.now().toString(),
+            id: data.messageId || `gre-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             message: data.message,
             sender: 'staff',
             sender_name: data.senderName || 'Guest Relations Executive',
@@ -166,8 +166,23 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
             status: 'received'
           };
 
-          setMessages(prev => [...prev, newMsg]);
-          scrollToBottom();
+          setMessages(prev => {
+            // Check if message already exists to prevent duplicates
+            const exists = prev.some(msg => msg.id === newMsg.id || 
+              (msg.message === newMsg.message && msg.sender === newMsg.sender && 
+               Math.abs(new Date(msg.timestamp).getTime() - new Date(newMsg.timestamp).getTime()) < 5000));
+            
+            if (exists) {
+              console.log('⚠️ [PUSHER] Duplicate message prevented:', newMsg.id);
+              return prev;
+            }
+            
+            console.log('✅ [PUSHER] Adding new message to UI instantly');
+            return [...prev, newMsg];
+          });
+          
+          // Instant scroll with no animation for real-time feel
+          setTimeout(() => scrollToBottom(), 10);
         });
 
         channel.bind('new-player-message', (data: any) => {
@@ -185,7 +200,7 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
     initializePusher();
   }, [isOpen, playerId]);
 
-  // Load existing messages
+  // Load existing messages with real-time refresh
   useEffect(() => {
     if (!isOpen || !playerId) return;
 
@@ -196,8 +211,8 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
           const data = await response.json();
           console.log('📨 [MESSAGES] Loaded existing messages:', data.length);
 
-          const formattedMessages: ChatMessage[] = data.map((msg: any) => ({
-            id: msg.id,
+          const formattedMessages: ChatMessage[] = data.map((msg: any, index: number) => ({
+            id: msg.id || `loaded-${index}-${Date.now()}`,
             message: msg.message,
             sender: msg.sender === 'gre' ? 'staff' : 'player',
             sender_name: msg.sender_name || 'System',
@@ -206,6 +221,8 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
           }));
 
           setMessages(formattedMessages);
+          // Instant scroll to bottom when messages load
+          setTimeout(() => scrollToBottom(), 0);
         }
       } catch (error) {
         console.error('❌ [MESSAGES] Failed to load messages:', error);
@@ -213,10 +230,16 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
     };
 
     loadMessages();
+    
+    // Real-time refresh every 1 second for maximum responsiveness (only as backup)
+    const refreshInterval = setInterval(loadMessages, 1000);
+    
+    return () => clearInterval(refreshInterval);
   }, [isOpen, playerId]);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Instant scroll for real-time chat feel
+    messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
   };
 
   const testConnection = async () => {
@@ -272,7 +295,7 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
 
         // Add message to local state immediately
         const sentMessage: ChatMessage = {
-          id: result.data?.id || Date.now().toString(),
+          id: result.data?.id || `player-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           message: newMessage,
           sender: 'player',
           sender_name: playerName,
@@ -280,9 +303,24 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
           status: 'sent'
         };
 
-        setMessages(prev => [...prev, sentMessage]);
+        setMessages(prev => {
+          // Check if message already exists to prevent duplicates
+          const exists = prev.some(msg => msg.id === sentMessage.id || 
+            (msg.message === sentMessage.message && msg.sender === sentMessage.sender && 
+             Math.abs(new Date(msg.timestamp).getTime() - new Date(sentMessage.timestamp).getTime()) < 5000));
+          
+          if (exists) {
+            console.log('⚠️ [SEND] Duplicate message prevented:', sentMessage.id);
+            return prev;
+          }
+          
+          console.log('✅ [SEND] Adding sent message to UI instantly');
+          return [...prev, sentMessage];
+        });
+        
         setNewMessage('');
-        scrollToBottom();
+        // Instant scroll with no animation for real-time feel
+        setTimeout(() => scrollToBottom(), 10);
       } else {
         console.error('❌ [SEND] Failed to send message:', response.status);
       }
