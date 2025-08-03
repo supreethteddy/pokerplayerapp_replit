@@ -57,21 +57,20 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      // Store message in push_notifications table (unified storage)
+      // Store message in push_notifications table (matching existing schema)
       const { data: savedMessage, error: messageError } = await supabase
         .from('push_notifications')
         .insert({
+          sender_name: senderType === 'player' ? playerName : 'GRE Support',
+          sender_role: senderType,
+          target_player_id: senderType === 'player' ? null : playerId,
           title: senderType === 'player' ? 'Player Message' : 'GRE Response',
           message: message,
-          sent_by: senderType === 'player' ? `${playerName} (Player)` : 'Guest Relations Executive',
-          sent_by_name: senderType === 'player' ? playerName : 'GRE Support',
-          sent_by_role: senderType,
-          target_audience: senderType === 'player' ? 'staff_portal' : `player_${playerId}`,
-          media_type: 'text',
-          recipients_count: 1,
-          delivery_status: 'sent',
-          created_at: new Date().toISOString(),
-          sent_at: new Date().toISOString()
+          message_type: 'chat',
+          priority: 'high',
+          status: 'sent',
+          broadcast_to_all: false,
+          created_at: new Date().toISOString()
         })
         .select()
         .single();
@@ -87,28 +86,37 @@ export function registerRoutes(app: Express) {
       try {
         if (senderType === 'player') {
           // Notify Staff Portal
-          await pusher.trigger('staff-portal', 'new-player-message', {
+          const pusherPayload = {
             playerId: playerId,
             playerName: playerName,
             message: message,
             timestamp: new Date().toISOString(),
             messageId: savedMessage.id
-          });
-          console.log('🚀 [PUSHER] Player message sent to staff-portal channel with data:', {
-            playerId, playerName, message, messageId: savedMessage.id
-          });
+          };
+          
+          const pusherResult = await pusher.trigger('staff-portal', 'new-player-message', pusherPayload);
+          
+          console.log('🚀 [PUSHER DELIVERY] Staff Portal notification sent:');
+          console.log('   Channel: staff-portal');
+          console.log('   Event: new-player-message');
+          console.log('   Payload:', JSON.stringify(pusherPayload, null, 2));
+          console.log('   Pusher Response:', pusherResult);
+          console.log('   ✅ SUCCESS: Message delivered to staff portal via Pusher');
         } else {
           // Notify Player Portal
-          await pusher.trigger(`player-${playerId}`, 'new-gre-message', {
+          const pusherPayload = {
             message: message,
             senderName: 'Guest Relations Executive',
             timestamp: new Date().toISOString(),
             messageId: savedMessage.id
-          });
-          console.log(`🚀 [PUSHER] GRE message sent to player-${playerId} channel`);
+          };
+          
+          const pusherResult = await pusher.trigger(`player-${playerId}`, 'new-gre-message', pusherPayload);
+          console.log(`🚀 [PUSHER] GRE message sent to player-${playerId} channel with result:`, pusherResult);
         }
       } catch (pusherError) {
         console.error('❌ [PUSHER] Real-time notification failed:', pusherError);
+        console.error('   This will prevent staff portal from receiving real-time messages');
       }
 
       // Push notification via OneSignal
