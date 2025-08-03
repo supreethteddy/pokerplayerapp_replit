@@ -106,15 +106,16 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
     if (!playerId) return;
 
     try {
-      const response = await fetch(`/api/production-chat/messages/${playerId}`);
+      console.log('📋 [EXPERT CHAT] Loading comprehensive chat history for player:', playerId);
+      const response = await fetch(`/api/unified-chat/messages/${playerId}`);
       if (response.ok) {
         const chatHistory = await response.json();
-        console.log('📋 [PRODUCTION CHAT] Loaded chat history:', chatHistory.length, 'messages');
+        console.log('✅ [EXPERT CHAT] Loaded enterprise chat history:', chatHistory.length, 'messages');
         setMessages(chatHistory);
         setTimeout(scrollToBottom, 100);
       }
     } catch (error) {
-      console.error('❌ [PRODUCTION CHAT] Error loading chat history:', error);
+      console.error('❌ [EXPERT CHAT] Error loading chat history:', error);
     }
   };
 
@@ -143,8 +144,8 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
     scrollToBottom();
 
     try {
-      console.log('📤 [PUSHER CHAT PRODUCTION] Sending message with OneSignal integration...');
-      const response = await fetch('/api/player-chat/send', {
+      console.log('📤 [EXPERT CHAT] Sending message with enterprise-grade integration...');
+      const response = await fetch('/api/unified-chat/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -153,13 +154,14 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
           playerId: playerId,
           playerName: playerName,
           message: messageText,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          channel: 'player-portal'
         }),
       });
 
       if (response.ok) {
         const result = await response.json();
-        console.log('✅ [PUSHER CHAT] Message sent successfully:', result);
+        console.log('✅ [EXPERT CHAT] Message sent with enterprise integration:', result);
         
         // Replace temp message with real one from data
         setMessages(prev => prev.map(msg => 
@@ -181,7 +183,7 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
         throw new Error('Failed to send message');
       }
     } catch (error) {
-      console.error('❌ [PUSHER CHAT] Error sending message:', error);
+      console.error('❌ [EXPERT CHAT] Error sending message:', error);
       
       // Remove temp message on error
       setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
