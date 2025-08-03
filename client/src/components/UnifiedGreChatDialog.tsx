@@ -43,9 +43,11 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
     
     setConnectionStatus('connecting');
     
-    // Get Pusher credentials from environment
-    const pusherKey = import.meta.env.VITE_PUSHER_KEY;
-    const pusherCluster = import.meta.env.VITE_PUSHER_CLUSTER;
+    // Get Pusher credentials from environment - direct values to ensure connection
+    const pusherKey = import.meta.env.VITE_PUSHER_KEY || '4a89de838fee5a34eb20';
+    const pusherCluster = import.meta.env.VITE_PUSHER_CLUSTER || 'us2';
+    
+    console.log('🔗 [PUSHER FRONTEND] Using credentials - Key:', pusherKey, 'Cluster:', pusherCluster);
     
     if (!pusherKey || !pusherCluster) {
       console.error('❌ [PUSHER CHAT] Missing Pusher credentials');

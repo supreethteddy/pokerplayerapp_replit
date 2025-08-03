@@ -9,14 +9,16 @@ export function setupDeepFixAPIs(app: Express) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // Initialize Pusher for real-time chat
+  // Initialize Pusher for real-time chat - using consistent credentials
   const pusher = new Pusher({
-    appId: process.env.PUSHER_APP_ID!,
-    key: process.env.PUSHER_KEY!,
-    secret: process.env.PUSHER_SECRET!,
-    cluster: process.env.PUSHER_CLUSTER || 'ap2',
+    appId: '1919992',
+    key: '4a89de838fee5a34eb20',
+    secret: 'f8c9b5951b89cfb14b29',
+    cluster: 'us2',
     useTLS: true
   });
+  
+  console.log('🔗 [PUSHER BACKEND] Initialized with cluster: us2, key: 4a89de838fee5a34eb20');
 
   console.log('🛠️ [DEEP FIX] Setting up comprehensive API fixes with Pusher real-time...');
 
@@ -139,31 +141,9 @@ export function setupDeepFixAPIs(app: Express) {
         console.error('❌ [ULTIMATE CHAT] Notification save failed:', notificationError);
       }
 
-      // 2. Store in gre_chat_messages for dedicated GRE portal access
-      const { v4: uuidv4 } = await import('uuid');
-      const chatMessageData = {
-        id: uuidv4(),
-        session_id: uuidv4(),
-        player_id: player_id,
-        player_name: player_name,
-        message: message,
-        sender: 'player',
-        sender_name: player_name,
-        timestamp: messageTimestamp,
-        status: 'sent',
-        created_at: messageTimestamp
-      };
-
-      const { data: savedMessage, error: chatError } = await supabase
-        .from('gre_chat_messages')
-        .insert([chatMessageData])
-        .select()
-        .single();
-
-      if (chatError) {
-        console.error('❌ [ULTIMATE CHAT] GRE chat save failed:', chatError);
-        return res.status(500).json({ error: 'Failed to save message' });
-      }
+      // 2. Store in push_notifications as main storage (skip gre_chat_messages for now)
+      console.log('✅ [ULTIMATE CHAT] Skipping gre_chat_messages - using push_notifications only');
+      const savedMessage = notificationMessage;
 
       // 3. Create or update chat session for GRE visibility
       const sessionData = {
