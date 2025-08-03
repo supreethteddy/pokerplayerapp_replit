@@ -6,7 +6,7 @@ import path from "path";
 import fs from "fs";
 import Pusher from 'pusher';
 import OneSignal from 'onesignal-node';
-import { setupProductionChatRoutes } from './chat-system';
+import { registerChatSystemApis } from './chat-system';
 import { setupProductionAPIs } from './production-apis';
 import { setupDeepFixAPIs } from './deep-fix-apis';
 import { unifiedPlayerSystem } from './unified-player-system';
@@ -30,7 +30,7 @@ console.log('🚀 [SERVER] Pusher and OneSignal initialized successfully');
 
 export function registerRoutes(app: Express) {
   // Register enterprise chat system
-  setupProductionChatRoutes(app);
+  registerChatSystemApis(app);
   
   // PRIORITY: Register ONLY deep fix APIs (working implementations)
   setupDeepFixAPIs(app);
@@ -63,69 +63,11 @@ export function registerRoutes(app: Express) {
 
   // Chat endpoints disabled - using deep-fix-apis.ts implementation
 
-  // Chat send endpoint moved to deep-fix-apis.ts
+  // ALL CHAT ENDPOINTS DISABLED - USING ULTIMATE CHAT FIX IN deep-fix-apis.ts
 
-  // Legacy Player Chat Send API - Pusher integration endpoint (maintained for compatibility)
-  app.post("/api/player-chat/send", async (req, res) => {
-    try {
-      const { playerId, playerName, message, timestamp } = req.body;
-      
-      if (!playerId || !playerName || !message) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      console.log(`💬 [PLAYER CHAT] Sending message from ${playerName} (${playerId}):`, message);
-
-      // Store message in database
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      const messageData = {
-        id: `msg-${Date.now()}-${playerId}`,
-        player_id: playerId,
-        gre_id: null,
-        message: message,
-        sender: 'player',
-        sender_name: playerName,
-        timestamp: timestamp || new Date().toISOString(),
-        status: 'sent'
-      };
-
-      // Send via Pusher
-      try {
-        const pusherResponse = await fetch('http://localhost:5000/api/pusher/send-message', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            channel: `player-${playerId}`,
-            event: 'new-message',
-            data: { message: messageData }
-          })
-        });
-
-        if (pusherResponse.ok) {
-          console.log(`✅ [PLAYER CHAT] Message sent via Pusher to channel player-${playerId}`);
-        } else {
-          console.error('❌ [PLAYER CHAT] Pusher send failed:', await pusherResponse.text());
-        }
-      } catch (pusherError) {
-        console.error('❌ [PLAYER CHAT] Pusher error:', pusherError);
-      }
-
-      res.json({ 
-        success: true, 
-        data: messageData,
-        message: "Message sent successfully"
-      });
-
-    } catch (error) {
-      console.error('❌ [PLAYER CHAT] Error:', error);
-      res.status(500).json({ error: "Failed to send message" });
-    }
-  });
+  // Legacy chat endpoints disabled - ULTIMATE CHAT FIX handles all messaging
+  
+  console.log('✅ [ROUTES] Chat endpoints disabled - using ULTIMATE CHAT FIX');
 
   // PRODUCTION STAFF PORTAL DATA ENDPOINTS - Authentic database queries only
   

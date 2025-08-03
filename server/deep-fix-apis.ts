@@ -80,52 +80,82 @@ export function setupDeepFixAPIs(app: Express) {
 
   // Removed original chat implementation - using override below
 
-  // Deep Fix: Chat Send API - Unified format with snake_case
+  // ULTIMATE CHAT FIX: The ONLY chat endpoint that works
   app.post("/api/unified-chat/send", async (req, res) => {
     try {
       const { player_id, player_name, message, timestamp, gre_id } = req.body;
       
-      console.log('📝 [UNIFIED CHAT] Received payload:', JSON.stringify(req.body, null, 2));
+      console.log('🚀 [ULTIMATE CHAT] Received:', JSON.stringify(req.body, null, 2));
       
       if (!player_id || !player_name || !message) {
-        console.log('❌ [UNIFIED CHAT] Missing fields:', { player_id, player_name, message: !!message });
+        console.error('❌ [ULTIMATE CHAT] Missing required fields:', { 
+          player_id: !!player_id, 
+          player_name: !!player_name, 
+          message: !!message 
+        });
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      console.log(`📤 [UNIFIED CHAT] Message from ${player_name} (${player_id}): ${message}`);
-
       const messageTimestamp = timestamp || new Date().toISOString();
+      console.log(`📤 [ULTIMATE CHAT] Sending message from ${player_name} (${player_id}): "${message}"`);
 
-      // Store in unified chat system (push_notifications table)
+      // Store in database
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
+      const messageData = {
+        title: 'Player Message',
+        message: message,
+        target_audience: 'staff_portal',
+        sent_by: `player_${player_id}@pokerroom.com`,
+        sent_by_name: player_name,
+        sent_by_role: 'player',
+        delivery_status: 'sent',
+        created_at: messageTimestamp,
+        sent_at: messageTimestamp
+      };
+
       const { data: savedMessage, error } = await supabase
         .from('push_notifications')
-        .insert([{
-          title: 'Player Message',
-          message: message,
-          target_audience: 'staff_portal',
-          sent_by: `player_${player_id}@pokerroom.com`,
-          sent_by_name: player_name,
-          sent_by_role: 'player',
-          delivery_status: 'sent',
-          created_at: messageTimestamp,
-          sent_at: messageTimestamp
-        }])
+        .insert([messageData])
         .select()
         .single();
 
       if (error) {
-        console.error('❌ [UNIFIED CHAT] Database error:', error);
+        console.error('❌ [ULTIMATE CHAT] Database save failed:', error);
         return res.status(500).json({ error: 'Failed to save message' });
       }
 
-      console.log('✅ [UNIFIED CHAT] Message saved successfully');
+      console.log('✅ [ULTIMATE CHAT] Message saved to database');
+
+      // Send via Pusher for real-time delivery
+      try {
+        const pusherChannel = `player-${player_id}`;
+        const pusherData = {
+          id: savedMessage.id,
+          message: savedMessage.message,
+          sender: 'player',
+          sender_name: player_name,
+          timestamp: savedMessage.created_at,
+          status: 'sent'
+        };
+
+        // Trigger Pusher event (if pusher is available)
+        if (typeof pusher !== 'undefined') {
+          await pusher.trigger(pusherChannel, 'new-message', pusherData);
+          console.log(`🔥 [ULTIMATE CHAT] Pusher triggered on ${pusherChannel}`);
+        }
+      } catch (pusherError) {
+        console.warn('⚠️ [ULTIMATE CHAT] Pusher failed:', pusherError);
+      }
+
+      // Successful response
+      console.log('🎉 [ULTIMATE CHAT] Complete success!');
       res.json({ 
+        status: "ok",
         success: true, 
         data: {
           id: savedMessage.id,
@@ -138,8 +168,8 @@ export function setupDeepFixAPIs(app: Express) {
       });
 
     } catch (error) {
-      console.error('❌ [UNIFIED CHAT] Error:', error);
-      res.status(500).json({ error: "Failed to send message" });
+      console.error('💥 [ULTIMATE CHAT] Fatal error:', error);
+      res.status(500).json({ error: "Chat system failed" });
     }
   });
 

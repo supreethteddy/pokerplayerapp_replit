@@ -69,21 +69,8 @@ export function setupProductionAPIs(app: Express) {
     }
   });
 
-  // Comprehensive Chat Send API - Fixed Implementation
-  app.post("/api/unified-chat/send", async (req, res) => {
-    try {
-      const { playerId, playerName, message, timestamp } = req.body;
-      
-      if (!playerId || !playerName || !message) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      console.log(`📤 [COMPREHENSIVE CHAT] Sending message from ${playerName} (${playerId}): ${message}`);
-
-      const messageTimestamp = timestamp || new Date().toISOString();
-      const { v4: uuidv4 } = await import('uuid');
-      const messageId = uuidv4();
-      const sessionId = uuidv4();
+  // Comprehensive Chat Send API - DISABLED: Using ULTIMATE CHAT FIX in deep-fix-apis.ts
+  console.log('✅ [PRODUCTION-APIS] Chat endpoint disabled - using ULTIMATE CHAT FIX');
 
       // Store in GRE chat messages with minimal required fields
       const { data: savedMessage, error: chatError } = await supabase

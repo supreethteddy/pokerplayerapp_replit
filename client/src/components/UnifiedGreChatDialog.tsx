@@ -123,74 +123,74 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // ULTIMATE CHAT FIX: Unified send handler for button and enter key
   const sendMessage = async () => {
     if (!newMessage.trim() || !playerId || !playerName) return;
 
     setIsLoading(true);
     const messageText = newMessage.trim();
     
-    // Add message optimistically
-    const tempMessage: ChatMessage = {
-      id: `temp-${Date.now()}`,
-      message: messageText,
-      sender: 'player',
-      sender_name: playerName,
-      timestamp: new Date().toISOString(),
-      status: 'sending'
-    };
-    
-    setMessages(prev => [...prev, tempMessage]);
-    setNewMessage('');
-    scrollToBottom();
-
     try {
-      console.log('📤 [EXPERT CHAT] Sending message with enterprise-grade integration...');
+      console.log('🚀 [ULTIMATE CHAT] Sending message:', messageText);
+      
+      const payload = {
+        player_id: parseInt(playerId),
+        player_name: playerName,
+        message: messageText,
+        timestamp: new Date().toISOString(),
+        gre_id: null
+      };
+      
+      console.log('📝 [ULTIMATE CHAT] Sending payload:', payload);
+      
       const response = await fetch('/api/unified-chat/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          player_id: parseInt(playerId),
-          player_name: playerName,
-          message: messageText,
-          timestamp: new Date().toISOString(),
-          gre_id: null
-        }),
+        body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ [EXPERT CHAT] Message sent with enterprise integration:', result);
-        
-        // Replace temp message with real one from data
-        setMessages(prev => prev.map(msg => 
-          msg.id === tempMessage.id ? {
-            id: result.data.id,
-            message: result.data.message,
-            sender: result.data.sender,
-            sender_name: playerName,
-            timestamp: result.data.timestamp,
-            status: result.data.status
-          } : msg
-        ));
-        
-        toast({
-          title: "Message Sent",
-          description: "Your message has been sent to Guest Relations",
-        });
-      } else {
-        throw new Error('Failed to send message');
-      }
-    } catch (error) {
-      console.error('❌ [EXPERT CHAT] Error sending message:', error);
+      const result = await response.json();
       
-      // Remove temp message on error
-      setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
+      if (!response.ok) {
+        console.error('❌ [ULTIMATE CHAT] Server error:', result);
+        throw new Error(result.error || `Server returned ${response.status}`);
+      }
+
+      console.log('✅ [ULTIMATE CHAT] Success response:', result);
+      
+      // Add message to local chat immediately
+      const newMsg: ChatMessage = {
+        id: result.data?.id || `local-${Date.now()}`,
+        message: messageText,
+        sender: 'player',
+        sender_name: playerName,
+        timestamp: new Date().toISOString(),
+        status: 'sent'
+      };
+      
+      setMessages(prev => [...prev, newMsg]);
+      setNewMessage(''); // Clear input
+      
+      // Scroll to bottom
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+      
+      console.log('🎉 [ULTIMATE CHAT] Message added to UI and cleared input');
       
       toast({
-        title: "Send Failed",
-        description: "Unable to send message. Please try again.",
+        title: "Message Sent",
+        description: "Your message has been delivered to Guest Relations",
+      });
+      
+    } catch (error) {
+      console.error('💥 [ULTIMATE CHAT] Send failed:', error);
+      
+      toast({
+        title: "Chat Error",
+        description: `Failed to send: ${error.message}`,
         variant: "destructive"
       });
     } finally {
