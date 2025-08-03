@@ -117,10 +117,10 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          player_id: user.id,
-          message_text: message_text.trim(),
-          sender: 'player',
-          sender_name: `${user.firstName} ${user.lastName}`,
+          playerId: user.id,
+          playerName: `${user.firstName} ${user.lastName}`,
+          message: message_text.trim(),
+          senderType: 'player',
           chat_request_id
         })
       });

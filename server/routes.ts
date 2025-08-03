@@ -5245,38 +5245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // UNIFIED CHAT SEND MESSAGE - STAFF PORTAL ALIGNED (snake_case fields)
-  app.post('/api/unified-chat/send', async (req, res) => {
-    const { sendUnifiedChatMessage } = await import('./unified-chat-system-complete.js');
-    
-    try {
-      const { player_id, message_text, sender, sender_name, chat_request_id } = req.body;
-      
-      if (!player_id || !message_text || !sender) {
-        return res.status(400).json({ 
-          error: 'Required fields: player_id, message_text, sender (all in snake_case format)' 
-        });
-      }
-      
-      const result = await sendUnifiedChatMessage({
-        playerId: player_id,
-        message: message_text,
-        sender: sender,
-        senderName: sender_name,
-        requestId: chat_request_id
-      });
-      
-      if (result.success) {
-        res.json(result);
-      } else {
-        res.status(500).json({ error: result.error });
-      }
-      
-    } catch (error) {
-      console.error('[UNIFIED SEND] Error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
+
 
   // 🏗️ UUID TABLE SETUP ENDPOINT - Create UUID tables in Staff Portal Supabase
   app.post('/api/staff-portal/uuid-setup', async (req, res) => {
