@@ -1,100 +1,75 @@
-// Poker Room Player Portal Server with Pusher/OneSignal Integration
-import express from 'express';
-import { registerRoutes } from './routes';
-import { serveStatic, setupVite } from './vite-custom';
-import { createServer } from 'http';
+import express, { type Request, Response, NextFunction } from "express";
+import { registerRoutes } from "./routes";
+import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
-const PORT = process.env.PORT || 5000;
-const server = createServer(app);
+// Increase payload limits for file uploads (10MB limit)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
-console.log('🚀 Starting Poker Room Player Portal Server...');
+app.use((req, res, next) => {
+  const start = Date.now();
+  const path = req.path;
+  let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
-// Parse JSON bodies
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+  const originalResJson = res.json;
+  res.json = function (bodyJson, ...args) {
+    capturedJsonResponse = bodyJson;
+    return originalResJson.apply(res, [bodyJson, ...args]);
+  };
 
-// Register API routes
-registerRoutes(app);
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    if (path.startsWith("/api")) {
+      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      if (capturedJsonResponse) {
+        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      }
 
-// Simple static file serving for now to avoid vite.config.ts issues
-if (process.env.NODE_ENV === 'production') {
-  serveStatic(app);
-} else {
-  // Development mode - serve a simple frontend placeholder
-  app.get('/', (req, res) => {
-    res.send(`
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Poker Room Player Portal</title>
-    <style>
-        body { font-family: Arial, sans-serif; background: #0f172a; color: white; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; }
-        .api-test { background: #1e293b; padding: 15px; margin: 10px 0; border-radius: 8px; }
-        .status { color: #10b981; }
-        .error { color: #ef4444; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🎰 Poker Room Player Portal</h1>
-        <p class="status">✅ Server is running successfully!</p>
-        
-        <div class="api-test">
-            <h3>🔌 Backend Services Status</h3>
-            <p>✅ Express Server: Running on port 5000</p>
-            <p>✅ Pusher Channels: Active</p>
-            <p>✅ OneSignal: Enabled</p>
-            <p>✅ Supabase Database: Connected</p>
-        </div>
-        
-        <div class="api-test">
-            <h3>🧪 API Tests</h3>
-            <p><a href="/api/tables" style="color: #10b981;">Test Tables API</a></p>
-            <p><a href="/api/universal-health" style="color: #10b981;">Test Health Check</a></p>
-            <p><a href="/api/test-supabase" style="color: #10b981;">Test Database Connection</a></p>
-        </div>
-        
-        <div class="api-test">
-            <h3>💬 Chat System</h3>
-            <p class="status">Real-time chat system is ready and integrated with Pusher/OneSignal</p>
-            <p>Chat features are working as configured in the previous working state.</p>
-        </div>
-        
-        <p><em>Full React frontend will be enabled once Vite configuration is resolved.</em></p>
-    </div>
-</body>
-</html>
-    `);
+      if (logLine.length > 80) {
+        logLine = logLine.slice(0, 79) + "…";
+      }
+
+      log(logLine);
+    }
   });
-}
 
-// Start the server
-server.listen(Number(PORT), '0.0.0.0', () => {
-  console.log(`✅ Server running on http://0.0.0.0:${PORT}`);
-  console.log('🔌 Pusher Channels integration active');
-  console.log('🔔 OneSignal push notifications enabled');
-  console.log('💬 Real-time chat system ready');
+  next();
 });
 
-// Handle graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('🛑 SIGTERM received, shutting down gracefully...');
-  server.close(() => {
-    console.log('✅ Server closed');
-    process.exit(0);
-  });
-});
+(async () => {
+  // Initialize Supabase connection - no mock data in production
+  const { supabaseStorage } = await import("./supabase-storage");
+  await supabaseStorage.initializeSampleData();
+  
+  const server = await registerRoutes(app);
 
-process.on('SIGINT', () => {
-  console.log('🛑 SIGINT received, shutting down gracefully...');
-  server.close(() => {
-    console.log('✅ Server closed');
-    process.exit(0);
-  });
-});
+  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
 
-export default app;
+    res.status(status).json({ message });
+    throw err;
+  });
+
+  // importantly only setup vite in development and after
+  // setting up all the other routes so the catch-all route
+  // doesn't interfere with the other routes
+  if (app.get("env") === "development") {
+    await setupVite(app, server);
+  } else {
+    serveStatic(app);
+  }
+
+  // ALWAYS serve the app on port 5000
+  // this serves both the API and the client.
+  // It is the only port that is not firewalled.
+  const port = 5000;
+  server.listen({
+    port,
+    host: "0.0.0.0",
+    reusePort: true,
+  }, () => {
+    log(`serving on port ${port}`);
+  });
+})();

@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-// import { dbStorage } from './database';
+import { dbStorage } from './database';
 
 export class CacheManager {
   private static instance: CacheManager;
