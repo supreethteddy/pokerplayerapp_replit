@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServer, WebSocket } from "ws";
+// DISABLED: WebSocket imports - migrated to Pusher Channels
+// import { WebSocketServer, WebSocket } from "ws";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from 'url';
@@ -41,7 +42,8 @@ const kycUploadSchema = z.object({
   dataUrl: z.string()
 });
 
-// **UNIFIED CHAT WEBSOCKET SERVER - Enterprise Grade**
+// ** DISABLED: WEBSOCKET INTERFACES - Migrated to Pusher Channels **
+/*
 interface AuthenticatedWebSocket extends WebSocket {
   playerId?: number;
   playerName?: string;
@@ -50,6 +52,7 @@ interface AuthenticatedWebSocket extends WebSocket {
 }
 
 const connectedClients = new Map<number, AuthenticatedWebSocket>();
+*/
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -60,7 +63,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const status = {
         timestamp: new Date().toISOString(),
-        websocketConnections: `${playerConnections.size} active connections`,
+        websocketConnections: 'DISABLED - Migrated to Pusher Channels',
         database: 'Production Staff Portal Supabase ONLY',
         messageRouting: 'Real-time bidirectional (no broadcast-all)',
         authentication: 'Production user context (no mock data)',
@@ -4738,20 +4741,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
 
-  // **UNIFIED CHAT WEBSOCKET SERVER - Expert Level Implementation**
-  const wss = new WebSocketServer({ 
-    server: httpServer, 
-    path: '/chat-ws',
-    verifyClient: (info) => {
-      console.log('🔐 [UNIFIED WEBSOCKET] Client connecting from:', info.origin);
-      return true;
-    }
-  });
+  // ** DISABLED: WEBSOCKET SERVER - Migrated to Pusher Channels **
+  // const wss = new WebSocketServer({ 
+  //   server: httpServer, 
+  //   path: '/chat-ws',
+  //   verifyClient: (info) => {
+  //     console.log('🔐 [UNIFIED WEBSOCKET] Client connecting from:', info.origin);
+  //     return true;
+  //   }
+  // });
   
-  // Store active WebSocket connections by player ID
-  const playerConnections = new Map<number, AuthenticatedWebSocket>();
+  // ** DISABLED: WebSocket connections - Migrated to Pusher Channels **
+  // const playerConnections = new Map<number, AuthenticatedWebSocket>();
   
-  // **UNIFIED WEBSOCKET CONNECTION HANDLER**
+  // ** DISABLED: WEBSOCKET CONNECTION HANDLER **
+  /*
   wss.on('connection', (ws: AuthenticatedWebSocket, request) => {
     console.log('🔗 [UNIFIED WEBSOCKET] New client connected');
     ws.isAuthenticated = false;
@@ -4999,6 +5003,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   console.log('🚀 [UNIFIED WEBSOCKET] Chat system initialized on /chat-ws');
+  */
+  
+  // ** WEBSOCKET SYSTEM DISABLED - Migrated to Pusher Channels Integration **
 
   // ===== UNIFIED CHAT REST API ENDPOINTS =====
   
@@ -5712,8 +5719,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Tournament interest endpoint (sends to GRE) - already handled in GRE chat endpoint
 
-  // **REAL-TIME MESSAGE SYNC FUNCTION**
-  // Call this whenever a new message is added to refresh all connected clients
+  // ** DISABLED: WEBSOCKET BROADCAST FUNCTIONS - Migrated to Pusher Channels **
+  /*
   function broadcastMessageUpdate(playerId: number) {
     console.log('🛑 WEBSOCKET DEBUG: === UNIFIED ID MAPPING BROADCAST START ===');
     console.log('🔍 WEBSOCKET DEBUG: Real-time message routing | Details:', {
@@ -5779,6 +5786,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     console.log('🛑 [DEBUG] === BROADCAST MESSAGE UPDATE DEBUG END ===');
   }
+  */
 
   // **ENTERPRISE-READY GRE PORTAL API ENDPOINTS**
   
@@ -6234,16 +6242,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         validation: 'PRODUCTION_GRE_DATA_CONFIRMED'
       });
 
-      // Check if player has active WebSocket connection
-      const connection = playerConnections.get(playerId);
-      console.log('🔍 [DEBUG] Player WebSocket Connection Status:', {
-        hasConnection: !!connection,
-        connectionReady: connection?.readyState === WebSocket.OPEN,
-        playerConnectionsSize: playerConnections.size
-      });
+      // ** DISABLED: WebSocket connections - migrated to Pusher Channels **
+      // const connection = playerConnections.get(playerId);
+      // console.log('🔍 [DEBUG] Player WebSocket Connection Status:', {
+      //   hasConnection: !!connection,
+      //   connectionReady: connection?.readyState === WebSocket.OPEN,
+      //   playerConnectionsSize: playerConnections.size
+      // });
 
-      // Broadcast update to player's WebSocket connection
-      broadcastMessageUpdate(playerId);
+      // ** DISABLED: WebSocket broadcast - migrated to Pusher Channels **
+      // broadcastMessageUpdate(playerId);
 
       console.log(`✅ [GRE ADMIN] Message sent successfully to player ${playerId}`);
       console.log('🛑 [DEBUG] === GRE SEND MESSAGE DEBUG END ===');
