@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { X, Send, MessageCircle, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { createClient } from '@supabase/supabase-js';
 import Pusher from 'pusher-js';
 
 interface UnifiedGreChatDialogProps {
@@ -29,16 +30,67 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connected');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [chatEnabled, setChatEnabled] = useState(true);
+  const [playerData, setPlayerData] = useState<any>(null);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   
-  // Get user info from useAuth hook instead of localStorage
-  const playerId = user?.id;
-  const playerName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+  // Enhanced debugging for authentication state
+  console.log('🔍 [AUTH DEBUG] useAuth hook state:', { user, loading });
+  console.log('🔍 [AUTH DEBUG] User object keys:', user ? Object.keys(user) : 'user is null');
+  console.log('🔍 [AUTH DEBUG] Full user object:', JSON.stringify(user, null, 2));
   
-  console.log('🔍 [AUTH DEBUG] User from useAuth:', user);
-  console.log('🔍 [AUTH DEBUG] Extracted playerId:', playerId);
-  console.log('🔍 [AUTH DEBUG] Extracted playerName:', playerName);
+  // Fallback: Get user data directly from Supabase if useAuth fails
+  useEffect(() => {
+    const fetchPlayerDataDirectly = async () => {
+      if (user?.id) {
+        console.log('✅ [AUTH DEBUG] useAuth working, using user data');
+        setPlayerData(user);
+        return;
+      }
+      
+      console.log('🔄 [AUTH DEBUG] useAuth failed, trying Supabase session...');
+      
+      try {
+        const supabase = createClient(
+          import.meta.env.VITE_SUPABASE_URL!,
+          import.meta.env.VITE_SUPABASE_ANON_KEY!
+        );
+        
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          console.log('🔄 [AUTH DEBUG] Found Supabase session, fetching player data...');
+          
+          const response = await fetch(`/api/players/supabase/${session.user.id}`);
+          if (response.ok) {
+            const userData = await response.json();
+            console.log('✅ [AUTH DEBUG] Direct API call successful:', userData);
+            setPlayerData(userData);
+          } else {
+            console.log('❌ [AUTH DEBUG] Direct API call failed:', response.status);
+          }
+        } else {
+          console.log('❌ [AUTH DEBUG] No Supabase session found');
+        }
+      } catch (error) {
+        console.error('❌ [AUTH DEBUG] Error fetching player data:', error);
+      }
+    };
+    
+    if (isOpen) {
+      fetchPlayerDataDirectly();
+    }
+  }, [isOpen, user]);
+  
+  // Get user info with robust fallback system
+  const playerId = playerData?.id || user?.id;
+  const playerName = playerData ? 
+    `${playerData.firstName || ''} ${playerData.lastName || ''}`.trim() :
+    `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+  
+  console.log('🔍 [AUTH DEBUG] Final playerId:', playerId);
+  console.log('🔍 [AUTH DEBUG] Final playerName:', playerName);
+  console.log('🔍 [AUTH DEBUG] PlayerData source:', playerData ? 'direct API' : 'useAuth');
+  console.log('🔍 [AUTH DEBUG] Loading state:', loading);
 
   // Initialize Pusher connection
   useEffect(() => {
