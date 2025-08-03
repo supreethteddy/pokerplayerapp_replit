@@ -115,59 +115,83 @@ export function registerRoutes(app: Express) {
 
   // REAL SUPABASE DATA ENDPOINTS - No mock data, only authentic database queries
   
-  // Tables API - Get real poker tables using working Supabase connection
+  // Tables API - Production-grade live data endpoint
   app.get("/api/tables", async (req, res) => {
     try {
-      console.log('🔗 [TABLES API] FIXED - Using working Supabase connection...');
+      console.log('🚀 [TABLES API PRODUCTION] Starting fresh query...');
       
-      // Use direct Supabase query since getAllTables method doesn't exist yet
+      // Fresh Supabase client with service role key for production data
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       
-      // Query all tables first to see what's there, then filter by is_active
-      const { data: allTables, error: allError } = await supabase
+      // Query live production tables with comprehensive debugging
+      const { data: tablesData, error } = await supabase
         .from('tables')
         .select('*')
         .order('id');
       
-      console.log('🔍 [TABLES API] All tables in database:', allTables?.length || 0);
+      // Additional debugging: check if we're hitting the right database
+      const { data: dbCheck } = await supabase
+        .from('players')
+        .select('count(*)')
+        .limit(1);
       
-      // Filter for active tables
-      const realTables = allTables?.filter(table => table.is_active === true) || [];
-      const error = allError;
+      console.log('🔍 [TABLES API PRODUCTION] Database connectivity check:', {
+        playersTableExists: dbCheck ? 'yes' : 'no',
+        connectionWorking: !error,
+        environment: process.env.NODE_ENV
+      });
+      
+      console.log('🔍 [TABLES API PRODUCTION] Database response:', {
+        total: tablesData?.length || 0,
+        error: error?.message || 'none',
+        firstTable: tablesData?.[0] || 'no data',
+        rawData: tablesData
+      });
       
       if (error) {
-        console.error('❌ [TABLES API] Supabase error:', error);
-        return res.status(500).json({ error: "Failed to fetch tables" });
+        console.error('❌ [TABLES API PRODUCTION] Database error:', error);
+        return res.status(500).json({ error: "Failed to fetch tables", details: error.message });
       }
       
-      console.log('🔍 [TABLES API] Raw query result:', realTables);
-      
-      if (realTables && realTables.length > 0) {
-        const transformedTables = realTables.map(table => ({
-          id: table.id,
-          name: table.name,
-          gameType: table.game_type || 'Texas Holdem',
-          stakes: `₹${table.stakes}`,
-          maxPlayers: table.max_players || 9,
-          currentPlayers: table.current_players || 0,
-          waitingList: 0,
-          status: "active",
-          pot: table.pot || Math.floor(Math.random() * 50000) + 1000,
-          avgStack: table.avg_stack || Math.floor(Math.random() * 100000) + 5000
-        }));
-        
-        console.log(`✅ [TABLES API] FIXED - Returning ${transformedTables.length} real tables from database`);
-        res.json(transformedTables);
-      } else {
-        console.log('⚠️ [TABLES API] No tables found in database');
-        res.json([]);
+      if (!tablesData || tablesData.length === 0) {
+        console.log('⚠️ [TABLES API PRODUCTION] No tables in database');
+        return res.json([]);
       }
+      
+      // Filter for active tables (handle both boolean true and text 't')
+      const activeTables = tablesData.filter(table => 
+        table.is_active === true || table.is_active === 't'
+      );
+      
+      // Transform to frontend format - 100% live data only
+      const transformedTables = activeTables.map(table => ({
+        id: table.id,
+        name: table.name,
+        gameType: table.game_type || 'Texas Holdem',
+        stakes: table.stakes ? `₹${table.stakes}` : '₹50/100',
+        maxPlayers: table.max_players || 9,
+        currentPlayers: table.current_players || 0,
+        waitingList: 0,
+        status: "active",
+        pot: table.pot || 0,
+        avgStack: table.avg_stack || 0
+      }));
+      
+      console.log(`✅ [TABLES API PRODUCTION] Returning ${transformedTables.length} active tables (${tablesData.length} total)`);
+      
+      // Disable caching for live data
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      
+      res.json(transformedTables);
+      
     } catch (error) {
-      console.error('❌ [TABLES API] Error:', error);
+      console.error('💥 [TABLES API PRODUCTION] Unexpected error:', error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -226,13 +250,20 @@ export function registerRoutes(app: Express) {
         }
       );
       
-      // Get real staff offers from database with enhanced debugging
-      console.log('🔍 [OFFERS API] Querying staff_offers with is_active = true...');
+      // Get real staff offers from database - production-grade implementation
+      console.log('🚀 [OFFERS API PRODUCTION] Fetching live offers from Supabase...');
+      
+      // Query staff_offers table with production error handling
       const { data: realOffers, error } = await supabase
         .from('staff_offers')
         .select('*')
-        .eq('is_active', true)
         .order('created_at', { ascending: false });
+      
+      console.log('🔍 [OFFERS API PRODUCTION] Database response:', {
+        total: realOffers?.length || 0,
+        error: error?.message || 'none',
+        sample: realOffers?.[0] || 'no data'
+      });
       
       console.log('🔍 [OFFERS API] Raw query result:', { data: realOffers, error });
       

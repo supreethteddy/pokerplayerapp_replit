@@ -1,0 +1,97 @@
+# 🚨 ONE-SHOT FULL FIX PROMPT FOR PLAYER PORTAL (PokerRoomTracker)
+
+**Goal:**  
+Make the Player Portal display 100% **live production data** (NO mock/fake data, no placeholders) for:
+- Offers carousel (show real staff images and text from Supabase)
+- Cash tables and tournaments (show live database tables)
+- Uploaded KYC documents (show all that exist for the player)
+- Real-time chat (enable instant GRE-player messaging via Pusher + OneSignal, NO websocket fallback)
+- Fix the send button and message flow in chat
+
+---
+
+## 1. Environment Setup
+
+- Double-check that all `.env.local` and server `.env` keys are correct and loaded for every pod/environment:
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+VITE_PUSHER_KEY=...
+VITE_PUSHER_CLUSTER=...
+VITE_ONESIGNAL_APP_ID=...
+VITE_ONESIGNAL_API_KEY=...
+
+SUPABASE_SERVICE_ROLE_KEY=...
+PUSHER_APP_ID=...
+PUSHER_KEY=...
+PUSHER_SECRET=...
+PUSHER_CLUSTER=...
+ONESIGNAL_APP_ID=...
+ONESIGNAL_API_KEY=...
+
+text
+
+---
+
+## 2. Live Data Connections (NO MOCKS)
+
+- Every `/api/tables`, `/api/tournaments`, `/api/staff-offers`, `/api/kyc-documents`, `/api/account-balance` **must fetch live** from Supabase via the **service role key** (for server) or anon key (for client-visible data).
+- **Remove ALL fallback arrays, hardcoded demo rows, mock APIs, or image placeholders**.
+- **Offers carousel** must get image URLs from the `staff_offers` Supabase table (column: `image_url` or actual staff-side image field).
+- **Cash tables and tournaments** list must be generated using true Supabase data (no filtering that isn't in the deployed version).
+- **KYC documents** use only `kyc_documents` table, and URLs for images should be pulled directly from Supabase Storage.
+
+---
+
+## 3. Real-Time Chat - Final Lockdown
+
+- The chat send button **always** does a POST to `/api/player-chat/send` and sends the player's ID, name, message, and timestamp.
+- **On send/post:**
+- Server saves the message to `gre_chat_messages` and triggers a Pusher event on `player-{playerId}`.
+- Server also triggers a OneSignal notification for GRE and/or player as needed.
+- **On receive:**  
+Frontend listens ONLY to Pusher (`player-${playerId}`), renders incoming messages, never calls old websocket code.
+- **UI flow:**  
+Message input/button is enabled as soon as session is created. Send is instant/real-time (no debounce/no delay).
+- **Resolve mapping mismatches:**  
+If the Staff Portal expects `player_id` or a different field than sent, align the POST and table field names.
+- **All timestamps** are handled as UTC; display as local time if needed using a date utility.
+
+---
+
+## 4. Offers & KYC Images
+
+- Offers carousel loads images from each row in Supabase; **no placeholder or hardcoded Unsplash**—only what is in `staff_offers`.
+- Carousel displays title/description as in DB; empty state is a blank (no error image).
+- Show all uploaded KYC documents for the player, fetching from Supabase Storage (public or signed URLs as permitted).
+- Broken image links are handled using `onError` (JSX/React); set alt="Unavailable" or remove on fail.
+
+---
+
+## 5. Debugging & Testing
+
+- Log all errors to the console or server logs in real time so bugs can be seen instantly.
+- Make API failures return clear JSON errors if data is missing/invalid.
+- On first page load, always reload live data from Supabase (never use cached/old values).
+
+---
+
+## 6. What NOT to Change
+
+- **Do not change:** Any authentication, Supabase table schema, or staff portal business logic that already works in production.
+- Only adjust: table/offer data fetching, images, and chat send/receive.
+- Leave any already-functioning endpoints/React UI untouched unless it blocks the above goals.
+
+---
+
+## 7. Functional Test Cases
+
+- [ ] After login, offers carousel shows all live promotions with staff-uploaded images.
+- [ ] Dashboard lists live cash tables and tournaments from DB, with correct player counts/labels.
+- [ ] Player can open the chat, send a message, and see GRE reply in real time.
+- [ ] KYC tab or section instantly shows all uploaded documents (ID, utility bill, profile photo).
+- [ ] No page displays any mock/demo/hardcoded data at any point, ever.
+- [ ] If no data in DB, show blank or "No records" (not "Demo Table 1"/"No Offers").
+
+---
+
+**If any above breaks, log the reason and fail fast. Confirm all UI data and chat are only from true production Supabase and Pusher/OneSignal connections.**
