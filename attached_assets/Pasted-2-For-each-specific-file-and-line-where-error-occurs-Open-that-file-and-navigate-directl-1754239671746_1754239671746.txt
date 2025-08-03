@@ -1,0 +1,40 @@
+2. **For each specific file and line where error occurs:**
+    - Open that file and navigate directly to the LINE of the error.
+    - Paste the surrounding block (function/component/type/interface).
+    - Briefly explain in plain terms why THIS error happens (improper type, missing export, interface mismatch, etc).
+    - Post the smallest code change required to fix ONLY that error, do NOT make sweeping/structural changes that could break existing, working code.
+
+3. **If an error refers to a file that is NOT required for the final chat system (chat-system-broken.ts, production-chat-system.ts, or similar):**
+    - Remove ONLY that file (if it's not referenced/imported by working code), or
+    - Remove the import/reference, if it's only imported, and not needed.
+
+4. **After fixing each error, re-run** `npx tsc --noEmit --pretty` **and repeat until you see “0 errors”.**  
+Do not stop at "just one more", do NOT overwrite any genuine user-auth/chat working code.
+
+5. **Before closing, print out a summary of every change made, and confirm if any files were deleted.**
+
+## Final objectives:
+- `npm run check` and `npx tsc --noEmit` must give 0 errors or warnings.
+- UI/UX remains unbroken, and you do NOT re-introduce any ghost code.
+- There must be NO chat-system-broken or other unused chat file errors left.
+
+#### Only do what is needed to reach a zero-error, stable, no-regression build.  
+**Don't touch working code unrelated to these errors. No refactor, just target the actual errors.**
+
+---
+
+Paste that as a single block!  
+This forces the assistant to STAY on the *actual root problems* and produce a truly clean build, step by step.
+
+---
+
+## 2️⃣ **If You Still Get a “1 error left” Bug**
+
+Send the *specific error message* the TypeScript compiler gives as a new message (e.g.: `error TS2307: Cannot find module ... in .../foo.ts:123`), and I’ll give you the exact fix to hand-paste.
+
+---
+
+## 3️⃣ **For Staff Portal Prompt**
+
+If all is working in PokerRoomTracker but you need staff portal’s assistant to “see” the working sessions/messages, then prompt it like:
+
