@@ -201,6 +201,56 @@ export function setupProductionChatRoutes(app: express.Application) {
     }
   });
 
+  // 📋 PRODUCTION: Get chat messages for a player
+  app.get('/api/production-chat/messages/:playerId', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+
+      if (!playerId) {
+        return res.status(400).json({ success: false, error: 'playerId is required' });
+      }
+
+      console.log(`📋 [PRODUCTION] Getting chat messages for player: ${playerId}`);
+
+      // Get messages using direct SQL (reliable) - query directly by player_id
+      const playerIdInt = parseInt(playerId);
+      const messages = await sql`
+        SELECT 
+          id,
+          session_id,
+          player_id,
+          player_name,
+          message,
+          sender,
+          sender_name,
+          timestamp,
+          status
+        FROM gre_chat_messages
+        WHERE player_id = ${playerIdInt}
+        ORDER BY timestamp ASC
+      `;
+
+      console.log(`✅ [PRODUCTION] Retrieved ${messages.length} messages for player ${playerId}`);
+
+      return res.json(messages.map(msg => ({
+        id: msg.id,
+        message: msg.message,
+        sender: msg.sender,
+        sender_name: msg.sender_name,
+        timestamp: msg.timestamp,
+        status: msg.status
+      })));
+
+    } catch (error: any) {
+      console.error('❌ [PRODUCTION] Get messages error:', error);
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Failed to retrieve messages',
+        details: error.message
+      });
+    }
+  });
+
   // 🚀 GRE → PLAYER: Send Message with Real-time Broadcast + Push Notification  
   app.post('/api/production-chat/gre-send', async (req, res) => {
     try {
@@ -306,31 +356,7 @@ export function setupProductionChatRoutes(app: express.Application) {
     }
   });
 
-  // 📋 GET: Chat messages for session/player
-  app.get('/api/production-chat/messages/:playerId', async (req, res) => {
-    try {
-      const playerId = parseInt(req.params.playerId);
-      
-      const { data: messages, error } = await staffPortalSupabase
-        .from('gre_chat_messages')
-        .select('*')
-        .eq('player_id', playerId)
-        .order('timestamp', { ascending: true })
-        .limit(100);
 
-      if (error) {
-        console.error('❌ [PRODUCTION CHAT] Messages fetch failed:', error);
-        return res.status(500).json({ error: 'Failed to fetch messages' });
-      }
-
-      console.log(`📋 [PRODUCTION CHAT] Retrieved ${messages?.length || 0} messages for player ${playerId}`);
-      res.json(messages || []);
-      
-    } catch (error: any) {
-      console.error('❌ [PRODUCTION CHAT] Messages error:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  });
 
   // 📋 GET: Active chat sessions for staff portal
   app.get('/api/production-chat/sessions', async (req, res) => {

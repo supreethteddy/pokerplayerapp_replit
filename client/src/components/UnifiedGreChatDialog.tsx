@@ -143,9 +143,16 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
         const result = await response.json();
         console.log('✅ [PUSHER CHAT] Message sent successfully:', result);
         
-        // Replace temp message with real one
+        // Replace temp message with real one from data
         setMessages(prev => prev.map(msg => 
-          msg.id === tempMessage.id ? result.message : msg
+          msg.id === tempMessage.id ? {
+            id: result.data.id,
+            message: result.data.message,
+            sender: result.data.sender,
+            sender_name: playerName,
+            timestamp: result.data.timestamp,
+            status: result.data.status
+          } : msg
         ));
         
         toast({
