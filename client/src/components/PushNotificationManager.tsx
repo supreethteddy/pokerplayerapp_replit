@@ -21,7 +21,7 @@ interface NotificationPopupProps {
   onDismiss: (id: number) => void;
 }
 
-const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onDismiss }) => {
+const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onDismiss }: { notification: any, onDismiss: () => void }) => {
   const [isVisible, setIsVisible] = useState(true);
 
   // Auto-dismiss after delay based on priority
@@ -142,7 +142,7 @@ export const PushNotificationManager: React.FC = () => {
   useEffect(() => {
     if ('Notification' in window) {
       setPermission(Notification.permission);
-      
+
       if (Notification.permission === 'default') {
         Notification.requestPermission().then((result) => {
           setPermission(result);
@@ -173,7 +173,7 @@ export const PushNotificationManager: React.FC = () => {
         const response = await fetch(`/api/push-notifications/${user.id}`);
         if (response.ok) {
           const data = await response.json();
-          
+
           // Only show notifications from the last 5 minutes
           const recentNotifications = data.filter((notif: any) => {
             const notifTime = new Date(notif.created_at).getTime();

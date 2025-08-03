@@ -168,10 +168,6 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
         channel.bind('new-player-message', (data: any) => {
           console.log('🔔 [PUSHER] Echo of player message:', data);
         });
-          
-          setMessages(prev => [...prev, newMsg]);
-          scrollToBottom();
-        });
 
         console.log(`✅ [PUSHER] Connected to player-${playerId} channel`);
 
@@ -185,6 +181,7 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
 
       } catch (error) {
         console.error('❌ [PUSHER] Connection failed:', error);
+        setConnectionStatus('error');
       }
     };
 
