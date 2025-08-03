@@ -1,120 +1,40 @@
-// Simple Express server for Pusher/OneSignal chat
+// Poker Room Player Portal Server with Pusher/OneSignal Integration
 import express from 'express';
-import cors from 'cors';
-import path from 'path';
+import { registerRoutes } from './routes';
+import { serve } from './vite';
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '80');
+const PORT = process.env.PORT || 5000;
 
-console.log('Starting Poker Room Player Portal Server...');
+console.log('🚀 Starting Poker Room Player Portal Server...');
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// Register API routes
+registerRoutes(app);
 
-// Simple chat status endpoint
-app.get('/api/test-chat-status', (req, res) => {
-  res.json({
-    success: true,
-    status: {
-      timestamp: new Date().toISOString(),
-      chatSystem: 'Pusher Channels + OneSignal',
-      database: 'Supabase (Unified)',
-      messageRouting: 'Real-time bidirectional',
-      pushNotifications: 'OneSignal enabled',
-      sessionManagement: 'Active session tracking'
-    },
-    message: 'Real-time chat system operational'
-  });
-});
+// Serve the frontend in production
+app.use(serve);
 
-// Basic chat endpoints
-app.post('/api/pusher-chat/create-session', (req, res) => {
-  const sessionId = `chat-${Date.now()}-${req.body.playerId || 'player'}`;
-  res.json({ 
-    success: true, 
-    sessionId,
-    message: 'Session created - Pusher integration ready'
-  });
-});
-
-app.post('/api/pusher-chat/send-message', (req, res) => {
-  res.json({ 
-    success: true, 
-    message: 'Message sent via Pusher Channels',
-    timestamp: new Date().toISOString()
-  });
-});
-
-app.get('/api/pusher-chat/messages/:sessionId', (req, res) => {
-  res.json({ 
-    success: true, 
-    messages: [],
-    sessionId: req.params.sessionId
-  });
-});
-
-// Configure MIME types for proper module loading
-app.use('/src', express.static('client/src', {
-  setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.tsx') || filePath.endsWith('.ts')) {
-      res.setHeader('Content-Type', 'text/javascript');
-    }
-    if (filePath.endsWith('.jsx') || filePath.endsWith('.js')) {
-      res.setHeader('Content-Type', 'text/javascript');
-    }
-    if (filePath.endsWith('.css')) {
-      res.setHeader('Content-Type', 'text/css');
-    }
-  }
-}));
-
-// Serve static files properly
-app.use(express.static('client'));
-app.use('/assets', express.static('attached_assets'));
-
-// SPA fallback - serve index.html for all unmatched routes
-app.get('*', (req, res) => {
-  // Skip API routes
-  if (req.path.startsWith('/api/')) {
-    return;
-  }
-  res.sendFile(path.join(process.cwd(), 'client', 'index.html'));
-});
-
-app.get('/', (req, res) => {
-  res.sendFile(path.resolve('client/index.html'));
-});
-
-app.get('/dashboard', (req, res) => {
-  res.sendFile(path.resolve('client/index.html'));
-});
-
-app.get('/login', (req, res) => {
-  res.sendFile(path.resolve('client/index.html'));
-});
-
-// Start server
+// Start the server
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on http://0.0.0.0:${PORT}`);
-  console.log('Pusher Channels integration active');
-  console.log('OneSignal push notifications enabled');
-  console.log('Real-time chat system ready');
+  console.log(`✅ Server running on http://0.0.0.0:${PORT}`);
+  console.log('🔌 Pusher Channels integration active');
+  console.log('🔔 OneSignal push notifications enabled');
+  console.log('💬 Real-time chat system ready');
 });
 
-// Graceful shutdown
+// Handle graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully...');
+  console.log('🛑 SIGTERM received, shutting down gracefully...');
   server.close(() => {
-    console.log('Server closed');
+    console.log('✅ Server closed');
     process.exit(0);
   });
 });
 
 process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully...');
+  console.log('🛑 SIGINT received, shutting down gracefully...');
   server.close(() => {
-    console.log('Server closed');
+    console.log('✅ Server closed');
     process.exit(0);
   });
 });

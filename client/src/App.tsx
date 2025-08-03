@@ -16,45 +16,10 @@ import { useState, useEffect } from "react";
 import NotFound from "@/pages/not-found";
 import ThankYou from "@/pages/thank-you";
 
-// OneSignal initialization moved to AppContent component
-
 function AppContent() {
   const { user, loading } = useAuth();
   const [showLoadingScreen, setShowLoadingScreen] = useState(false);
   const [hasShownLoadingScreen, setHasShownLoadingScreen] = useState(false);
-
-  // Initialize OneSignal for push notifications
-  useEffect(() => {
-    const setupOneSignal = async () => {
-      try {
-        const OneSignal = (await import('react-onesignal')).default;
-        
-        await OneSignal.init({
-          appId: '77e9b5e8-b38a-4d08-94d2-5b8f39ea4ac1',
-          allowLocalhostAsSecureOrigin: true,
-          notifyButton: { enable: false }
-        });
-
-        const playerId = localStorage.getItem('playerId') || user?.id || 'unknown';
-        await OneSignal.setExternalUserId(`player-${playerId}`);
-
-        OneSignal.on('notificationClick', (event: any) => {
-          console.log('OneSignal notification clicked:', event);
-          if (event.data?.type === 'chat_message') {
-            // Handle chat notification click
-          }
-        });
-
-        console.log('OneSignal initialized for player notifications');
-      } catch (error) {
-        console.error('OneSignal initialization error:', error);
-      }
-    };
-
-    if (user) {
-      setupOneSignal();
-    }
-  }, [user]);
 
   // Show loading screen when user signs in 
   useEffect(() => {
