@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,16 +15,6 @@ interface PushNotification {
   senderRole: string;
   createdAt: string;
   mediaUrl?: string;
-}
-
-interface NotificationData {
-  id: number;
-  title: string;
-  message: string;
-  type: string;
-  timestamp: Date;
-  icon?: React.ReactNode;
-  priority: string;
 }
 
 interface NotificationPopupProps {
@@ -43,13 +34,14 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onD
       urgent: 20000 // Urgent notifications stay longer
     };
 
+    const notificationPriority = notification?.priority || 'normal';
     const timer = setTimeout(() => {
       setIsVisible(false);
       setTimeout(() => onDismiss(notification?.id || 0), 300);
     }, dismissDelay[notificationPriority]);
 
     return () => clearTimeout(timer);
-  }, [notification?.id, notificationPriority, onDismiss]);
+  }, [notification?.id, notification?.priority, onDismiss]);
 
   const priorityConfig = {
     low: { 
@@ -146,7 +138,7 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onD
 
 export const PushNotificationManager: React.FC = () => {
   const { user } = useAuth();
-  const [notifications, setNotifications] = useState<NotificationData[]>([]);
+  const [notifications, setNotifications] = useState<PushNotification[]>([]);
   const [permission, setPermission] = useState<NotificationPermission>('default');
 
   // Request notification permission
@@ -199,9 +191,9 @@ export const PushNotificationManager: React.FC = () => {
                 id: notif.id,
                 title: notif.title,
                 message: notif.message,
-                priority: notif.priority,
-                senderName: notif.sender_name,
-                senderRole: notif.sender_role,
+                priority: notif.priority || 'normal',
+                senderName: notif.sent_by_name || notif.sent_by || 'Unknown',
+                senderRole: notif.sent_by_role || 'System',
                 createdAt: notif.created_at,
                 mediaUrl: notif.media_url
               };

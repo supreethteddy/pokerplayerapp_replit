@@ -37,7 +37,7 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
   console.log('🔍 [AUTH DEBUG] useAuth hook state:', { user, loading });
   console.log('🔍 [AUTH DEBUG] User object keys:', user ? Object.keys(user) : 'user is null');
   console.log('🔍 [AUTH DEBUG] Full user object:', JSON.stringify(user, null, 2));
-  
+
   // Fallback: Get user data directly from Supabase if useAuth fails
   useEffect(() => {
     const fetchPlayerDataDirectly = async () => {
@@ -46,19 +46,19 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
         setPlayerData(user);
         return;
       }
-      
+
       console.log('🔄 [AUTH DEBUG] useAuth failed, trying Supabase session...');
-      
+
       try {
         const supabase = createClient(
           import.meta.env.VITE_SUPABASE_URL!,
           import.meta.env.VITE_SUPABASE_ANON_KEY!
         );
-        
+
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           console.log('🔄 [AUTH DEBUG] Found Supabase session, fetching player data...');
-          
+
           const response = await fetch(`/api/players/supabase/${session.user.id}`);
           if (response.ok) {
             const userData = await response.json();
@@ -74,18 +74,18 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
         console.error('❌ [AUTH DEBUG] Error fetching player data:', error);
       }
     };
-    
+
     if (isOpen) {
       fetchPlayerDataDirectly();
     }
   }, [isOpen, user]);
-  
+
   // Get user info with robust fallback system
   const playerId = playerData?.id || user?.id;
   const playerName = playerData ? 
     `${playerData.firstName || ''} ${playerData.lastName || ''}`.trim() :
     `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
-  
+
   console.log('🔍 [AUTH DEBUG] Final playerId:', playerId);
   console.log('🔍 [AUTH DEBUG] Final playerName:', playerName);
   console.log('🔍 [AUTH DEBUG] PlayerData source:', playerData ? 'direct API' : 'useAuth');
@@ -98,7 +98,7 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
     const initializePusher = async () => {
       try {
         const Pusher = (await import('pusher-js')).default;
-        
+
         const pusher = new Pusher('81b98cb04ef7aeef2baa', {
           cluster: 'ap2',
           forceTLS: true
@@ -139,7 +139,7 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
         });
 
         const channel = pusher.subscribe(`player-${playerId}`);
-        
+
         channel.bind('pusher:subscription_error', (error: any) => {
           console.error('❌ [PUSHER] Subscription error:', error);
         });
@@ -147,10 +147,10 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
         channel.bind('pusher:subscription_succeeded', () => {
           console.log(`✅ [PUSHER] Successfully subscribed to player-${playerId} channel`);
         });
-        
+
         channel.bind('new-gre-message', (data: any) => {
           console.log('🔔 [PUSHER] New GRE message received:', data);
-          
+
           const newMsg: ChatMessage = {
             id: data.messageId || Date.now().toString(),
             message: data.message,
@@ -159,25 +159,16 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
             timestamp: data.timestamp || new Date().toISOString(),
             status: 'received'
           };
-          
+
           setMessages(prev => [...prev, newMsg]);
           scrollToBottom();
         });
 
-        // Also listen for staff-side messages (for testing)
         channel.bind('new-player-message', (data: any) => {
           console.log('🔔 [PUSHER] Echo of player message:', data);
         });
 
         console.log(`✅ [PUSHER] Connected to player-${playerId} channel`);
-
-        return () => {
-          if (pusherRef.current) {
-            pusherRef.current.disconnect();
-            pusherRef.current = null;
-            console.log('🔌 [PUSHER] Disconnected and cleaned up');
-          }
-        };
 
       } catch (error) {
         console.error('❌ [PUSHER] Connection failed:', error);
@@ -198,7 +189,7 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
         if (response.ok) {
           const data = await response.json();
           console.log('📨 [MESSAGES] Loaded existing messages:', data.length);
-          
+
           const formattedMessages: ChatMessage[] = data.map((msg: any) => ({
             id: msg.id,
             message: msg.message,
@@ -207,7 +198,7 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
             timestamp: msg.timestamp,
             status: msg.status || 'received'
           }));
-          
+
           setMessages(formattedMessages);
         }
       } catch (error) {
@@ -224,16 +215,16 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
 
   const testConnection = async () => {
     if (!playerId) return;
-    
+
     try {
       console.log('🧪 [CONNECTION TEST] Testing real-time connectivity...');
-      
+
       const response = await fetch('/api/unified-chat/test-connection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId })
       });
-      
+
       if (response.ok) {
         const result = await response.json();
         console.log('✅ [CONNECTION TEST] Test completed:', result);
@@ -252,10 +243,10 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
     }
 
     setIsLoading(true);
-    
+
     try {
       console.log('📤 [SEND] Sending message:', { playerId, playerName, message: newMessage });
-      
+
       const response = await fetch('/api/unified-chat/send', {
         method: 'POST',
         headers: {
@@ -272,7 +263,7 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
       if (response.ok) {
         const result = await response.json();
         console.log('✅ [SEND] Message sent successfully:', result);
-        
+
         // Add message to local state immediately
         const sentMessage: ChatMessage = {
           id: result.data?.id || Date.now().toString(),
@@ -282,7 +273,7 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
           timestamp: new Date().toISOString(),
           status: 'sent'
         };
-        
+
         setMessages(prev => [...prev, sentMessage]);
         setNewMessage('');
         scrollToBottom();
