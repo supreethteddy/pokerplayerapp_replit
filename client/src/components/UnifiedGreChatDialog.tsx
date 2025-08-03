@@ -43,8 +43,8 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
     
     setConnectionStatus('connecting');
     
-    // Get Pusher credentials from environment - fixed ap2 cluster
-    const pusherKey = import.meta.env.VITE_PUSHER_KEY || '4a89de838fee5a34eb20';
+    // Get Pusher credentials from environment - using fresh credentials
+    const pusherKey = import.meta.env.VITE_PUSHER_KEY || '81b98cb04ef7aeef2baa';
     const pusherCluster = import.meta.env.VITE_PUSHER_CLUSTER || 'ap2';
     
     console.log('🔗 [PUSHER FRONTEND] Using credentials - Key:', pusherKey, 'Cluster:', pusherCluster);
