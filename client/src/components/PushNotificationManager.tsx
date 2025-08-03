@@ -16,6 +16,16 @@ interface PushNotification {
   mediaUrl?: string;
 }
 
+interface NotificationData {
+  id: number;
+  title: string;
+  message: string;
+  type: string;
+  timestamp: Date;
+  icon?: React.ReactNode;
+  priority: string;
+}
+
 interface NotificationPopupProps {
   notification: PushNotification;
   onDismiss: (id: number) => void;
@@ -135,7 +145,7 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onD
 
 export const PushNotificationManager: React.FC = () => {
   const { user } = useAuth();
-  const [notifications, setNotifications] = useState<PushNotification[]>([]);
+  const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [permission, setPermission] = useState<NotificationPermission>('default');
 
   // Request notification permission
