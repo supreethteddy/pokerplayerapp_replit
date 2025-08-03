@@ -1,7 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-// DISABLED: WebSocket imports - migrated to Pusher Channels
-// import { WebSocketServer, WebSocket } from "ws";
+// Pusher Channels for real-time chat
+import Pusher from 'pusher';
+import * as OneSignal from 'onesignal-node';
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from 'url';
@@ -30,6 +31,24 @@ const staffPortalSupabase = createClient(
 // UNIFIED SYSTEM - All database operations use Staff Portal Supabase exclusively
 const supabase = staffPortalSupabase;  // Redirect all calls to Staff Portal
 const localSupabase = staffPortalSupabase;  // No more local database - use Staff Portal
+
+// Initialize Pusher for real-time chat
+const pusher = new Pusher({
+  appId: process.env.PUSHER_APP_ID!,
+  key: process.env.PUSHER_KEY!,
+  secret: process.env.PUSHER_SECRET!,
+  cluster: process.env.PUSHER_CLUSTER!,
+  useTLS: true
+});
+
+// Initialize OneSignal for push notifications
+const oneSignalClient = new OneSignal.Client(
+  process.env.ONESIGNAL_APP_ID!,
+  process.env.ONESIGNAL_API_KEY!
+);
+
+console.log('🚀 [PUSHER] Initialized Pusher Channels for real-time chat');
+console.log('🔔 [ONESIGNAL] Initialized OneSignal for push notifications');
 
 // Create KYC document schema - omit fileUrl as it's generated during upload
 const insertKycDocumentSchema = createInsertSchema(kycDocuments).omit({ fileUrl: true });
@@ -4683,6 +4702,125 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: error.message });
     }
   });
+
+  // 🚀 PUSHER CHAT: Send message from player to GRE
+  app.post('/api/chat/send', async (req, res) => {
+    try {
+      const { playerId, message, playerName } = req.body;
+      
+      if (!playerId || !message || !playerName) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      console.log('💬 [PLAYER CHAT] Sending message from player:', { playerId, playerName, message: message.substring(0, 50) });
+
+      // Find or create active chat session
+      let { data: session, error: sessionError } = await staffPortalSupabase
+        .from('gre_chat_sessions')
+        .select('*')
+        .eq('player_id', playerId)
+        .eq('status', 'active')
+        .single();
+
+      if (sessionError || !session) {
+        // Create new chat session
+        const { data: newSession, error: createError } = await staffPortalSupabase
+          .from('gre_chat_sessions')
+          .insert([{
+            player_id: playerId,
+            player_name: playerName,
+            status: 'active',
+            created_at: new Date().toISOString()
+          }])
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('❌ [PLAYER CHAT] Error creating session:', createError);
+          return res.status(500).json({ error: 'Failed to create chat session' });
+        }
+        session = newSession;
+      }
+
+      // Save message to database
+      const chatMessage = {
+        session_id: session.id,
+        player_id: playerId,
+        player_name: playerName,
+        message: message,
+        sender: 'player',
+        sender_name: playerName,
+        timestamp: new Date().toISOString(),
+        status: 'sent'
+      };
+
+      const { data: savedMessage, error: messageError } = await staffPortalSupabase
+        .from('chat_messages')
+        .insert([chatMessage])
+        .select()
+        .single();
+
+      if (messageError) {
+        console.error('❌ [PLAYER CHAT] Error saving message:', messageError);
+        return res.status(500).json({ error: 'Failed to save message' });
+      }
+
+      // 🚀 PUSHER: Broadcast to staff portal
+      try {
+        await pusher.trigger('staff-portal', 'new-player-message', {
+          message: savedMessage,
+          sessionId: session.id,
+          playerId: playerId,
+          playerName: playerName,
+          timestamp: new Date().toISOString()
+        });
+        
+        console.log('🚀 [PUSHER] Message broadcast to staff-portal channel');
+        
+        // Also broadcast back to player for confirmation
+        await pusher.trigger(`player-${playerId}`, 'message-sent', {
+          message: savedMessage,
+          timestamp: new Date().toISOString()
+        });
+        
+      } catch (broadcastError) {
+        console.error('❌ [PUSHER] Error broadcasting message:', broadcastError);
+      }
+
+      console.log('✅ [PLAYER CHAT] Message sent successfully');
+      res.json({ success: true, message: savedMessage, sessionId: session.id });
+      
+    } catch (error: any) {
+      console.error('❌ [PLAYER CHAT] Send message error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // 🚀 PUSHER CHAT: Get chat messages for player
+  app.get('/api/chat/messages/:playerId', async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      
+      const { data: messages, error } = await staffPortalSupabase
+        .from('chat_messages')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: true })
+        .limit(100);
+
+      if (error) {
+        console.error('❌ [CHAT MESSAGES] Error fetching messages:', error);
+        return res.status(500).json({ error: 'Failed to fetch messages' });
+      }
+
+      console.log(`📋 [CHAT MESSAGES] Retrieved ${messages?.length || 0} messages for player ${playerId}`);
+      res.json(messages || []);
+      
+    } catch (error: any) {
+      console.error('❌ [CHAT MESSAGES] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
   
   // Mark notification as read
   app.patch("/api/push-notifications/:notificationId/read", async (req, res) => {
@@ -6242,16 +6380,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         validation: 'PRODUCTION_GRE_DATA_CONFIRMED'
       });
 
-      // ** DISABLED: WebSocket connections - migrated to Pusher Channels **
-      // const connection = playerConnections.get(playerId);
-      // console.log('🔍 [DEBUG] Player WebSocket Connection Status:', {
-      //   hasConnection: !!connection,
-      //   connectionReady: connection?.readyState === WebSocket.OPEN,
-      //   playerConnectionsSize: playerConnections.size
-      // });
-
-      // ** DISABLED: WebSocket broadcast - migrated to Pusher Channels **
-      // broadcastMessageUpdate(playerId);
+      // 🚀 PUSHER: Broadcast real-time message update to player
+      try {
+        await pusher.trigger(`player-${playerId}`, 'new-message', {
+          message: savedMessage,
+          type: 'gre_message',
+          timestamp: new Date().toISOString()
+        });
+        
+        console.log(`🚀 [PUSHER] Message broadcast to player-${playerId} channel`);
+        
+        // 🔔 ONESIGNAL: Send push notification
+        const notification = {
+          app_id: process.env.ONESIGNAL_APP_ID!,
+          contents: { en: `GRE: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}` },
+          headings: { en: 'New Message from Guest Relations' },
+          include_external_user_ids: [playerId.toString()],
+        };
+        
+        await oneSignalClient.createNotification(notification);
+        console.log(`🔔 [ONESIGNAL] Push notification sent to player ${playerId}`);
+        
+      } catch (broadcastError) {
+        console.error('❌ [PUSHER/ONESIGNAL] Error broadcasting message:', broadcastError);
+        // Don't fail the message save if broadcast fails
+      }
 
       console.log(`✅ [GRE ADMIN] Message sent successfully to player ${playerId}`);
       console.log('🛑 [DEBUG] === GRE SEND MESSAGE DEBUG END ===');
