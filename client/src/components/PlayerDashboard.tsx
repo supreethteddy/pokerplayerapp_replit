@@ -468,12 +468,10 @@ function PlayerDashboard() {
     mutationFn: async (tableId: string) => {
       console.log('🎯 [SIMPLE JOIN] Joining waitlist for table:', tableId, 'player:', user?.id);
       const response = await apiRequest('POST', '/api/waitlist/join', {
-        table_id: tableId,
-        player_id: user?.id,
-        game_type: 'Texas Hold\'em',
-        min_buy_in: 1000,
-        max_buy_in: 10000,
-        notes: `Player ${user?.firstName} ${user?.lastName} joined waitlist`
+        playerId: user?.id,
+        tableId: tableId,
+        tableName: tables.find((t: any) => t.id === tableId)?.name || 'Table',
+        preferredSeat: null
       });
       return response.json();
     },

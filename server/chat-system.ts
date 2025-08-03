@@ -124,7 +124,12 @@ export function setupProductionChatRoutes(app: Express) {
 
       console.log(`📤 [EXPERT CHAT API] Processing enterprise message from ${playerName} (${playerId}):`, message);
 
-      const supabase = storage.supabase;
+      // Use working supabase connection directly
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
 
       const messageTimestamp = timestamp || new Date().toISOString();
 

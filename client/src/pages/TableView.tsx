@@ -56,12 +56,10 @@ export default function TableView() {
       console.log(`🎯 [TABLE VIEW JOIN] Joining waitlist for seat ${seatNumber} on table ${currentTable.id}`);
 
       const response = await apiRequest('POST', '/api/waitlist/join', {
-        table_id: currentTable.id,
-        player_id: user.id,
-        game_type: 'Texas Hold\'em',
-        min_buy_in: 1000,
-        max_buy_in: 10000,
-        notes: `Player ${user.firstName} ${user.lastName} joined waitlist via seat selection`
+        playerId: user.id,
+        tableId: currentTable.id,
+        tableName: currentTable.name,
+        preferredSeat: seatNumber
       });
       return response.json();
     },

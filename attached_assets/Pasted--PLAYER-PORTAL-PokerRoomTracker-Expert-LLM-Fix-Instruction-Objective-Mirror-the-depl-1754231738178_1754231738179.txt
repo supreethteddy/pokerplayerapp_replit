@@ -1,0 +1,67 @@
+# 🌌 PLAYER PORTAL ("PokerRoomTracker") – Expert LLM-Fix Instruction
+
+**Objective:** Mirror the deployed version’s reliability by re-aligning all client/server/database code for offers, tables, KYC, seat waitlist, and chat. No mock data, no silent errors, no auto-updating club values—just authentic, robust, and matching-record structure.
+
+**A. Offers Carousel**
+- GET offers from `offer_banners` table in Supabase, using true columns:  
+  `banner_image_url`, `offer_description`, and `title`.
+- If column names differ, adjust both backend API and frontend fetch/render logic.
+- Display only offers with non-null `banner_image_url` and valid URLs.
+- Implement robust `<img onError={...}/>` fallback; empty state if no offers.
+
+**B. Tables and Tournaments**
+- Always fetch tables by UUID, not INT.  
+- Never simulate/auto-increment average stack/players—display as stored.
+- Show “offline” if no game state is stored (don’t fake “X/9 players”).
+- Tournaments: Only show what’s in the DB; no demo/hidden templates.
+
+**C. Waitlist + Seat Selection**
+- Make POST to `/api/waitlist/join` send:
+    ```
+    {
+      "player_id": <Supabase Integer ID>,
+      "table_id": "<UUID>",
+      "preferred_seat": <int>
+    }
+    ```
+- Backend and frontend must agree exactly on these names and types.
+- After joining, update UI so player sees "Waiting" status, and staff portal can see the join instantly.
+
+**D. Chat System**
+- The chat send button (and Enter key) must POST to `/api/player-chat/send` with:
+    ```
+    {
+      "player_id": <int>,
+      "message": "<text>",
+      "timestamp": "<ISO8601>",
+      "gre_id": null
+    }
+    ```
+- Must subscribe, on mount, to the Pusher channel `player-<player_id>`.
+- On new message: render in chat UI, scroll, and trigger (if enabled) a notification.
+- All mapping between FE/BE/DB: use “snake_case” everywhere for API/DB; only convert to camelCase for React props if needed.
+
+**E. KYC Documents**
+- Fetch all user-uploaded KYC records from `kyc_documents` join with Supabase Storage.  
+- Build download URLs dynamically (public direct, or signed URLs).
+
+---
+
+**General:**
+- Never fallback to local “demo” JSON/arrays.
+- All data must round-trip: Supabase DB → API → App → Rendered in UI.
+- Error states must be visible in UI/logs, not silent.
+- Each component (offers, seat waitlist, KYC, tables, tournaments, chat) is fully functional via real DB, not disabled/legacy code.
+
+---
+
+## Functional Checks
+- [ ] Offers visible, with all staff-uploaded images, no images missing.
+- [ ] Tables/tournaments reflect all that exist in DB.
+- [ ] Waitlist join puts my player in staff’s queue instantly.
+- [ ] Chat works bidirectionally with GRE, using only Pusher/OneSignal.
+- [ ] KYC docs display all Supabase-uploaded files.
+
+---
+
+**Apply this fix, verify with logs/alerts, refuse any data from mock/demo sources.**

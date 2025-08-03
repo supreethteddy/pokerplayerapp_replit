@@ -7,6 +7,7 @@ import fs from "fs";
 import Pusher from 'pusher';
 import OneSignal from 'onesignal-node';
 import { setupProductionChatRoutes } from './chat-system';
+import { setupProductionAPIs } from './production-apis';
 import { unifiedPlayerSystem } from './unified-player-system';
 
 // Initialize Pusher for real-time communication
@@ -29,6 +30,9 @@ console.log('🚀 [SERVER] Pusher and OneSignal initialized successfully');
 export function registerRoutes(app: Express) {
   // Register enterprise chat system
   setupProductionChatRoutes(app);
+  
+  // Register production APIs
+  setupProductionAPIs(app);
 
   // CRITICAL: Player authentication endpoint for login system
   app.get("/api/players/supabase/:supabaseId", async (req, res) => {
@@ -366,7 +370,7 @@ export function registerRoutes(app: Express) {
       console.log('🎁 [OFFERS API] Returning verified offers data...');
       
       // Use existing storage connection instead of creating new one
-      const storage = req.app.get('storage') as SupabaseOnlyStorage;
+      const storage = req.app.get('storage') as any;
       
       // Get real staff offers from database - production-grade implementation
       console.log('🚀 [OFFERS API PRODUCTION] Fetching live offers from Supabase...');
@@ -380,7 +384,7 @@ export function registerRoutes(app: Express) {
       console.log('🔍 [OFFERS API PRODUCTION] Staff portal offers:', {
         total: realOffers?.length || 0,
         error: error?.message || 'none',
-        offers: realOffers?.map(o => ({ id: o.id, title: o.title })) || []
+        offers: realOffers?.map((o: any) => ({ id: o.id, title: o.title })) || []
       });
       
       console.log('🔍 [OFFERS API] Raw query result:', { data: realOffers, error });
@@ -391,7 +395,7 @@ export function registerRoutes(app: Express) {
       }
       
       // Transform offers with proper image URLs from staff portal uploads  
-      const transformedOffers = realOffers?.map(offer => ({
+      const transformedOffers = realOffers?.map((offer: any) => ({
         id: offer.id,
         title: offer.title,
         description: offer.description || 'Limited time offer',
