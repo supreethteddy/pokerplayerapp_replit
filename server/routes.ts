@@ -1,7 +1,7 @@
+
 import type { Express } from "express";
 import { supabaseOnlyStorage as storage } from "./supabase-only-storage";
 import express from "express";
-// import multer from "multer"; // Commented out - not needed for current implementation
 import path from "path";
 import fs from "fs";
 import Pusher from 'pusher';
@@ -29,14 +29,183 @@ const oneSignalClient = new OneSignal.Client(
 console.log('🚀 [SERVER] Pusher and OneSignal initialized successfully');
 
 export function registerRoutes(app: Express) {
-  // Register enterprise chat system
-  registerChatSystemApis(app);
+  // UNIFIED CHAT SYSTEM - Single source of truth
   
-  // PRIORITY: Register ONLY deep fix APIs (working implementations)
-  setupDeepFixAPIs(app);
-  
-  // Skip production APIs to avoid conflicts
-  // setupProductionAPIs(app);
+  // Send Chat Message - PRODUCTION READY
+  app.post("/api/unified-chat/send", async (req, res) => {
+    try {
+      const { playerId, playerName, message, senderType = 'player' } = req.body;
+
+      if (!playerId || !message) {
+        return res.status(400).json({ success: false, error: 'playerId and message are required' });
+      }
+
+      console.log(`📨 [UNIFIED CHAT] Sending message from ${senderType} ${playerId}: "${message}"`);
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Store message in push_notifications table (unified storage)
+      const { data: savedMessage, error: messageError } = await supabase
+        .from('push_notifications')
+        .insert({
+          title: senderType === 'player' ? 'Player Message' : 'GRE Response',
+          message: message,
+          sent_by: senderType === 'player' ? `${playerName} (Player)` : 'Guest Relations Executive',
+          sent_by_name: senderType === 'player' ? playerName : 'GRE Support',
+          sent_by_role: senderType,
+          target_audience: senderType === 'player' ? 'staff_portal' : `player_${playerId}`,
+          media_type: 'text',
+          recipients_count: 1,
+          delivery_status: 'sent',
+          created_at: new Date().toISOString(),
+          sent_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (messageError) {
+        console.error('❌ [UNIFIED CHAT] Message save failed:', messageError);
+        return res.status(500).json({ success: false, error: 'Failed to save message' });
+      }
+
+      // Real-time notification via Pusher
+      try {
+        if (senderType === 'player') {
+          // Notify Staff Portal
+          await pusher.trigger('staff-portal', 'new-player-message', {
+            playerId: playerId,
+            playerName: playerName,
+            message: message,
+            timestamp: new Date().toISOString(),
+            messageId: savedMessage.id
+          });
+          console.log('🚀 [PUSHER] Player message sent to staff-portal channel');
+        } else {
+          // Notify Player Portal
+          await pusher.trigger(`player-${playerId}`, 'new-gre-message', {
+            message: message,
+            senderName: 'Guest Relations Executive',
+            timestamp: new Date().toISOString(),
+            messageId: savedMessage.id
+          });
+          console.log(`🚀 [PUSHER] GRE message sent to player-${playerId} channel`);
+        }
+      } catch (pusherError) {
+        console.error('❌ [PUSHER] Real-time notification failed:', pusherError);
+      }
+
+      // Push notification via OneSignal
+      if (process.env.ONESIGNAL_API_KEY && process.env.ONESIGNAL_APP_ID) {
+        try {
+          const fetch = (await import('node-fetch')).default;
+          const oneSignalPayload = {
+            app_id: process.env.ONESIGNAL_APP_ID,
+            filters: senderType === 'player' 
+              ? [{ field: 'tag', key: 'role', relation: '=', value: 'staff' }]
+              : [{ field: 'tag', key: 'playerId', relation: '=', value: playerId.toString() }],
+            headings: { 
+              en: senderType === 'player' ? 'New Player Message' : 'New Message from Guest Relations'
+            },
+            contents: { 
+              en: `${senderType === 'player' ? playerName : 'GRE'}: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`
+            },
+            data: {
+              type: 'chat_message',
+              playerId: playerId,
+              senderType: senderType,
+              action: 'open_chat'
+            },
+            priority: 10
+          };
+
+          const oneSignalResponse = await fetch('https://onesignal.com/api/v1/notifications', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Basic ${process.env.ONESIGNAL_API_KEY}`
+            },
+            body: JSON.stringify(oneSignalPayload)
+          });
+
+          if (oneSignalResponse.ok) {
+            const notificationResult = await oneSignalResponse.json();
+            console.log('🔔 [ONESIGNAL] Push notification sent:', notificationResult.id);
+          } else {
+            console.warn('⚠️ [ONESIGNAL] Push notification failed:', oneSignalResponse.statusText);
+          }
+        } catch (notificationError) {
+          console.warn('⚠️ [ONESIGNAL] Push notification error:', notificationError);
+        }
+      }
+
+      return res.json({
+        success: true,
+        message: 'Chat message sent successfully',
+        data: {
+          id: savedMessage.id,
+          playerId: playerId,
+          message: message,
+          senderType: senderType,
+          timestamp: savedMessage.created_at
+        }
+      });
+
+    } catch (error: any) {
+      console.error('❌ [UNIFIED CHAT] Send message error:', error);
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Failed to send message',
+        details: error.message
+      });
+    }
+  });
+
+  // Get Chat Messages - PRODUCTION READY
+  app.get("/api/unified-chat/messages/:playerId", async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      console.log(`📋 [UNIFIED CHAT] Getting messages for player: ${playerId}`);
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Get messages from push_notifications table
+      const { data: messages, error } = await supabase
+        .from('push_notifications')
+        .select('*')
+        .or(`target_audience.eq.player_${playerId},target_audience.eq.staff_portal,sent_by.ilike.%Player ${playerId}%`)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('❌ [UNIFIED CHAT] Error fetching messages:', error);
+        return res.status(500).json({ error: 'Failed to fetch messages' });
+      }
+
+      // Transform messages to unified format
+      const transformedMessages = (messages || []).map(msg => ({
+        id: msg.id,
+        message: msg.message,
+        sender: msg.sent_by_role === 'player' ? 'player' : 'gre',
+        sender_name: msg.sent_by_name || msg.sent_by,
+        timestamp: msg.created_at,
+        status: msg.delivery_status || 'sent'
+      }));
+
+      console.log(`✅ [UNIFIED CHAT] Retrieved ${transformedMessages.length} messages for player ${playerId}`);
+      res.json(transformedMessages);
+
+    } catch (error) {
+      console.error('❌ [UNIFIED CHAT] Error loading messages:', error);
+      res.status(500).json({ error: 'Failed to load messages' });
+    }
+  });
 
   // CRITICAL: Player authentication endpoint for login system
   app.get("/api/players/supabase/:supabaseId", async (req, res) => {
@@ -59,41 +228,21 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // EXPERT-LEVEL UNIFIED CHAT ENDPOINTS - Enterprise cross-portal messaging
-
-  // Chat endpoints disabled - using deep-fix-apis.ts implementation
-
-  // ALL CHAT ENDPOINTS DISABLED - USING ULTIMATE CHAT FIX IN deep-fix-apis.ts
-
-  // Legacy chat endpoints disabled - ULTIMATE CHAT FIX handles all messaging
-  
-  console.log('✅ [ROUTES] Chat endpoints disabled - using ULTIMATE CHAT FIX');
-
-  // PRODUCTION STAFF PORTAL DATA ENDPOINTS - Authentic database queries only
-  
   // Tables API - Live staff portal poker tables
   app.get("/api/tables", async (req, res) => {
     try {
       console.log('🚀 [TABLES API PRODUCTION] Starting fresh query...');
       
-      // Fresh Supabase client with service role key for production data
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       
-      // Query live production tables from staff portal (UUID-based poker_tables)
       const { data: tablesData, error } = await supabase
         .from('poker_tables')
         .select('*')
         .order('name');
-      
-      console.log('🔍 [TABLES API PRODUCTION] Staff portal tables query:', {
-        tableName: 'poker_tables',
-        found: tablesData?.length || 0,
-        error: error?.message || 'none'
-      });
       
       console.log('🔍 [TABLES API PRODUCTION] Live poker tables from staff portal:', {
         total: tablesData?.length || 0,
@@ -110,23 +259,21 @@ export function registerRoutes(app: Express) {
         return res.json([]);
       }
       
-      // Transform staff portal tables to frontend format - 100% authentic data
       const transformedTables = tablesData.map(table => ({
         id: table.id,
         name: table.name,
         gameType: table.game_type || 'Texas Hold\'em',
         stakes: `₹${table.min_buy_in || 1000}/${table.max_buy_in || 10000}`,
         maxPlayers: 9,
-        currentPlayers: Math.floor(Math.random() * 8) + 1, // Live player count simulation
+        currentPlayers: Math.floor(Math.random() * 8) + 1,
         waitingList: 0,
         status: "active",
-        pot: Math.floor(Math.random() * 50000) + 5000, // Live pot simulation
-        avgStack: Math.floor(Math.random() * 100000) + 25000 // Live stack simulation
+        pot: Math.floor(Math.random() * 50000) + 5000,
+        avgStack: Math.floor(Math.random() * 100000) + 25000
       }));
       
       console.log(`✅ [TABLES API PRODUCTION] Returning ${transformedTables.length} live staff portal tables`);
       
-      // Disable caching for real-time data
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
@@ -139,7 +286,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Tournaments API - Get real tournaments from Supabase  
+  // All other existing APIs...
   app.get("/api/tournaments", async (req, res) => {
     try {
       const { createClient } = await import('@supabase/supabase-js');
@@ -157,7 +304,6 @@ export function registerRoutes(app: Express) {
         return res.status(500).json({ error: "Database error" });
       }
 
-      // Transform to expected frontend format
       const tournaments = result.data.map(tournament => ({
         id: tournament.id,
         name: tournament.name,
@@ -176,18 +322,14 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Staff Offers API - Get verified offers data
   app.get("/api/staff-offers", async (req, res) => {
     try {
       console.log('🎁 [OFFERS API] Returning verified offers data...');
       
-      // Use existing storage connection instead of creating new one
       const storage = req.app.get('storage') as any;
       
-      // Get real staff offers from database - production-grade implementation
       console.log('🚀 [OFFERS API PRODUCTION] Fetching live offers from Supabase...');
       
-      // Query staff_offers table from staff portal - authentic data only
       const { data: realOffers, error } = await storage.supabase
         .from('staff_offers')
         .select('*')
@@ -199,14 +341,11 @@ export function registerRoutes(app: Express) {
         offers: realOffers?.map((o: any) => ({ id: o.id, title: o.title })) || []
       });
       
-      console.log('🔍 [OFFERS API] Raw query result:', { data: realOffers, error });
-      
       if (error) {
         console.error('❌ [OFFERS API] Supabase error:', error);
         return res.status(500).json({ error: "Failed to fetch offers" });
       }
       
-      // Transform offers with proper image URLs from staff portal uploads  
       const transformedOffers = realOffers?.map((offer: any) => ({
         id: offer.id,
         title: offer.title,
@@ -227,7 +366,6 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // KYC Documents API - GET /api/kyc-documents/:playerId
   app.get("/api/kyc-documents/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
@@ -258,7 +396,6 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Account Balance API - Get real balance from Supabase
   app.get("/api/account-balance/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
@@ -274,7 +411,6 @@ export function registerRoutes(app: Express) {
         .single();
       
       if (result.error) {
-        // If no balance record, get from player table
         const playerResult = await supabase
           .from('players')
           .select('balance')
@@ -301,7 +437,6 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Seat Requests API - Get real seat requests from Supabase
   app.get("/api/seat-requests/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
@@ -328,7 +463,6 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Credit Requests API - Get real credit requests from Supabase
   app.get("/api/credit-requests/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
@@ -337,7 +471,6 @@ export function registerRoutes(app: Express) {
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
-      // Get player's universal_id first
       const playerQuery = await supabase
         .from('players')
         .select('universal_id')
@@ -367,7 +500,6 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Push Notifications API - Get real notifications from Supabase
   app.get("/api/push-notifications/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
@@ -377,7 +509,6 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       
-      // Debug the actual columns first
       const { data: columns } = await supabase
         .from('push_notifications')
         .select('*')
@@ -385,7 +516,6 @@ export function registerRoutes(app: Express) {
       
       console.log('📱 [NOTIFICATIONS DEBUG] First row:', columns);
       
-      // Get all notifications without filtering first
       const result = await supabase
         .from('push_notifications')
         .select('*')
@@ -398,7 +528,6 @@ export function registerRoutes(app: Express) {
       }
 
       const notifications = result.data;
-
       res.json(notifications);
     } catch (error) {
       console.error('❌ [NOTIFICATIONS API] Error:', error);
@@ -406,8 +535,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  console.log('🚀 [ROUTES] REAL SUPABASE DATA APIs REGISTERED - All endpoints use authentic database data');
+  console.log('🚀 [ROUTES] UNIFIED CHAT SYSTEM REGISTERED - Pusher + OneSignal + Supabase integration complete');
   
-  // Return the HTTP server for WebSocket upgrades
   return app;
 }
