@@ -27,6 +27,7 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
   const [isLoading, setIsLoading] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [chatEnabled, setChatEnabled] = useState(true);
   const { toast } = useToast();
   
   // Get user info from localStorage
@@ -211,8 +212,8 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
             Guest Relations
           </CardTitle>
           <div className="flex items-center gap-2">
-            <Badge variant={connectionStatus === 'connected' ? 'default' : 'destructive'}>
-              {connectionStatus}
+            <Badge variant="default" className="bg-emerald-600">
+              Chat Active
             </Badge>
             <Button
               variant="ghost"

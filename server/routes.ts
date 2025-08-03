@@ -56,8 +56,12 @@ export function registerRoutes(app: Express) {
   // Tables API - Get real poker tables from Supabase
   app.get("/api/tables", async (req, res) => {
     try {
-      const storage = await import('./supabase-only-storage');
-      const result = await storage.supabaseOnlyStorage.supabase
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      const result = await supabase
         .from('tables')
         .select('*')
         .eq('is_active', true)
@@ -92,8 +96,12 @@ export function registerRoutes(app: Express) {
   // Tournaments API - Get real tournaments from Supabase  
   app.get("/api/tournaments", async (req, res) => {
     try {
-      const storage = await import('./supabase-only-storage');
-      const result = await storage.supabaseOnlyStorage.supabase
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      const result = await supabase
         .from('tournaments')
         .select('*')
         .order('start_time');
@@ -125,8 +133,12 @@ export function registerRoutes(app: Express) {
   // Staff Offers API - Get real offers from Supabase
   app.get("/api/staff-offers", async (req, res) => {
     try {
-      const storage = await import('./supabase-only-storage');
-      const result = await storage.supabaseOnlyStorage.supabase
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      const result = await supabase
         .from('staff_offers')
         .select('*')
         .eq('is_active', true)
@@ -148,8 +160,12 @@ export function registerRoutes(app: Express) {
   app.get("/api/account-balance/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
-      const storage = await import('./supabase-only-storage');
-      const result = await storage.supabaseOnlyStorage.supabase
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      const result = await supabase
         .from('account_balances')
         .select('*')
         .eq('player_id', playerId)
@@ -157,7 +173,7 @@ export function registerRoutes(app: Express) {
       
       if (result.error) {
         // If no balance record, get from player table
-        const playerResult = await storage.supabaseOnlyStorage.supabase
+        const playerResult = await supabase
           .from('players')
           .select('balance')
           .eq('id', playerId)
@@ -187,8 +203,12 @@ export function registerRoutes(app: Express) {
   app.get("/api/seat-requests/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
-      const storage = await import('./supabase-only-storage');
-      const result = await storage.supabaseOnlyStorage.supabase
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      const result = await supabase
         .from('seat_requests')
         .select('*')
         .eq('player_id', playerId)
@@ -210,8 +230,12 @@ export function registerRoutes(app: Express) {
   app.get("/api/credit-requests/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
-      const storage = await import('./supabase-only-storage');
-      const result = await storage.supabaseOnlyStorage.supabase
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      const result = await supabase
         .from('credit_requests')
         .select('*')
         .eq('player_id', playerId)
@@ -233,10 +257,14 @@ export function registerRoutes(app: Express) {
   app.get("/api/push-notifications/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
-      const storage = await import('./supabase-only-storage');
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
       
-      // Use correct column name: target_player_id
-      const result = await storage.supabaseOnlyStorage.supabase
+      // Use correct column name: target_player_id (confirmed exists)
+      const result = await supabase
         .from('push_notifications')
         .select('*')
         .or(`target_player_id.eq.${playerId},broadcast_to_all.eq.true`)
