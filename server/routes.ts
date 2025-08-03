@@ -185,11 +185,11 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      // Get messages from push_notifications table
+      // Get messages from push_notifications table - Fixed query for cross-portal
       const { data: messages, error } = await supabase
         .from('push_notifications')
         .select('*')
-        .or(`target_audience.eq.player_${playerId},target_audience.eq.staff_portal,sent_by.ilike.%Player ${playerId}%`)
+        .or(`target_audience.eq.player_${playerId},target_audience.eq.staff_portal,sent_by.ilike.%${playerId}%,sent_by.ilike.%Player%`)
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -197,7 +197,7 @@ export function registerRoutes(app: Express) {
         return res.status(500).json({ error: 'Failed to fetch messages' });
       }
 
-      // Transform messages to unified format
+      // Transform messages to unified format with correct sender logic
       const transformedMessages = (messages || []).map(msg => ({
         id: msg.id,
         message: msg.message,
@@ -213,6 +213,59 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error('❌ [UNIFIED CHAT] Error loading messages:', error);
       res.status(500).json({ error: 'Failed to load messages' });
+    }
+  });
+
+  // Real-time Chat Connectivity Test - PRODUCTION DIAGNOSTIC
+  app.post("/api/unified-chat/test-connection", async (req, res) => {
+    try {
+      const { playerId } = req.body;
+      console.log(`🧪 [CHAT TEST] Testing real-time connectivity for player ${playerId}`);
+
+      // Test Pusher trigger
+      try {
+        await pusher.trigger(`player-${playerId}`, 'connection-test', {
+          message: 'Connection test successful',
+          timestamp: new Date().toISOString(),
+          testId: Date.now()
+        });
+        
+        await pusher.trigger('staff-portal', 'connection-test', {
+          playerId: playerId,
+          message: 'Staff portal connection test',
+          timestamp: new Date().toISOString(),
+          testId: Date.now()
+        });
+
+        console.log(`✅ [CHAT TEST] Pusher triggers sent successfully`);
+        
+        res.json({
+          success: true,
+          message: 'Real-time connectivity test completed',
+          pusher: {
+            playerChannel: `player-${playerId}`,
+            staffChannel: 'staff-portal',
+            cluster: process.env.PUSHER_CLUSTER,
+            timestamp: new Date().toISOString()
+          }
+        });
+        
+      } catch (pusherError) {
+        console.error('❌ [CHAT TEST] Pusher test failed:', pusherError);
+        res.status(500).json({ 
+          success: false, 
+          error: 'Pusher connectivity failed',
+          details: pusherError.message
+        });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [CHAT TEST] Connectivity test failed:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Connectivity test failed',
+        details: error.message
+      });
     }
   });
 

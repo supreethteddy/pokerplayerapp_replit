@@ -29,7 +29,9 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
   const [isLoading, setIsLoading] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [playerData, setPlayerData] = useState<any>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const pusherRef = useRef<any>(null);
 
   // Enhanced debugging for authentication state
   console.log('🔍 [AUTH DEBUG] useAuth hook state:', { user, loading });
@@ -102,17 +104,38 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
           forceTLS: true
         });
 
-        // Add connection state listeners
+        // Store pusher reference for cleanup
+        pusherRef.current = pusher;
+
+        // Add comprehensive connection state listeners
         pusher.connection.bind('connected', () => {
           console.log('✅ [PUSHER] Connected successfully');
+          setConnectionStatus('connected');
+        });
+
+        pusher.connection.bind('connecting', () => {
+          console.log('🔄 [PUSHER] Connecting...');
+          setConnectionStatus('connecting');
+        });
+
+        pusher.connection.bind('unavailable', () => {
+          console.log('⚠️ [PUSHER] Connection unavailable');
+          setConnectionStatus('error');
+        });
+
+        pusher.connection.bind('failed', () => {
+          console.error('❌ [PUSHER] Connection failed');
+          setConnectionStatus('error');
         });
 
         pusher.connection.bind('error', (error: any) => {
           console.error('❌ [PUSHER] Connection error:', error);
+          setConnectionStatus('error');
         });
 
         pusher.connection.bind('disconnected', () => {
           console.log('🔌 [PUSHER] Disconnected');
+          setConnectionStatus('disconnected');
         });
 
         const channel = pusher.subscribe(`player-${playerId}`);
@@ -126,7 +149,7 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
         });
         
         channel.bind('new-gre-message', (data: any) => {
-          console.log('🔔 [PUSHER] New message received:', data);
+          console.log('🔔 [PUSHER] New GRE message received:', data);
           
           const newMsg: ChatMessage = {
             id: data.messageId || Date.now().toString(),
@@ -141,11 +164,23 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
           scrollToBottom();
         });
 
+        // Also listen for staff-side messages (for testing)
+        channel.bind('new-player-message', (data: any) => {
+          console.log('🔔 [PUSHER] Echo of player message:', data);
+        });
+          
+          setMessages(prev => [...prev, newMsg]);
+          scrollToBottom();
+        });
+
         console.log(`✅ [PUSHER] Connected to player-${playerId} channel`);
 
         return () => {
-          pusher.disconnect();
-          console.log('🔌 [PUSHER] Disconnected');
+          if (pusherRef.current) {
+            pusherRef.current.disconnect();
+            pusherRef.current = null;
+            console.log('🔌 [PUSHER] Disconnected and cleaned up');
+          }
         };
 
       } catch (error) {
@@ -170,7 +205,7 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
           const formattedMessages: ChatMessage[] = data.map((msg: any) => ({
             id: msg.id,
             message: msg.message,
-            sender: msg.sender === 'player' ? 'player' : 'staff',
+            sender: msg.sender === 'gre' ? 'staff' : 'player',
             sender_name: msg.sender_name || 'System',
             timestamp: msg.timestamp,
             status: msg.status || 'received'
@@ -188,6 +223,29 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const testConnection = async () => {
+    if (!playerId) return;
+    
+    try {
+      console.log('🧪 [CONNECTION TEST] Testing real-time connectivity...');
+      
+      const response = await fetch('/api/unified-chat/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ [CONNECTION TEST] Test completed:', result);
+      } else {
+        console.error('❌ [CONNECTION TEST] Test failed:', response.status);
+      }
+    } catch (error) {
+      console.error('❌ [CONNECTION TEST] Error:', error);
+    }
   };
 
   const sendMessage = async () => {
@@ -264,6 +322,12 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
               <div className="flex items-center space-x-2">
                 <MessageCircle className="h-5 w-5" />
                 <CardTitle className="text-sm font-medium">Guest Relations</CardTitle>
+                <div className={`w-2 h-2 rounded-full ${
+                  connectionStatus === 'connected' ? 'bg-green-400' :
+                  connectionStatus === 'connecting' ? 'bg-yellow-400 animate-pulse' :
+                  connectionStatus === 'disconnected' ? 'bg-gray-400' :
+                  'bg-red-400'
+                }`} title={`Connection: ${connectionStatus}`} />
               </div>
               <div className="flex items-center space-x-1">
                 <Button
@@ -346,9 +410,18 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                  Player: {playerName || 'Loading...'} (ID: {playerId || 'Loading...'})
-                </p>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Player: {playerName || 'Loading...'} (ID: {playerId || 'Loading...'})
+                  </p>
+                  <button
+                    onClick={testConnection}
+                    className="text-xs text-blue-500 hover:text-blue-600 underline"
+                    disabled={!playerId}
+                  >
+                    Test Connection
+                  </button>
+                </div>
               </div>
             </CardContent>
           )}
