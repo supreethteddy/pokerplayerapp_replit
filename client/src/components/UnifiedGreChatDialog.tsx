@@ -33,7 +33,7 @@ const PushNotificationManager = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [connectionStatus, setConnectionStatus: React.Dispatch<React.SetStateAction<"connecting" | "connected" | "disconnected">>] = useState("connecting");
+  const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
   const [isOpen, setIsOpen] = useState(false);
   const [pusher, setPusher] = useState<Pusher | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -306,7 +306,6 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
   const [error, setError] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { user, loading } = useAuth();
   const [isMinimized, setIsMinimized] = useState(false);
   const [playerData, setPlayerData] = useState<any>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
