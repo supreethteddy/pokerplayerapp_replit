@@ -48,8 +48,8 @@ const pusher = new Pusher('81b98cb04ef7aeef2baa', {
 // Subscribe to staff portal channel
 const channel = pusher.subscribe('staff-portal');
 
-// Listen for new player messages
-channel.bind('new-message', (data) => {
+// Listen for new player messages - CORRECT EVENT NAME
+channel.bind('new-player-message', (data) => {
   console.log('New player message:', data);
   // Add message to your chat UI
   addMessageToChat(data);
