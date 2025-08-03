@@ -49,6 +49,7 @@ export function registerRoutes(app: Express) {
       }
 
       console.log(`📨 [UNIFIED CHAT] Sending message from ${senderType} ${playerId}: "${message}"`);
+      console.log(`🔍 [UNIFIED CHAT] Full request body:`, JSON.stringify(req.body, null, 2));
 
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
@@ -80,6 +81,8 @@ export function registerRoutes(app: Express) {
         return res.status(500).json({ success: false, error: 'Failed to save message' });
       }
 
+      console.log('✅ [UNIFIED CHAT] Message saved to database, ID:', savedMessage.id);
+
       // Real-time notification via Pusher
       try {
         if (senderType === 'player') {
@@ -91,7 +94,9 @@ export function registerRoutes(app: Express) {
             timestamp: new Date().toISOString(),
             messageId: savedMessage.id
           });
-          console.log('🚀 [PUSHER] Player message sent to staff-portal channel');
+          console.log('🚀 [PUSHER] Player message sent to staff-portal channel with data:', {
+            playerId, playerName, message, messageId: savedMessage.id
+          });
         } else {
           // Notify Player Portal
           await pusher.trigger(`player-${playerId}`, 'new-gre-message', {
