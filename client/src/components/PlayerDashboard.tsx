@@ -67,36 +67,8 @@ const ScrollableOffersDisplay = () => {
       apiRequest("POST", "/api/offer-views", { offer_id: offerId }),
   });
 
-  // Always show demo offers for testing
-  const demoOffers = [
-    {
-      id: 'demo-welcome',
-      title: 'Welcome Bonus',
-      description: 'Get 100% bonus on your first deposit up to ₹5,000. Join today and double your gaming power with our exclusive welcome package for new players. Start your poker journey with enhanced bankroll.',
-      image_url: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=400&h=200&fit=crop&crop=center',
-      offer_type: 'banner',
-      is_active: true
-    },
-    {
-      id: 'demo-weekend',
-      title: 'Weekend Special',
-      description: 'Double loyalty points on all weekend games. Play Friday to Sunday and earn twice the rewards for all your poker sessions with enhanced multipliers and special tournament access.',
-      image_url: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=200&fit=crop&crop=center',  
-      offer_type: 'carousel',
-      is_active: true
-    },
-    {
-      id: 'demo-tournament',
-      title: 'Free Tournament Entry',
-      description: 'Complimentary entry to our Sunday ₹10,000 guaranteed tournament. No entry fee required for qualified players. Register now to secure your spot in this weekly championship event.',
-      image_url: 'https://images.unsplash.com/photo-1606103926602-2c4ddeaec14d?w=400&h=200&fit=crop&crop=center',
-      offer_type: 'popup', 
-      is_active: true
-    }
-  ];
-
-  // Use staff offers if available, otherwise demo offers
-  const displayOffers = (offers && Array.isArray(offers) && offers.length > 0) ? offers : demoOffers;
+  // Use only real staff offers from database - no fallback demo data
+  const displayOffers = (offers && Array.isArray(offers)) ? offers : [];
 
   return (
     <div className="space-y-4">

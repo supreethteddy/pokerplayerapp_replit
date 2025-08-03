@@ -51,44 +51,37 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // MISSING CRITICAL API ENDPOINTS - Add all essential routes
+  // REAL SUPABASE DATA ENDPOINTS - No mock data, only authentic database queries
   
-  // Tables API - Essential for cash games display
+  // Tables API - Get real poker tables from Supabase
   app.get("/api/tables", async (req, res) => {
     try {
-      // Mock active poker tables for demonstration
-      const tables = [
-        {
-          id: 1,
-          name: "High Stakes NLH",
-          gameType: "No Limit Hold'em",
-          stakes: "₹500/₹1000",
-          maxPlayers: 9,
-          currentPlayers: 6,
-          waitingList: 2,
-          status: "active"
-        },
-        {
-          id: 2,
-          name: "Mid Stakes PLO",
-          gameType: "Pot Limit Omaha",
-          stakes: "₹200/₹400",
-          maxPlayers: 6,
-          currentPlayers: 4,
-          waitingList: 1,
-          status: "active"
-        },
-        {
-          id: 3,
-          name: "Beginner Friendly",
-          gameType: "No Limit Hold'em",
-          stakes: "₹25/₹50",
-          maxPlayers: 9,
-          currentPlayers: 7,
-          waitingList: 3,
-          status: "active"
-        }
-      ];
+      const storage = await import('./supabase-only-storage');
+      const result = await storage.supabaseOnlyStorage.supabase
+        .from('tables')
+        .select('*')
+        .eq('is_active', true)
+        .order('id');
+      
+      if (result.error) {
+        console.error('❌ [TABLES API] Database error:', result.error);
+        return res.status(500).json({ error: "Database error" });
+      }
+
+      // Transform to expected frontend format
+      const tables = result.data.map(table => ({
+        id: table.id,
+        name: table.name,
+        gameType: table.game_type,
+        stakes: table.stakes,
+        maxPlayers: table.max_players,
+        currentPlayers: table.current_players,
+        waitingList: 0, // Calculate from seat_requests if needed
+        status: table.is_active ? "active" : "inactive",
+        pot: table.pot || 0,
+        avgStack: table.avg_stack || 0
+      }));
+
       res.json(tables);
     } catch (error) {
       console.error('❌ [TABLES API] Error:', error);
@@ -96,41 +89,32 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Tournaments API - Essential for tournament display
+  // Tournaments API - Get real tournaments from Supabase  
   app.get("/api/tournaments", async (req, res) => {
     try {
-      const tournaments = [
-        {
-          id: 1,
-          name: "Sunday ₹10K Guaranteed",
-          buyIn: "₹1000",
-          guarantee: "₹10,000",
-          startTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-          registered: 45,
-          maxPlayers: 200,
-          status: "registering"
-        },
-        {
-          id: 2,
-          name: "Daily Turbo",
-          buyIn: "₹500",
-          guarantee: "₹5,000",
-          startTime: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-          registered: 28,
-          maxPlayers: 100,
-          status: "registering"
-        },
-        {
-          id: 3,
-          name: "Freeroll Championship",
-          buyIn: "Free",
-          guarantee: "₹2,000",
-          startTime: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
-          registered: 156,
-          maxPlayers: 500,
-          status: "registering"
-        }
-      ];
+      const storage = await import('./supabase-only-storage');
+      const result = await storage.supabaseOnlyStorage.supabase
+        .from('tournaments')
+        .select('*')
+        .order('start_time');
+      
+      if (result.error) {
+        console.error('❌ [TOURNAMENTS API] Database error:', result.error);
+        return res.status(500).json({ error: "Database error" });
+      }
+
+      // Transform to expected frontend format
+      const tournaments = result.data.map(tournament => ({
+        id: tournament.id,
+        name: tournament.name,
+        buyIn: tournament.buy_in,
+        guarantee: tournament.prize_pool,
+        startTime: tournament.start_time,
+        registered: tournament.registered_players,
+        maxPlayers: tournament.max_players,
+        status: tournament.status
+      }));
+
       res.json(tournaments);
     } catch (error) {
       console.error('❌ [TOURNAMENTS API] Error:', error);
@@ -138,50 +122,59 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Staff Offers API - Essential for offers carousel
+  // Staff Offers API - Get real offers from Supabase
   app.get("/api/staff-offers", async (req, res) => {
     try {
-      const offers = [
-        {
-          id: "welcome-2025",
-          title: "Welcome Bonus",
-          description: "Get 100% bonus on your first deposit up to ₹5,000",
-          image_url: "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=400&h=200&fit=crop&crop=center",
-          offer_type: "banner",
-          is_active: true
-        },
-        {
-          id: "weekend-2025",
-          title: "Weekend Special",
-          description: "Double loyalty points on all weekend games",
-          image_url: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=200&fit=crop&crop=center",
-          offer_type: "carousel",
-          is_active: true
-        },
-        {
-          id: "tournament-2025",
-          title: "Free Tournament Entry",
-          description: "Complimentary entry to our Sunday ₹10,000 guaranteed tournament",
-          image_url: "https://images.unsplash.com/photo-1606103926602-2c4ddeaec14d?w=400&h=200&fit=crop&crop=center",
-          offer_type: "popup",
-          is_active: true
-        }
-      ];
-      res.json(offers);
+      const storage = await import('./supabase-only-storage');
+      const result = await storage.supabaseOnlyStorage.supabase
+        .from('staff_offers')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+      
+      if (result.error) {
+        console.error('❌ [OFFERS API] Database error:', result.error);
+        return res.status(500).json({ error: "Database error" });
+      }
+
+      res.json(result.data);
     } catch (error) {
       console.error('❌ [OFFERS API] Error:', error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
 
-  // Account Balance API
+  // Account Balance API - Get real balance from Supabase
   app.get("/api/account-balance/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
+      const storage = await import('./supabase-only-storage');
+      const result = await storage.supabaseOnlyStorage.supabase
+        .from('account_balances')
+        .select('*')
+        .eq('player_id', playerId)
+        .single();
+      
+      if (result.error) {
+        // If no balance record, get from player table
+        const playerResult = await storage.supabaseOnlyStorage.supabase
+          .from('players')
+          .select('balance')
+          .eq('id', playerId)
+          .single();
+          
+        const balance = {
+          currentBalance: playerResult.data?.balance || "₹0.00",
+          availableBalance: playerResult.data?.balance || "₹0.00", 
+          pendingWithdrawals: "₹0.00"
+        };
+        return res.json(balance);
+      }
+
       const balance = {
-        currentBalance: "₹2,500.00",
-        availableBalance: "₹2,500.00",
-        pendingWithdrawals: "₹0.00"
+        currentBalance: result.data.current_balance || "₹0.00",
+        availableBalance: result.data.available_balance || "₹0.00",
+        pendingWithdrawals: result.data.pending_withdrawals || "₹0.00"
       };
       res.json(balance);
     } catch (error) {
@@ -190,41 +183,73 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Seat Requests API
+  // Seat Requests API - Get real seat requests from Supabase
   app.get("/api/seat-requests/:playerId", async (req, res) => {
     try {
-      const seatRequests = []; // No pending seat requests for demo
-      res.json(seatRequests);
+      const { playerId } = req.params;
+      const storage = await import('./supabase-only-storage');
+      const result = await storage.supabaseOnlyStorage.supabase
+        .from('seat_requests')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false });
+      
+      if (result.error) {
+        console.error('❌ [SEAT REQUESTS API] Database error:', result.error);
+        return res.status(500).json({ error: "Database error" });
+      }
+
+      res.json(result.data);
     } catch (error) {
       console.error('❌ [SEAT REQUESTS API] Error:', error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
 
-  // Credit Requests API
+  // Credit Requests API - Get real credit requests from Supabase
   app.get("/api/credit-requests/:playerId", async (req, res) => {
     try {
-      const creditRequests = []; // No pending credit requests for demo
-      res.json(creditRequests);
+      const { playerId } = req.params;
+      const storage = await import('./supabase-only-storage');
+      const result = await storage.supabaseOnlyStorage.supabase
+        .from('credit_requests')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false });
+      
+      if (result.error) {
+        console.error('❌ [CREDIT REQUESTS API] Database error:', result.error);
+        return res.status(500).json({ error: "Database error" });
+      }
+
+      res.json(result.data);
     } catch (error) {
       console.error('❌ [CREDIT REQUESTS API] Error:', error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
 
-  // Push Notifications API
+  // Push Notifications API - Get real notifications from Supabase
   app.get("/api/push-notifications/:playerId", async (req, res) => {
     try {
-      const notifications = [
-        {
-          id: 1,
-          title: "Welcome to Poker Portal",
-          message: "Your account is verified and ready to play!",
-          type: "info",
-          timestamp: new Date().toISOString(),
-          read: false
-        }
-      ];
+      const { playerId } = req.params;
+      const storage = await import('./supabase-only-storage');
+      
+      // Use correct column name: target_player_id
+      const result = await storage.supabaseOnlyStorage.supabase
+        .from('push_notifications')
+        .select('*')
+        .or(`target_player_id.eq.${playerId},broadcast_to_all.eq.true`)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      
+      if (result.error) {
+        console.error('❌ [NOTIFICATIONS API] Database error:', result.error);
+        return res.status(500).json({ error: "Database error" });
+      }
+
+      const notifications = result.data;
+
       res.json(notifications);
     } catch (error) {
       console.error('❌ [NOTIFICATIONS API] Error:', error);
@@ -232,7 +257,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  console.log('🚀 [ROUTES] ALL ESSENTIAL APIs REGISTERED - Player auth, chat, tables, tournaments, offers, notifications');
+  console.log('🚀 [ROUTES] REAL SUPABASE DATA APIs REGISTERED - All endpoints use authentic database data');
   
   // Return the HTTP server for WebSocket upgrades
   return app;

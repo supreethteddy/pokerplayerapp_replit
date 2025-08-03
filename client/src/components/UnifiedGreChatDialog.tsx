@@ -42,8 +42,23 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
     
     setConnectionStatus('connecting');
     
-    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY!, {
-      cluster: import.meta.env.VITE_PUSHER_CLUSTER!,
+    // Get Pusher credentials from environment
+    const pusherKey = import.meta.env.VITE_PUSHER_KEY;
+    const pusherCluster = import.meta.env.VITE_PUSHER_CLUSTER;
+    
+    if (!pusherKey || !pusherCluster) {
+      console.error('❌ [PUSHER CHAT] Missing Pusher credentials');
+      setConnectionStatus('disconnected');
+      toast({
+        title: "Configuration Error",
+        description: "Chat service not configured properly",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const pusher = new Pusher(pusherKey, {
+      cluster: pusherCluster,
       forceTLS: true
     });
 
