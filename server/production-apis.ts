@@ -12,7 +12,7 @@ export function setupProductionAPIs(app: Express) {
   app.get("/api/staff-offers", async (req, res) => {
     try {
       console.log('🎁 [COMPREHENSIVE FIX] Fetching offers...');
-      
+
       // First try offer_banners, then fallback to staff_offers
       let offers = null;
       let error = null;
@@ -42,12 +42,12 @@ export function setupProductionAPIs(app: Express) {
           error = staffError || bannerError;
         }
       }
-      
+
       if (error || !offers) {
         console.error('❌ [COMPREHENSIVE FIX] Database error:', error);
         return res.status(500).json({ error: "Failed to fetch offers" });
       }
-      
+
       // Transform to unified format
       const transformedOffers = offers.map((offer: any) => ({
         id: offer.id,
@@ -112,12 +112,12 @@ export function setupProductionAPIs(app: Express) {
   app.get("/api/tables", async (req, res) => {
     try {
       console.log('🚀 [PRODUCTION TABLES] Fetching static poker tables...');
-      
+
       const { data: tables, error } = await supabase
         .from('poker_tables')
         .select('*')
         .order('created_at', { ascending: false });
-      
+
       if (error) {
         console.error('❌ [PRODUCTION TABLES] Error:', error);
         return res.status(500).json({ error: "Database error" });
@@ -154,12 +154,12 @@ export function setupProductionAPIs(app: Express) {
   app.post("/api/waitlist/join", async (req, res) => {
     try {
       const { playerId, tableId, preferredSeat, tableName } = req.body;
-      
+
       console.log(`🎯 [COMPREHENSIVE WAITLIST] Player ${playerId} joining waitlist for table ${tableName}`);
 
       // Generate UUID for the entry
-      const { v4: uuidv4 } = await import('uuid');
-      const entryId = uuidv4();
+      const { v4 } = await import('uuid');
+      const entryId = v4();
 
       // Insert with minimal required fields
       const { data: waitlistEntry, error } = await supabase
