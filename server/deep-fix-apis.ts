@@ -138,11 +138,11 @@ export function setupDeepFixAPIs(app: Express) {
         .single();
 
       if (notificationError) {
-        console.error('❌ [ULTIMATE CHAT] Notification save failed:', notificationError);
+        console.error('❌ [ULTIMATE CHAT] Database save failed:', notificationError);
+        return res.status(500).json({ error: 'Failed to save message' });
       }
 
-      // 2. Store in push_notifications as main storage (skip gre_chat_messages for now)
-      console.log('✅ [ULTIMATE CHAT] Skipping gre_chat_messages - using push_notifications only');
+      console.log('✅ [ULTIMATE CHAT] Message saved to database');
       const savedMessage = notificationMessage;
 
       // 3. Create or update chat session for GRE visibility

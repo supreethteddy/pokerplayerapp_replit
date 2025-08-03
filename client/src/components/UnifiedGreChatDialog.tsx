@@ -192,7 +192,7 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
       
       toast({
         title: "Chat Error",
-        description: `Failed to send: ${error.message}`,
+        description: `Failed to send: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive"
       });
     } finally {
