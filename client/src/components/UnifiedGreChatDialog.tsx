@@ -231,10 +231,8 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
 
     loadMessages();
     
-    // Real-time refresh every 1 second for maximum responsiveness (only as backup)
-    const refreshInterval = setInterval(loadMessages, 1000);
-    
-    return () => clearInterval(refreshInterval);
+    // No automatic refresh - rely on Pusher real-time updates instead
+    // This prevents sent messages from disappearing due to database refreshes
   }, [isOpen, playerId]);
 
   const scrollToBottom = () => {
