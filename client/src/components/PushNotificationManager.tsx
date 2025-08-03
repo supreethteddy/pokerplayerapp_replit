@@ -64,7 +64,7 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onD
     }
   };
 
-  const config = priorityConfig[notification.priority];
+  const config = priorityConfig[notification.priority] || priorityConfig.normal;
   const IconComponent = config.icon;
 
   return (
