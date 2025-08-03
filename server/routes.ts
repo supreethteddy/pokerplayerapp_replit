@@ -11,6 +11,15 @@ import { setupProductionAPIs } from './production-apis';
 import { setupDeepFixAPIs } from './deep-fix-apis';
 import { unifiedPlayerSystem } from './unified-player-system';
 
+// Validate environment variables
+const requiredEnvVars = ['PUSHER_APP_ID', 'PUSHER_KEY', 'PUSHER_SECRET', 'PUSHER_CLUSTER', 'VITE_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
+const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+
+if (missingEnvVars.length > 0) {
+  console.error('❌ [ENVIRONMENT] Missing required environment variables:', missingEnvVars);
+  throw new Error(`Missing environment variables: ${missingEnvVars.join(', ')}`);
+}
+
 // Initialize Pusher for real-time communication
 const pusher = new Pusher({
   appId: process.env.PUSHER_APP_ID!,

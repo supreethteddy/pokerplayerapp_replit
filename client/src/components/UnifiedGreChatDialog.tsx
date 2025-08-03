@@ -102,16 +102,37 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
           forceTLS: true
         });
 
+        // Add connection state listeners
+        pusher.connection.bind('connected', () => {
+          console.log('✅ [PUSHER] Connected successfully');
+        });
+
+        pusher.connection.bind('error', (error: any) => {
+          console.error('❌ [PUSHER] Connection error:', error);
+        });
+
+        pusher.connection.bind('disconnected', () => {
+          console.log('🔌 [PUSHER] Disconnected');
+        });
+
         const channel = pusher.subscribe(`player-${playerId}`);
         
-        channel.bind('new-message', (data: any) => {
+        channel.bind('pusher:subscription_error', (error: any) => {
+          console.error('❌ [PUSHER] Subscription error:', error);
+        });
+
+        channel.bind('pusher:subscription_succeeded', () => {
+          console.log(`✅ [PUSHER] Successfully subscribed to player-${playerId} channel`);
+        });
+        
+        channel.bind('new-gre-message', (data: any) => {
           console.log('🔔 [PUSHER] New message received:', data);
           
           const newMsg: ChatMessage = {
-            id: data.id || Date.now().toString(),
+            id: data.messageId || Date.now().toString(),
             message: data.message,
-            sender: data.sender === 'player' ? 'player' : 'staff',
-            sender_name: data.sender_name || 'Staff Member',
+            sender: 'staff',
+            sender_name: data.senderName || 'Guest Relations Executive',
             timestamp: data.timestamp || new Date().toISOString(),
             status: 'received'
           };
@@ -141,18 +162,18 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
 
     const loadMessages = async () => {
       try {
-        const response = await fetch(`/api/push-notifications/${playerId}`);
+        const response = await fetch(`/api/unified-chat/messages/${playerId}`);
         if (response.ok) {
           const data = await response.json();
           console.log('📨 [MESSAGES] Loaded existing messages:', data.length);
           
           const formattedMessages: ChatMessage[] = data.map((msg: any) => ({
             id: msg.id,
-            message: msg.message || msg.title,
-            sender: msg.sent_by?.includes('player') ? 'player' : 'staff',
-            sender_name: msg.sent_by_name || 'System',
-            timestamp: msg.created_at,
-            status: 'received'
+            message: msg.message,
+            sender: msg.sender === 'player' ? 'player' : 'staff',
+            sender_name: msg.sender_name || 'System',
+            timestamp: msg.timestamp,
+            status: msg.status || 'received'
           }));
           
           setMessages(formattedMessages);
@@ -186,11 +207,10 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          player_id: playerId,
-          player_name: playerName,
+          playerId: playerId,
+          playerName: playerName,
           message: newMessage,
-          timestamp: new Date().toISOString(),
-          sender: 'player'
+          senderType: 'player'
         }),
       });
 
