@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { X, Send, MessageCircle, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import Pusher from 'pusher-js';
 
 interface UnifiedGreChatDialogProps {
@@ -29,15 +30,15 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [chatEnabled, setChatEnabled] = useState(true);
   const { toast } = useToast();
+  const { user } = useAuth();
   
-  // Get user info from localStorage
-  const userInfo = JSON.parse(localStorage.getItem('user') || '{}');
-  const playerId = userInfo.id;
-  const playerName = `${userInfo.firstName || ''} ${userInfo.lastName || ''}`.trim();
+  // Get user info from useAuth hook instead of localStorage
+  const playerId = user?.id;
+  const playerName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
   
-  console.log('🔍 [USER DEBUG] Raw userInfo:', userInfo);
-  console.log('🔍 [USER DEBUG] Extracted playerId:', playerId);
-  console.log('🔍 [USER DEBUG] Extracted playerName:', playerName);
+  console.log('🔍 [AUTH DEBUG] User from useAuth:', user);
+  console.log('🔍 [AUTH DEBUG] Extracted playerId:', playerId);
+  console.log('🔍 [AUTH DEBUG] Extracted playerName:', playerName);
 
   // Initialize Pusher connection
   useEffect(() => {
