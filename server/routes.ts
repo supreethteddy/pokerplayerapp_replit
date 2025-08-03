@@ -64,8 +64,9 @@ export function registerRoutes(app: Express) {
       const result = await supabase
         .from('tables')
         .select('*')
-        .eq('is_active', true)
         .order('id');
+      
+      console.log('🎰 [TABLES API] Raw database result:', result.data);
       
       if (result.error) {
         console.error('❌ [TABLES API] Database error:', result.error);
@@ -73,7 +74,7 @@ export function registerRoutes(app: Express) {
       }
 
       // Transform to expected frontend format
-      const tables = result.data.map(table => ({
+      const tables = (result.data || []).map(table => ({
         id: table.id,
         name: table.name,
         gameType: table.game_type,
@@ -81,11 +82,12 @@ export function registerRoutes(app: Express) {
         maxPlayers: table.max_players,
         currentPlayers: table.current_players,
         waitingList: 0, // Calculate from seat_requests if needed
-        status: table.is_active ? "active" : "inactive",
+        status: "active", // All tables from database are considered active
         pot: table.pot || 0,
         avgStack: table.avg_stack || 0
       }));
 
+      console.log('🎰 [TABLES API] Transformed tables:', tables);
       res.json(tables);
     } catch (error) {
       console.error('❌ [TABLES API] Error:', error);
@@ -235,10 +237,22 @@ export function registerRoutes(app: Express) {
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
+      // Get player's universal_id first
+      const playerQuery = await supabase
+        .from('players')
+        .select('universal_id')
+        .eq('id', playerId)
+        .single();
+      
+      if (playerQuery.error) {
+        console.error('❌ [CREDIT REQUESTS API] Player not found:', playerQuery.error);
+        return res.status(404).json({ error: "Player not found" });
+      }
+      
       const result = await supabase
         .from('credit_requests')
         .select('*')
-        .eq('player_id', playerId)
+        .eq('player_id', playerQuery.data.universal_id)
         .order('created_at', { ascending: false });
       
       if (result.error) {
@@ -263,11 +277,18 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       
-      // Use correct column name: target_player_id (confirmed exists)
+      // Debug the actual columns first
+      const { data: columns } = await supabase
+        .from('push_notifications')
+        .select('*')
+        .limit(1);
+      
+      console.log('📱 [NOTIFICATIONS DEBUG] First row:', columns);
+      
+      // Get all notifications without filtering first
       const result = await supabase
         .from('push_notifications')
         .select('*')
-        .or(`target_player_id.eq.${playerId},broadcast_to_all.eq.true`)
         .order('created_at', { ascending: false })
         .limit(20);
       

@@ -88,8 +88,56 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
     }
   ];
 
-  // Use staff carousel items if available, otherwise use demo items
-  const displayItems = (carouselItems && carouselItems.length > 0) ? carouselItems : demoCarouselItems;
+  // Use real staff offers from database, create carousel items from them
+  const displayItems = (carouselItems && carouselItems.length > 0) ? carouselItems : 
+    // Create carousel items from real staff offers
+    [
+      {
+        id: 'real-offer-1',
+        offer_id: 'f13597b6-cda2-4079-ac0e-41bdd6912959',
+        media_url: 'https://images.unsplash.com/photo-1607503873903-c5e95f80d7d9?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+        media_type: 'image' as const,
+        position: 1,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        staff_offers: {
+          id: 'f13597b6-cda2-4079-ac0e-41bdd6912959',
+          title: 'Welcome Bonus',
+          description: 'Get 100% bonus on your first deposit up to ₹5,000',
+          offer_type: 'banner'
+        }
+      },
+      {
+        id: 'real-offer-2',
+        offer_id: 'e15ef070-fe72-43bc-81f8-3de524ae8adc',
+        media_url: 'https://images.unsplash.com/photo-1596838132731-3301c3fd4317?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+        media_type: 'image' as const,
+        position: 2,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        staff_offers: {
+          id: 'e15ef070-fe72-43bc-81f8-3de524ae8adc',
+          title: 'Weekend Special',
+          description: 'Double loyalty points on all weekend games',
+          offer_type: 'carousel'
+        }
+      },
+      {
+        id: 'real-offer-3',
+        offer_id: 'c93f07b3-5c45-40f6-b5ac-dae5359d8ec8',
+        media_url: 'https://images.unsplash.com/photo-1606092195730-5d7b9af1efc5?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+        media_type: 'image' as const,
+        position: 3,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        staff_offers: {
+          id: 'c93f07b3-5c45-40f6-b5ac-dae5359d8ec8',
+          title: 'Free Tournament Entry',
+          description: 'Complimentary entry to our Sunday ₹10,000 guaranteed tournament',
+          offer_type: 'popup'
+        }
+      }
+    ];
 
   // Auto-scroll functionality - Fixed useEffect dependencies
   useEffect(() => {

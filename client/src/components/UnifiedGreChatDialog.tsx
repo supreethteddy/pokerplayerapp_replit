@@ -25,7 +25,7 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connected');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [chatEnabled, setChatEnabled] = useState(true);
   const { toast } = useToast();
@@ -264,12 +264,12 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Type your message..."
-              disabled={isLoading || connectionStatus !== 'connected'}
+              disabled={isLoading}
               className="flex-1 bg-gray-800 border-gray-600 text-white"
             />
             <Button
               onClick={sendMessage}
-              disabled={!newMessage.trim() || isLoading || connectionStatus !== 'connected'}
+              disabled={!newMessage.trim() || isLoading}
               size="sm"
             >
               <Send className="h-4 w-4" />
