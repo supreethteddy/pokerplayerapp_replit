@@ -34,6 +34,10 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
   const userInfo = JSON.parse(localStorage.getItem('user') || '{}');
   const playerId = userInfo.id;
   const playerName = `${userInfo.firstName || ''} ${userInfo.lastName || ''}`.trim();
+  
+  console.log('🔍 [USER DEBUG] Raw userInfo:', userInfo);
+  console.log('🔍 [USER DEBUG] Extracted playerId:', playerId);
+  console.log('🔍 [USER DEBUG] Extracted playerName:', playerName);
 
   // Initialize Pusher connection
   useEffect(() => {
@@ -127,7 +131,15 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
 
   // ULTIMATE CHAT FIX: Unified send handler for button and enter key
   const sendMessage = async () => {
-    if (!newMessage.trim() || !playerId || !playerName) return;
+    console.log('🔥 [BUTTON DEBUG] Send button clicked!');
+    console.log('🔥 [BUTTON DEBUG] newMessage:', newMessage);
+    console.log('🔥 [BUTTON DEBUG] playerId:', playerId);
+    console.log('🔥 [BUTTON DEBUG] playerName:', playerName);
+    
+    if (!newMessage.trim() || !playerId || !playerName) {
+      console.log('❌ [BUTTON DEBUG] Validation failed - missing required data');
+      return;
+    }
 
     setIsLoading(true);
     const messageText = newMessage.trim();
