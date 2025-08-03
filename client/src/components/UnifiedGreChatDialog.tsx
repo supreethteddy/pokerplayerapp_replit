@@ -1,18 +1,17 @@
-
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Send, MessageCircle, X, Minimize2 } from 'lucide-react';
+import { X, Send, MessageCircle, Minimize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
+import { createClient } from '@supabase/supabase-js';
 
 interface ChatMessage {
   id: string;
   message: string;
-  sender: 'player' | 'gre';
+  sender: 'player' | 'staff';
   sender_name: string;
   timestamp: string;
   status: string;
@@ -23,51 +22,110 @@ interface UnifiedGreChatDialogProps {
   onClose: () => void;
 }
 
-export const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onClose }) => {
-  const { user } = useAuth();
+const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onClose }) => {
+  const { user, loading } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
-  const [pusherConnection, setPusherConnection] = useState<any>(null);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [playerData, setPlayerData] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Initialize Pusher connection
+  // Enhanced debugging for authentication state
+  console.log('🔍 [AUTH DEBUG] useAuth hook state:', { user, loading });
+  console.log('🔍 [AUTH DEBUG] User object keys:', user ? Object.keys(user) : 'user is null');
+  console.log('🔍 [AUTH DEBUG] Full user object:', JSON.stringify(user, null, 2));
+  
+  // Fallback: Get user data directly from Supabase if useAuth fails
   useEffect(() => {
-    if (!isOpen || !user?.id) return;
+    const fetchPlayerDataDirectly = async () => {
+      if (user?.id) {
+        console.log('✅ [AUTH DEBUG] useAuth working, using user data');
+        setPlayerData(user);
+        return;
+      }
+      
+      console.log('🔄 [AUTH DEBUG] useAuth failed, trying Supabase session...');
+      
+      try {
+        const supabase = createClient(
+          import.meta.env.VITE_SUPABASE_URL!,
+          import.meta.env.VITE_SUPABASE_ANON_KEY!
+        );
+        
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          console.log('🔄 [AUTH DEBUG] Found Supabase session, fetching player data...');
+          
+          const response = await fetch(`/api/players/supabase/${session.user.id}`);
+          if (response.ok) {
+            const userData = await response.json();
+            console.log('✅ [AUTH DEBUG] Direct API call successful:', userData);
+            setPlayerData(userData);
+          } else {
+            console.log('❌ [AUTH DEBUG] Direct API call failed:', response.status);
+          }
+        } else {
+          console.log('❌ [AUTH DEBUG] No Supabase session found');
+        }
+      } catch (error) {
+        console.error('❌ [AUTH DEBUG] Error fetching player data:', error);
+      }
+    };
+    
+    if (isOpen) {
+      fetchPlayerDataDirectly();
+    }
+  }, [isOpen, user]);
+  
+  // Get user info with robust fallback system
+  const playerId = playerData?.id || user?.id;
+  const playerName = playerData ? 
+    `${playerData.firstName || ''} ${playerData.lastName || ''}`.trim() :
+    `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+  
+  console.log('🔍 [AUTH DEBUG] Final playerId:', playerId);
+  console.log('🔍 [AUTH DEBUG] Final playerName:', playerName);
+  console.log('🔍 [AUTH DEBUG] PlayerData source:', playerData ? 'direct API' : 'useAuth');
+  console.log('🔍 [AUTH DEBUG] Loading state:', loading);
+
+  // Initialize Pusher connection for real-time messaging
+  useEffect(() => {
+    if (!isOpen || !playerId) return;
 
     const initializePusher = async () => {
       try {
-        // Dynamic import of Pusher
         const Pusher = (await import('pusher-js')).default;
         
-        const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY || '81b98cb04ef7aeef2baa', {
-          cluster: import.meta.env.VITE_PUSHER_CLUSTER || 'ap2',
-          encrypted: true
+        const pusher = new Pusher('81b98cb04ef7aeef2baa', {
+          cluster: 'ap2',
+          forceTLS: true
         });
 
-        const channel = pusher.subscribe(`player-${user.id}`);
+        const channel = pusher.subscribe(`player-${playerId}`);
         
-        channel.bind('new-gre-message', (data: any) => {
-          console.log('🔔 [PUSHER] New GRE message received:', data);
+        channel.bind('new-message', (data: any) => {
+          console.log('🔔 [PUSHER] New message received:', data);
           
-          const newMessage: ChatMessage = {
-            id: data.messageId || Date.now().toString(),
+          const newMsg: ChatMessage = {
+            id: data.id || Date.now().toString(),
             message: data.message,
-            sender: 'gre',
-            sender_name: data.senderName || 'Guest Relations Executive',
+            sender: data.sender === 'player' ? 'player' : 'staff',
+            sender_name: data.sender_name || 'Staff Member',
             timestamp: data.timestamp || new Date().toISOString(),
             status: 'received'
           };
           
-          setMessages(prev => [...prev, newMessage]);
+          setMessages(prev => [...prev, newMsg]);
           scrollToBottom();
         });
 
-        setPusherConnection(pusher);
-        console.log(`✅ [PUSHER] Connected to player-${user.id} channel`);
+        console.log(`✅ [PUSHER] Connected to player-${playerId} channel`);
+
+        return () => {
+          pusher.disconnect();
+          console.log('🔌 [PUSHER] Disconnected');
+        };
 
       } catch (error) {
         console.error('❌ [PUSHER] Connection failed:', error);
@@ -75,174 +133,89 @@ export const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOp
     };
 
     initializePusher();
-
-    // Cleanup on unmount
-    return () => {
-      if (pusherConnection) {
-        pusherConnection.disconnect();
-        console.log('🔌 [PUSHER] Disconnected');
-      }
-    };
-  }, [isOpen, user?.id]);
-
-  // Initialize WebSocket connection
-  useEffect(() => {
-    if (!isOpen || !user?.id) return;
-
-    const connectWebSocket = () => {
-      try {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/chat-ws`;
-        
-        console.log('🔗 [WEBSOCKET] Connecting to:', wsUrl);
-        
-        const ws = new WebSocket(wsUrl);
-        
-        ws.onopen = () => {
-          console.log('✅ [WEBSOCKET] Connected successfully');
-          
-          // Send authentication message
-          ws.send(JSON.stringify({
-            type: 'auth',
-            playerId: user.id,
-            playerName: `${user.firstName} ${user.lastName}`
-          }));
-        };
-        
-        ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            console.log('📨 [WEBSOCKET] Message received:', data);
-            
-            if (data.type === 'new-message') {
-              const newMessage: ChatMessage = {
-                id: data.id || Date.now().toString(),
-                message: data.message,
-                sender: data.sender,
-                sender_name: data.sender_name,
-                timestamp: data.timestamp,
-                status: 'received'
-              };
-              
-              setMessages(prev => [...prev, newMessage]);
-              scrollToBottom();
-            }
-          } catch (error) {
-            console.error('❌ [WEBSOCKET] Message parse error:', error);
-          }
-        };
-        
-        ws.onclose = (event) => {
-          console.log('🔌 [WEBSOCKET] Connection closed:', event.code, event.reason);
-          
-          // Auto-reconnect after 3 seconds if not intentional close
-          if (event.code !== 1000 && isOpen) {
-            setTimeout(() => {
-              console.log('🔄 [WEBSOCKET] Attempting reconnection...');
-              connectWebSocket();
-            }, 3000);
-          }
-        };
-        
-        ws.onerror = (error) => {
-          console.error('❌ [WEBSOCKET] Connection error:', error);
-        };
-        
-        setWsConnection(ws);
-        
-      } catch (error) {
-        console.error('❌ [WEBSOCKET] Setup failed:', error);
-      }
-    };
-
-    // Initial connection
-    connectWebSocket();
-
-    // Cleanup on unmount
-    return () => {
-      if (wsConnection) {
-        wsConnection.close(1000, 'Component unmounting');
-      }
-    };
-  }, [isOpen, user?.id]);
+  }, [isOpen, playerId]);
 
   // Load existing messages
   useEffect(() => {
-    if (!isOpen || !user?.id) return;
+    if (!isOpen || !playerId) return;
 
     const loadMessages = async () => {
       try {
-        setIsLoading(true);
-        const response = await fetch(`/api/unified-chat/messages/${user.id}`);
-        
+        const response = await fetch(`/api/push-notifications/${playerId}`);
         if (response.ok) {
-          const messagesData = await response.json();
-          setMessages(messagesData);
-          console.log(`✅ [CHAT] Loaded ${messagesData.length} existing messages`);
-          setTimeout(scrollToBottom, 100);
-        } else {
-          console.error('❌ [CHAT] Failed to load messages:', response.statusText);
+          const data = await response.json();
+          console.log('📨 [MESSAGES] Loaded existing messages:', data.length);
+          
+          const formattedMessages: ChatMessage[] = data.map((msg: any) => ({
+            id: msg.id,
+            message: msg.message || msg.title,
+            sender: msg.sent_by?.includes('player') ? 'player' : 'staff',
+            sender_name: msg.sent_by_name || 'System',
+            timestamp: msg.created_at,
+            status: 'received'
+          }));
+          
+          setMessages(formattedMessages);
         }
       } catch (error) {
-        console.error('❌ [CHAT] Error loading messages:', error);
-      } finally {
-        setIsLoading(false);
+        console.error('❌ [MESSAGES] Failed to load messages:', error);
       }
     };
 
     loadMessages();
-  }, [isOpen, user?.id]);
+  }, [isOpen, playerId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !user?.id || isLoading) return;
+    if (!newMessage.trim() || !playerId || !playerName) {
+      console.log('❌ [SEND] Missing required data:', { playerId, playerName, message: newMessage.trim() });
+      return;
+    }
 
-    const messageText = newMessage.trim();
-    setNewMessage('');
     setIsLoading(true);
-
+    
     try {
+      console.log('📤 [SEND] Sending message:', { playerId, playerName, message: newMessage });
+      
       const response = await fetch('/api/unified-chat/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          playerId: user.id,
-          playerName: `${user.firstName} ${user.lastName}`,
-          message: messageText,
-          senderType: 'player'
+          player_id: playerId,
+          player_name: playerName,
+          message: newMessage,
+          timestamp: new Date().toISOString(),
+          sender: 'player'
         }),
       });
 
       if (response.ok) {
         const result = await response.json();
-        console.log('✅ [CHAT] Message sent successfully:', result);
+        console.log('✅ [SEND] Message sent successfully:', result);
         
         // Add message to local state immediately
-        const newMsg: ChatMessage = {
+        const sentMessage: ChatMessage = {
           id: result.data?.id || Date.now().toString(),
-          message: messageText,
+          message: newMessage,
           sender: 'player',
-          sender_name: `${user.firstName} ${user.lastName}`,
+          sender_name: playerName,
           timestamp: new Date().toISOString(),
           status: 'sent'
         };
         
-        setMessages(prev => [...prev, newMsg]);
+        setMessages(prev => [...prev, sentMessage]);
+        setNewMessage('');
         scrollToBottom();
-        
       } else {
-        const error = await response.json();
-        console.error('❌ [CHAT] Send failed:', error);
-        alert('Failed to send message. Please try again.');
+        console.error('❌ [SEND] Failed to send message:', response.status);
       }
     } catch (error) {
-      console.error('❌ [CHAT] Send error:', error);
-      alert('Network error. Please check your connection.');
+      console.error('❌ [SEND] Error sending message:', error);
     } finally {
       setIsLoading(false);
     }
@@ -260,63 +233,47 @@ export const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOp
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, scale: 0.8, y: 20 }}
-        animate={{ 
-          opacity: 1, 
-          scale: 1, 
-          y: 0,
-          height: isMinimized ? 'auto' : '600px'
-        }}
-        exit={{ opacity: 0, scale: 0.8, y: 20 }}
-        className="fixed bottom-4 right-4 z-50 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700"
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.8 }}
+        className="fixed bottom-4 right-4 z-50 w-80"
       >
-        <Card className="h-full border-0 shadow-none">
-          <CardHeader className="flex flex-row items-center justify-between p-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-t-lg">
-            <div className="flex items-center space-x-2">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-white text-green-600 text-sm font-semibold">
-                  GRE
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <CardTitle className="text-sm font-semibold">Guest Relations Executive</CardTitle>
-                <p className="text-xs opacity-90">
-                  {pusherConnection ? '🟢 Online' : '🔄 Connecting...'}
-                </p>
+        <Card className="shadow-xl border-green-500/20">
+          <CardHeader className="bg-green-600 text-white p-3 rounded-t-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <MessageCircle className="h-5 w-5" />
+                <CardTitle className="text-sm font-medium">Guest Relations</CardTitle>
               </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-8 w-8 p-0 text-white hover:bg-white/20"
-                onClick={() => setIsMinimized(!isMinimized)}
-              >
-                <Minimize2 className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-8 w-8 p-0 text-white hover:bg-white/20"
-                onClick={onClose}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center space-x-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsMinimized(!isMinimized)}
+                  className="text-white hover:bg-green-700 p-1 h-6 w-6"
+                >
+                  <Minimize2 className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onClose}
+                  className="text-white hover:bg-green-700 p-1 h-6 w-6"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
             </div>
           </CardHeader>
 
           {!isMinimized && (
-            <CardContent className="flex flex-col h-[500px] p-0">
-              <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
+            <CardContent className="p-0">
+              <ScrollArea className="h-64 p-4">
                 <div className="space-y-4">
-                  {isLoading && messages.length === 0 ? (
-                    <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                      Loading messages...
-                    </div>
-                  ) : messages.length === 0 ? (
-                    <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                      <MessageCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p className="text-sm">Start a conversation with our Guest Relations Executive</p>
+                  {messages.length === 0 ? (
+                    <div className="text-center text-gray-500 text-sm py-8">
+                      <MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>Start a conversation with our team!</p>
                     </div>
                   ) : (
                     messages.map((message) => (
@@ -357,12 +314,12 @@ export const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOp
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="Type your message..."
-                    disabled={isLoading}
+                    disabled={isLoading || !playerId}
                     className="flex-1"
                   />
                   <Button
                     onClick={sendMessage}
-                    disabled={isLoading || !newMessage.trim()}
+                    disabled={isLoading || !newMessage.trim() || !playerId}
                     size="sm"
                     className="bg-green-500 hover:bg-green-600 text-white"
                   >
@@ -370,7 +327,7 @@ export const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOp
                   </Button>
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                  {wsConnection?.readyState === WebSocket.OPEN ? '🟢 Connected' : '🔄 Connecting...'}
+                  Player: {playerName || 'Loading...'} (ID: {playerId || 'Loading...'})
                 </p>
               </div>
             </CardContent>
