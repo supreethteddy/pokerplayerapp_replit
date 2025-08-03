@@ -11,7 +11,7 @@ export function setupProductionAPIs(app: Express) {
   // Fixed Offers API - Working Implementation
   app.get("/api/staff-offers", async (req, res) => {
     try {
-      console.log('🎁 [PRODUCTION OFFERS] Fetching real offers from database...');
+      console.log('🎁 [UNIFIED OFFERS] Fetching offers from offer_banners table...');
       
       const { data: offers, error } = await supabase
         .from('offer_banners')
@@ -20,13 +20,13 @@ export function setupProductionAPIs(app: Express) {
         .order('created_at', { ascending: false });
       
       if (error) {
-        console.error('❌ [PRODUCTION OFFERS] Database error:', error);
+        console.error('❌ [UNIFIED OFFERS] Database error:', error);
         return res.status(500).json({ error: "Failed to fetch offers" });
       }
       
-      console.log(`✅ [PRODUCTION OFFERS] Found ${offers?.length || 0} active offers`);
+      console.log(`✅ [UNIFIED OFFERS] Found ${offers?.length || 0} active offers`);
       
-      // Transform to expected format
+      // Transform using exact column names from offer_banners
       const transformedOffers = offers?.map((offer: any) => ({
         id: offer.id,
         title: offer.title,
@@ -42,12 +42,12 @@ export function setupProductionAPIs(app: Express) {
 
       res.json(transformedOffers);
     } catch (error) {
-      console.error('❌ [PRODUCTION OFFERS] Error:', error);
+      console.error('❌ [UNIFIED OFFERS] Error:', error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
 
-  // Fixed Chat Send API - Working Implementation
+  // Unified Chat Send API - Working Implementation
   app.post("/api/unified-chat/send", async (req, res) => {
     try {
       const { playerId, playerName, message, timestamp } = req.body;
@@ -56,11 +56,11 @@ export function setupProductionAPIs(app: Express) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      console.log(`📤 [PRODUCTION CHAT] Sending message from ${playerName} (${playerId}): ${message}`);
+      console.log(`📤 [UNIFIED CHAT] Sending message from ${playerName} (${playerId}): ${message}`);
 
       const messageTimestamp = timestamp || new Date().toISOString();
 
-      // Store in GRE chat messages
+      // Store in GRE chat messages using exact column structure
       const { data: savedMessage, error: chatError } = await supabase
         .from('gre_chat_messages')
         .insert([{
@@ -70,32 +70,18 @@ export function setupProductionAPIs(app: Express) {
           sender: 'player',
           sender_name: playerName,
           timestamp: messageTimestamp,
-          status: 'sent'
+          status: 'sent',
+          created_at: messageTimestamp
         }])
         .select()
         .single();
 
       if (chatError) {
-        console.error('❌ [PRODUCTION CHAT] Error saving message:', chatError);
+        console.error('❌ [UNIFIED CHAT] Error saving message:', chatError);
         return res.status(500).json({ error: 'Failed to save chat message' });
       }
 
-      // Also store in push notifications for cross-portal visibility
-      await supabase
-        .from('push_notifications')
-        .insert([{
-          title: 'Player Message',
-          message: message,
-          target_audience: `player_${playerId}`,
-          sent_by: `player_${playerId}@pokerroom.com`,
-          sent_by_name: playerName,
-          sent_by_role: 'player',
-          sender_id: playerId,
-          delivery_status: 'sent',
-          created_at: messageTimestamp
-        }]);
-
-      console.log('✅ [PRODUCTION CHAT] Message saved successfully');
+      console.log('✅ [UNIFIED CHAT] Message saved successfully');
 
       res.json({
         success: true,
@@ -103,7 +89,7 @@ export function setupProductionAPIs(app: Express) {
       });
 
     } catch (error) {
-      console.error('❌ [PRODUCTION CHAT] Error:', error);
+      console.error('❌ [UNIFIED CHAT] Error:', error);
       res.status(500).json({ error: "Failed to send message" });
     }
   });
@@ -150,33 +136,33 @@ export function setupProductionAPIs(app: Express) {
     }
   });
 
-  // Waitlist Join API - Proper Staff Portal Integration
+  // Unified Waitlist Join API - Using correct seat_requests columns
   app.post("/api/waitlist/join", async (req, res) => {
     try {
       const { playerId, tableId, preferredSeat, tableName } = req.body;
       
-      console.log(`🎯 [PRODUCTION WAITLIST] Player ${playerId} joining waitlist for table ${tableName}`);
+      console.log(`🎯 [UNIFIED WAITLIST] Player ${playerId} joining waitlist for table ${tableName}`);
 
-      // Insert into waitlist table for staff portal visibility
+      // Insert using exact column names from seat_requests table
       const { data: waitlistEntry, error } = await supabase
         .from('seat_requests')
         .insert([{
           player_id: playerId,
           table_id: tableId,
-          seat_number: preferredSeat,
           status: 'waiting',
-          notes: `Player joining waitlist for ${tableName}`,
+          position: preferredSeat,
+          notes: `Player joining ${tableName}`,
           created_at: new Date().toISOString()
         }])
         .select()
         .single();
 
       if (error) {
-        console.error('❌ [PRODUCTION WAITLIST] Error:', error);
+        console.error('❌ [UNIFIED WAITLIST] Error:', error);
         return res.status(500).json({ error: 'Failed to join waitlist' });
       }
 
-      console.log('✅ [PRODUCTION WAITLIST] Player added to waitlist successfully');
+      console.log('✅ [UNIFIED WAITLIST] Player added successfully');
 
       res.json({
         success: true,
@@ -184,7 +170,7 @@ export function setupProductionAPIs(app: Express) {
       });
 
     } catch (error) {
-      console.error('❌ [PRODUCTION WAITLIST] Error:', error);
+      console.error('❌ [UNIFIED WAITLIST] Error:', error);
       res.status(500).json({ error: "Failed to join waitlist" });
     }
   });
