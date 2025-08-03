@@ -6,16 +6,7 @@ import { Button } from '@/components/ui/button';
 import { X, Bell, AlertCircle, Info, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-interface PushNotification {
-  id: number;
-  title: string;
-  message: string;
-  priority: 'low' | 'normal' | 'high' | 'urgent';
-  senderName: string;
-  senderRole: string;
-  createdAt: string;
-  mediaUrl?: string;
-}
+type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
 
 interface NotificationData {
   id: number;
@@ -23,7 +14,7 @@ interface NotificationData {
   message: string;
   type: string;
   timestamp: Date;
-  priority: string;
+  priority: NotificationPriority;
   senderName: string;
   senderRole: string;
   mediaUrl?: string;
@@ -37,27 +28,35 @@ interface NotificationPopupProps {
 const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onDismiss }) => {
   const [isVisible, setIsVisible] = useState(true);
 
-  // Get notification priority with safe fallback
-  const notificationPriority = notification?.priority || 'normal';
-
   // Auto-dismiss after delay based on priority
   useEffect(() => {
-    const dismissDelay = {
+    if (!notification) return;
+
+    const dismissDelay: Record<NotificationPriority, number> = {
       low: 5000,
       normal: 8000,
       high: 12000,
       urgent: 20000 // Urgent notifications stay longer
     };
 
+    const priority = notification.priority || 'normal';
+    const delay = dismissDelay[priority] || 8000;
+
     const timer = setTimeout(() => {
       setIsVisible(false);
-      setTimeout(() => onDismiss(notification?.id || 0), 300);
-    }, dismissDelay[notificationPriority as keyof typeof dismissDelay] || 8000);
+      setTimeout(() => onDismiss(notification.id), 300);
+    }, delay);
 
     return () => clearTimeout(timer);
-  }, [notification?.id, notificationPriority, onDismiss]);
+  }, [notification, onDismiss]);
 
-  const priorityConfig = {
+  if (!notification) return null;
+
+  const priorityConfig: Record<NotificationPriority, { 
+    icon: React.ComponentType<any>; 
+    color: string; 
+    iconColor: string; 
+  }> = {
     low: { 
       icon: Info, 
       color: 'border-blue-500 bg-blue-50 dark:bg-blue-900/20',
@@ -80,7 +79,8 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onD
     }
   };
 
-  const config = priorityConfig[notificationPriority as keyof typeof priorityConfig] || priorityConfig.normal;
+  const priority = notification.priority || 'normal';
+  const config = priorityConfig[priority];
   const IconComponent = config.icon;
 
   return (
@@ -102,7 +102,7 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onD
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
                     <h4 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                      {notification?.title || 'Notification'}
+                      {notification.title || 'Notification'}
                     </h4>
                     <Button
                       size="sm"
@@ -110,24 +110,24 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onD
                       className="h-6 w-6 p-0 hover:bg-gray-200 dark:hover:bg-gray-700"
                       onClick={() => {
                         setIsVisible(false);
-                        setTimeout(() => onDismiss(notification?.id || 0), 300);
+                        setTimeout(() => onDismiss(notification.id), 300);
                       }}
                     >
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
                   <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
-                    {notification?.message || 'No message'}
+                    {notification.message || 'No message'}
                   </p>
                   <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
                     <span className="font-medium">
-                      {notification?.senderName || 'Unknown'} ({notification?.senderRole || 'System'})
+                      {notification.senderName || 'Unknown'} ({notification.senderRole || 'System'})
                     </span>
                     <span className="uppercase font-bold text-xs">
-                      {notificationPriority.toUpperCase()}
+                      {priority.toUpperCase()}
                     </span>
                   </div>
-                  {notification?.mediaUrl && (
+                  {notification.mediaUrl && (
                     <div className="mt-2">
                       <img 
                         src={notification.mediaUrl} 
@@ -201,12 +201,12 @@ export const PushNotificationManager: React.FC = () => {
           recentNotifications.forEach((notif: any) => {
             if (!notifications.find(n => n.id === notif.id)) {
               const newNotification: NotificationData = {
-                id: notif.id,
-                title: notif.title,
-                message: notif.message,
+                id: notif.id || 0,
+                title: notif.title || 'Notification',
+                message: notif.message || '',
                 type: notif.type || 'info',
-                timestamp: new Date(notif.created_at),
-                priority: notif.priority || 'normal',
+                timestamp: new Date(notif.created_at || Date.now()),
+                priority: (notif.priority as NotificationPriority) || 'normal',
                 senderName: notif.sent_by_name || notif.sent_by || 'Unknown',
                 senderRole: notif.sent_by_role || 'System',
                 mediaUrl: notif.media_url
