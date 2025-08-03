@@ -39,7 +39,7 @@ console.log('🚀 [SERVER] Pusher and OneSignal initialized successfully');
 export function registerRoutes(app: Express) {
   // UNIFIED CHAT SYSTEM - Single source of truth
   
-  // Send Chat Message - MICROSECOND SPEED - PUSHER ONLY
+  // Send Chat Message - MICROSECOND SPEED - PUSHER ONLY (Fixed exec_sql issue)
   app.post("/api/unified-chat/send", async (req, res) => {
     try {
       const { playerId, playerName, message, senderType = 'player' } = req.body;
