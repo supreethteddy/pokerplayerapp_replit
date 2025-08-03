@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { X, Send, MessageCircle } from 'lucide-react';
+import { X, Send, MessageCircle, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Pusher from 'pusher-js';
 
@@ -43,9 +43,9 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
     
     setConnectionStatus('connecting');
     
-    // Get Pusher credentials from environment - direct values to ensure connection
+    // Get Pusher credentials from environment - fixed ap2 cluster
     const pusherKey = import.meta.env.VITE_PUSHER_KEY || '4a89de838fee5a34eb20';
-    const pusherCluster = import.meta.env.VITE_PUSHER_CLUSTER || 'us2';
+    const pusherCluster = import.meta.env.VITE_PUSHER_CLUSTER || 'ap2';
     
     console.log('🔗 [PUSHER FRONTEND] Using credentials - Key:', pusherKey, 'Cluster:', pusherCluster);
     
@@ -221,6 +221,21 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
             <Badge variant="default" className="bg-emerald-600">
               Chat Active
             </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setMessages([]);
+                toast({
+                  title: "Chat Cleared",
+                  description: "All messages have been cleared"
+                });
+              }}
+              className="text-gray-400 hover:text-red-400"
+              title="Clear chat"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
             <Button
               variant="ghost"
               size="sm"
