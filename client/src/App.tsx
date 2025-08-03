@@ -16,6 +16,39 @@ import { useState, useEffect } from "react";
 import NotFound from "@/pages/not-found";
 import ThankYou from "@/pages/thank-you";
 
+// Initialize OneSignal for push notifications
+function initializeOneSignal() {
+  useEffect(() => {
+    const setupOneSignal = async () => {
+      try {
+        const OneSignal = (await import('react-onesignal')).default;
+        
+        await OneSignal.init({
+          appId: '77e9b5e8-b38a-4d08-94d2-5b8f39ea4ac1',
+          allowLocalhostAsSecureOrigin: true,
+          notifyButton: { enable: false }
+        });
+
+        const playerId = localStorage.getItem('playerId') || 'unknown';
+        await OneSignal.setExternalUserId(`player-${playerId}`);
+
+        OneSignal.on('notificationClick', (event: any) => {
+          console.log('Notification clicked:', event);
+          if (event.data?.type === 'chat_message') {
+            // Handle chat notification click
+          }
+        });
+
+        console.log('OneSignal initialized for player notifications');
+      } catch (error) {
+        console.error('OneSignal initialization error:', error);
+      }
+    };
+
+    setupOneSignal();
+  }, []);
+}
+
 function AppContent() {
   const { user, loading } = useAuth();
   const [showLoadingScreen, setShowLoadingScreen] = useState(false);

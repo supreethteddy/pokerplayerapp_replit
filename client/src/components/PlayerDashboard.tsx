@@ -52,7 +52,7 @@ import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
-import UnifiedGreChatDialog from "./UnifiedGreChatDialog";
+import PlayerChat from "./PlayerChat";
 
 
 // Scrollable Offers Display Component
@@ -358,9 +358,7 @@ function PlayerDashboard() {
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [sendingFeedback, setSendingFeedback] = useState(false);
   
-  // GRE Chat state variables
-  const [chatMessage, setChatMessage] = useState("");
-  const [sendingChatMessage, setSendingChatMessage] = useState(false);
+  // Modern Pusher/OneSignal chat - no state variables needed
   
   // Tournament state variables
   const [tournamentActionLoading, setTournamentActionLoading] = useState(false);
@@ -671,60 +669,7 @@ function PlayerDashboard() {
     }
   };
 
-  // GRE Chat functionality - Now using WebSocket for real-time chat
-  const sendChatMessage = async () => {
-    if (!chatMessage.trim() || !user?.id) {
-      toast({
-        title: "Error",
-        description: "Please enter a message",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setSendingChatMessage(true);
-    
-    // 🚨 ENTERPRISE-GRADE FRONTEND DEBUG LOGGING - PRODUCTION DATA VALIDATION
-    console.log('🛑 FRONTEND DEBUG: === PLAYER MESSAGE SEND START ===');
-    console.log('🔍 FRONTEND DEBUG: Sending player message | Details:', {
-      playerId: user.id,
-      playerName: `${user.firstName} ${user.lastName}`,
-      messageText: chatMessage.trim(),
-      senderType: 'player',
-      timestamp: new Date().toISOString(),
-      websocketConnected: wsConnected,
-      validation: 'PRODUCTION_USER_CONTEXT_ONLY'
-    });
-    
-    // PRODUCTION DATA VALIDATION - NO MOCK/TEST DATA ALLOWED
-    if (!user.id || user.id === 0 || chatMessage.includes('test') || chatMessage.includes('demo')) {
-      console.error('❌ FRONTEND DEBUG: INVALID USER MESSAGE CONTEXT - Mock/test data detected');
-      toast({
-        title: "Error",
-        description: "Invalid message context - only production data allowed",
-        variant: "destructive"
-      });
-      setSendingChatMessage(false);
-      return;
-    }
-    
-    // Try WebSocket first for real-time chat
-    if (wsConnection && wsConnected) {
-      try {
-        console.log('🔍 FRONTEND DEBUG: WebSocket message transmission | Details:', {
-          connectionState: wsConnection.readyState,
-          expectedState: WebSocket.OPEN,
-          messageLength: chatMessage.trim().length,
-          validation: 'PRODUCTION_WEBSOCKET_SEND'
-        });
-        
-        // Create the message object for immediate display
-        const newMessage = {
-          id: Date.now().toString(),
-          player_id: user.id,
-          message: chatMessage.trim(),
-          sender_type: 'player',
-          timestamp: new Date().toISOString(),
+  // Legacy chat system removed - now using modern PlayerChat component
           is_read: false
         };
         
@@ -2619,11 +2564,14 @@ function PlayerDashboard() {
         </Tabs>
         </div>
 
-        {/* Unified GRE Chat Dialog */}
-        <UnifiedGreChatDialog 
-          isOpen={unifiedChatOpen}
-          onClose={() => setUnifiedChatOpen(false)}
-        />
+        {/* Modern Pusher/OneSignal Chat Widget */}
+        <div className="fixed bottom-4 right-4 w-80">
+          <PlayerChat 
+            playerId={user?.id || 0}
+            playerName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Player'}
+            playerEmail={user?.email || 'player@example.com'}
+          />
+        </div>
 
       </div>
     );

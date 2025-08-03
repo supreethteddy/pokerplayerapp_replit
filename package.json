@@ -4,5 +4,9 @@
   "version": "0.0.0",
   "scripts": {
     "dev": "npx tsx server/index.ts"
+  },
+  "dependencies": {
+    "pusher-js": "^8.4.0",
+    "react-onesignal": "^3.2.3"
   }
 }
