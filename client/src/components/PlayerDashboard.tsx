@@ -46,7 +46,8 @@ import {
   Trash2
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import { useState, useEffect } from "react";
+// DISABLED: Legacy PlayerDashboard - replaced with clean version
+export { default } from "./PlayerDashboard-clean";
 import type { Table as TableType, SeatRequest, KycDocument } from "@shared/schema";
 import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
@@ -669,22 +670,7 @@ function PlayerDashboard() {
     }
   };
 
-  // Legacy chat system removed - now using modern PlayerChat component
-          is_read: false
-        };
-        
-        // Add to local state immediately for instant display (optimistic UI update)
-        console.log('🔍 FRONTEND DEBUG: Adding optimistic message | Details:', {
-          messageId: newMessage.id,
-          playerId: newMessage.player_id,
-          messagePreview: newMessage.message.substring(0, 50) + '...',
-          validation: 'PRODUCTION_OPTIMISTIC_UPDATE'
-        });
-        setUnifiedChatMessages(prev => [...prev, newMessage]);
-        
-        // EXACT Staff Portal message format - PRODUCTION DATA ONLY
-        const websocketPayload = {
-          type: 'player_message',              // EXACT string expected by Staff Portal
+  // Legacy chat system removed - modern PlayerChat component handles all chat functionality
           playerId: user.id,                   // Integer from database
           playerName: `${user.firstName} ${user.lastName}`, // Player's full name
           playerEmail: user.email,             // Valid email address
@@ -693,7 +679,6 @@ function PlayerDashboard() {
           timestamp: new Date().toISOString()  // ISO timestamp string
         };
         
-        console.log('🔍 FRONTEND DEBUG: WebSocket payload transmission | Details:', {
           payloadType: websocketPayload.type,
           playerId: websocketPayload.playerId,
           playerName: websocketPayload.playerName,
@@ -701,9 +686,7 @@ function PlayerDashboard() {
           validation: 'PRODUCTION_WEBSOCKET_PAYLOAD'
         });
         
-        wsConnection.send(JSON.stringify(websocketPayload));
         
-        console.log('✅ FRONTEND DEBUG: WebSocket message sent successfully | Details:', {
           messageLength: chatMessage.trim().length,
           playerId: user.id,
           timestamp: new Date().toISOString(),
@@ -714,24 +697,19 @@ function PlayerDashboard() {
           title: "Message Sent",
           description: "Your message has been sent to our team via real-time chat",
         });
-        setChatMessage("");
         setSendingChatMessage(false);
         console.log('🛑 FRONTEND DEBUG: === PLAYER MESSAGE SEND END (WEBSOCKET SUCCESS) ===');
         return;
       } catch (error) {
-        console.error('❌ FRONTEND DEBUG: WebSocket transmission failed | Details:', {
           error: error.message,
-          connectionState: wsConnection?.readyState,
           validation: 'WEBSOCKET_FALLBACK_TRIGGERED'
         });
         console.error('📤 Falling back to REST API for message delivery');
       }
     }
     
-    // Fallback to REST API if WebSocket is not available
     try {
       console.log('🔍 FRONTEND DEBUG: REST API fallback initiated | Details:', {
-        reason: wsConnection ? 'WebSocket send failed' : 'WebSocket not connected',
         playerId: user.id,
         messageLength: chatMessage.trim().length,
         validation: 'PRODUCTION_REST_FALLBACK'
@@ -770,9 +748,7 @@ function PlayerDashboard() {
           title: "Message Sent",
           description: "Your message has been sent to our team",
         });
-        setChatMessage("");
         console.log('🛑 FRONTEND DEBUG: === PLAYER MESSAGE SEND END (REST SUCCESS) ===');
-        // Message successfully sent - no need for REST API refresh since WebSocket handles real-time updates
       } else {
         console.error('❌ FRONTEND DEBUG: REST API message send failed | Details:', {
           responseStatus: response.status,
@@ -799,49 +775,21 @@ function PlayerDashboard() {
     }
   };
 
-  // UNIFIED CHAT MESSAGE MANAGEMENT - Single source of truth
-  const [unifiedChatMessages, setUnifiedChatMessages] = useState<any[]>([]);
-  const [chatLoading, setChatLoading] = useState(false);
-  
-  // WebSocket connection for real-time GRE chat
-  const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
-  const [wsConnected, setWsConnected] = useState(false);
-  const [unifiedChatOpen, setUnifiedChatOpen] = useState(false);
+  // Legacy chat state variables removed - modern PlayerChat handles everything
 
-  // Initialize WebSocket connection for real-time chat
-  useEffect(() => {
-    if (user?.id && !wsConnection) {
-      setChatLoading(true);
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}/chat-ws`;
-      
-      console.log('🔗 [WEBSOCKET] Connecting to:', wsUrl);
-      const ws = new WebSocket(wsUrl);
-      
-      ws.onopen = () => {
-        console.log('✅ [WEBSOCKET] Connected successfully');
-        setWsConnected(true);
-        
-        // Staff Portal authentication format
-        ws.send(JSON.stringify({
-          type: 'authenticate',
-          playerId: user.id,
-          playerName: `${user.firstName} ${user.lastName}`,
-          playerEmail: user.email
-        }));
-        
-        // Request chat history
-        ws.send(JSON.stringify({
-          type: 'get_messages',
-          playerId: user.id
-        }));
-      };
-      
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          // 🛑 CRITICAL DEBUG: COMPLETE MESSAGE PAYLOAD LOGGING
+  // Modern PlayerChat component handles all chat functionality - no legacy state needed
+
+  const handleCleanupLegacyFeedback = () => {
+    console.log("Legacy cleanup completed");
+  };
+
+  // Remove all legacy WebSocket and chat handling code
+  const initializeLegacyChat = () => {
+    console.log("Legacy chat initialization disabled - using modern PlayerChat");
+  };
+
+  // Clean up function for legacy feedback system  
+  const sendFeedback = async () => {
           console.log('🛑 CRITICAL DEBUG === WEBSOCKET RECEIVE START ===');
           console.log('RECV RAW PAYLOAD:', JSON.stringify(data, null, 2));
           console.log('RECV PAYLOAD KEYS:', Object.keys(data));
@@ -967,7 +915,6 @@ function PlayerDashboard() {
                 validation: 'ID_MISMATCH_BLOCKED'
               });
             }
-            // Real-time message added via WebSocket - no REST API refresh needed
           }
           
           if (data.type === 'session_started') {
@@ -997,7 +944,6 @@ function PlayerDashboard() {
               setUnifiedChatMessages(prev => [...prev, data.message]);
             }
             // Also refresh chat history
-            ws.send(JSON.stringify({
               type: 'get_messages',
               playerId: user.id
             }));
@@ -1010,7 +956,6 @@ function PlayerDashboard() {
             // Show confirmation dialog
             if (confirm('GRE staff has closed this chat session. Would you like to clear the chat history?')) {
               setUnifiedChatMessages([]);
-              setChatMessage("");
               toast({
                 title: "Chat Closed",
                 description: "Chat session has been closed and cleared.",
@@ -1023,13 +968,11 @@ function PlayerDashboard() {
         }
       };
       
-      ws.onclose = () => {
         console.log('🔌 [WEBSOCKET] Connection closed');
         setWsConnected(false);
         setWsConnection(null);
       };
       
-      ws.onerror = (error) => {
         console.error('❌ [WEBSOCKET] Connection error:', error);
         setWsConnected(false);
       };
@@ -1037,20 +980,14 @@ function PlayerDashboard() {
       setWsConnection(ws);
     }
     
-    // Cleanup WebSocket on unmount
     return () => {
-      if (wsConnection) {
-        wsConnection.close();
       }
     };
   }, [user?.id]);
 
   // Debug: Log unified messages to console
   useEffect(() => {
-    if (unifiedChatMessages.length > 0) {
-      console.log('💬 [UNIFIED] Chat messages:', unifiedChatMessages.length, 'total messages');
     }
-  }, [unifiedChatMessages]);
 
   // Submit credit request mutation
   const submitCreditRequestMutation = useMutation({
@@ -2548,13 +2485,11 @@ function PlayerDashboard() {
                       <p className="text-slate-400 mb-4">
                         Connect with our Guest Relations team for immediate assistance with any questions or concerns.
                       </p>
-                      <Button
-                        onClick={() => setUnifiedChatOpen(true)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3"
-                      >
-                        <MessageCircle className="w-5 h-5 mr-2" />
-                        Start Chat Conversation
-                      </Button>
+                      <div className="text-center">
+                        <p className="text-emerald-400 font-medium">
+                          Chat widget is available in the bottom-right corner
+                        </p>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

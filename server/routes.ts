@@ -10,8 +10,6 @@ import { supabaseDocumentStorage } from "./supabase-document-storage";
 import { unifiedPlayerSystem } from "./unified-player-system";
 // SUPABASE EXCLUSIVE MODE - Using Supabase direct queries instead of schema imports
 import { z } from "zod";
-import { createInsertSchema } from "drizzle-zod";
-import { kycDocuments, insertSeatRequestSchema, insertPlayerSchema, insertPlayerPrefsSchema } from "@shared/schema";
 // SUPABASE EXCLUSIVE MODE - No Drizzle ORM imports needed
 import { createClient } from '@supabase/supabase-js';
 import { debugAllTables } from './debug-tables';
@@ -19,8 +17,8 @@ import { comprehensiveTableCheck, checkDatabaseConnection } from './comprehensiv
 import { testDirectTableQuery } from './direct-table-test';
 import { addTablesToSupabase } from './add-tables-to-supabase';
 import { cleanupSupabaseTables } from './cleanup-supabase-tables';
-import { pusher, broadcastToPlayer, broadcastToStaff, ChatMessage } from './pusher';
-import { sendChatNotification, sendPushNotification } from './onesignal';
+import { pusher } from './pusher';
+import { sendPushNotification } from './onesignal';
 
 // STAFF PORTAL EXCLUSIVE MODE - Using ONLY Staff Portal Supabase for ALL operations
 // No local or fallback databases - everything goes through Staff Portal system
@@ -33,8 +31,13 @@ const staffPortalSupabase = createClient(
 const supabase = staffPortalSupabase;  // Redirect all calls to Staff Portal
 const localSupabase = staffPortalSupabase;  // No more local database - use Staff Portal
 
-// Create KYC document schema - omit fileUrl as it's generated during upload
-const insertKycDocumentSchema = createInsertSchema(kycDocuments).omit({ fileUrl: true });
+// Create KYC document schema
+const insertKycDocumentSchema = z.object({
+  playerId: z.number(),
+  documentType: z.string(),
+  fileName: z.string(),
+  status: z.string().default('pending')
+});
 
 // Create upload request schema for KYC documents
 const kycUploadSchema = z.object({
@@ -56,22 +59,195 @@ interface AuthenticatedWebSocket extends WebSocket {
 const connectedClients = new Map<number, AuthenticatedWebSocket>();
 */
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export function registerRoutes(app: Express): void {
   
-  // 🚨 ENTERPRISE-GRADE CHAT STATUS ENDPOINT
+  // Modern Pusher/OneSignal Chat Endpoints
+  
+  // Create chat session
+  app.post('/api/pusher-chat/create-session', async (req, res) => {
+    try {
+      const { playerId, playerName, playerEmail, message, priority = 'normal', category = 'general' } = req.body;
+      
+      // Generate unique session ID
+      const sessionId = `chat-${Date.now()}-${playerId}`;
+      
+      // Save session to Supabase
+      const { data: session, error: sessionError } = await supabase
+        .from('gre_chat_sessions')
+        .insert({
+          id: sessionId,
+          player_id: playerId,
+          player_name: playerName,
+          player_email: playerEmail,
+          status: 'waiting',
+          priority,
+          category,
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (sessionError) throw sessionError;
+
+      // Save initial message
+      const messageId = `msg-${Date.now()}`;
+      const { error: messageError } = await supabase
+        .from('gre_chat_messages')
+        .insert({
+          id: messageId,
+          session_id: sessionId,
+          sender_type: 'player',
+          sender_name: playerName,
+          message_text: message,
+          timestamp: new Date().toISOString()
+        });
+
+      if (messageError) throw messageError;
+
+      // Broadcast to staff portal for GRE notification
+      await pusher.trigger(`staff-notifications`, 'new-chat-request', {
+        sessionId,
+        playerId,
+        playerName,
+        message,
+        timestamp: new Date().toISOString()
+      });
+
+      // Send push notification to staff
+      await sendPushNotification(
+        'staff-all',
+        'New Chat Request',
+        `${playerName} needs assistance`,
+        { type: 'chat_request', sessionId }
+      );
+
+      res.json({ success: true, sessionId });
+    } catch (error) {
+      console.error('Error creating chat session:', error);
+      res.status(500).json({ success: false, error: 'Failed to create chat session' });
+    }
+  });
+
+  // Send message in session
+  app.post('/api/pusher-chat/send-message', async (req, res) => {
+    try {
+      const { sessionId, playerId, playerName, senderType, messageText, messageType = 'text' } = req.body;
+      
+      const messageId = `msg-${Date.now()}`;
+      const timestamp = new Date().toISOString();
+
+      // Save message to Supabase
+      const { error: messageError } = await supabase
+        .from('gre_chat_messages')
+        .insert({
+          id: messageId,
+          session_id: sessionId,
+          sender_type: senderType,
+          sender_name: playerName,
+          message_text: messageText,
+          message_type: messageType,
+          timestamp
+        });
+
+      if (messageError) throw messageError;
+
+      // Broadcast message to session channel
+      await pusher.trigger(`chat-session-${sessionId}`, 'new-message', {
+        id: messageId,
+        sessionId,
+        senderType,
+        senderName: playerName,
+        messageText,
+        timestamp
+      });
+
+      // Send push notification to appropriate recipient
+      if (senderType === 'player') {
+        await sendPushNotification(
+          'staff-all',
+          'New Message',
+          `${playerName}: ${messageText.substring(0, 50)}...`,
+          { type: 'chat_message', sessionId }
+        );
+      } else {
+        await sendPushNotification(
+          playerId.toString(),
+          'GRE Response',
+          messageText.substring(0, 50) + '...',
+          { type: 'chat_message', sessionId }
+        );
+      }
+
+      res.json({ success: true, messageId });
+    } catch (error) {
+      console.error('Error sending message:', error);
+      res.status(500).json({ success: false, error: 'Failed to send message' });
+    }
+  });
+
+  // Update session status (for staff portal)
+  app.post('/api/pusher-chat/update-status', async (req, res) => {
+    try {
+      const { sessionId, status, staffName } = req.body;
+      
+      // Update session status
+      const { error: updateError } = await supabase
+        .from('gre_chat_sessions')
+        .update({ 
+          status, 
+          assigned_staff: staffName,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', sessionId);
+
+      if (updateError) throw updateError;
+
+      // Broadcast status update
+      await pusher.trigger(`chat-session-${sessionId}`, 'status-update', {
+        status,
+        staffName,
+        timestamp: new Date().toISOString()
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error updating session status:', error);
+      res.status(500).json({ success: false, error: 'Failed to update status' });
+    }
+  });
+
+  // Get chat messages for session
+  app.get('/api/pusher-chat/messages/:sessionId', async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      
+      const { data: messages, error } = await supabase
+        .from('gre_chat_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('timestamp', { ascending: true });
+
+      if (error) throw error;
+
+      res.json({ success: true, messages });
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      res.status(500).json({ success: false, error: 'Failed to fetch messages' });
+    }
+  });
+
+  // Test endpoints for chat system
   app.get('/api/test-chat-status', async (req, res) => {
-    console.log('🔍 WEBSOCKET DEBUG: Chat status test requested');
+    console.log('Chat system status check requested');
     
     try {
       const status = {
         timestamp: new Date().toISOString(),
-        websocketConnections: 'DISABLED - Migrated to Pusher Channels',
-        database: 'Production Staff Portal Supabase ONLY',
-        messageRouting: 'Real-time bidirectional (no broadcast-all)',
-        authentication: 'Production user context (no mock data)',
-        sessionManagement: 'Active sessions tracked per player',
-        logging: 'Enterprise-grade debug enabled',
-        productionValidation: 'All mock/test/demo data eliminated'
+        chatSystem: 'Pusher Channels + OneSignal',
+        database: 'Supabase (Unified)',
+        messageRouting: 'Real-time bidirectional',
+        pushNotifications: 'OneSignal enabled',
+        sessionManagement: 'Active session tracking'
       };
       
       console.log('🔍 WEBSOCKET DEBUG: System status check:', JSON.stringify(status, null, 2));
@@ -6346,5 +6522,4 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  return httpServer;
 }

@@ -86,7 +86,7 @@ export default function PlayerChat({ playerId, playerName, playerEmail }: Player
     try {
       console.log('🚀 Starting new chat session...');
       
-      const response = await fetch(`${import.meta.env.VITE_STAFF_PORTAL_URL}/api/pusher-chat/create-session`, {
+      const response = await fetch(`/api/pusher-chat/create-session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -124,7 +124,7 @@ export default function PlayerChat({ playerId, playerName, playerEmail }: Player
     try {
       console.log('💬 Sending message...');
       
-      const response = await fetch(`${import.meta.env.VITE_STAFF_PORTAL_URL}/api/pusher-chat/send-message`, {
+      const response = await fetch(`/api/pusher-chat/send-message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

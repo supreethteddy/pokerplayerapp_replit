@@ -6,8 +6,6 @@ import path from 'path';
 const app = express();
 const PORT = parseInt(process.env.PORT || '80');
 
-console.log('Starting Poker Room Player Portal Server...');
-
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -54,43 +52,12 @@ app.get('/api/pusher-chat/messages/:sessionId', (req, res) => {
   });
 });
 
-// Configure MIME types for proper module loading
-app.use('/src', express.static('client/src', {
-  setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.tsx') || filePath.endsWith('.ts')) {
-      res.setHeader('Content-Type', 'text/javascript');
-    }
-    if (filePath.endsWith('.jsx') || filePath.endsWith('.js')) {
-      res.setHeader('Content-Type', 'text/javascript');
-    }
-    if (filePath.endsWith('.css')) {
-      res.setHeader('Content-Type', 'text/css');
-    }
-  }
-}));
-
-// Serve static files properly
+// Serve static files
 app.use(express.static('client'));
-app.use('/assets', express.static('attached_assets'));
+app.use('/src', express.static('client/src'));
 
-// SPA fallback - serve index.html for all unmatched routes
+// Fallback for SPA
 app.get('*', (req, res) => {
-  // Skip API routes
-  if (req.path.startsWith('/api/')) {
-    return;
-  }
-  res.sendFile(path.join(process.cwd(), 'client', 'index.html'));
-});
-
-app.get('/', (req, res) => {
-  res.sendFile(path.resolve('client/index.html'));
-});
-
-app.get('/dashboard', (req, res) => {
-  res.sendFile(path.resolve('client/index.html'));
-});
-
-app.get('/login', (req, res) => {
   res.sendFile(path.resolve('client/index.html'));
 });
 
