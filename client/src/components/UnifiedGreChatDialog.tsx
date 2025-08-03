@@ -2,20 +2,22 @@ import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, MessageCircle, User, Clock, Check, CheckCheck, AlertCircle } from "lucide-react";
+import { Send, MessageCircle, User, Clock, Check, CheckCheck, AlertCircle, X, Minimize2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import Pusher from 'pusher-js';
+import { createClient } from '@supabase/supabase-js';
+import { motion, AnimatePresence } from "framer-motion";
 
 interface ChatMessage {
-  id: number;
+  id: number | string;
   message: string;
-  sender: 'player' | 'gre';
+  sender: 'player' | 'staff';
   sender_name: string;
   timestamp: string;
-  status: 'sent' | 'delivered' | 'read';
+  status: 'sent' | 'delivered' | 'read' | 'received';
 }
 
 interface PusherMessage {
@@ -31,7 +33,7 @@ const PushNotificationManager = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
+  const [connectionStatus, setConnectionStatus: React.Dispatch<React.SetStateAction<"connecting" | "connected" | "disconnected">>] = useState("connecting");
   const [isOpen, setIsOpen] = useState(false);
   const [pusher, setPusher] = useState<Pusher | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -301,10 +303,13 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { user, loading } = useAuth();
   const [isMinimized, setIsMinimized] = useState(false);
   const [playerData, setPlayerData] = useState<any>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const pusherRef = useRef<any>(null);
 
   // Enhanced debugging for authentication state
