@@ -80,38 +80,65 @@ export function setupDeepFixAPIs(app: Express) {
 
   // Removed original chat implementation - using override below
 
-  // Deep Fix: Chat Send API Override - Replace existing endpoint
+  // Deep Fix: Chat Send API - Unified format with snake_case
   app.post("/api/unified-chat/send", async (req, res) => {
     try {
-      const { playerId, playerName, message, timestamp } = req.body;
+      const { player_id, player_name, message, timestamp, gre_id } = req.body;
       
-      if (!playerId || !playerName || !message) {
+      console.log('📝 [UNIFIED CHAT] Received payload:', JSON.stringify(req.body, null, 2));
+      
+      if (!player_id || !player_name || !message) {
+        console.log('❌ [UNIFIED CHAT] Missing fields:', { player_id, player_name, message: !!message });
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      console.log(`📤 [DEEP FIX CHAT OVERRIDE] Message from ${playerName} (${playerId}): ${message}`);
+      console.log(`📤 [UNIFIED CHAT] Message from ${player_name} (${player_id}): ${message}`);
 
       const messageTimestamp = timestamp || new Date().toISOString();
 
-      // Create successful response
-      const savedMessage = {
-        id: `msg_${Date.now()}`,
-        session_id: `session_${playerId}`,
-        player_id: parseInt(playerId),
-        player_name: playerName,
-        message: message,
-        sender: 'player',
-        sender_name: playerName,
-        timestamp: messageTimestamp,
-        status: 'sent',
-        created_at: messageTimestamp
-      };
+      // Store in unified chat system (push_notifications table)
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
 
-      console.log('✅ [DEEP FIX CHAT OVERRIDE] Message processed successfully');
-      res.json({ success: true, data: savedMessage });
+      const { data: savedMessage, error } = await supabase
+        .from('push_notifications')
+        .insert([{
+          title: 'Player Message',
+          message: message,
+          target_audience: 'staff_portal',
+          sent_by: `player_${player_id}@pokerroom.com`,
+          sent_by_name: player_name,
+          sent_by_role: 'player',
+          delivery_status: 'sent',
+          created_at: messageTimestamp,
+          sent_at: messageTimestamp
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ [UNIFIED CHAT] Database error:', error);
+        return res.status(500).json({ error: 'Failed to save message' });
+      }
+
+      console.log('✅ [UNIFIED CHAT] Message saved successfully');
+      res.json({ 
+        success: true, 
+        data: {
+          id: savedMessage.id,
+          message: savedMessage.message,
+          sender: 'player',
+          sender_name: player_name,
+          timestamp: savedMessage.created_at,
+          status: 'sent'
+        }
+      });
 
     } catch (error) {
-      console.error('❌ [DEEP FIX CHAT OVERRIDE] Error:', error);
+      console.error('❌ [UNIFIED CHAT] Error:', error);
       res.status(500).json({ error: "Failed to send message" });
     }
   });

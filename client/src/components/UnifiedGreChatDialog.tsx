@@ -151,11 +151,11 @@ export default function UnifiedGreChatDialog({ isOpen, onClose }: UnifiedGreChat
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          playerId: playerId,
-          playerName: playerName,
+          player_id: parseInt(playerId),
+          player_name: playerName,
           message: messageText,
           timestamp: new Date().toISOString(),
-          channel: 'player-portal'
+          gre_id: null
         }),
       });
 

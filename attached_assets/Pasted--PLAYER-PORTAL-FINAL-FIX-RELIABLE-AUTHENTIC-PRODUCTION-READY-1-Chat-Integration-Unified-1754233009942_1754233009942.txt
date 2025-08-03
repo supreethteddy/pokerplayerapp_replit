@@ -1,0 +1,58 @@
+# 🎯 PLAYER PORTAL FINAL FIX – RELIABLE, AUTHENTIC, PRODUCTION-READY
+
+**1. Chat Integration (UnifiedGreChatDialog.tsx)**
+- **Ensure env**: `.env.local` has VITE_PUSHER_KEY and VITE_PUSHER_CLUSTER set and made available at build/runtime.
+- **Always initialize Pusher** using those env vars—show a visible “Chat unavailable, misconfigured” message if missing.
+- **Fix subscription**: On open, subscribe to `player-${playerId}` Pusher channel.
+- **Implement real send**: POST messages to `/api/unified-chat/send` (or the correct registered unified chat endpoint), always with:
+{
+"player_id": <int>,
+"player_name": "<name>",
+"message": "<text>",
+"timestamp": "<ISO8601>",
+"gre_id": null
+}
+
+text
+- **Re-enable Enter key and button send**: Both must call the same message sender function.
+- **On new message**, update chat window, scroll to bottom, and trigger OneSignal device notification if applicable.
+- **Frontend mapping**: All IDs/columns in snake_case. Don’t use camelCase in POST/DB.
+- **Error handling**: If POST fails or Pusher disconnects, show UI error.
+
+**2. Offers Carousel (OfferCarousel.tsx)**
+- **Source all offers** from the canonical `offer_banners` Supabase table.
+- Use the `banner_image_url`, `offer_description`, and any staff-defined `title`.
+- When no image or URL is broken, hide or show “Image unavailable” placeholder.
+- Remove all legacy/demo/mocked offer sources.
+- Ensure frontend and backend agree on column names. Display only rows actually in Supabase.
+
+**3. Tables, Tournaments, Waitlists**
+- Tables and tournaments must be fetched by UUID, never INT. Update all code and API to reflect this.
+- Waitlist join API must POST:
+{
+"player_id": <int>,
+"table_id": "<uuid>",
+"preferred_seat": <int>
+}
+
+text
+- Remove any conversion/legacy code that expects INT table IDs.
+- Table stats (players, avg stack, etc.) must not auto-increment; display as-is from DB.
+
+**4. Supabase**
+- All production queries use unified tables (`tables`, `offer_banners`, `seat_requests`, etc.) and respect column names/case/UUID vs INT type.
+
+**
+
+**5. KYC and Account**
+- KYC document fetch uses correct Supabase Storage link, joined with `kyc_documents`.
+- URLs constructed from storage public/signed URLs—never hardcoded.
+
+**6. Error Feedback**
+- All API failures, Supabase/Pusher failures, or unhandled data states show visible error to user.
+
+---
+
+> **Never use any mock/demo data. All views reflect only current, live Supabase/Postgres state. All components and endpoints are unified, using current column names, UUIDs, and “snake_case” only.**
+
+---
