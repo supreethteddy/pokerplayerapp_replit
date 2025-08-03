@@ -388,11 +388,15 @@ export function registerRoutes(app: Express) {
     try {
       console.log('🎁 [OFFERS API] Returning verified offers data...');
       
-      const storage = req.app.get('storage') as any;
-      
       console.log('🚀 [OFFERS API PRODUCTION] Fetching live offers from Supabase...');
       
-      const { data: realOffers, error } = await storage.supabase
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      
+      const { data: realOffers, error } = await supabase
         .from('staff_offers')
         .select('*')
         .order('created_at', { ascending: false });

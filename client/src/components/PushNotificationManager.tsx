@@ -31,7 +31,7 @@ interface NotificationPopupProps {
   onDismiss: (id: number) => void;
 }
 
-const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onDismiss }: { notification: any, onDismiss: () => void }) => {
+const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onDismiss }) => {
   const [isVisible, setIsVisible] = useState(true);
 
   // Auto-dismiss after delay based on priority
@@ -45,11 +45,11 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onD
 
     const timer = setTimeout(() => {
       setIsVisible(false);
-      setTimeout(() => onDismiss(notification.id), 300);
-    }, dismissDelay[notification.priority]);
+      setTimeout(() => onDismiss(notification?.id || 0), 300);
+    }, dismissDelay[notificationPriority]);
 
     return () => clearTimeout(timer);
-  }, [notification.id, notification.priority, onDismiss]);
+  }, [notification?.id, notificationPriority, onDismiss]);
 
   const priorityConfig = {
     low: { 
@@ -74,7 +74,8 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onD
     }
   };
 
-  const config = priorityConfig[notification.priority] || priorityConfig.normal;
+  const notificationPriority = notification?.priority || 'normal';
+  const config = priorityConfig[notificationPriority as keyof typeof priorityConfig] || priorityConfig.normal;
   const IconComponent = config.icon;
 
   return (
@@ -96,7 +97,7 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onD
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
                     <h4 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                      {notification.title}
+                      {notification?.title || 'Notification'}
                     </h4>
                     <Button
                       size="sm"
@@ -104,24 +105,24 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onD
                       className="h-6 w-6 p-0 hover:bg-gray-200 dark:hover:bg-gray-700"
                       onClick={() => {
                         setIsVisible(false);
-                        setTimeout(() => onDismiss(notification.id), 300);
+                        setTimeout(() => onDismiss(notification?.id || 0), 300);
                       }}
                     >
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
                   <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
-                    {notification.message}
+                    {notification?.message || 'No message'}
                   </p>
                   <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
                     <span className="font-medium">
-                      {notification.senderName} ({notification.senderRole})
+                      {notification?.senderName || 'Unknown'} ({notification?.senderRole || 'System'})
                     </span>
                     <span className="uppercase font-bold text-xs">
-                      {notification.priority}
+                      {notificationPriority.toUpperCase()}
                     </span>
                   </div>
-                  {notification.mediaUrl && (
+                  {notification?.mediaUrl && (
                     <div className="mt-2">
                       <img 
                         src={notification.mediaUrl} 
