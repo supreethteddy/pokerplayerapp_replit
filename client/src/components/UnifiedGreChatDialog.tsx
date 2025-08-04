@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, MessageCircle, X, Minimize2 } from "lucide-react";
+import { Send, MessageCircle, X, Minimize2, History, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { createClient } from '@supabase/supabase-js';
 import { motion, AnimatePresence } from "framer-motion";
@@ -33,6 +33,7 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [showingHistory, setShowingHistory] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [playerData, setPlayerData] = useState<any>(null);
@@ -272,6 +273,33 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
     }
   };
 
+  const clearChatHistory = async () => {
+    if (!playerId || !confirm('Are you sure you want to clear all chat history? This cannot be undone.')) return;
+    
+    try {
+      setIsLoading(true);
+      const response = await fetch(`/api/unified-chat/clear/${playerId}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        setMessages([]);
+        console.log('✅ [CLEAR] Chat history cleared successfully');
+      } else {
+        console.error('❌ [CLEAR] Failed to clear chat history:', response.status);
+      }
+    } catch (error) {
+      console.error('❌ [CLEAR] Error clearing chat history:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const showChatHistory = () => {
+    setShowingHistory(!showingHistory);
+    console.log(`📚 [HISTORY] ${showingHistory ? 'Hiding' : 'Showing'} chat history view`);
+  };
+
   const sendMessage = async () => {
     if (!newMessage.trim() || !playerId || !playerName) {
       console.log('❌ [SEND] Missing required data:', { playerId, playerName, message: newMessage.trim() });
@@ -369,6 +397,25 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
                 }`} title={`Connection: ${connectionStatus}`} />
               </div>
               <div className="flex items-center space-x-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={showChatHistory}
+                  className="text-white hover:bg-green-700 p-1 h-6 w-6"
+                  title="View Chat History"
+                >
+                  <History className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearChatHistory}
+                  className="text-white hover:bg-red-700 p-1 h-6 w-6"
+                  title="Clear Chat History"
+                  disabled={isLoading}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"

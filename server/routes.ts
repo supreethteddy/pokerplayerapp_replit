@@ -60,7 +60,32 @@ export function registerRoutes(app: Express) {
         senderType: senderType
       };
       
-      console.log('⚡ [MICROSECOND CHAT] Skipping database - Pure Pusher delivery for speed');
+      // Save message to proper chat_messages table for persistence
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { data: dbMessage, error: saveError } = await supabase
+        .from('chat_messages')
+        .insert({
+          player_id: playerId,
+          sender_name: playerName || `Player ${playerId}`,
+          sender: senderType,
+          message_text: message,
+          status: 'sent'
+        })
+        .select()
+        .single();
+
+      if (saveError) {
+        console.error('❌ [CHAT SYSTEM] Database save failed:', saveError);
+        // Continue with Pusher even if database fails
+      } else {
+        console.log('✅ [CHAT SYSTEM] Message saved to database with ID:', dbMessage.id);
+        savedMessage.id = dbMessage.id; // Use database ID
+      }
 
       // Real-time notification via Pusher
       try {
@@ -165,11 +190,11 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Get Chat Messages - PRODUCTION READY
+  // Get Chat Messages - FIXED TO USE CORRECT TABLE
   app.get("/api/unified-chat/messages/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
-      console.log(`📋 [UNIFIED CHAT] Getting messages for player: ${playerId}`);
+      console.log(`📋 [CHAT SYSTEM] Getting messages for player: ${playerId}`);
 
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
@@ -177,34 +202,66 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      // Get messages from push_notifications table - Simple query
+      // Get messages from correct chat_messages table
       const { data: messages, error } = await supabase
-        .from('push_notifications')
-        .select('id, title, message, created_at, sent_by, sent_by_name, sent_by_role, delivery_status')
+        .from('chat_messages')
+        .select('id, player_id, sender_name, sender, message_text, status, created_at')
+        .eq('player_id', playerId)
         .order('created_at', { ascending: true });
 
       if (error) {
-        console.error('❌ [UNIFIED CHAT] Error fetching messages:', error);
-        // Continue with empty messages instead of failing
-        console.log('⚠️ [UNIFIED CHAT] Continuing with empty messages due to fetch error');
+        console.error('❌ [CHAT SYSTEM] Error fetching messages:', error);
+        return res.status(500).json({ error: 'Failed to fetch messages' });
       }
 
-      // Transform messages to unified format with correct sender logic
+      // Transform messages to frontend format
       const transformedMessages = (messages || []).map(msg => ({
         id: msg.id,
-        message: msg.message,
-        sender: msg.sent_by_role === 'player' ? 'player' : 'gre',
-        sender_name: msg.sent_by_name || msg.sent_by,
+        message: msg.message_text,
+        sender: msg.sender === 'player' ? 'player' : 'staff',
+        sender_name: msg.sender_name || 'System',
         timestamp: msg.created_at,
-        status: msg.delivery_status || 'sent'
+        status: msg.status || 'sent'
       }));
 
-      console.log(`✅ [UNIFIED CHAT] Retrieved ${transformedMessages.length} messages for player ${playerId}`);
+      console.log(`✅ [CHAT SYSTEM] Retrieved ${transformedMessages.length} messages for player ${playerId}`);
       res.json(transformedMessages);
 
     } catch (error) {
-      console.error('❌ [UNIFIED CHAT] Error loading messages:', error);
+      console.error('❌ [CHAT SYSTEM] Error loading messages:', error);
       res.status(500).json({ error: 'Failed to load messages' });
+    }
+  });
+
+  // Clear Chat History - NEW FEATURE
+  app.delete("/api/unified-chat/clear/:playerId", async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      console.log(`🗑️ [CHAT SYSTEM] Clearing chat history for player: ${playerId}`);
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Delete all messages for this player
+      const { error } = await supabase
+        .from('chat_messages')
+        .delete()
+        .eq('player_id', playerId);
+
+      if (error) {
+        console.error('❌ [CHAT SYSTEM] Error clearing chat history:', error);
+        return res.status(500).json({ error: 'Failed to clear chat history' });
+      }
+
+      console.log(`✅ [CHAT SYSTEM] Chat history cleared for player ${playerId}`);
+      res.json({ success: true, message: 'Chat history cleared successfully' });
+
+    } catch (error) {
+      console.error('❌ [CHAT SYSTEM] Error clearing chat history:', error);
+      res.status(500).json({ error: 'Failed to clear chat history' });
     }
   });
 
