@@ -2591,31 +2591,18 @@ function PlayerDashboard() {
         </Tabs>
         </div>
 
-        {/* Floating Chat Bubble - Bottom Right Corner */}
-        {!unifiedChatOpen && (
-          <div 
-            className="fixed bottom-6 right-6 z-50"
-            onClick={() => setUnifiedChatOpen(true)}
-          >
-            <div className="relative">
-              <div className="bg-emerald-500 hover:bg-emerald-600 w-14 h-14 rounded-full shadow-lg cursor-pointer flex items-center justify-center transition-all duration-200 animate-pulse">
-                <MessageCircle className="w-6 h-6 text-white" />
-              </div>
-              {unifiedChatMessages && unifiedChatMessages.length > 0 && (
-                <div className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-semibold">
-                  {unifiedChatMessages.length}
-                </div>
-              )}
-            </div>
+
+
+        {/* Unified GRE Chat Dialog - Only in Feedback Tab */}
+        {activeTab === "feedback" && (
+          <div className="fixed bottom-4 right-4 z-50">
+            <UnifiedGreChatDialog_Fixed 
+              isOpen={unifiedChatOpen}
+              onOpenChange={setUnifiedChatOpen}
+              onMessagesUpdate={setUnifiedChatMessages}
+            />
           </div>
         )}
-
-        {/* Unified GRE Chat Dialog - Fixed Component */}
-        <UnifiedGreChatDialog_Fixed 
-          isOpen={unifiedChatOpen}
-          onOpenChange={setUnifiedChatOpen}
-          onMessagesUpdate={setUnifiedChatMessages}
-        />
 
       </div>
     );
