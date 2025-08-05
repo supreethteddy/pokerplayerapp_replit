@@ -52,7 +52,7 @@ import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
-import PlayerChatSystem from "./PlayerChatSystem";
+// PlayerChatSystem removed - using original Open Chat UI
 
 
 // Scrollable Offers Display Component
@@ -2583,13 +2583,7 @@ function PlayerDashboard() {
 
 
 
-        {/* Staff Portal Integration Chat System - Always Available */}
-        <div className="fixed bottom-4 right-4 z-50">
-          <PlayerChatSystem 
-            playerId={user?.id || 0}
-            playerName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim()}
-          />
-        </div>
+        {/* Original Open Chat Dialog - Restored with bidirectional logic */}
 
       </div>
     );
