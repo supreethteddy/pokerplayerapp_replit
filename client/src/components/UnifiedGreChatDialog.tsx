@@ -113,9 +113,17 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({
       try {
         const Pusher = (await import('pusher-js')).default;
 
-        const pusher = new Pusher('81b98cb04ef7aeef2baa', {
-          cluster: 'ap2',
-          forceTLS: true
+        // Use environment variables for Pusher configuration
+        const pusherKey = import.meta.env.VITE_PUSHER_KEY || '81b98cb04ef7aeef2baa';
+        const pusherCluster = import.meta.env.VITE_PUSHER_CLUSTER || 'ap2';
+        
+        console.log('🔍 [PUSHER] Environment variables:', { pusherKey, pusherCluster });
+        
+        const pusher = new Pusher(pusherKey, {
+          cluster: pusherCluster,
+          forceTLS: true,
+          enabledTransports: ['ws', 'wss'],
+          disabledTransports: []
         });
 
         // Store pusher reference for cleanup
@@ -261,6 +269,16 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({
         });
 
         console.log(`✅ [PUSHER] Connected to player-${playerId} and staff-portal channels`);
+
+        // Add cleanup function
+        return () => {
+          if (pusherRef.current) {
+            console.log('🧹 [PUSHER] Cleaning up connections');
+            pusherRef.current.unsubscribe(`player-${playerId}`);
+            pusherRef.current.unsubscribe('staff-portal');
+            pusherRef.current.disconnect();
+          }
+        };
 
       } catch (error) {
         console.error('❌ [PUSHER] Connection failed:', error);
