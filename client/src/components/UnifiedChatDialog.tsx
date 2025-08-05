@@ -127,9 +127,9 @@ const UnifiedChatDialog: React.FC<UnifiedChatDialogProps> = ({
       }
     };
     
-    // Listen for all message event types
+    // Listen for all message event types (based on Staff Portal integration guide)
+    playerChannel.bind('new-staff-message', handleIncomingMessage); // Primary channel from Staff Portal
     playerChannel.bind('chat-message-received', handleIncomingMessage);
-    playerChannel.bind('new-staff-message', handleIncomingMessage);
     playerChannel.bind('new-message', handleIncomingMessage);
     
     // Listen for staff channel broadcasts
@@ -185,15 +185,16 @@ const UnifiedChatDialog: React.FC<UnifiedChatDialogProps> = ({
     
     setIsSending(true);
     try {
-      console.log('📤 [UNIFIED CHAT] Sending message:', newMessage);
+      console.log('📤 [UNIFIED CHAT] Sending message to Staff Portal:', newMessage);
       const response = await fetch('/api/player-chat-integration/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          playerId: parseInt(playerId.toString()),
+          sessionId: `session-${playerId}`,
+          playerId: playerId,
           playerName: playerName,
           message: newMessage,
-          isFromPlayer: true
+          messageType: 'text'
         })
       });
 
