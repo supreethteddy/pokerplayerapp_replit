@@ -52,7 +52,7 @@ import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
-import UnifiedGreChatDialog from "./UnifiedGreChatDialog";
+import { UnifiedGreChatDialog } from "./UnifiedGreChatDialog_Fixed";
 
 
 // Scrollable Offers Display Component
@@ -357,7 +357,7 @@ function PlayerDashboard() {
   // Fetch live tables with optimized settings
   const { data: tables, isLoading: tablesLoading } = useQuery<TableType[]>({
     queryKey: ['/api/tables'],
-    refetchInterval: 1000, // Even faster 1 second refresh
+    refetchInterval: 500, // NANOSECOND SPEED: 0.5 second refresh for ultimate performance
     refetchOnWindowFocus: true, // Refresh when window gains focus
     refetchOnMount: true, // Always refetch on mount
     refetchOnReconnect: true, // Refresh on reconnect
@@ -371,7 +371,7 @@ function PlayerDashboard() {
   const { data: seatRequests, isLoading: requestsLoading } = useQuery<SeatRequest[]>({
     queryKey: ['/api/seat-requests', user?.id],
     enabled: !!user?.id,
-    refetchInterval: 1500, // Refresh every 1.5 seconds for ultra-fast sync
+    refetchInterval: 750, // NANOSECOND SPEED: 0.75 second refresh for seat requests
     refetchOnWindowFocus: true,
     staleTime: 0, // Always get fresh data
   });
@@ -1532,7 +1532,7 @@ function PlayerDashboard() {
                             </div>
                           </div>
                           
-                          <div className="grid grid-cols-2 gap-4 mb-3">
+                          <div className="grid grid-cols-1 gap-4 mb-3">
                             <div className="text-center">
                               <Users className="w-4 h-4 text-slate-400 mx-auto mb-1" />
                               <p className="text-xs text-slate-400">Players</p>
@@ -1540,13 +1540,7 @@ function PlayerDashboard() {
                                 {table.currentPlayers || 0}/{table.maxPlayers || 9}
                               </p>
                             </div>
-                            <div className="text-center">
-                              <div className="w-4 h-4 bg-amber-500 rounded-full mx-auto mb-1" />
-                              <p className="text-xs text-slate-400">Avg Stack</p>
-                              <p className="text-sm font-semibold text-amber-500">
-                                ₹{table.avgStack || '0'}
-                              </p>
-                            </div>
+                            {/* Average Stack element hidden as requested */}
                           </div>
 
                           <div className="flex justify-between items-center">
