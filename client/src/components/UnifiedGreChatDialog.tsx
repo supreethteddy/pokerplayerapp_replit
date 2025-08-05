@@ -24,9 +24,16 @@ interface ChatMessage {
 interface UnifiedGreChatDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  externalMessages?: any[];
+  onMessagesUpdate?: (messages: any[]) => void;
 }
 
-const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onClose }) => {
+const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ 
+  isOpen, 
+  onClose, 
+  externalMessages = [], 
+  onMessagesUpdate 
+}) => {
   const { user, loading } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -201,11 +208,33 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
     initializePusher();
   }, [isOpen, playerId]);
 
-  // Load existing messages ONLY ONCE when chat opens
+  // Sync with external messages from PlayerDashboard WebSocket
+  useEffect(() => {
+    if (externalMessages && externalMessages.length > 0) {
+      console.log('🔄 [SYNC] Syncing with external messages:', externalMessages.length);
+      
+      const formattedMessages: ChatMessage[] = externalMessages.map((msg: any, index: number) => ({
+        id: msg.id || `external-${index}-${Date.now()}`,
+        message: msg.message,
+        sender: msg.sender === 'gre' ? 'staff' : 'player',
+        sender_name: msg.sender_name || 'System',
+        timestamp: msg.timestamp,
+        status: msg.status || 'received'
+      }));
+
+      setMessages(formattedMessages);
+      console.log('✅ [SYNC] Messages synced from PlayerDashboard WebSocket');
+      
+      // Scroll to bottom when messages update
+      setTimeout(() => scrollToBottom(), 100);
+    }
+  }, [externalMessages]);
+
+  // Load existing messages ONLY ONCE when chat opens and no external messages
   const messagesLoadedRef = useRef(false);
   
   useEffect(() => {
-    if (!isOpen || !playerId || messagesLoadedRef.current) return;
+    if (!isOpen || !playerId || messagesLoadedRef.current || (externalMessages && externalMessages.length > 0)) return;
 
     const loadMessages = async () => {
       try {
@@ -236,7 +265,7 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({ isOpen, onC
     };
 
     loadMessages();
-  }, [isOpen, playerId]);
+  }, [isOpen, playerId, externalMessages]);
 
   // Reset loaded flag when chat closes to allow fresh load next time
   useEffect(() => {

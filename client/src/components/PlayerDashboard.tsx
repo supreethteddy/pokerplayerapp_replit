@@ -2593,6 +2593,8 @@ function PlayerDashboard() {
         <UnifiedGreChatDialog 
           isOpen={unifiedChatOpen}
           onClose={() => setUnifiedChatOpen(false)}
+          externalMessages={unifiedChatMessages}
+          onMessagesUpdate={setUnifiedChatMessages}
         />
 
       </div>
