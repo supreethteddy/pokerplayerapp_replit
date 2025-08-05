@@ -107,9 +107,14 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({
   console.log('🔍 [AUTH DEBUG] PlayerData source:', playerData ? 'direct API' : 'useAuth');
   console.log('🔍 [AUTH DEBUG] Loading state:', loading);
 
-  // Initialize Pusher connection for real-time messaging
+  // Initialize Pusher connection for real-time messaging - ALWAYS ACTIVE
   useEffect(() => {
-    if (!isOpen || !playerId) return;
+    if (!playerId) {
+      console.log('🔥 [NUCLEAR] No playerId, skipping Pusher initialization');
+      return;
+    }
+    
+    console.log('🔥 [NUCLEAR] Initializing Pusher for playerId:', playerId, 'Chat open:', isOpen);
 
     const initializePusher = async () => {
       try {
@@ -200,7 +205,8 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({
             console.log('🔥 [NUCLEAR] Auto-opening chat for incoming message');
             onOpenChange(true);
           } else if (!isOpen) {
-            console.log('🔥 [NUCLEAR] No onOpenChange callback - implementing direct DOM force');
+            console.log('🔥 [NUCLEAR] WARNING: Chat is closed, message added but not visible!');
+            console.log('🔥 [NUCLEAR] User must manually open chat to see messages');
           }
 
           setMessages(prev => {
@@ -212,14 +218,32 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({
               return prev;
             }
             
-            console.log('🚀 [NANOSECOND] INSTANT UI UPDATE - Message added');
+            console.log('🚀 [NUCLEAR] INSTANT UI UPDATE - Message added');
+            console.log('🚀 [NUCLEAR] Previous messages count:', prev.length);
+            console.log('🚀 [NUCLEAR] New message being added:', newMsg);
             const updated = [...prev, newMsg];
+            console.log('🚀 [NUCLEAR] Updated messages count:', updated.length);
+            console.log('🚀 [NUCLEAR] All messages after update:', updated);
             
-            // FORCE RE-RENDER IMMEDIATELY
+            // FORCE RE-RENDER IMMEDIATELY WITH MULTIPLE APPROACHES
             setTimeout(() => {
               scrollToBottom();
-              console.log('🚀 [NANOSECOND] Message count after update:', updated.length);
+              console.log('🚀 [NUCLEAR] Scroll triggered, final count:', updated.length);
             }, 0);
+            
+            // ALSO FORCE EXTERNAL CALLBACK UPDATE
+            if (onMessagesUpdate) {
+              console.log('🚀 [NUCLEAR] Triggering external message update callback');
+              onMessagesUpdate(updated.map(msg => ({
+                id: msg.id,
+                player_id: playerId,
+                message: msg.message,
+                sender: msg.sender === 'staff' ? 'gre' : 'player',
+                sender_name: msg.sender_name,
+                timestamp: msg.timestamp,
+                status: msg.status
+              })));
+            }
             
             return updated;
           });
@@ -244,12 +268,13 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({
               status: 'received'
             };
 
-            // FORCE CHAT OPEN IMMEDIATELY WHEN MESSAGE ARRIVES - NUCLEAR IMPLEMENTATION
+            // FORCE CHAT OPEN IMMEDIATELY WHEN MESSAGE ARRIVES - NUCLEAR IMPLEMENTATION  
             if (!isOpen && onOpenChange) {
               console.log('🔥 [NUCLEAR] Auto-opening chat for staff message');
               onOpenChange(true);
             } else if (!isOpen) {
-              console.log('🔥 [NUCLEAR] Chat closed - forcing open via direct manipulation');
+              console.log('🔥 [NUCLEAR] WARNING: Staff message received but chat is closed!');
+              console.log('🔥 [NUCLEAR] User must manually open chat to see messages');
             }
 
             setMessages(prev => {
@@ -261,11 +286,16 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({
                 return prev;
               }
               
-              console.log('🚀 [NANOSECOND] INSTANT STAFF MESSAGE DISPLAY');
+              console.log('🚀 [NUCLEAR] INSTANT STAFF MESSAGE DISPLAY');
+              console.log('🚀 [NUCLEAR] Staff channel - Previous messages:', prev.length);
+              console.log('🚀 [NUCLEAR] Staff channel - New message:', newMsg);
               const updated = [...prev, newMsg];
+              console.log('🚀 [NUCLEAR] Staff channel - Updated count:', updated.length);
+              console.log('🚀 [NUCLEAR] Staff channel - All messages:', updated);
               
               // Also update external messages if callback provided
               if (onMessagesUpdate) {
+                console.log('🚀 [NUCLEAR] Staff channel - Triggering external callback');
                 onMessagesUpdate(updated.map(msg => ({
                   id: msg.id,
                   player_id: playerId,
@@ -280,7 +310,7 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({
               // IMMEDIATE VISUAL FEEDBACK
               setTimeout(() => {
                 scrollToBottom();
-                console.log('🚀 [NANOSECOND] Message displayed instantly, count:', updated.length);
+                console.log('🚀 [NUCLEAR] Staff message scroll triggered, final count:', updated.length);
               }, 0);
               
               return updated;
@@ -572,6 +602,9 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({
             <CardContent className="p-0">
               <ScrollArea className="h-64 p-4">
                 <div className="space-y-4">
+                  <div className="text-xs text-center text-blue-400 mb-2 bg-blue-900/20 p-2 rounded">
+                    💬 {messages.length} message{messages.length !== 1 ? 's' : ''} • Player {playerId} • Real-time active
+                  </div>
                   {messages.length === 0 ? (
                     <div className="text-center text-gray-500 text-sm py-8">
                       <MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />

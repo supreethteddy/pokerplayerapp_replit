@@ -2582,6 +2582,11 @@ function PlayerDashboard() {
                       >
                         <MessageCircle className="w-5 h-5 mr-2" />
                         Start Chat Conversation
+                        {unifiedChatMessages && unifiedChatMessages.length > 0 && (
+                          <span className="ml-2 bg-red-500 text-white rounded-full px-2 py-1 text-xs">
+                            {unifiedChatMessages.length}
+                          </span>
+                        )}
                       </Button>
                     </div>
                   </CardContent>
