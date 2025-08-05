@@ -109,10 +109,10 @@ export function UnifiedGreChatDialog_Fixed({
           console.log('🚀 [CHAT NUCLEAR] 📨 PLAYER CHANNEL MESSAGE RECEIVED:', data);
           
           const newMsg: ChatMessage = {
-            id: data.messageId || `player-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            id: data.messageId || `gre-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             message: data.message,
             sender: 'staff',
-            sender_name: data.senderName || data.sender_name || 'Guest Relations',
+            sender_name: data.senderName || data.sender_name || 'Guest Relations Executive',
             timestamp: data.timestamp || new Date().toISOString(),
             status: 'received'
           };

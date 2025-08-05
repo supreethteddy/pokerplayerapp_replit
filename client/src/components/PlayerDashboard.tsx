@@ -52,7 +52,7 @@ import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
-import { EnhancedChatDialog } from "./EnhancedChatDialog";
+import { UnifiedGreChatDialog_Fixed } from "./UnifiedGreChatDialog_Fixed";
 
 
 // Scrollable Offers Display Component
@@ -2593,10 +2593,10 @@ function PlayerDashboard() {
 
 
 
-        {/* Enhanced Chat Dialog - Only in Feedback Tab */}
+        {/* Unified GRE Chat Dialog - Only in Feedback Tab */}
         {activeTab === "feedback" && (
           <div className="fixed bottom-4 right-4 z-50">
-            <EnhancedChatDialog 
+            <UnifiedGreChatDialog_Fixed 
               isOpen={unifiedChatOpen}
               onOpenChange={setUnifiedChatOpen}
               onMessagesUpdate={setUnifiedChatMessages}
