@@ -2574,7 +2574,7 @@ function PlayerDashboard() {
                       </p>
                       <div className="text-emerald-400 text-sm font-medium">
                         <MessageCircle className="w-5 h-5 mr-2 inline" />
-                        Chat available in bottom-right corner
+                        Real-time support available
                       </div>
                     </div>
                   </CardContent>

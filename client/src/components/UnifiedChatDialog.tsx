@@ -3,7 +3,7 @@ import Pusher from 'pusher-js';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageCircle, X, Send } from 'lucide-react';
+import { MessageCircle, X, Send, Trash2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 
 interface UnifiedChatDialogProps {
@@ -39,6 +39,16 @@ const UnifiedChatDialog: React.FC<UnifiedChatDialogProps> = ({
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Clear chat function
+  const clearChat = () => {
+    setMessages([]);
+    setSessionStatus('none');
+    toast({
+      title: "Chat Cleared",
+      description: "All messages have been cleared from this session"
+    });
   };
 
   useEffect(() => {
@@ -278,6 +288,19 @@ const UnifiedChatDialog: React.FC<UnifiedChatDialogProps> = ({
                 </div>
               </div>
             </div>
+            
+            {/* Clear Chat Button */}
+            {messages.length > 0 && (
+              <Button
+                onClick={clearChat}
+                variant="outline"
+                size="sm"
+                className="ml-auto border-gray-300 dark:border-gray-600 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-300 dark:hover:border-red-600"
+                title="Clear Chat History"
+              >
+                <Trash2 className="w-4 h-4 text-red-500 dark:text-red-400" />
+              </Button>
+            )}
           </div>
         </DialogHeader>
 
