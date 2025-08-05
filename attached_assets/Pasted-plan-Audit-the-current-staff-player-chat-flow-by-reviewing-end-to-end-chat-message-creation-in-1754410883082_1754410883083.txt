@@ -1,0 +1,28 @@
+plan:
+  - Audit the current staff→player chat flow by reviewing end-to-end: chat message creation in the staff portal, how/if it is written to Supabase (or your DB), and how/if it is broadcast via Pusher to all intended recipients.
+  - Review the player portal's chat receive logic: Check if chat messages are successfully fetched from Supabase, if Pusher events are wired to chat state, and the code responsible for inserting new inbound messages into the UI.
+  - Trace notification logic: Confirm if messages are only arriving as notifications (via OneSignal or custom logic) and **not** being displayed in the chat feed—identify the code path responsible for this routing.
+  - Add detailed logs at each dispatch and receive step (staff portal, Supabase writes, Pusher events, Player portal message handler, notification system) to isolate where the message is lost or not rendered.
+  - Check Supabase database rules/permissions for the chat table to ensure staff→player messages can be read by player-role users (and that relevant rows/fields are visible based on roles).
+  - Review any conditional rendering/UI state code in the player portal for chat, ensuring it distinguishes between notification-only and chat-feed display, and that a valid message always enters the feed if meant to be shown.
+  - Patch ONLY the root cause: Update backend/frontend logic so staff-initiated chat messages are properly read from Supabase (or arrive via Pusher) and rendered in the chat feed for players, with role-aware display rules.
+  - Write integration and UI tests for staff→player and player→staff chat, including for edge cases where messages only trigger notifications.
+  - Propose screenshots showing: (1) Problem state (notification only), (2) Resolved state (message in chat feed), and (3) Chat DB rows for relevant messages.
+  - Invite iterative feedback with suggested further improvements (e.g., improved read receipts, admin audit, escalation to mod if chats persistently fail).
+
+purpose: >
+  Diagnose and permanently resolve the breakdown in staff→player messaging where chats appear only as notifications, not in the chat interface, while preserving all other chat, notification, and UI features. This ensures seamless, bi-directional staff–player communication and preserves critical gaming community functionality.
+
+constraints:
+  - Do NOT alter or disrupt any other chat flows, UI elements, or notification logic outside of staff→player chat feed rendering.
+  - Preserve all user-role and message visibility rules in the current chat schema.
+  - Do not downgrade notifications—players should still receive them per platform rules, but chat messages must always be rendered if intended.
+  - No schema changes to chat tables unless absolutely required to fix indecipherable field mapping; otherwise, only code logic may be patched.
+  - All fixes must be written as permanent, production-grade code with comments and test coverage.
+  - Stop after patching and documenting code and test changes; do not deploy to production without explicit review and approval.
+
+approval: >
+  Pause after isolating the issue, applying the fix, and summarizing all changes with screenshots and test/demo output. Wait for explicit approval before deploying or releasing to production.
+
+execute: >
+  Apply and verify the tested fix ONLY after approval, and run all chat and notification related tests to ensure no regressions. If errors arise, produce the full stack trace and debug specifics, avoiding changes to already functioning features, and iterate until the fix is production-ready.

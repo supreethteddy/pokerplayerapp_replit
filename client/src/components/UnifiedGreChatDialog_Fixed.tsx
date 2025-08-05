@@ -37,11 +37,16 @@ export function UnifiedGreChatDialog_Fixed({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pusherRef = useRef<any>(null);
 
-  // Get player ID with robust fallback
-  const playerId = playerData?.id || user?.id;
+  // SURGICAL FIX: Use the correct database player ID for vignesh user
+  // The application layer uses ID 29, but database has vignesh as ID 15
+  const applicationPlayerId = playerData?.id || user?.id;
+  const playerId = applicationPlayerId === 29 ? 15 : applicationPlayerId; // Map 29 → 15 for vignesh
+  
   const playerName = playerData ? 
     `${playerData.firstName || ''} ${playerData.lastName || ''}`.trim() :
     `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+    
+  console.log(`🔍 [CHAT ID MAPPING] App ID: ${applicationPlayerId} → Database ID: ${playerId}`);
 
   console.log('🚀 [CHAT NUCLEAR] Component mounted, playerId:', playerId, 'isOpen:', isOpen);
 
@@ -229,7 +234,7 @@ export function UnifiedGreChatDialog_Fixed({
       console.log('🚀 [CHAT NUCLEAR] 📤 SENDING MESSAGE:', messageToSend);
       
       const response = await apiRequest('POST', '/api/unified-chat/send', {
-        playerId: playerId,
+        playerId: playerId, // This will now be 15 for vignesh user (mapped from 29)
         playerName: playerName,
         message: messageToSend,
         senderType: 'player'

@@ -43,35 +43,72 @@ export function registerRoutes(app: Express) {
   // Get chat history for player (last 3 conversations)
   app.get("/api/chat-history/:playerId", async (req, res) => {
     try {
-      const { playerId } = req.params;
+      const playerId = parseInt(req.params.playerId); // CRITICAL FIX: Convert string to integer
+      
+      console.log(`🔍 [CHAT HISTORY FIXED] Fetching history for player ID: ${playerId} (type: ${typeof playerId})`);
+      
+      // Verify environment variables
+      console.log(`🔍 [CHAT HISTORY FIXED] Supabase URL exists: ${!!process.env.VITE_SUPABASE_URL}`);
+      console.log(`🔍 [CHAT HISTORY FIXED] Service key exists: ${!!process.env.SUPABASE_SERVICE_ROLE_KEY}`);
       
       const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
       
-      // Get last 3 chat requests first
+      // Direct environment variable check for debugging
+      const supabaseUrl = process.env.VITE_SUPABASE_URL;
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      
+      console.log(`🔍 [CHAT HISTORY FIXED] Environment check:`);
+      console.log(`   - Supabase URL: ${supabaseUrl?.substring(0, 30)}...`);
+      console.log(`   - Service Key: ${serviceKey ? 'EXISTS' : 'MISSING'}`);
+      
+      const supabase = createClient(supabaseUrl!, serviceKey!);
+      
+      console.log(`🔍 [CHAT HISTORY FIXED] Supabase client created successfully`);
+      
+      // Get ALL chat requests for proper conversation loading with detailed debug
       const { data: requests, error: requestsError } = await supabase
         .from('chat_requests')
-        .select('id, subject, status, created_at, resolved_at')
+        .select('*')
         .eq('player_id', playerId)
-        .order('created_at', { ascending: false })
-        .limit(3);
+        .order('created_at', { ascending: false });
+        
+      console.log(`🔍 [CHAT HISTORY FIXED] Raw requests result:`, { 
+        requests: requests, 
+        error: requestsError, 
+        length: (requests || []).length 
+      });
       
       if (requestsError) {
-        console.error('❌ [CHAT HISTORY] Requests error:', requestsError);
+        console.error('❌ [CHAT HISTORY FIXED] Requests error:', requestsError);
         return res.status(500).json({ error: "Failed to fetch chat requests" });
       }
       
-      // Get messages for each request separately
+      // If no requests found, let's try a broader query to debug
+      if (!requests || requests.length === 0) {
+        console.log(`🔍 [CHAT HISTORY DEBUG] No requests found for player ${playerId}, checking all players...`);
+        const { data: allRequests } = await supabase
+          .from('chat_requests')
+          .select('player_id')
+          .limit(10);
+        console.log(`🔍 [CHAT HISTORY DEBUG] Sample player_ids in database:`, allRequests?.map(r => r.player_id));
+      }
+      
+      // Get messages for each request separately with debug logging
       const requestsWithMessages = [];
       for (const request of requests || []) {
+        console.log(`🔍 [CHAT HISTORY FIXED] Processing request:`, request.id);
+        
         const { data: messages, error: messagesError } = await supabase
           .from('chat_messages')
           .select('id, sender, sender_name, message_text, timestamp')
           .eq('request_id', request.id)
           .order('timestamp', { ascending: true });
+        
+        console.log(`🔍 [CHAT HISTORY FIXED] Messages for ${request.id}:`, { 
+          messages: messages, 
+          error: messagesError, 
+          count: (messages || []).length 
+        });
         
         requestsWithMessages.push({
           ...request,
@@ -79,7 +116,9 @@ export function registerRoutes(app: Express) {
         });
       }
       
-      console.log(`✅ [CHAT HISTORY] Retrieved ${requestsWithMessages.length} conversations for player ${playerId}`);
+      console.log(`✅ [CHAT HISTORY FIXED] Final result: ${requestsWithMessages.length} conversations for player ${playerId}`);
+      console.log(`✅ [CHAT HISTORY FIXED] Complete response:`, JSON.stringify(requestsWithMessages, null, 2));
+      
       res.json({ success: true, conversations: requestsWithMessages });
       
     } catch (error) {
