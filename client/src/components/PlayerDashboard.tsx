@@ -52,7 +52,7 @@ import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
-import PlayerChatSystem from "./PlayerChatSystem";
+import UnifiedChatDialog from "./UnifiedChatDialog";
 
 
 // Scrollable Offers Display Component
@@ -337,6 +337,10 @@ function PlayerDashboard() {
   // Tournament state variables
   const [tournamentActionLoading, setTournamentActionLoading] = useState(false);
   const [showTournaments, setShowTournaments] = useState(false);
+  
+  // Unified Chat Dialog state
+  const [unifiedChatOpen, setUnifiedChatOpen] = useState(false);
+
   
   // Handle tab navigation from URL parameters
   const getActiveTabFromUrl = () => {
@@ -2583,13 +2587,13 @@ function PlayerDashboard() {
 
 
 
-        {/* Blue Button Chat System - Restored with fixed bidirectional logic */}
-        <div className="fixed bottom-4 right-4 z-50">
-          <PlayerChatSystem 
-            playerId={user?.id || 0}
-            playerName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim()}
-          />
-        </div>
+        {/* Unified Chat Dialog - Original Open Chat restored with bidirectional logic */}
+        <UnifiedChatDialog 
+          isOpen={unifiedChatOpen}
+          onOpenChange={setUnifiedChatOpen}
+          playerId={user?.id || 0}
+          playerName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim()}
+        />
 
       </div>
     );

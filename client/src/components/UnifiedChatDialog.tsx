@@ -75,34 +75,45 @@ const UnifiedChatDialog: React.FC<UnifiedChatDialogProps> = ({
     
     console.log('📡 [UNIFIED CHAT] Subscribed to channels:', `player-${playerId}`, 'staff-portal');
     
-    // Unified message handler for all message types
+    // FIXED: Unified message handler with echo prevention
     const handleIncomingMessage = (data: any) => {
       console.log('📨 [UNIFIED CHAT] Message received:', data);
+      
+      // CRITICAL FIX: Only process messages FROM STAFF, not player echoes
+      if (data.sender === 'player' && data.type === 'player-confirmation') {
+        console.log('🚫 [UNIFIED CHAT] Ignoring player echo:', data);
+        return; // Don't process player's own messages being echoed back
+      }
+      
+      // Only process staff messages or initial messages
+      if (data.sender !== 'staff' && data.type !== 'staff-to-player') {
+        console.log('🚫 [UNIFIED CHAT] Ignoring non-staff message:', data);
+        return;
+      }
       
       const messageData = {
         id: data.id || data.messageId || `msg-${Date.now()}`,
         message: data.message || data.messageText || data.text || '',
-        sender: data.sender || (data.isFromPlayer ? 'player' : 'staff'),
+        sender: 'staff' as const,
         sender_name: data.sender_name || data.senderName || data.staffName || 'Staff Member',
         timestamp: data.timestamp || new Date().toISOString(),
-        isFromStaff: data.sender === 'staff' || data.senderType === 'staff' || !data.isFromPlayer
+        isFromStaff: true
       };
       
-      if (messageData.message && messageData.sender) {
+      if (messageData.message) {
         setMessages(prev => {
-          // Prevent duplicate messages
+          // Prevent duplicate messages by ID
           if (prev.find(msg => msg.id === messageData.id)) {
+            console.log('🚫 [UNIFIED CHAT] Duplicate message ignored:', messageData.id);
             return prev;
           }
+          console.log('✅ [UNIFIED CHAT] Adding staff message:', messageData);
           return [...prev, messageData].sort((a, b) => 
             new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
           );
         });
         
-        // Update session status based on message activity
-        if (messageData.isFromStaff) {
-          setSessionStatus('active');
-        }
+        setSessionStatus('active');
       }
     };
     
@@ -180,17 +191,23 @@ const UnifiedChatDialog: React.FC<UnifiedChatDialogProps> = ({
         const result = await response.json();
         console.log('✅ [UNIFIED CHAT] Message sent successfully:', result);
         
-        // Add message to local state immediately
+        // FIXED: Add message to local state immediately with unique ID
         const newMsg: ChatMessage = {
-          id: result.id || `msg-${Date.now()}`,
+          id: result.id || `player-msg-${Date.now()}`,
           message: newMessage,
           sender: 'player',
           sender_name: playerName,
-          timestamp: new Date().toISOString(),
+          timestamp: result.timestamp || new Date().toISOString(),
           isFromStaff: false
         };
         
-        setMessages(prev => [...prev, newMsg]);
+        setMessages(prev => {
+          // Prevent duplicate if already exists
+          if (prev.find(msg => msg.id === newMsg.id)) {
+            return prev;
+          }
+          return [...prev, newMsg];
+        });
         setNewMessage('');
         setSessionStatus('pending');
         
