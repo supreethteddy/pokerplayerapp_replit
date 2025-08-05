@@ -52,7 +52,7 @@ import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
-// PlayerChatSystem removed - using original Open Chat UI
+import PlayerChatSystem from "./PlayerChatSystem";
 
 
 // Scrollable Offers Display Component
@@ -2583,7 +2583,13 @@ function PlayerDashboard() {
 
 
 
-        {/* Original Open Chat Dialog - Restored with bidirectional logic */}
+        {/* Blue Button Chat System - Restored with fixed bidirectional logic */}
+        <div className="fixed bottom-4 right-4 z-50">
+          <PlayerChatSystem 
+            playerId={user?.id || 0}
+            playerName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim()}
+          />
+        </div>
 
       </div>
     );
