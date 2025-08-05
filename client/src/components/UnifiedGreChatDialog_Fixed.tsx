@@ -37,16 +37,13 @@ export function UnifiedGreChatDialog_Fixed({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pusherRef = useRef<any>(null);
 
-  // SURGICAL FIX: Use the correct database player ID for vignesh user
-  // The application layer uses ID 29, but database has vignesh as ID 15
-  const applicationPlayerId = playerData?.id || user?.id;
-  const playerId = applicationPlayerId === 29 ? 15 : applicationPlayerId; // Map 29 → 15 for vignesh
-  
+  // Get player ID - use the application ID directly (no mapping needed)
+  const playerId = playerData?.id || user?.id;
   const playerName = playerData ? 
     `${playerData.firstName || ''} ${playerData.lastName || ''}`.trim() :
     `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
     
-  console.log(`🔍 [CHAT ID MAPPING] App ID: ${applicationPlayerId} → Database ID: ${playerId}`);
+  console.log(`🔍 [CHAT PLAYER ID] Using player ID: ${playerId}`);
 
   console.log('🚀 [CHAT NUCLEAR] Component mounted, playerId:', playerId, 'isOpen:', isOpen);
 

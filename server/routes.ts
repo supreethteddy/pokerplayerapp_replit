@@ -65,12 +65,20 @@ export function registerRoutes(app: Express) {
       
       console.log(`🔍 [CHAT HISTORY FIXED] Supabase client created successfully`);
       
-      // Get ALL chat requests for proper conversation loading with detailed debug
+      // Get ALL chat requests with detailed debug - CRITICAL FIX for Supabase connection
+      console.log(`🔍 [CHAT HISTORY FIXED] Executing Supabase query for player_id: ${playerId}`);
+      
       const { data: requests, error: requestsError } = await supabase
         .from('chat_requests')
         .select('*')
         .eq('player_id', playerId)
         .order('created_at', { ascending: false });
+        
+      console.log(`🔍 [CHAT HISTORY FIXED] Supabase query completed:`, { 
+        query: `chat_requests WHERE player_id = ${playerId}`,
+        result: requests, 
+        error: requestsError 
+      });
         
       console.log(`🔍 [CHAT HISTORY FIXED] Raw requests result:`, { 
         requests: requests, 
