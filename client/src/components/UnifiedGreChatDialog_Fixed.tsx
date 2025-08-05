@@ -389,11 +389,12 @@ export function UnifiedGreChatDialog_Fixed({
     try {
       console.log('🚀 [CHAT NUCLEAR] 📤 SENDING MESSAGE:', messageToSend);
       
-      const response = await apiRequest('POST', '/api/unified-chat/send', {
-        playerId: playerId, // This will now be 15 for vignesh user (mapped from 29)
+      // CRITICAL FIX: Use the working endpoint that successfully reaches staff portal
+      const response = await apiRequest('POST', '/api/gre-chat/send', {
+        playerId: playerId,
         playerName: playerName,
         message: messageToSend,
-        senderType: 'player'
+        timestamp: new Date().toISOString()
       });
 
       if (response.ok) {
