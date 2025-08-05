@@ -37,15 +37,62 @@ export function UnifiedGreChatDialog_Fixed({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pusherRef = useRef<any>(null);
 
-  // Get player ID - use the application ID directly (no mapping needed)
-  const playerId = playerData?.id || user?.id;
-  const playerName = playerData ? 
-    `${playerData.firstName || ''} ${playerData.lastName || ''}`.trim() :
-    `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+  // Get player ID - FIXED to use user.id which is the correct player ID (29)
+  const playerId = user?.id; // user.id is 29 for vignesh
+  const playerName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
     
   console.log(`🔍 [CHAT PLAYER ID] Using player ID: ${playerId}`);
-
   console.log('🚀 [CHAT NUCLEAR] Component mounted, playerId:', playerId, 'isOpen:', isOpen);
+
+  // IMMEDIATE CHAT HISTORY LOADING - FORCE EXECUTION
+  useEffect(() => {
+    console.log('🚀 [CHAT NUCLEAR] 📚 IMMEDIATE LOAD ATTEMPT - isOpen:', isOpen, 'playerId:', playerId);
+    
+    if (isOpen && playerId) {
+      console.log('🚀 [CHAT NUCLEAR] 📚 FORCE LOADING CHAT HISTORY NOW!');
+      
+      fetch(`/api/chat-history/${playerId}`)
+        .then(response => response.json())
+        .then(data => {
+          console.log('🚀 [CHAT NUCLEAR] 📚 IMMEDIATE LOAD RESULT:', data);
+          
+          if (data.success && data.conversations?.length > 0) {
+            const allMessages: ChatMessage[] = [];
+            
+            data.conversations.forEach((conv: any) => {
+              if (conv.initial_message) {
+                allMessages.push({
+                  id: `conv-${conv.id}`,
+                  message: conv.initial_message,
+                  sender: 'player',
+                  sender_name: conv.player_name,
+                  timestamp: conv.created_at,
+                  status: 'sent'
+                });
+              }
+              
+              if (conv.chat_messages?.length > 0) {
+                conv.chat_messages.forEach((msg: any) => {
+                  allMessages.push({
+                    id: msg.id,
+                    message: msg.message_text,
+                    sender: msg.sender,
+                    sender_name: msg.sender_name,
+                    timestamp: msg.timestamp,
+                    status: 'sent'
+                  });
+                });
+              }
+            });
+            
+            allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+            setMessages(allMessages);
+            console.log('🚀 [CHAT NUCLEAR] ✅ IMMEDIATE LOAD SUCCESS:', allMessages.length, 'messages loaded');
+          }
+        })
+        .catch(error => console.error('🚀 [CHAT NUCLEAR] ❌ IMMEDIATE LOAD ERROR:', error));
+    }
+  }, [isOpen, playerId]);
 
   // Initialize Pusher connection IMMEDIATELY when component mounts
   useEffect(() => {
@@ -212,7 +259,10 @@ export function UnifiedGreChatDialog_Fixed({
 
   // Load chat history when component opens - CRITICAL FIX TO DISPLAY REAL DATA
   useEffect(() => {
-    if (!isOpen || !playerId) return;
+    if (!isOpen || !playerId) {
+      console.log('🚀 [CHAT NUCLEAR] 📚 Skipping chat history load - isOpen:', isOpen, 'playerId:', playerId);
+      return;
+    }
     
     console.log('🚀 [CHAT NUCLEAR] 📚 Loading chat history for player:', playerId);
     

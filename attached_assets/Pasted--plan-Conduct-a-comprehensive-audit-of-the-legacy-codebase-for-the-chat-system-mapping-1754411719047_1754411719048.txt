@@ -1,0 +1,26 @@
+{
+  "plan": [
+    "Conduct a comprehensive audit of the legacy codebase for the chat system, mapping the full lifecycle of a staff→player message: message creation, storage (Supabase/database), real-time broadcast (Pusher), notification (OneSignal), and rendering within the player chat UI.",
+    "Trace the exact code paths responsible for chat dispatch from the staff portal, ensuring all required fields and metadata are correctly written and that the intended audience can access the message in the database.",
+    "Investigate the player portal’s message retrieval and rendering logic: determine if there are discrepancies between message receipt as notifications vs. display in the chat feed, especially for cross-role (staff→player) communications.",
+    "Analyze Supabase/DB permission rules for chat tables to guarantee that player-role users have read access to staff-sent messages, and that role-based filters in frontend queries or subscriptions do not exclude valid messages.",
+    "Set up enhanced, role-aware logging and monitoring across the entire stack for chat events: log message writes, subscription/broadcast events, notification triggers, and UI state transitions in both portals.",
+    "Diagnose and document every failure point or logic branch where staff messages are diverted from the chat feed or only sent as notifications—fix any backend or frontend logic that filters, blocks, or mishandles these messages.",
+    "Patch ONLY the minimal set of components involved in the error, ensuring the staff→player chat is rendered in real time in the player chat feed, without impacting other chat, notification, or portal UI functionality.",
+    "Refactor legacy chat handling logic for maintainability: modularize and document all fixes, and update relevant test suites for both staff and player portals (unit, integration, and UI tests for all message types/roles).",
+    "Validate with full end-to-end regression testing to ensure all chat flows (staff→player, player→staff, multi-staff, group, etc.) and related notifications display as intended, without breaking existing features.",
+    "Propose before/after screenshots demonstrating the bug, the chat DB records, and successful fixed state—invite further feedback for improvement."
+  ],
+  "purpose": "Permanently resolve inconsistencies in the staff→player chat system by deep-diving into legacy and current code, identifying and fixing all root causes that prevent messages from appearing in the chat feed (while still arriving as notifications), and ensure robust, maintainable, and future-proof communication between staff and players without disrupting other chat or notification logic.",
+  "constraints": [
+    "Do NOT disrupt or alter any other chat, notification, or UI features outside the direct staff→player chat feed rendering logic.",
+    "Preserve all current user-role and message-visibility business rules, ensuring backward compatibility with legacy message data.",
+    "Do NOT remove or downgrade notification functionality—players should continue to get notifications as per platform settings.",
+    "Avoid DB/chat schema changes unless it is impossible to correct mapping or role assignment in existing structure.",
+    "All code changes must be modular, permanent, and fully documented to facilitate future maintenance.",
+    "Comprehensive automated and manual testing coverage for all chat flows and related notifications must be included.",
+    "Pause after implementing and documenting code and test changes; do not deploy to production or merge to main branch without explicit, written approval from stakeholders."
+  ],
+  "approval": "Pause after identifying all problem areas, applying the permanent fix, and summarizing every change—with before/after screenshots, log samples, and test outputs. Await explicit stakeholder review and sign-off before deploying or merging to production/main.",
+  "execute": "Apply and verify all approved fixes in a dedicated feature branch ONLY after approval, running all chat, notification, and role-based tests to check for regressions. If any new issue emerges, output full context/logs for targeted debugging and do NOT change or remove any code affecting other stable flows. Iterate and improve based on feedback until achieving a robust, production-ready chat solution."
+}
