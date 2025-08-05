@@ -186,15 +186,14 @@ const UnifiedChatDialog: React.FC<UnifiedChatDialogProps> = ({
     setIsSending(true);
     try {
       console.log('📤 [UNIFIED CHAT] Sending message to Staff Portal:', newMessage);
-      const response = await fetch('/api/player-chat-integration/send', {
+      const response = await fetch('/api/unified-chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionId: `session-${playerId}`,
           playerId: playerId,
           playerName: playerName,
           message: newMessage,
-          messageType: 'text'
+          senderType: 'player'
         })
       });
 
@@ -202,13 +201,13 @@ const UnifiedChatDialog: React.FC<UnifiedChatDialogProps> = ({
         const result = await response.json();
         console.log('✅ [UNIFIED CHAT] Message sent successfully:', result);
         
-        // FIXED: Add message to local state immediately with unique ID
+        // Add message to local state immediately with unique ID from response
         const newMsg: ChatMessage = {
-          id: result.id || `player-msg-${Date.now()}`,
+          id: result.data?.id || `player-msg-${Date.now()}`,
           message: newMessage,
           sender: 'player',
           sender_name: playerName,
-          timestamp: result.timestamp || new Date().toISOString(),
+          timestamp: result.data?.timestamp || new Date().toISOString(),
           isFromStaff: false
         };
         
