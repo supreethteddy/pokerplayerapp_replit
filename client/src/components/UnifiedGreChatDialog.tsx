@@ -194,13 +194,11 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({
           };
 
           setMessages(prev => {
-            // Check if message already exists to prevent duplicates
-            const exists = prev.some(msg => msg.id === newMsg.id || 
-              (msg.message === newMsg.message && msg.sender === newMsg.sender && 
-               Math.abs(new Date(msg.timestamp).getTime() - new Date(newMsg.timestamp).getTime()) < 5000));
+            // Check if message already exists to prevent duplicates (exact ID match only)
+            const exists = prev.some(msg => msg.id === newMsg.id);
             
             if (exists) {
-              console.log('⚠️ [PUSHER] Duplicate message prevented:', newMsg.id);
+              console.log('⚠️ [PUSHER] Duplicate message prevented (same ID):', newMsg.id);
               return prev;
             }
             
@@ -232,13 +230,11 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({
             };
 
             setMessages(prev => {
-              // Check if message already exists to prevent duplicates
-              const exists = prev.some(msg => msg.id === newMsg.id || 
-                (msg.message === newMsg.message && msg.sender === newMsg.sender && 
-                 Math.abs(new Date(msg.timestamp).getTime() - new Date(newMsg.timestamp).getTime()) < 5000));
+              // Check if message already exists to prevent duplicates (exact ID match only)
+              const exists = prev.some(msg => msg.id === newMsg.id);
               
               if (exists) {
-                console.log('⚠️ [PUSHER] Duplicate staff message prevented:', newMsg.id);
+                console.log('⚠️ [PUSHER] Duplicate staff message prevented (same ID):', newMsg.id);
                 return prev;
               }
               

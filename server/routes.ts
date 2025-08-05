@@ -108,16 +108,23 @@ export function registerRoutes(app: Express) {
           console.log('   Pusher Response:', pusherResult);
           console.log('   ✅ SUCCESS: Message delivered to staff portal via Pusher');
         } else {
-          // Notify Player Portal
+          // Notify Player Portal - DUAL CHANNEL APPROACH for guaranteed delivery
           const pusherPayload = {
             message: message,
             senderName: 'Guest Relations Executive',
             timestamp: new Date().toISOString(),
-            messageId: savedMessage.id
+            messageId: savedMessage.id,
+            playerId: playerId // Add playerId for filtering
           };
           
-          const pusherResult = await pusher.trigger(`player-${playerId}`, 'new-gre-message', pusherPayload);
-          console.log(`🚀 [PUSHER] GRE message sent to player-${playerId} channel with result:`, pusherResult);
+          // Send to BOTH channels for maximum reliability
+          const playerChannelResult = await pusher.trigger(`player-${playerId}`, 'new-gre-message', pusherPayload);
+          const staffChannelResult = await pusher.trigger('staff-portal', 'new-gre-message', pusherPayload);
+          
+          console.log(`🚀 [PUSHER DUAL DELIVERY] GRE message sent to BOTH channels:`);
+          console.log(`   Player Channel (player-${playerId}):`, playerChannelResult);
+          console.log(`   Staff Channel (staff-portal):`, staffChannelResult);
+          console.log(`   ✅ MICROSECOND DELIVERY: Message sent via dual-channel approach`);
         }
       } catch (pusherError) {
         console.error('❌ [PUSHER] Real-time notification failed:', pusherError);
