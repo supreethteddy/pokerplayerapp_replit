@@ -382,12 +382,12 @@ export function registerRoutes(app: Express) {
         name: table.name,
         gameType: table.game_type || 'Texas Hold\'em',
         stakes: `₹${table.min_buy_in || 1000}/${table.max_buy_in || 10000}`,
-        maxPlayers: 9,
-        currentPlayers: Math.floor(Math.random() * 8) + 1,
+        maxPlayers: table.max_players || 9, // Use actual max from staff portal
+        currentPlayers: table.current_players || 0, // Use actual data from staff portal
         waitingList: 0,
         status: "active",
-        pot: Math.floor(Math.random() * 50000) + 5000,
-        avgStack: Math.floor(Math.random() * 100000) + 25000
+        pot: table.current_pot || 0, // Use actual pot from staff portal
+        avgStack: table.avg_stack || 0 // Use actual data from staff portal - hidden in UI
       }));
       
       console.log(`✅ [TABLES API PRODUCTION] Returning ${transformedTables.length} live staff portal tables`);
@@ -555,6 +555,73 @@ export function registerRoutes(app: Express) {
       res.json(balance);
     } catch (error) {
       console.error('❌ [BALANCE API] Error:', error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // POST endpoint for joining waitlist with seat limit enforcement
+  app.post("/api/seat-requests", async (req, res) => {
+    try {
+      const { playerId, tableId, seatNumber, notes } = req.body;
+      
+      console.log('🎯 [SEAT REQUEST] Join attempt:', { playerId, tableId, seatNumber });
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      
+      // Check table capacity from staff portal
+      const { data: tableData, error: tableError } = await supabase
+        .from('poker_tables')
+        .select('max_players, current_players')
+        .eq('id', tableId)
+        .single();
+      
+      if (tableError) {
+        console.error('❌ [SEAT REQUEST] Table lookup error:', tableError);
+        return res.status(404).json({ error: "Table not found" });
+      }
+      
+      const maxPlayers = tableData.max_players || 9;
+      const currentPlayers = tableData.current_players || 0;
+      
+      console.log('🎯 [SEAT REQUEST] Capacity check:', { maxPlayers, currentPlayers });
+      
+      if (currentPlayers >= maxPlayers) {
+        console.log('🚫 [SEAT REQUEST] Table full - adding to waitlist');
+        return res.status(400).json({ 
+          error: "Table is full", 
+          message: "Added to waitlist",
+          position: currentPlayers - maxPlayers + 1
+        });
+      }
+      
+      // Add to seat_requests table
+      const { data: requestData, error: requestError } = await supabase
+        .from('seat_requests')
+        .insert({
+          player_id: playerId,
+          table_id: tableId,
+          seat_number: seatNumber,
+          status: 'waiting',
+          notes: notes || '',
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+      
+      if (requestError) {
+        console.error('❌ [SEAT REQUEST] Insert error:', requestError);
+        return res.status(500).json({ error: "Failed to create seat request" });
+      }
+      
+      console.log('✅ [SEAT REQUEST] Successfully created:', requestData.id);
+      res.json({ success: true, request: requestData });
+      
+    } catch (error) {
+      console.error('❌ [SEAT REQUEST] Unexpected error:', error);
       res.status(500).json({ error: "Internal server error" });
     }
   });

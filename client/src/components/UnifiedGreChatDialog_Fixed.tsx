@@ -21,7 +21,7 @@ interface UnifiedGreChatDialogProps {
   onMessagesUpdate?: (messages: any[]) => void;
 }
 
-export function UnifiedGreChatDialog({ 
+export function UnifiedGreChatDialog_Fixed({ 
   isOpen, 
   onOpenChange, 
   onMessagesUpdate 
@@ -117,11 +117,8 @@ export function UnifiedGreChatDialog({
             status: 'received'
           };
 
-          // AUTO-OPEN CHAT WHEN MESSAGE ARRIVES
-          if (!isOpen && onOpenChange) {
-            console.log('🚀 [CHAT NUCLEAR] 🔥 AUTO-OPENING CHAT FOR NEW MESSAGE');
-            onOpenChange(true);
-          }
+          // NO AUTO-OPEN: Only show notifications, user must click to open
+          console.log('🚀 [CHAT NUCLEAR] 📱 Message received - showing notification only (no auto-open)');
 
           setMessages(prev => {
             const exists = prev.some(msg => msg.id === newMsg.id);
@@ -166,11 +163,8 @@ export function UnifiedGreChatDialog({
               status: 'received'
             };
 
-            // AUTO-OPEN CHAT WHEN MESSAGE ARRIVES
-            if (!isOpen && onOpenChange) {
-              console.log('🚀 [CHAT NUCLEAR] 🔥 AUTO-OPENING CHAT FOR STAFF MESSAGE');
-              onOpenChange(true);
-            }
+            // NO AUTO-OPEN: Only show notifications, user must click to open
+            console.log('🚀 [CHAT NUCLEAR] 📱 Staff message received - showing notification only (no auto-open)');
 
             setMessages(prev => {
               const exists = prev.some(msg => msg.id === newMsg.id);

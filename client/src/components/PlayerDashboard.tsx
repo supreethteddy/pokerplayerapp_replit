@@ -52,7 +52,7 @@ import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
-import { UnifiedGreChatDialog } from "./UnifiedGreChatDialog_Fixed";
+import { UnifiedGreChatDialog_Fixed } from "./UnifiedGreChatDialog_Fixed";
 
 
 // Scrollable Offers Display Component
@@ -2591,12 +2591,10 @@ function PlayerDashboard() {
         </Tabs>
         </div>
 
-        {/* Unified GRE Chat Dialog */}
-        <UnifiedGreChatDialog 
+        {/* Unified GRE Chat Dialog - Fixed Component */}
+        <UnifiedGreChatDialog_Fixed 
           isOpen={unifiedChatOpen}
           onOpenChange={setUnifiedChatOpen}
-          onClose={() => setUnifiedChatOpen(false)}
-          externalMessages={unifiedChatMessages}
           onMessagesUpdate={setUnifiedChatMessages}
         />
 
