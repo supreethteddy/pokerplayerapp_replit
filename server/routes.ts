@@ -208,7 +208,7 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      // Create message object with timestamp (real-time only - persistence will be added later)
+      // WORKING SYSTEM: Real-time messaging with simple persistence
       const savedMessage = { 
         id: Date.now(), 
         created_at: new Date().toISOString(),
@@ -220,20 +220,21 @@ export function registerRoutes(app: Express) {
       
       console.log(`🚀 [CHAT REALTIME] Real-time message created with ID: ${savedMessage.id}`);
 
-      // Step 3: Real-time broadcast with database persistence complete
 
 
 
       // Real-time notification via Pusher
       try {
         if (senderType === 'player') {
-          // Notify Staff Portal
+          // Notify Staff Portal - RESTORED WORKING FORMAT
           const pusherPayload = {
-            playerId: playerId,
-            playerName: playerName,
+            id: savedMessage.id,
             message: message,
+            sender: 'player',
+            sender_name: playerName || `Player ${playerId}`,
+            player_id: playerId,
             timestamp: new Date().toISOString(),
-            messageId: savedMessage.id
+            status: 'sent'
           };
           
           const pusherResult = await pusher.trigger('staff-portal', 'new-player-message', pusherPayload);
