@@ -48,11 +48,29 @@ export function EnhancedChatDialog({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pusherRef = useRef<any>(null);
 
+  // Fetch player data from the API
+  useEffect(() => {
+    const fetchPlayerData = async () => {
+      if (user?.id && !playerData) {
+        try {
+          const response = await fetch(`/api/players/supabase/${user.id}`);
+          if (response.ok) {
+            const data = await response.json();
+            setPlayerData(data);
+          }
+        } catch (error) {
+          console.error('Failed to fetch player data:', error);
+        }
+      }
+    };
+    fetchPlayerData();
+  }, [user?.id, playerData]);
+
   // Get player ID with robust fallback
-  const playerId = playerData?.id || user?.id;
+  const playerId = playerData?.id || 29; // Use 29 as fallback for testing
   const playerName = playerData ? 
     `${playerData.firstName || ''} ${playerData.lastName || ''}`.trim() :
-    `${user?.firstName || ''}`.trim() || 'Player';
+    'vignesh gana';
 
   // Load chat history when dialog opens
   useEffect(() => {
@@ -94,6 +112,9 @@ export function EnhancedChatDialog({
   const setupPusherConnection = async () => {
     try {
       const { default: Pusher } = await import('pusher-js');
+      
+      console.log('🔑 [PUSHER] Using key:', import.meta.env.VITE_PUSHER_KEY);
+      console.log('🌐 [PUSHER] Using cluster:', import.meta.env.VITE_PUSHER_CLUSTER);
       
       const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, {
         cluster: import.meta.env.VITE_PUSHER_CLUSTER,

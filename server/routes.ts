@@ -51,34 +51,36 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       
-      // Get last 3 chat requests with their messages
-      const { data: requests, error } = await supabase
+      // Get last 3 chat requests first
+      const { data: requests, error: requestsError } = await supabase
         .from('chat_requests')
-        .select(`
-          id,
-          subject,
-          status,
-          created_at,
-          resolved_at,
-          chat_messages (
-            id,
-            sender,
-            sender_name,
-            message_text,
-            timestamp
-          )
-        `)
+        .select('id, subject, status, created_at, resolved_at')
         .eq('player_id', playerId)
         .order('created_at', { ascending: false })
         .limit(3);
       
-      if (error) {
-        console.error('❌ [CHAT HISTORY] Database error:', error);
-        return res.status(500).json({ error: "Failed to fetch chat history" });
+      if (requestsError) {
+        console.error('❌ [CHAT HISTORY] Requests error:', requestsError);
+        return res.status(500).json({ error: "Failed to fetch chat requests" });
       }
       
-      console.log(`✅ [CHAT HISTORY] Retrieved ${requests?.length || 0} conversations for player ${playerId}`);
-      res.json({ success: true, conversations: requests || [] });
+      // Get messages for each request separately
+      const requestsWithMessages = [];
+      for (const request of requests || []) {
+        const { data: messages, error: messagesError } = await supabase
+          .from('chat_messages')
+          .select('id, sender, sender_name, message_text, timestamp')
+          .eq('request_id', request.id)
+          .order('timestamp', { ascending: true });
+        
+        requestsWithMessages.push({
+          ...request,
+          chat_messages: messages || []
+        });
+      }
+      
+      console.log(`✅ [CHAT HISTORY] Retrieved ${requestsWithMessages.length} conversations for player ${playerId}`);
+      res.json({ success: true, conversations: requestsWithMessages });
       
     } catch (error) {
       console.error('❌ [CHAT HISTORY] Error:', error);
