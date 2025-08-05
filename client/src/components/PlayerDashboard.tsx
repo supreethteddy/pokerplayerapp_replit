@@ -52,7 +52,7 @@ import BalanceDisplay from "./BalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
-import { UnifiedGreChatDialog_Fixed } from "./UnifiedGreChatDialog_Fixed";
+import PlayerChatSystem from "./PlayerChatSystem";
 
 
 // Scrollable Offers Display Component
@@ -825,13 +825,13 @@ function PlayerDashboard() {
   };
 
   // UNIFIED CHAT MESSAGE MANAGEMENT - Single source of truth
-  const [unifiedChatMessages, setUnifiedChatMessages] = useState<any[]>([]);
+
   const [chatLoading, setChatLoading] = useState(false);
   
   // WebSocket connection for real-time GRE chat
   const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
-  const [unifiedChatOpen, setUnifiedChatOpen] = useState(false);
+
 
   // Initialize WebSocket connection for real-time chat
   useEffect(() => {
@@ -2570,18 +2570,10 @@ function PlayerDashboard() {
                       <p className="text-slate-400 mb-4">
                         Connect with our Guest Relations team for immediate assistance with any questions or concerns.
                       </p>
-                      <Button
-                        onClick={() => setUnifiedChatOpen(true)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3"
-                      >
-                        <MessageCircle className="w-5 h-5 mr-2" />
-                        Start Chat Conversation
-                        {unifiedChatMessages && unifiedChatMessages.length > 0 && (
-                          <span className="ml-2 bg-red-500 text-white rounded-full px-2 py-1 text-xs">
-                            {unifiedChatMessages.length}
-                          </span>
-                        )}
-                      </Button>
+                      <div className="text-emerald-400 text-sm font-medium">
+                        <MessageCircle className="w-5 h-5 mr-2 inline" />
+                        Chat available in bottom-right corner
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -2593,17 +2585,13 @@ function PlayerDashboard() {
 
 
 
-        {/* Unified GRE Chat Dialog - Only in Feedback Tab */}
-        {/* SURGICAL FIX: Render chat dialog for feedback tab only - but always mounted when tab is active */}
-        {activeTab === "feedback" && (
-          <div className="fixed bottom-4 right-4 z-50">
-            <UnifiedGreChatDialog_Fixed 
-              isOpen={unifiedChatOpen}
-              onOpenChange={setUnifiedChatOpen}
-              onMessagesUpdate={setUnifiedChatMessages}
-            />
-          </div>
-        )}
+        {/* Staff Portal Integration Chat System - Always Available */}
+        <div className="fixed bottom-4 right-4 z-50">
+          <PlayerChatSystem 
+            playerId={user?.id || 0}
+            playerName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim()}
+          />
+        </div>
 
       </div>
     );

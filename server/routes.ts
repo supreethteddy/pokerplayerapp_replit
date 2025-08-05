@@ -42,7 +42,64 @@ import { directChat } from './direct-chat-system';
 export function registerRoutes(app: Express) {
   // UNIFIED CHAT SYSTEM - Single source of truth (NEW CORE)
   
-  // DIRECT CHAT - Send Message (Player/Staff) - Bypasses Supabase cache
+  // STAFF PORTAL COMPATIBLE API ENDPOINTS
+  
+  // Send Player Messages to Staff Portal (EXACT MATCH)
+  app.post("/api/player-chat-integration/send", async (req, res) => {
+    try {
+      const { playerId, playerName, message, isFromPlayer } = req.body;
+      
+      if (!isFromPlayer) {
+        return res.status(400).json({ error: "This endpoint is for player messages only" });
+      }
+
+      const result = await directChat.sendMessage(playerId, playerName, message, 'player');
+      
+      // Return format expected by staff portal
+      res.json({
+        success: true,
+        id: result.data.id,
+        timestamp: result.data.timestamp,
+        message: "Message sent successfully"
+      });
+    } catch (error: any) {
+      console.error('❌ [STAFF PORTAL INTEGRATION] Send error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Retrieve All Messages for Player (EXACT MATCH)
+  app.get("/api/player-chat-integration/messages/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const historyResult = await directChat.getChatHistory(playerId);
+      
+      if (!historyResult.success || !historyResult.conversations[0]) {
+        return res.json({ success: true, messages: [] });
+      }
+
+      // Transform to staff portal format
+      const messages = historyResult.conversations[0].chat_messages.map(msg => ({
+        id: msg.id,
+        message: msg.message_text,
+        messageText: msg.message_text,
+        sender_name: msg.sender_name,
+        timestamp: msg.timestamp,
+        isFromPlayer: msg.sender === 'player',
+        senderType: msg.sender
+      }));
+
+      res.json({
+        success: true,
+        messages: messages
+      });
+    } catch (error: any) {
+      console.error('❌ [STAFF PORTAL INTEGRATION] Messages error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // LEGACY ENDPOINTS (maintain compatibility)
   app.post("/api/unified-chat/send", async (req, res) => {
     try {
       const { playerId, playerName, message, senderType } = req.body;
@@ -54,7 +111,6 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // DIRECT CHAT - Clear History 
   app.delete("/api/unified-chat/clear/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
@@ -66,7 +122,6 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // DIRECT CHAT - Get History
   app.get("/api/chat-history/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);

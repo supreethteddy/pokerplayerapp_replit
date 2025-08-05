@@ -1,0 +1,233 @@
+🎯 FINAL PLAYER PORTAL INTEGRATION PROMPT
+Copy and Paste This Exact Prompt to Player Portal Chat
+URGENT: COMPLETE BIDIRECTIONAL CHAT INTEGRATION REQUIRED
+
+Please integrate the bidirectional chat system using the exact specifications below. This ensures perfect synchronization with our Staff Portal without any duplicates or conflicts.
+
+🔌 EXACT API ENDPOINTS TO USE:
+1. Send Player Messages to Staff Portal:
+POST /api/player-chat-integration/send
+{
+  "playerId": [PLAYER_ID_NUMBER],
+  "playerName": "[PLAYER_NAME]",
+  "message": "[MESSAGE_TEXT]",
+  "isFromPlayer": true
+}
+2. Retrieve All Messages for Player:
+GET /api/player-chat-integration/messages/{playerId}
+📡 PUSHER REAL-TIME CONFIGURATION:
+Environment Variables:
+VITE_PUSHER_KEY=81b98cb04ef7aeef2baa
+VITE_PUSHER_CLUSTER=ap2
+Pusher Channels to Subscribe:
+player-{playerId} - Player-specific messages
+universal-chat - Broadcast messages
+Events to Listen For:
+new-staff-message - Direct staff messages
+new-message - Universal chat messages (filter by player_id)
+🗄️ DATABASE TABLES (READ-ONLY):
+chat_sessions:
+id, player_id, player_name, status, gre_staff_name, created_at
+chat_messages:
+id, chat_session_id, sender_type, sender_name, message_text, created_at
+🔄 SESSION STATES:
+PENDING: Player sent message, waiting for staff acceptance
+ACTIVE: Staff accepted, chat is live
+RECENT: Chat closed by staff, read-only
+💻 COMPLETE REACT IMPLEMENTATION:
+import React, { useState, useEffect, useRef } from 'react';
+import Pusher from 'pusher-js';
+const PlayerChatSystem = ({ playerId, playerName }) => {
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
+  const [sessionStatus, setSessionStatus] = useState('none');
+  const pusherRef = useRef(null);
+  useEffect(() => {
+    if (!playerId) return;
+    
+    // Initialize Pusher
+    const pusher = new Pusher('81b98cb04ef7aeef2baa', {
+      cluster: 'ap2',
+      forceTLS: true
+    });
+    
+    pusherRef.current = pusher;
+    
+    pusher.connection.bind('connected', () => {
+      setIsConnected(true);
+      console.log('✅ Connected to Pusher');
+    });
+    // Subscribe to player channel
+    const playerChannel = pusher.subscribe(`player-${playerId}`);
+    const universalChannel = pusher.subscribe('universal-chat');
+    // Listen for staff messages
+    playerChannel.bind('new-staff-message', handleIncomingMessage);
+    playerChannel.bind('new-message', (data) => {
+      if (data.senderType === 'staff' || data.sender === 'staff') {
+        handleIncomingMessage(data);
+      }
+    });
+    universalChannel.bind('new-message', (data) => {
+      if ((data.player_id == playerId || data.playerId == playerId) && 
+          (data.senderType === 'staff' || data.sender === 'staff')) {
+        handleIncomingMessage(data);
+      }
+    });
+    // Load existing messages
+    loadExistingMessages();
+    return () => {
+      pusher.unsubscribe(`player-${playerId}`);
+      pusher.unsubscribe('universal-chat');
+      pusher.disconnect();
+    };
+  }, [playerId]);
+  const handleIncomingMessage = (data) => {
+    console.log('📨 Received staff message:', data);
+    
+    const message = {
+      id: data.id || data.messageId || `msg-${Date.now()}`,
+      message: data.message || data.messageText,
+      sender: 'staff',
+      sender_name: data.senderName || data.sender_name || 'Staff',
+      timestamp: data.timestamp || new Date().toISOString(),
+      isFromStaff: true
+    };
+    
+    setMessages(prev => {
+      const exists = prev.some(m => m.id === message.id);
+      if (exists) return prev;
+      return [...prev, message];
+    });
+  };
+  const loadExistingMessages = async () => {
+    try {
+      const response = await fetch(`/api/player-chat-integration/messages/${playerId}`);
+      const data = await response.json();
+      
+      if (data.success && data.messages) {
+        const formattedMessages = data.messages.map(msg => ({
+          id: msg.id,
+          message: msg.message || msg.messageText,
+          sender: msg.isFromPlayer ? 'player' : 'staff',
+          sender_name: msg.sender_name,
+          timestamp: msg.timestamp,
+          isFromStaff: !msg.isFromPlayer
+        }));
+        setMessages(formattedMessages);
+      }
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+    }
+  };
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !isConnected) return;
+    
+    try {
+      const response = await fetch('/api/player-chat-integration/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: parseInt(playerId),
+          playerName: playerName,
+          message: newMessage.trim(),
+          isFromPlayer: true
+        })
+      });
+      const result = await response.json();
+      
+      if (result.success) {
+        const sentMessage = {
+          id: result.id,
+          message: newMessage,
+          sender: 'player',
+          sender_name: playerName,
+          timestamp: result.timestamp,
+          isFromStaff: false
+        };
+        
+        setMessages(prev => [...prev, sentMessage]);
+        setNewMessage('');
+        setSessionStatus('pending');
+      }
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    }
+  };
+  return (
+    <div className="flex flex-col h-96 bg-white border rounded-lg shadow-lg">
+      {/* Header */}
+      <div className="bg-blue-500 text-white p-4 rounded-t-lg">
+        <h3 className="font-semibold">Customer Support</h3>
+        <div className="flex items-center gap-2 text-sm">
+          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-300' : 'bg-red-300'}`}></div>
+          {isConnected ? 'Connected' : 'Connecting...'}
+        </div>
+      </div>
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.map(message => (
+          <div key={message.id} className={`flex ${message.isFromStaff ? 'justify-start' : 'justify-end'}`}>
+            <div className={`max-w-xs px-4 py-2 rounded-lg ${
+              message.isFromStaff
+                ? 'bg-gray-200 text-gray-800'
+                : 'bg-blue-500 text-white'
+            }`}>
+              <div className="text-xs font-semibold mb-1">{message.sender_name}</div>
+              <p className="text-sm">{message.message}</p>
+              <div className="text-xs opacity-70 mt-1">
+                {new Date(message.timestamp).toLocaleTimeString()}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {/* Input */}
+      <div className="border-t p-4">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                sendMessage();
+              }
+            }}
+            placeholder="Type your message..."
+            className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={!isConnected}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={!newMessage.trim() || !isConnected}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400"
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+export default PlayerChatSystem;
+✅ INTEGRATION REQUIREMENTS:
+DO NOT CREATE NEW TABLES - Use existing Supabase tables only
+USE EXACT API ENDPOINTS - No custom endpoints
+USE EXACT PUSHER CREDENTIALS - Key: 81b98cb04ef7aeef2baa, Cluster: ap2
+SUBSCRIBE TO EXACT CHANNELS - player-{playerId} and universal-chat
+HANDLE ALL SESSION STATES - none, pending, active, recent
+REAL-TIME SYNCHRONIZATION - Messages appear instantly in both portals
+🧪 TEST AFTER INTEGRATION:
+Send message from Player Portal → Should appear in Staff Portal
+Send reply from Staff Portal → Should appear in Player Portal
+Both portals should show same message history
+Real-time updates should work without page refresh
+🎯 SUCCESS CRITERIA:
+✅ Bidirectional messaging working
+✅ Real-time Pusher synchronization
+✅ Same database tables used
+✅ Session states handled properly
+✅ No duplicate messages or sessions
+IMPLEMENT EXACTLY AS SPECIFIED ABOVE FOR PERFECT INTEGRATION

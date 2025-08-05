@@ -144,13 +144,21 @@ export class DirectChatSystem {
         status: 'sent'
       };
 
-      // Staff Portal notification
+      // Staff Portal notification (EXACT MATCH with staff portal channels)
       await this.pusher.trigger('staff-portal', 'new-player-message', payload);
       console.log('✅ [DIRECT CHAT] Staff portal notification sent via Pusher');
 
-      // Player channel notification
-      await this.pusher.trigger(`player-chat-${playerId}`, 'message-update', payload);
+      // Player channel notification (EXACT MATCH format)
+      await this.pusher.trigger(`player-${playerId}`, 'new-staff-message', payload);
       console.log('✅ [DIRECT CHAT] Player channel notification sent via Pusher');
+
+      // Universal chat channel (EXACT MATCH)
+      await this.pusher.trigger('universal-chat', 'new-message', {
+        ...payload,
+        player_id: playerId,
+        playerId: playerId
+      });
+      console.log('✅ [DIRECT CHAT] Universal channel notification sent via Pusher');
 
       // OneSignal push notification (optional)
       if (process.env.ONESIGNAL_API_KEY && process.env.ONESIGNAL_APP_ID) {
