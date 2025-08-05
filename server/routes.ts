@@ -40,6 +40,52 @@ export function registerRoutes(app: Express) {
   // UNIFIED CHAT SYSTEM - Single source of truth
   
   // Send Chat Message - MICROSECOND SPEED - PUSHER ONLY (Fixed exec_sql issue)
+  // Get chat history for player (last 3 conversations)
+  app.get("/api/chat-history/:playerId", async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      
+      // Get last 3 chat requests with their messages
+      const { data: requests, error } = await supabase
+        .from('chat_requests')
+        .select(`
+          id,
+          subject,
+          status,
+          created_at,
+          resolved_at,
+          chat_messages (
+            id,
+            sender,
+            sender_name,
+            message_text,
+            timestamp
+          )
+        `)
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false })
+        .limit(3);
+      
+      if (error) {
+        console.error('❌ [CHAT HISTORY] Database error:', error);
+        return res.status(500).json({ error: "Failed to fetch chat history" });
+      }
+      
+      console.log(`✅ [CHAT HISTORY] Retrieved ${requests?.length || 0} conversations for player ${playerId}`);
+      res.json({ success: true, conversations: requests || [] });
+      
+    } catch (error) {
+      console.error('❌ [CHAT HISTORY] Error:', error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   app.post("/api/unified-chat/send", async (req, res) => {
     try {
       const { playerId, playerName, message, senderType = 'player' } = req.body;
