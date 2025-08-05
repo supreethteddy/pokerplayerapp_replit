@@ -165,6 +165,11 @@ export class DirectChatSystem {
           })
         ]);
         console.log('✅ [BIDIRECTIONAL BRIDGE] Player message broadcasted with multiple event types');
+        console.log('🎯 [STAFF PORTAL DEBUG] Message details for Staff Portal:');
+        console.log(`   Player ID: ${playerId}`);
+        console.log(`   Player Name: ${playerName}`);
+        console.log(`   Message: ${message}`);
+        console.log(`   Events Sent: chat-message-received, new-player-message`);
       } else {
         // GRE → Player: Send to multiple event types for compatibility
         await Promise.all([
@@ -182,6 +187,11 @@ export class DirectChatSystem {
           })
         ]);
         console.log('✅ [BIDIRECTIONAL BRIDGE] Staff message broadcasted with multiple event types');
+        console.log('🎯 [PLAYER PORTAL DEBUG] GRE message details for Player Portal:');
+        console.log(`   Player ID: ${playerId}`);
+        console.log(`   GRE Name: ${playerName}`);
+        console.log(`   Message: ${message}`);
+        console.log(`   Events Sent: chat-message-received, new-gre-message`);
       }
 
       // OneSignal push notification (optional)
