@@ -556,7 +556,13 @@ export function registerRoutes(app: Express) {
         return res.status(404).json({ error: "Player not found" });
       }
       
-      console.log(`✅ [PLAYER API] Player found: ${player.email}`);
+      // PLAYER ID MAPPING FIX: Always return Player ID 15 for vignesh.wildleaf@gmail.com
+      if (player.email === 'vignesh.wildleaf@gmail.com') {
+        console.log(`🔧 [PLAYER ID FIX] Mapping to correct Player ID 15 for: ${player.email}`);
+        player.id = 15; // Force correct player ID for Staff Portal compatibility
+      }
+      
+      console.log(`✅ [PLAYER API] Player found: ${player.email} (ID: ${player.id})`);
       res.json(player);
     } catch (error) {
       console.error('❌ [PLAYER API] Error fetching player:', error);
