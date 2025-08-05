@@ -36,44 +36,44 @@ const oneSignalClient = new OneSignal.Client(
 
 console.log('🚀 [SERVER] Pusher and OneSignal initialized successfully');
 
-// Import production unified chat system
-import { productionChat } from './production-unified-chat';
+// Import direct chat system (bypasses Supabase cache issues)
+import { directChat } from './direct-chat-system';
 
 export function registerRoutes(app: Express) {
   // UNIFIED CHAT SYSTEM - Single source of truth (NEW CORE)
   
-  // PRODUCTION CHAT - Send Message (Player/Staff)
+  // DIRECT CHAT - Send Message (Player/Staff) - Bypasses Supabase cache
   app.post("/api/unified-chat/send", async (req, res) => {
     try {
       const { playerId, playerName, message, senderType } = req.body;
-      const result = await productionChat.sendMessage(playerId, playerName, message, senderType);
+      const result = await directChat.sendMessage(playerId, playerName, message, senderType);
       res.json(result);
     } catch (error: any) {
-      console.error('❌ [PRODUCTION SEND] Error:', error);
+      console.error('❌ [DIRECT SEND] Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
 
-  // PRODUCTION CHAT - Clear History 
+  // DIRECT CHAT - Clear History 
   app.delete("/api/unified-chat/clear/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
-      const result = await productionChat.clearPlayerChat(playerId);
+      const result = await directChat.clearPlayerChat(playerId);
       res.json(result);
     } catch (error: any) {
-      console.error('❌ [PRODUCTION CLEAR] Error:', error);
+      console.error('❌ [DIRECT CLEAR] Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
 
-  // PRODUCTION CHAT - Get History
+  // DIRECT CHAT - Get History
   app.get("/api/chat-history/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
-      const result = await productionChat.getChatHistory(playerId);
+      const result = await directChat.getChatHistory(playerId);
       res.json(result);
     } catch (error: any) {
-      console.error('❌ [PRODUCTION HISTORY] Error:', error);
+      console.error('❌ [DIRECT HISTORY] Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
