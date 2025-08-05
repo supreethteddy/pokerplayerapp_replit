@@ -1072,10 +1072,8 @@ function PlayerDashboard() {
 
   // Debug: Log unified messages to console
   useEffect(() => {
-    if (unifiedChatMessages.length > 0) {
-      console.log('💬 [UNIFIED] Chat messages:', unifiedChatMessages.length, 'total messages');
-    }
-  }, [unifiedChatMessages]);
+    // Chat integration complete - using PlayerChatSystem component
+  }, []);
 
   // Submit credit request mutation
   const submitCreditRequestMutation = useMutation({
