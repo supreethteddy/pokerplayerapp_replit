@@ -6,9 +6,10 @@ import { useQuery } from '@tanstack/react-query';
 
 interface NotificationPopupProps {
   userId: number;
+  onChatNotificationClick?: () => void;
 }
 
-export default function NotificationPopup({ userId }: NotificationPopupProps) {
+export default function NotificationPopup({ userId, onChatNotificationClick }: NotificationPopupProps) {
   const [shownNotifications, setShownNotifications] = useState<Set<string>>(new Set());
   const [visibleNotifications, setVisibleNotifications] = useState<any[]>([]);
   const [dismissTimers, setDismissTimers] = useState<Map<string, NodeJS.Timeout>>(new Map());
@@ -85,6 +86,25 @@ export default function NotificationPopup({ userId }: NotificationPopupProps) {
       localStorage.setItem('dismissedNotifications', JSON.stringify(dismissedNotifications));
     }
   };
+
+  const handleNotificationClick = (notification: any) => {
+    // Check if this is a chat notification by looking for chat-related keywords
+    const isChatNotification = 
+      notification.sent_by_role === 'gre' ||
+      notification.sender_role === 'gre' ||
+      notification.title?.toLowerCase().includes('chat') ||
+      notification.title?.toLowerCase().includes('message') ||
+      notification.message?.toLowerCase().includes('chat') ||
+      notification.message?.toLowerCase().includes('message');
+
+    if (isChatNotification && onChatNotificationClick) {
+      console.log('🔔 [NOTIFICATION] Chat notification clicked, opening chat dialog');
+      onChatNotificationClick();
+    }
+    
+    // Always dismiss the notification when clicked
+    dismissNotification(notification.id);
+  };
   
   // Clean up timers on unmount
   useEffect(() => {
@@ -122,11 +142,12 @@ export default function NotificationPopup({ userId }: NotificationPopupProps) {
       {visibleNotifications.map((notification, index) => (
         <Card 
           key={notification.id}
-          className={`${getPriorityColors(notification.priority)} border-2 shadow-lg backdrop-blur-sm animate-in slide-in-from-right-5 duration-500`}
+          className={`${getPriorityColors(notification.priority)} border-2 shadow-lg backdrop-blur-sm animate-in slide-in-from-right-5 duration-500 cursor-pointer hover:scale-105 transition-transform`}
           style={{ 
             animationDelay: `${index * 200}ms`,
             animationFillMode: 'both'
           }}
+          onClick={() => handleNotificationClick(notification)}
         >
           <CardContent className="p-4">
             <div className="flex items-start justify-between mb-2">

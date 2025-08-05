@@ -1366,7 +1366,10 @@ function PlayerDashboard() {
   return (
     <div className="min-h-screen bg-slate-900 w-full overflow-x-hidden">
       {/* Push Notification Popup System */}
-      <NotificationPopup userId={Number(user.id)} />
+      <NotificationPopup 
+        userId={Number(user.id)} 
+        onChatNotificationClick={() => setUnifiedChatOpen(true)}
+      />
       
       <div className="max-w-full px-3 py-2 sm:px-4 sm:py-4 lg:px-6 lg:py-6">
         {/* Header - Responsive */}

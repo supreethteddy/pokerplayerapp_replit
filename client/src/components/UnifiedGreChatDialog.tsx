@@ -152,17 +152,28 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({
           setConnectionStatus('disconnected');
         });
 
-        const channel = pusher.subscribe(`player-${playerId}`);
+        // Subscribe to BOTH player-specific channel AND staff-portal channel for complete coverage
+        const playerChannel = pusher.subscribe(`player-${playerId}`);
+        const staffChannel = pusher.subscribe('staff-portal');
 
-        channel.bind('pusher:subscription_error', (error: any) => {
-          console.error('❌ [PUSHER] Subscription error:', error);
+        playerChannel.bind('pusher:subscription_error', (error: any) => {
+          console.error('❌ [PUSHER] Player channel subscription error:', error);
         });
 
-        channel.bind('pusher:subscription_succeeded', () => {
+        playerChannel.bind('pusher:subscription_succeeded', () => {
           console.log(`✅ [PUSHER] Successfully subscribed to player-${playerId} channel`);
         });
 
-        channel.bind('new-gre-message', (data: any) => {
+        staffChannel.bind('pusher:subscription_error', (error: any) => {
+          console.error('❌ [PUSHER] Staff channel subscription error:', error);
+        });
+
+        staffChannel.bind('pusher:subscription_succeeded', () => {
+          console.log(`✅ [PUSHER] Successfully subscribed to staff-portal channel`);
+        });
+
+        // Listen for GRE messages on player channel
+        playerChannel.bind('new-gre-message', (data: any) => {
           console.log('🔔 [PUSHER] New GRE message received:', data);
 
           const newMsg: ChatMessage = {
@@ -193,11 +204,63 @@ const UnifiedGreChatDialog: React.FC<UnifiedGreChatDialogProps> = ({
           setTimeout(() => scrollToBottom(), 10);
         });
 
-        channel.bind('new-player-message', (data: any) => {
+        playerChannel.bind('new-player-message', (data: any) => {
           console.log('🔔 [PUSHER] Echo of player message:', data);
         });
 
-        console.log(`✅ [PUSHER] Connected to player-${playerId} channel`);
+        // CRITICAL: Listen for GRE messages on staff-portal channel (where they actually come from)
+        staffChannel.bind('new-gre-message', (data: any) => {
+          console.log('🔔 [PUSHER] Staff portal GRE message received:', data);
+          
+          // Only process messages for this specific player
+          if (data.playerId === playerId || data.player_id === playerId) {
+            const newMsg: ChatMessage = {
+              id: data.messageId || `staff-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              message: data.message,
+              sender: 'staff',
+              sender_name: data.senderName || data.sender_name || 'Guest Relations Executive',
+              timestamp: data.timestamp || new Date().toISOString(),
+              status: 'received'
+            };
+
+            setMessages(prev => {
+              // Check if message already exists to prevent duplicates
+              const exists = prev.some(msg => msg.id === newMsg.id || 
+                (msg.message === newMsg.message && msg.sender === newMsg.sender && 
+                 Math.abs(new Date(msg.timestamp).getTime() - new Date(newMsg.timestamp).getTime()) < 5000));
+              
+              if (exists) {
+                console.log('⚠️ [PUSHER] Duplicate staff message prevented:', newMsg.id);
+                return prev;
+              }
+              
+              console.log('✅ [PUSHER] Adding staff message to UI instantly');
+              const updated = [...prev, newMsg];
+              
+              // Also update external messages if callback provided
+              if (onMessagesUpdate) {
+                onMessagesUpdate(updated.map(msg => ({
+                  id: msg.id,
+                  player_id: playerId,
+                  message: msg.message,
+                  sender: msg.sender === 'staff' ? 'gre' : 'player',
+                  sender_name: msg.sender_name,
+                  timestamp: msg.timestamp,
+                  status: msg.status
+                })));
+              }
+              
+              return updated;
+            });
+            
+            // Instant scroll with no animation for real-time feel
+            setTimeout(() => scrollToBottom(), 10);
+          } else {
+            console.log('🔍 [PUSHER] Ignoring message for different player:', data.playerId, 'vs', playerId);
+          }
+        });
+
+        console.log(`✅ [PUSHER] Connected to player-${playerId} and staff-portal channels`);
 
       } catch (error) {
         console.error('❌ [PUSHER] Connection failed:', error);
