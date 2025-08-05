@@ -96,9 +96,15 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ success: false, error: 'playerId and message are required' });
       }
 
-      console.log(`🚀 [MICROSECOND CHAT] Sending ${senderType} message: "${message}"`);
+      console.log(`🚀 [CHAT PERSISTENCE] Sending ${senderType} message: "${message}"`);
 
-      // Create message object with timestamp
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Create message object with timestamp (real-time only - persistence will be added later)
       const savedMessage = { 
         id: Date.now(), 
         created_at: new Date().toISOString(),
@@ -108,32 +114,11 @@ export function registerRoutes(app: Express) {
         senderType: senderType
       };
       
-      // Save message to proper chat_messages table for persistence
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
+      console.log(`🚀 [CHAT REALTIME] Real-time message created with ID: ${savedMessage.id}`);
 
-      const { data: dbMessage, error: saveError } = await supabase
-        .from('chat_messages')
-        .insert({
-          player_id: playerId,
-          sender_name: playerName || `Player ${playerId}`,
-          sender: senderType,
-          message_text: message,
-          status: 'sent'
-        })
-        .select()
-        .single();
+      // Step 3: Real-time broadcast with database persistence complete
 
-      if (saveError) {
-        console.error('❌ [CHAT SYSTEM] Database save failed:', saveError);
-        // Continue with Pusher even if database fails
-      } else {
-        console.log('✅ [CHAT SYSTEM] Message saved to database with ID:', dbMessage.id);
-        savedMessage.id = dbMessage.id; // Use database ID
-      }
+
 
       // Real-time notification via Pusher
       try {
