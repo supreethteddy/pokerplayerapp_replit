@@ -158,7 +158,7 @@ export function registerRoutes(app: Express) {
           });
 
           if (oneSignalResponse.ok) {
-            const notificationResult = await oneSignalResponse.json();
+            const notificationResult = await oneSignalResponse.json() as any;
             console.log('🔔 [ONESIGNAL] Push notification sent:', notificationResult.id);
           } else {
             console.warn('⚠️ [ONESIGNAL] Push notification failed:', oneSignalResponse.statusText);
@@ -299,7 +299,7 @@ export function registerRoutes(app: Express) {
           }
         });
         
-      } catch (pusherError) {
+      } catch (pusherError: any) {
         console.error('❌ [CHAT TEST] Pusher test failed:', pusherError);
         res.status(500).json({ 
           success: false, 

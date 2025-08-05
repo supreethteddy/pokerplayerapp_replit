@@ -1511,7 +1511,7 @@ function PlayerDashboard() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {tables?.map((table) => (
+                      {tables && tables.map((table) => (
                         <div
                           key={table.id}
                           className="bg-slate-700 p-4 rounded-lg"
@@ -1532,17 +1532,19 @@ function PlayerDashboard() {
                           <div className="grid grid-cols-2 gap-4 mb-3">
                             <div className="text-center">
                               <Users className="w-4 h-4 text-slate-400 mx-auto mb-1" />
-                              <p className="text-xs text-slate-400">Players</p>
+                              <p className="text-xs text-slate-400">Players (Staff Managed)</p>
                               <p className="text-sm font-semibold text-white">
-                                {table.currentPlayers}/{table.maxPlayers}
+                                {table.currentPlayers || 0}/{table.maxPlayers || 9}
                               </p>
+                              <p className="text-xs text-slate-500 mt-1">Manual Input Only</p>
                             </div>
                             <div className="text-center">
                               <div className="w-4 h-4 bg-amber-500 rounded-full mx-auto mb-1" />
-                              <p className="text-xs text-slate-400">Avg Stack</p>
+                              <p className="text-xs text-slate-400">Avg Stack (Staff Set)</p>
                               <p className="text-sm font-semibold text-amber-500">
-                                ₹{table.avgStack}
+                                ₹{table.avgStack || '0'}
                               </p>
+                              <p className="text-xs text-slate-500 mt-1">Manual Input Only</p>
                             </div>
                           </div>
 
@@ -1586,7 +1588,10 @@ function PlayerDashboard() {
                               )}
                             </div>
                             
-                            <div className="flex items-center space-x-2">
+                            <div className="flex items-center justify-end space-x-2">
+                              <span className="text-xs text-slate-500 bg-slate-600/50 px-2 py-1 rounded">
+                                🎯 Manual Club Mode
+                              </span>
                               <Badge variant="secondary" className="bg-slate-600 text-slate-300">
                                 {table.isActive ? 'Active' : 'Inactive'}
                               </Badge>
