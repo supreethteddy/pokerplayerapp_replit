@@ -117,8 +117,11 @@ export function UnifiedGreChatDialog_Fixed({
             status: 'received'
           };
 
-          // NO AUTO-OPEN: Only show notifications, user must click to open
-          console.log('🚀 [CHAT NUCLEAR] 📱 Message received - showing notification only (no auto-open)');
+          // AUTO-OPEN CHAT WHEN MESSAGE ARRIVES
+          if (!isOpen && onOpenChange) {
+            console.log('🚀 [CHAT NUCLEAR] 🔥 AUTO-OPENING CHAT FOR NEW MESSAGE');
+            onOpenChange(true);
+          }
 
           setMessages(prev => {
             const exists = prev.some(msg => msg.id === newMsg.id);
@@ -163,8 +166,11 @@ export function UnifiedGreChatDialog_Fixed({
               status: 'received'
             };
 
-            // NO AUTO-OPEN: Only show notifications, user must click to open
-            console.log('🚀 [CHAT NUCLEAR] 📱 Staff message received - showing notification only (no auto-open)');
+            // AUTO-OPEN CHAT WHEN MESSAGE ARRIVES  
+            if (!isOpen && onOpenChange) {
+              console.log('🚀 [CHAT NUCLEAR] 🔥 AUTO-OPENING CHAT FOR STAFF MESSAGE');
+              onOpenChange(true);
+            }
 
             setMessages(prev => {
               const exists = prev.some(msg => msg.id === newMsg.id);
@@ -263,7 +269,7 @@ export function UnifiedGreChatDialog_Fixed({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-md mx-auto">
+      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-sm fixed right-4 top-4 bottom-4 transform-none">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
             <MessageSquare className="w-5 h-5 text-emerald-500" />
@@ -277,7 +283,7 @@ export function UnifiedGreChatDialog_Fixed({
         </DialogHeader>
 
         <div className="space-y-4">
-          <ScrollArea className="h-64 w-full border border-slate-700 rounded-lg p-3">
+          <ScrollArea className="h-80 w-full border border-slate-700 rounded-lg p-3">
             <div className="space-y-3">
               {messages.length === 0 && (
                 <div className="text-center text-slate-400 py-8">
