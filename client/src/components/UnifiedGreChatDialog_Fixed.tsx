@@ -44,33 +44,30 @@ export function UnifiedGreChatDialog_Fixed({
   console.log(`🔍 [CHAT PLAYER ID] Using player ID: ${playerId}`);
   console.log('🚀 [CHAT NUCLEAR] Component mounted, playerId:', playerId, 'isOpen:', isOpen);
 
-  // SURGICAL FIX: IMMEDIATE AND PERSISTENT CHAT HISTORY LOADING
+  // PERSISTENT CHAT HISTORY - Load and maintain state across dialog open/close
   useEffect(() => {
-    console.log('🚀 [CHAT NUCLEAR] 📚 SURGICAL FIX - LOADING HISTORY - isOpen:', isOpen, 'playerId:', playerId);
+    console.log('🚀 [CHAT PERSISTENT] Loading history - playerId:', playerId);
     
-    // Load chat history immediately when component mounts OR when it opens
+    // Load chat history when component mounts (regardless of dialog state)
     if (playerId) {
-      console.log('🚀 [CHAT NUCLEAR] 📚 EXECUTING SURGICAL CHAT HISTORY LOAD NOW!');
-      
       const loadChatHistory = async () => {
         try {
           setLoading(true);
-          console.log('🚀 [CHAT NUCLEAR] 📚 Fetching from /api/chat-history/' + playerId);
+          console.log('🚀 [CHAT PERSISTENT] Fetching from /api/chat-history/' + playerId);
           
           const response = await fetch(`/api/chat-history/${playerId}`);
           const data = await response.json();
           
-          console.log('🚀 [CHAT NUCLEAR] 📚 SURGICAL LOAD RAW RESPONSE:', {
+          console.log('🚀 [CHAT PERSISTENT] Response:', {
             success: data.success,
-            conversationCount: data.conversations?.length || 0,
-            firstConv: data.conversations?.[0]?.subject
+            conversationCount: data.conversations?.length || 0
           });
           
           if (data.success && data.conversations?.length > 0) {
             const allMessages: ChatMessage[] = [];
             
             data.conversations.forEach((conv: any, index: number) => {
-              console.log(`🚀 [CHAT NUCLEAR] 📚 Processing conversation ${index + 1}: "${conv.subject}"`);
+              console.log(`🚀 [CHAT PERSISTENT] Processing conversation ${index + 1}: "${conv.subject}"`);
               
               // Add initial message if exists
               if (conv.initial_message) {
@@ -128,7 +125,7 @@ export function UnifiedGreChatDialog_Fixed({
       
       loadChatHistory();
     }
-  }, [playerId, isOpen]); // Trigger on both playerId and isOpen changes
+  }, [playerId]); // Only trigger on playerId change - maintain messages across dialog open/close
 
   // Initialize Pusher connection IMMEDIATELY when component mounts
   useEffect(() => {
@@ -421,6 +418,24 @@ export function UnifiedGreChatDialog_Fixed({
     }
   };
 
+  // Clear chat history function
+  const clearChatHistory = async () => {
+    try {
+      console.log('🧹 [CHAT CLEAR] Clearing chat history for player:', playerId);
+      
+      const response = await apiRequest('DELETE', `/api/unified-chat/clear/${playerId}`);
+      
+      if (response.ok) {
+        setMessages([]);
+        console.log('🧹 [CHAT CLEAR] ✅ Chat history cleared successfully');
+      } else {
+        console.error('🧹 [CHAT CLEAR] ❌ Failed to clear chat history');
+      }
+    } catch (error) {
+      console.error('🧹 [CHAT CLEAR] ❌ Error clearing chat history:', error);
+    }
+  };
+
   // Handle Enter key
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -433,14 +448,24 @@ export function UnifiedGreChatDialog_Fixed({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-sm w-80">
         <DialogHeader>
-          <DialogTitle className="flex items-center space-x-2">
-            <MessageSquare className="w-5 h-5 text-emerald-500" />
-            <span>Guest Relations Chat</span>
-            <div className={`w-2 h-2 rounded-full ${
-              connectionStatus === 'connected' ? 'bg-green-500' :
-              connectionStatus === 'connecting' ? 'bg-yellow-500' :
-              'bg-red-500'
-            }`} />
+          <DialogTitle className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <MessageSquare className="w-5 h-5 text-emerald-500" />
+              <span>Guest Relations Chat</span>
+              <div className={`w-2 h-2 rounded-full ${
+                connectionStatus === 'connected' ? 'bg-green-500' :
+                connectionStatus === 'connecting' ? 'bg-yellow-500' :
+                'bg-red-500'
+              }`} />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearChatHistory}
+              className="text-xs px-2 py-1 h-6"
+            >
+              Clear
+            </Button>
           </DialogTitle>
         </DialogHeader>
 

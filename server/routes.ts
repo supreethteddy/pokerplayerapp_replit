@@ -208,9 +208,66 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      // WORKING SYSTEM: Real-time messaging with simple persistence
-      const savedMessage = { 
-        id: Date.now(), 
+      // ENHANCED PERSISTENCE: Store message in database for permanent history
+      const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // First, ensure chat request exists
+      let { data: existingRequest } = await supabase
+        .from('chat_requests')
+        .select('id')
+        .eq('player_id', playerId)
+        .single();
+
+      let requestId = existingRequest?.id;
+
+      if (!requestId) {
+        // Create new chat request
+        const { data: newRequest, error: requestError } = await supabase
+          .from('chat_requests')
+          .insert({
+            id: `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            player_id: playerId,
+            subject: `Chat with ${playerName || `Player ${playerId}`}`,
+            message: message,
+            status: 'pending',
+            priority: 'medium',
+            created_at: new Date().toISOString()
+          })
+          .select('id')
+          .single();
+
+        if (requestError) {
+          console.error('❌ [CHAT PERSISTENCE] Error creating request:', requestError);
+        } else {
+          requestId = newRequest?.id;
+          console.log('🚀 [CHAT PERSISTENCE] Created new chat request:', requestId);
+        }
+      }
+
+      // Store message in database
+      const { data: savedMessage, error: messageError } = await supabase
+        .from('chat_messages')
+        .insert({
+          id: messageId,
+          request_id: requestId,
+          player_id: playerId,
+          sender: senderType,
+          sender_name: playerName || `Player ${playerId}`,
+          message_text: message,
+          timestamp: new Date().toISOString(),
+          status: 'sent'
+        })
+        .select()
+        .single();
+
+      if (messageError) {
+        console.error('❌ [CHAT PERSISTENCE] Error saving message:', messageError);
+      } else {
+        console.log('🚀 [CHAT PERSISTENCE] ✅ Message saved to database:', messageId);
+      }
+
+      const responseMessage = savedMessage || { 
+        id: messageId, 
         created_at: new Date().toISOString(),
         message: message,
         playerId: playerId,
@@ -218,7 +275,7 @@ export function registerRoutes(app: Express) {
         senderType: senderType
       };
       
-      console.log(`🚀 [CHAT REALTIME] Real-time message created with ID: ${savedMessage.id}`);
+      console.log(`🚀 [CHAT REALTIME] Message processed with ID: ${responseMessage.id}`);
 
 
 
@@ -228,7 +285,7 @@ export function registerRoutes(app: Express) {
         if (senderType === 'player') {
           // Notify Staff Portal - RESTORED WORKING FORMAT
           const pusherPayload = {
-            id: savedMessage.id,
+            id: responseMessage.id,
             message: message,
             sender: 'player',
             sender_name: playerName || `Player ${playerId}`,
@@ -245,6 +302,10 @@ export function registerRoutes(app: Express) {
           console.log('   Payload:', JSON.stringify(pusherPayload, null, 2));
           console.log('   Pusher Response:', pusherResult);
           console.log('   ✅ SUCCESS: Message delivered to staff portal via Pusher');
+
+          // Also trigger player-specific channel for bidirectional chat
+          await pusher.trigger(`player-chat-${playerId}`, 'message-sent', pusherPayload);
+          console.log(`🚀 [PUSHER DELIVERY] Player channel notification sent: player-chat-${playerId}`);
         } else {
           // Notify Player Portal - DUAL CHANNEL APPROACH for guaranteed delivery
           const pusherPayload = {
@@ -317,11 +378,11 @@ export function registerRoutes(app: Express) {
         success: true,
         message: 'Chat message sent successfully',
         data: {
-          id: savedMessage.id,
+          id: responseMessage.id,
           playerId: playerId,
           message: message,
           senderType: senderType,
-          timestamp: savedMessage.created_at
+          timestamp: responseMessage.created_at || new Date().toISOString()
         }
       });
 
@@ -332,6 +393,49 @@ export function registerRoutes(app: Express) {
         error: 'Failed to send message',
         details: error.message
       });
+    }
+  });
+
+  // Clear Chat History Endpoint
+  app.delete("/api/unified-chat/clear/:playerId", async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      console.log(`🧹 [CHAT CLEAR] Clearing chat history for player: ${playerId}`);
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Clear all chat messages for this player
+      const { error: messagesError } = await supabase
+        .from('chat_messages')
+        .delete()
+        .eq('player_id', playerId);
+
+      if (messagesError) {
+        console.error('❌ [CHAT CLEAR] Error clearing messages:', messagesError);
+        return res.status(500).json({ error: 'Failed to clear chat messages' });
+      }
+
+      // Clear all chat requests for this player
+      const { error: requestsError } = await supabase
+        .from('chat_requests')
+        .delete()
+        .eq('player_id', playerId);
+
+      if (requestsError) {
+        console.error('❌ [CHAT CLEAR] Error clearing requests:', requestsError);
+        return res.status(500).json({ error: 'Failed to clear chat requests' });
+      }
+
+      console.log('🧹 [CHAT CLEAR] ✅ Successfully cleared all chat data for player:', playerId);
+      res.json({ success: true, message: 'Chat history cleared successfully' });
+
+    } catch (error) {
+      console.error('❌ [CHAT CLEAR] Error:', error);
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
