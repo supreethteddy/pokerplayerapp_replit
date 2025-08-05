@@ -32,6 +32,7 @@ export function UnifiedGreChatDialog_Fixed({
   const [isSending, setIsSending] = useState(false);
   const [playerData, setPlayerData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [messagesLoaded, setMessagesLoaded] = useState(false);
   
   const { user } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -44,16 +45,16 @@ export function UnifiedGreChatDialog_Fixed({
   console.log(`🔍 [CHAT PLAYER ID] Using player ID: ${playerId}`);
   console.log('🚀 [CHAT NUCLEAR] Component mounted, playerId:', playerId, 'isOpen:', isOpen);
 
-  // PERSISTENT CHAT HISTORY - Load and maintain state across dialog open/close
+  // PERSISTENT CHAT HISTORY - Load once and maintain across sessions
   useEffect(() => {
-    console.log('🚀 [CHAT PERSISTENT] Loading history - playerId:', playerId);
+    console.log('🚀 [CHAT PERSISTENT] Check load - playerId:', playerId, 'loaded:', messagesLoaded);
     
-    // Load chat history when component mounts (regardless of dialog state)
-    if (playerId) {
+    // Only load once when component first mounts with playerId
+    if (playerId && !messagesLoaded) {
       const loadChatHistory = async () => {
         try {
           setLoading(true);
-          console.log('🚀 [CHAT PERSISTENT] Fetching from /api/chat-history/' + playerId);
+          console.log('🚀 [CHAT PERSISTENT] Loading chat history from /api/chat-history/' + playerId);
           
           const response = await fetch(`/api/chat-history/${playerId}`);
           const data = await response.json();
@@ -100,8 +101,9 @@ export function UnifiedGreChatDialog_Fixed({
             // Sort by timestamp
             allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
             setMessages(allMessages);
+            setMessagesLoaded(true);
             
-            console.log('🚀 [CHAT NUCLEAR] ✅ SURGICAL FIX SUCCESS!', {
+            console.log('🚀 [CHAT PERSISTENT] ✅ Messages loaded successfully:', {
               totalMessages: allMessages.length,
               firstMessage: allMessages[0]?.message?.substring(0, 50),
               lastMessage: allMessages[allMessages.length - 1]?.message?.substring(0, 50)
@@ -112,12 +114,14 @@ export function UnifiedGreChatDialog_Fixed({
               onMessagesUpdate(allMessages);
             }
           } else {
-            console.log('🚀 [CHAT NUCLEAR] 📚 No conversations found or API error');
+            console.log('🚀 [CHAT PERSISTENT] 📚 No conversations found');
             setMessages([]);
+            setMessagesLoaded(true);
           }
         } catch (error) {
-          console.error('🚀 [CHAT NUCLEAR] ❌ SURGICAL LOAD ERROR:', error);
+          console.error('🚀 [CHAT PERSISTENT] ❌ Load error:', error);
           setMessages([]);
+          setMessagesLoaded(true);
         } finally {
           setLoading(false);
         }
@@ -125,7 +129,7 @@ export function UnifiedGreChatDialog_Fixed({
       
       loadChatHistory();
     }
-  }, [playerId]); // Only trigger on playerId change - maintain messages across dialog open/close
+  }, [playerId, messagesLoaded]); // Only load once when component mounts
 
   // Initialize Pusher connection IMMEDIATELY when component mounts
   useEffect(() => {
@@ -427,6 +431,7 @@ export function UnifiedGreChatDialog_Fixed({
       
       if (response.ok) {
         setMessages([]);
+        setMessagesLoaded(false); // Allow reload after clear
         console.log('🧹 [CHAT CLEAR] ✅ Chat history cleared successfully');
       } else {
         console.error('🧹 [CHAT CLEAR] ❌ Failed to clear chat history');
@@ -459,12 +464,15 @@ export function UnifiedGreChatDialog_Fixed({
               }`} />
             </div>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={clearChatHistory}
-              className="text-xs px-2 py-1 h-6"
+              className="h-6 w-6 p-0 hover:bg-slate-700"
+              title="Clear chat history"
             >
-              Clear
+              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
             </Button>
           </DialogTitle>
         </DialogHeader>

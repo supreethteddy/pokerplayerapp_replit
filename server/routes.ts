@@ -221,14 +221,14 @@ export function registerRoutes(app: Express) {
       let requestId = existingRequest?.id;
 
       if (!requestId) {
-        // Create new chat request
+        // Create new chat request using correct column names
         const { data: newRequest, error: requestError } = await supabase
           .from('chat_requests')
           .insert({
             id: `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             player_id: playerId,
             subject: `Chat with ${playerName || `Player ${playerId}`}`,
-            message: message,
+            initial_message: message,
             status: 'pending',
             priority: 'medium',
             created_at: new Date().toISOString()
@@ -244,7 +244,7 @@ export function registerRoutes(app: Express) {
         }
       }
 
-      // Store message in database
+      // Store message in database using correct column names
       const { data: savedMessage, error: messageError } = await supabase
         .from('chat_messages')
         .insert({
