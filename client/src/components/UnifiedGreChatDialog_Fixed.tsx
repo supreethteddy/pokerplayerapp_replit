@@ -210,6 +210,79 @@ export function UnifiedGreChatDialog_Fixed({
     };
   }, [playerId]); // Only depend on playerId, not isOpen
 
+  // Load chat history when component opens - CRITICAL FIX TO DISPLAY REAL DATA
+  useEffect(() => {
+    if (!isOpen || !playerId) return;
+    
+    console.log('🚀 [CHAT NUCLEAR] 📚 Loading chat history for player:', playerId);
+    
+    const loadChatHistory = async () => {
+      try {
+        const response = await fetch(`/api/chat-history/${playerId}`);
+        const data = await response.json();
+        
+        console.log('🚀 [CHAT NUCLEAR] 📚 Raw API response:', data);
+        
+        if (data.success && data.conversations && data.conversations.length > 0) {
+          console.log('🚀 [CHAT NUCLEAR] 📚 Processing', data.conversations.length, 'conversations');
+          
+          // Process conversations to extract messages
+          const allMessages: ChatMessage[] = [];
+          
+          data.conversations.forEach((conv: any, convIndex: number) => {
+            console.log(`🚀 [CHAT NUCLEAR] 📚 Processing conversation ${convIndex + 1}:`, conv.subject);
+            
+            // Add conversation start message if there's an initial message
+            if (conv.initial_message) {
+              allMessages.push({
+                id: `conv-${conv.id}`,
+                message: conv.initial_message,
+                sender: 'player',
+                sender_name: conv.player_name,
+                timestamp: conv.created_at,
+                status: 'sent'
+              });
+            }
+            
+            // Add all chat messages from this conversation
+            if (conv.chat_messages && Array.isArray(conv.chat_messages)) {
+              console.log(`🚀 [CHAT NUCLEAR] 📚 Found ${conv.chat_messages.length} messages in conversation ${convIndex + 1}`);
+              conv.chat_messages.forEach((msg: any) => {
+                allMessages.push({
+                  id: msg.id,
+                  message: msg.message_text,
+                  sender: msg.sender,
+                  sender_name: msg.sender_name,
+                  timestamp: msg.timestamp,
+                  status: 'sent'
+                });
+              });
+            }
+          });
+          
+          // Sort messages by timestamp
+          allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          
+          setMessages(allMessages);
+          console.log('🚀 [CHAT NUCLEAR] ✅ Successfully loaded', allMessages.length, 'total messages from all conversations');
+          
+          // Log first few messages to verify
+          if (allMessages.length > 0) {
+            console.log('🚀 [CHAT NUCLEAR] 📚 First 3 messages:', allMessages.slice(0, 3));
+          }
+        } else {
+          console.log('🚀 [CHAT NUCLEAR] 📚 No conversations found in response');
+          setMessages([]);
+        }
+      } catch (error) {
+        console.error('🚀 [CHAT NUCLEAR] ❌ Failed to load chat history:', error);
+        setMessages([]);
+      }
+    };
+    
+    loadChatHistory();
+  }, [isOpen, playerId]);
+
   // Auto-scroll to bottom
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

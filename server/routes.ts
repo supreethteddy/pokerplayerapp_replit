@@ -65,8 +65,65 @@ export function registerRoutes(app: Express) {
       
       console.log(`🔍 [CHAT HISTORY FIXED] Supabase client created successfully`);
       
-      // Get ALL chat requests with detailed debug - CRITICAL FIX for Supabase connection
-      console.log(`🔍 [CHAT HISTORY FIXED] Executing Supabase query for player_id: ${playerId}`);
+      // DIRECT POSTGRES QUERY - Bypass Supabase client issue
+      console.log(`🔍 [CHAT HISTORY FIXED] Using direct PostgreSQL query for player_id: ${playerId}`);
+      
+      // Import postgres client
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+      
+      try {
+        // Direct SQL query to get chat requests
+        const requestsQuery = `
+          SELECT cr.*, 
+                 json_agg(
+                   json_build_object(
+                     'id', cm.id,
+                     'sender', cm.sender,
+                     'sender_name', cm.sender_name,
+                     'message_text', cm.message_text,
+                     'timestamp', cm.timestamp
+                   ) ORDER BY cm.timestamp ASC
+                 ) FILTER (WHERE cm.id IS NOT NULL) as chat_messages
+          FROM chat_requests cr
+          LEFT JOIN chat_messages cm ON cr.id = cm.request_id
+          WHERE cr.player_id = $1
+          GROUP BY cr.id
+          ORDER BY cr.created_at DESC
+        `;
+        
+        const result = await pool.query(requestsQuery, [playerId]);
+        const requests = result.rows;
+        
+        console.log(`🔍 [CHAT HISTORY FIXED] Direct PostgreSQL result:`, { 
+          query: `chat_requests WHERE player_id = ${playerId}`,
+          result: requests, 
+          count: requests.length 
+        });
+        
+        // Transform data to match expected format
+        const requestsWithMessages = requests.map(row => ({
+          ...row,
+          chat_messages: row.chat_messages || []
+        }));
+        
+        await pool.end();
+        
+        console.log(`✅ [CHAT HISTORY FIXED] Direct query result: ${requestsWithMessages.length} conversations`);
+        res.json({ success: true, conversations: requestsWithMessages });
+        return;
+        
+      } catch (pgError) {
+        console.error('❌ [CHAT HISTORY FIXED] PostgreSQL error:', pgError);
+        await pool.end();
+        // Fall back to Supabase if PostgreSQL fails
+      }
+      
+      // Fallback: Original Supabase query
+      console.log(`🔍 [CHAT HISTORY FIXED] Fallback to Supabase query for player_id: ${playerId}`);
       
       const { data: requests, error: requestsError } = await supabase
         .from('chat_requests')
@@ -74,7 +131,7 @@ export function registerRoutes(app: Express) {
         .eq('player_id', playerId)
         .order('created_at', { ascending: false });
         
-      console.log(`🔍 [CHAT HISTORY FIXED] Supabase query completed:`, { 
+      console.log(`🔍 [CHAT HISTORY FIXED] Supabase fallback result:`, { 
         query: `chat_requests WHERE player_id = ${playerId}`,
         result: requests, 
         error: requestsError 
