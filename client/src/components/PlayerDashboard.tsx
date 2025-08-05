@@ -399,11 +399,11 @@ function PlayerDashboard() {
     
     setTournamentActionLoading(true);
     try {
-      const response = await apiRequest("POST", "/api/gre-chat/send", {
+      const response = await apiRequest("POST", "/api/unified-chat/send", {
         playerId: user.id,
         playerName: `${user.firstName} ${user.lastName}`,
         message: `Player is interested in Tournament ID: ${tournamentId}`,
-        timestamp: new Date().toISOString()
+        senderType: 'player'
       });
 
       if (response.ok) {
@@ -775,11 +775,11 @@ function PlayerDashboard() {
       // Add to local state immediately for instant display
       setUnifiedChatMessages(prev => [...prev, newMessage]);
       
-      const response = await apiRequest("POST", "/api/gre-chat/send", {
+      const response = await apiRequest("POST", "/api/unified-chat/send", {
         playerId: user.id,
         playerName: `${user.firstName} ${user.lastName}`,
         message: chatMessage.trim(),
-        timestamp: new Date().toISOString()
+        senderType: 'player'
       });
 
       const result = await response.json();

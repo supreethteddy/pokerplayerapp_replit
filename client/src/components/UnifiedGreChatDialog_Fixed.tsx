@@ -389,12 +389,12 @@ export function UnifiedGreChatDialog_Fixed({
     try {
       console.log('🚀 [CHAT NUCLEAR] 📤 SENDING MESSAGE:', messageToSend);
       
-      // CRITICAL FIX: Use the working endpoint that successfully reaches staff portal
-      const response = await apiRequest('POST', '/api/gre-chat/send', {
+      // COMPREHENSIVE FIX: Use correct endpoint with proper payload structure
+      const response = await apiRequest('POST', '/api/unified-chat/send', {
         playerId: playerId,
         playerName: playerName,
         message: messageToSend,
-        timestamp: new Date().toISOString()
+        senderType: 'player'
       });
 
       if (response.ok) {

@@ -1,0 +1,22 @@
+{
+  "plan": [
+    "Review the player portal’s chat dialog and endpoint configuration to verify which API routes are used for sending messages to staff.",
+    "Compare the configured endpoint with the intended backend logic for staff chat delivery, confirming whether /api/unified-chat/send or /api/gre-chat/send is specified.",
+    "Map the connection from the correct API endpoint to: (1) Supabase data writes, (2) staff portal Pusher triggers (especially the 'staff-portal' channel and 'new-player-message' event), and (3) OneSignal notification dispatch.",
+    "Update the player portal’s chat dialog to use the correct /api/gre-chat/send endpoint for all staff-directed messages, ensuring all required payload structure and metadata are included.",
+    "Validate that sending a message from the player portal now reliably causes both instant staff UI update (via Pusher event) and notifications via OneSignal, without duplicate or missing messages.",
+    "Test bi-directional chat (player→staff and staff→player), logging all outgoing and incoming events and notifications. Take before/after screenshots to show that staff-side chat display now occurs as intended.",
+    "Remove any unused or obsolete endpoint bindings or configuration to prevent future regressions.",
+    "Document all endpoint, payload, and channel/event naming conventions used, and recommend regression/UI tests for ongoing reliability."
+  ],
+  "purpose": "To ensure all chat messages sent from the player portal to staff are routed through the correct API endpoint (/api/gre-chat/send), thereby triggering the proper staff-side real-time Pusher events ('new-player-message' on 'staff-portal') and accompanying notifications, maintaining perfect synergy between database state, notifications, and UI updates for both portals.",
+  "constraints": [
+    "Do NOT alter or interfere with unrelated chat logic, notification logic, or customer-facing features outside the chat dialog endpoint configuration.",
+    "All push notification flows and historical chat record persistence must remain unchanged and intact.",
+    "Endpoint update must be modular, clearly documented, and safe for regression.",
+    "Before merging or releasing, verify that all staff- and player-facing messages appear correctly and instantly in both chat UIs and notifications.",
+    "Pause after confirming fixes, providing full before/after documentation and change summaries for stakeholder approval."
+  ],
+  "approval": "Pause after updating the API endpoint and verifying staff portal chat UI and notification delivery. Present stakeholders with test logs, before/after screenshots, and explicit endpoint/config diffs. Deploy or merge only after receiving written approval.",
+  "execute": "Deploy changes only upon approval and after a full round of regression and UI testing to ensure bidirectional messages and notifications are consistently delivered. Remain open for future feedback or endpoint/UX improvements as needed."
+}
