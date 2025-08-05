@@ -373,55 +373,8 @@ export function registerRoutes(app: Express) {
 
 
 
-      // Real-time notification via Pusher
-      try {
-        if (senderType === 'player') {
-          // Notify Staff Portal - RESTORED WORKING FORMAT
-          const pusherPayload = {
-            id: responseMessage.id,
-            message: message,
-            sender: 'player',
-            sender_name: playerName || `Player ${playerId}`,
-            player_id: playerId,
-            timestamp: new Date().toISOString(),
-            status: 'sent'
-          };
-          
-          const pusherResult = await pusher.trigger('staff-portal', 'new-player-message', pusherPayload);
-          
-          console.log('🚀 [PUSHER DELIVERY] Staff Portal notification sent:');
-          console.log('   Channel: staff-portal');
-          console.log('   Event: new-player-message');
-          console.log('   Payload:', JSON.stringify(pusherPayload, null, 2));
-          console.log('   Pusher Response:', pusherResult);
-          console.log('   ✅ SUCCESS: Message delivered to staff portal via Pusher');
-
-          // Also trigger player-specific channel for bidirectional chat
-          await pusher.trigger(`player-chat-${playerId}`, 'message-sent', pusherPayload);
-          console.log(`🚀 [PUSHER DELIVERY] Player channel notification sent: player-chat-${playerId}`);
-        } else {
-          // Notify Player Portal - DUAL CHANNEL APPROACH for guaranteed delivery
-          const pusherPayload = {
-            message: message,
-            senderName: 'Guest Relations Executive',
-            timestamp: new Date().toISOString(),
-            messageId: savedMessage.id,
-            playerId: playerId // Add playerId for filtering
-          };
-          
-          // Send to BOTH channels for maximum reliability
-          const playerChannelResult = await pusher.trigger(`player-${playerId}`, 'new-gre-message', pusherPayload);
-          const staffChannelResult = await pusher.trigger('staff-portal', 'new-gre-message', pusherPayload);
-          
-          console.log(`🚀 [PUSHER DUAL DELIVERY] GRE message sent to BOTH channels:`);
-          console.log(`   Player Channel (player-${playerId}):`, playerChannelResult);
-          console.log(`   Staff Channel (staff-portal):`, staffChannelResult);
-          console.log(`   ✅ MICROSECOND DELIVERY: Message sent via dual-channel approach`);
-        }
-      } catch (pusherError) {
-        console.error('❌ [PUSHER] Real-time notification failed:', pusherError);
-        console.error('   This will prevent staff portal from receiving real-time messages');
-      }
+      // DISABLED - Using Direct Chat System instead
+      console.log('🔄 [LEGACY PUSHER] Skipping legacy Pusher notification - using direct-chat-system.ts');
 
       // Push notification via OneSignal
       if (process.env.ONESIGNAL_API_KEY && process.env.ONESIGNAL_APP_ID) {

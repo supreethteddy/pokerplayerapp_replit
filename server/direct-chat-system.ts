@@ -132,7 +132,7 @@ export class DirectChatSystem {
   }
 
   // REAL-TIME NOTIFICATIONS
-  private async sendNotifications(playerId: number, playerName: string, message: string, messageId: string, timestamp: string, senderType: 'player' | 'staff') {
+  private async sendNotifications(playerId: number, playerName: string, message: string, messageId: string, timestamp: string, senderType: 'player' | 'gre') {
     try {
       const payload = {
         id: messageId,
@@ -146,22 +146,33 @@ export class DirectChatSystem {
 
       // UNIFIED BIDIRECTIONAL BRIDGE - Staff Portal Integration
       if (senderType === 'player') {
-        // Player → Staff: Broadcast to both channels for complete visibility
+        // Player → Staff: Send to multiple event types for Staff Portal compatibility
         await Promise.all([
+          // Primary event for Staff Portal
           this.pusher.trigger('staff-portal', 'chat-message-received', {
             ...payload,
             type: 'player-to-staff'
           }),
+          // Alternative event format that Staff Portal might be listening to
+          this.pusher.trigger('staff-portal', 'new-player-message', {
+            ...payload,
+            type: 'player-to-staff'
+          }),
+          // Player confirmation (echo prevention)
           this.pusher.trigger(`player-${playerId}`, 'chat-message-received', {
             ...payload,
             type: 'player-confirmation'
           })
         ]);
-        console.log('✅ [BIDIRECTIONAL BRIDGE] Player message broadcasted to both channels');
+        console.log('✅ [BIDIRECTIONAL BRIDGE] Player message broadcasted with multiple event types');
       } else {
-        // Staff → Player: Broadcast to both channels for complete synchronization
+        // GRE → Player: Send to multiple event types for compatibility
         await Promise.all([
           this.pusher.trigger(`player-${playerId}`, 'chat-message-received', {
+            ...payload,
+            type: 'staff-to-player'
+          }),
+          this.pusher.trigger(`player-${playerId}`, 'new-gre-message', {
             ...payload,
             type: 'staff-to-player'
           }),
@@ -170,7 +181,7 @@ export class DirectChatSystem {
             type: 'staff-confirmation'
           })
         ]);
-        console.log('✅ [BIDIRECTIONAL BRIDGE] Staff message broadcasted to both channels');
+        console.log('✅ [BIDIRECTIONAL BRIDGE] Staff message broadcasted with multiple event types');
       }
 
       // OneSignal push notification (optional)
