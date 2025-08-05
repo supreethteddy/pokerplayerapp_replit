@@ -1,0 +1,24 @@
+{
+  "plan": [
+    "Conduct a comprehensive audit of the player portal chat component to map end-to-end workflow for staff→player messages: from staff message creation, storage in Supabase, to real-time broadcast (Pusher) and UI rendering.",
+    "Verify that staff messages are correctly saved in the Supabase database and not subject to restrictive RLS (Row Level Security) policies that prevent player-role users from receiving or querying them.",
+    "Check Pusher integration: Ensure staff→player messages trigger the correct real-time events, are broadcast on the appropriate sessions/channels, and are subscribed to by the player portal with the right bindings.",
+    "Examine the frontend state management and message handlers in the player portal for: (a) subscription to correct Pusher channels, (b) proper event handling for new messages, (c) no message filtering or logic that accidentally excludes or hides staff-originated messages.",
+    "Compare the end-to-end path of notification delivery (OneSignal) vs. chat message delivery (Pusher+Supabase) to identify the exact point of breakdown—such as event naming, channel mismatch, DB sync, or permission failure.",
+    "Add enhanced logging and debug outputs at each logical step: DB write, Pusher event emission, player-side subscription, and message render function.",
+    "Test with real staff→player messages, capturing log outputs, and snapshotting UI/UX at each phase to locate discrepancies.",
+    "Fix only the specific root cause found (e.g., incorrect RLS policy, missing subscription, dropped Pusher event, message filtering bug) so that staff→player messages reliably appear in the player chat UI/UX in real time, while preserving all notification and chat logic for other message types.",
+    "Ensure no other chat, notification, or portal feature is affected—patch must be modular and fully tested."
+  ],
+  "purpose": "Systematically diagnose and repair the critical bug where staff-sent messages reach the player as notifications (via OneSignal) but fail to arrive in the chat UI/UX (via Pusher/Supabase). By double-checking all integration points and performing a full-stack audit, this prompt ensures player chat feeds are always fully synchronized with backend and real-time systems, establishing permanent, reliable bi-directional staff–player messaging.",
+  "constraints": [
+    "Do NOT make any breaking changes or affect unrelated chat, notification, or player portal functionality.",
+    "Do NOT remove/disable working notification flows—players must still receive all proper notifications as before.",
+    "Minimize code and schema changes: update only the necessary integration/configuration or minor logic fixes identified in the bug root cause.",
+    "All permission and role boundaries in Supabase and frontend code must remain enforced as per security/business requirements.",
+    "Add or update modular, well-documented test cases expressly for staff→player chat delivery.",
+    "Pause implementation after patching and present logs, before/after UI, and specific fix summaries for explicit review and approval before production deployment."
+  ],
+  "approval": "Pause after root cause identification and code patch, delivering side-by-side logs, screenshots of the fixed UI, and a clear changelog. Await explicit approval before merging or deploying to production.",
+  "execute": "Only deploy or merge after approval and upon successful verification that staff→player messages now appear in real time in the player chat UI/UX and that all existing notification flows and other features remain intact. Address any further edge cases or errors iteratively, without affecting working systems."
+}

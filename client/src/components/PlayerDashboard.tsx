@@ -2594,6 +2594,7 @@ function PlayerDashboard() {
 
 
         {/* Unified GRE Chat Dialog - Only in Feedback Tab */}
+        {/* SURGICAL FIX: Render chat dialog for feedback tab only - but always mounted when tab is active */}
         {activeTab === "feedback" && (
           <div className="fixed bottom-4 right-4 z-50">
             <UnifiedGreChatDialog_Fixed 

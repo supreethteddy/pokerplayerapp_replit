@@ -44,22 +44,35 @@ export function UnifiedGreChatDialog_Fixed({
   console.log(`🔍 [CHAT PLAYER ID] Using player ID: ${playerId}`);
   console.log('🚀 [CHAT NUCLEAR] Component mounted, playerId:', playerId, 'isOpen:', isOpen);
 
-  // IMMEDIATE CHAT HISTORY LOADING - FORCE EXECUTION
+  // SURGICAL FIX: IMMEDIATE AND PERSISTENT CHAT HISTORY LOADING
   useEffect(() => {
-    console.log('🚀 [CHAT NUCLEAR] 📚 IMMEDIATE LOAD ATTEMPT - isOpen:', isOpen, 'playerId:', playerId);
+    console.log('🚀 [CHAT NUCLEAR] 📚 SURGICAL FIX - LOADING HISTORY - isOpen:', isOpen, 'playerId:', playerId);
     
-    if (isOpen && playerId) {
-      console.log('🚀 [CHAT NUCLEAR] 📚 FORCE LOADING CHAT HISTORY NOW!');
+    // Load chat history immediately when component mounts OR when it opens
+    if (playerId) {
+      console.log('🚀 [CHAT NUCLEAR] 📚 EXECUTING SURGICAL CHAT HISTORY LOAD NOW!');
       
-      fetch(`/api/chat-history/${playerId}`)
-        .then(response => response.json())
-        .then(data => {
-          console.log('🚀 [CHAT NUCLEAR] 📚 IMMEDIATE LOAD RESULT:', data);
+      const loadChatHistory = async () => {
+        try {
+          setLoading(true);
+          console.log('🚀 [CHAT NUCLEAR] 📚 Fetching from /api/chat-history/' + playerId);
+          
+          const response = await fetch(`/api/chat-history/${playerId}`);
+          const data = await response.json();
+          
+          console.log('🚀 [CHAT NUCLEAR] 📚 SURGICAL LOAD RAW RESPONSE:', {
+            success: data.success,
+            conversationCount: data.conversations?.length || 0,
+            firstConv: data.conversations?.[0]?.subject
+          });
           
           if (data.success && data.conversations?.length > 0) {
             const allMessages: ChatMessage[] = [];
             
-            data.conversations.forEach((conv: any) => {
+            data.conversations.forEach((conv: any, index: number) => {
+              console.log(`🚀 [CHAT NUCLEAR] 📚 Processing conversation ${index + 1}: "${conv.subject}"`);
+              
+              // Add initial message if exists
               if (conv.initial_message) {
                 allMessages.push({
                   id: `conv-${conv.id}`,
@@ -71,7 +84,9 @@ export function UnifiedGreChatDialog_Fixed({
                 });
               }
               
+              // Add all chat messages
               if (conv.chat_messages?.length > 0) {
+                console.log(`🚀 [CHAT NUCLEAR] 📚 Found ${conv.chat_messages.length} messages in conversation`);
                 conv.chat_messages.forEach((msg: any) => {
                   allMessages.push({
                     id: msg.id,
@@ -85,14 +100,35 @@ export function UnifiedGreChatDialog_Fixed({
               }
             });
             
+            // Sort by timestamp
             allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
             setMessages(allMessages);
-            console.log('🚀 [CHAT NUCLEAR] ✅ IMMEDIATE LOAD SUCCESS:', allMessages.length, 'messages loaded');
+            
+            console.log('🚀 [CHAT NUCLEAR] ✅ SURGICAL FIX SUCCESS!', {
+              totalMessages: allMessages.length,
+              firstMessage: allMessages[0]?.message?.substring(0, 50),
+              lastMessage: allMessages[allMessages.length - 1]?.message?.substring(0, 50)
+            });
+            
+            // Call the onMessagesUpdate callback if provided
+            if (onMessagesUpdate) {
+              onMessagesUpdate(allMessages);
+            }
+          } else {
+            console.log('🚀 [CHAT NUCLEAR] 📚 No conversations found or API error');
+            setMessages([]);
           }
-        })
-        .catch(error => console.error('🚀 [CHAT NUCLEAR] ❌ IMMEDIATE LOAD ERROR:', error));
+        } catch (error) {
+          console.error('🚀 [CHAT NUCLEAR] ❌ SURGICAL LOAD ERROR:', error);
+          setMessages([]);
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      loadChatHistory();
     }
-  }, [isOpen, playerId]);
+  }, [playerId, isOpen]); // Trigger on both playerId and isOpen changes
 
   // Initialize Pusher connection IMMEDIATELY when component mounts
   useEffect(() => {
