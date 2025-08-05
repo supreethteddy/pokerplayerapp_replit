@@ -2595,6 +2595,7 @@ function PlayerDashboard() {
         {/* Unified GRE Chat Dialog */}
         <UnifiedGreChatDialog 
           isOpen={unifiedChatOpen}
+          onOpenChange={setUnifiedChatOpen}
           onClose={() => setUnifiedChatOpen(false)}
           externalMessages={unifiedChatMessages}
           onMessagesUpdate={setUnifiedChatMessages}
