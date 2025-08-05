@@ -99,41 +99,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // STAFF PORTAL COMPATIBLE API - Player to Staff messaging
-  app.post('/api/player-chat-integration/send', async (req, res) => {
-    try {
-      const { sessionId, playerId, playerName, message, messageType = 'text' } = req.body;
-      
-      console.log('📡 [PLAYER→STAFF] Sending player message to Staff Portal via Pusher');
-      
-      // Send to Staff Portal via Pusher (exact format from integration guide)
-      await pusher.trigger('staff-portal', 'new-player-message', {
-        id: `msg-${Date.now()}`,
-        message: message,
-        sender: 'player',
-        sender_name: playerName,
-        player_id: parseInt(playerId),
-        session_id: sessionId,
-        timestamp: new Date().toISOString(),
-        status: 'sent',
-        type: 'player-to-staff'
-      });
 
-      console.log('✅ [PLAYER→STAFF] Player message sent to Staff Portal via Pusher');
-
-      res.json({
-        success: true,
-        message: 'Message sent to staff portal'
-      });
-
-    } catch (error: any) {
-      console.error('❌ [PLAYER→STAFF] Error in player chat integration:', error);
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
-    }
-  });
 
   // LEGACY ENDPOINTS (maintain compatibility)
   app.post("/api/unified-chat/send", async (req, res) => {
