@@ -396,11 +396,11 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Clear Chat History Endpoint
+  // Clear Chat History Endpoint (Soft Delete with Archive)
   app.delete("/api/unified-chat/clear/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
-      console.log(`🧹 [CHAT CLEAR] Clearing chat history for player: ${playerId}`);
+      console.log(`🧹 [CHAT CLEAR] Soft deleting chat history for player: ${playerId}`);
 
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
@@ -408,30 +408,41 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      // Clear all chat messages for this player
+      // Archive chat messages (soft delete - keep data for 2 weeks)
+      const archiveDate = new Date();
+      archiveDate.setDate(archiveDate.getDate() + 14); // Archive for 2 weeks
+
       const { error: messagesError } = await supabase
         .from('chat_messages')
-        .delete()
-        .eq('player_id', playerId);
+        .update({ 
+          status: 'archived',
+          updated_at: new Date().toISOString()
+        })
+        .eq('player_id', playerId)
+        .neq('status', 'archived');
 
       if (messagesError) {
-        console.error('❌ [CHAT CLEAR] Error clearing messages:', messagesError);
-        return res.status(500).json({ error: 'Failed to clear chat messages' });
+        console.error('❌ [CHAT CLEAR] Error archiving messages:', messagesError);
+        return res.status(500).json({ error: 'Failed to archive chat messages' });
       }
 
-      // Clear all chat requests for this player
+      // Archive chat requests (soft delete)
       const { error: requestsError } = await supabase
         .from('chat_requests')
-        .delete()
-        .eq('player_id', playerId);
+        .update({ 
+          status: 'archived',
+          updated_at: new Date().toISOString()
+        })
+        .eq('player_id', playerId)
+        .neq('status', 'archived');
 
       if (requestsError) {
-        console.error('❌ [CHAT CLEAR] Error clearing requests:', requestsError);
-        return res.status(500).json({ error: 'Failed to clear chat requests' });
+        console.error('❌ [CHAT CLEAR] Error archiving requests:', requestsError);
+        return res.status(500).json({ error: 'Failed to archive chat requests' });
       }
 
-      console.log('🧹 [CHAT CLEAR] ✅ Successfully cleared all chat data for player:', playerId);
-      res.json({ success: true, message: 'Chat history cleared successfully' });
+      console.log('🧹 [CHAT CLEAR] ✅ Successfully archived chat data for player:', playerId);
+      res.json({ success: true, message: 'Chat history cleared (archived for 2 weeks)' });
 
     } catch (error) {
       console.error('❌ [CHAT CLEAR] Error:', error);
@@ -439,7 +450,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Get Chat Messages - FIXED TO USE CORRECT TABLE
+  // Get Active (Non-Archived) Chat Messages
   app.get("/api/unified-chat/messages/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
@@ -451,12 +462,13 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      // Get messages from correct chat_messages table
+      // Get only active (non-archived) messages
       const { data: messages, error } = await supabase
         .from('chat_messages')
-        .select('id, player_id, sender_name, sender, message_text, status, created_at')
+        .select('id, player_id, sender_name, sender, message_text, status, timestamp')
         .eq('player_id', playerId)
-        .order('created_at', { ascending: true });
+        .neq('status', 'archived')
+        .order('timestamp', { ascending: true });
 
       if (error) {
         console.error('❌ [CHAT SYSTEM] Error fetching messages:', error);
@@ -469,7 +481,7 @@ export function registerRoutes(app: Express) {
         message: msg.message_text,
         sender: msg.sender === 'player' ? 'player' : 'staff',
         sender_name: msg.sender_name || 'System',
-        timestamp: msg.created_at,
+        timestamp: msg.timestamp,
         status: msg.status || 'sent'
       }));
 
