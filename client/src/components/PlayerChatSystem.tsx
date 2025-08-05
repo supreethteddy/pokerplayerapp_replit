@@ -57,85 +57,101 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
       console.log('❌ [PLAYER CHAT] Disconnected from Pusher');
     });
     
-    // Subscribe to EXACT channels from staff portal spec
+    // Subscribe to UNIFIED channels for bidirectional communication
     const playerChannel = pusher.subscribe(`player-${playerId}`);
-    const universalChannel = pusher.subscribe('universal-chat');
+    const staffChannel = pusher.subscribe('staff-portal');
     
-    console.log('📡 [PLAYER CHAT] Subscribed to channels:', `player-${playerId}`, 'universal-chat');
+    console.log('📡 [PLAYER CHAT] Subscribed to channels:', `player-${playerId}`, 'staff-portal');
     
-    // Listen for staff messages (EXACT event names from spec)
+    // UNIFIED event handler for all message types
+    const handleIncomingMessage = (data: any) => {
+      console.log('📨 [PLAYER CHAT] Message received:', data);
+      
+      // Handle different data formats from staff portal
+      const messageData = {
+        id: data.id || data.messageId || `msg-${Date.now()}`,
+        message: data.message || data.messageText || data.text || '',
+        sender: data.sender || (data.isFromPlayer ? 'player' : 'staff'),
+        sender_name: data.sender_name || data.senderName || data.staffName || 'Staff Member',
+        timestamp: data.timestamp || new Date().toISOString(),
+        isFromStaff: data.sender === 'staff' || data.senderType === 'staff' || !data.isFromPlayer
+      };
+      
+      if (messageData.message && messageData.sender) {
+        setMessages(prev => {
+          // Prevent duplicate messages
+          if (prev.find(msg => msg.id === messageData.id)) {
+            return prev;
+          }
+          return [...prev, messageData].sort((a, b) => 
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+          );
+        });
+        
+        // Mark as unread if chat is closed and message is from staff
+        if (!isOpen && messageData.isFromStaff) {
+          setHasUnread(true);
+        }
+        
+        // Update session status based on message activity
+        if (messageData.isFromStaff) {
+          setSessionStatus('active');
+        }
+      }
+    };
+    
+    // Listen for messages on player channel (staff → player)
+    playerChannel.bind('chat-message-received', handleIncomingMessage);
     playerChannel.bind('new-staff-message', handleIncomingMessage);
-    playerChannel.bind('new-message', (data: any) => {
-      if (data.senderType === 'staff' || data.sender === 'staff') {
+    playerChannel.bind('new-message', handleIncomingMessage);
+    
+    // Listen for messages on staff channel (broadcast messages)
+    staffChannel.bind('chat-message-received', (data: any) => {
+      if (data.type === 'staff-to-player' && data.playerId == playerId) {
         handleIncomingMessage(data);
       }
     });
     
-    universalChannel.bind('new-message', (data: any) => {
-      if ((data.player_id == playerId || data.playerId == playerId) && 
-          (data.senderType === 'staff' || data.sender === 'staff')) {
-        handleIncomingMessage(data);
+    // Listen for status updates
+    playerChannel.bind('chat-status-updated', (data: any) => {
+      console.log('📊 [PLAYER CHAT] Status updated:', data);
+      if (data.playerId == playerId) {
+        setSessionStatus(data.status || 'active');
       }
     });
-    
+
     // Load existing messages
+    const loadExistingMessages = async () => {
+      try {
+        console.log('📚 [PLAYER CHAT] Loading existing messages for player:', playerId);
+        const response = await fetch(`/api/chat-history/${playerId}`);
+        const data = await response.json();
+        
+        if (data.success && data.conversations && data.conversations[0]) {
+          const formattedMessages: ChatMessage[] = data.conversations[0].chat_messages.map((msg: any) => ({
+            id: msg.id,
+            message: msg.message_text,
+            sender: msg.sender as 'player' | 'staff',
+            sender_name: msg.sender_name,
+            timestamp: msg.timestamp,
+            isFromStaff: msg.sender === 'staff'
+          }));
+          setMessages(formattedMessages);
+          console.log('✅ [PLAYER CHAT] Loaded', formattedMessages.length, 'messages');
+        }
+      } catch (error) {
+        console.error('❌ [PLAYER CHAT] Failed to load messages:', error);
+      }
+    };
+    
     loadExistingMessages();
     
     return () => {
       pusher.unsubscribe(`player-${playerId}`);
-      pusher.unsubscribe('universal-chat');
+      pusher.unsubscribe('staff-portal');
       pusher.disconnect();
     };
   }, [playerId, playerName]);
-
-  const handleIncomingMessage = (data: any) => {
-    console.log('📨 [PLAYER CHAT] Received staff message:', data);
-    
-    const message: ChatMessage = {
-      id: data.id || data.messageId || `msg-${Date.now()}`,
-      message: data.message || data.messageText || data.message_text,
-      sender: 'staff',
-      sender_name: data.senderName || data.sender_name || 'Staff',
-      timestamp: data.timestamp || new Date().toISOString(),
-      isFromStaff: true
-    };
-    
-    setMessages(prev => {
-      const exists = prev.some(m => m.id === message.id);
-      if (exists) return prev;
-      return [...prev, message];
-    });
-
-    // Show notification if chat is closed
-    if (!isOpen) {
-      setHasUnread(true);
-    }
-
-    setSessionStatus('active');
-  };
-
-  const loadExistingMessages = async () => {
-    try {
-      console.log('📚 [PLAYER CHAT] Loading existing messages for player:', playerId);
-      const response = await fetch(`/api/player-chat-integration/messages/${playerId}`);
-      const data = await response.json();
-      
-      if (data.success && data.messages) {
-        const formattedMessages: ChatMessage[] = data.messages.map((msg: any) => ({
-          id: msg.id,
-          message: msg.message || msg.messageText,
-          sender: msg.isFromPlayer ? 'player' : 'staff',
-          sender_name: msg.sender_name,
-          timestamp: msg.timestamp,
-          isFromStaff: !msg.isFromPlayer
-        }));
-        setMessages(formattedMessages);
-        console.log('✅ [PLAYER CHAT] Loaded', formattedMessages.length, 'messages');
-      }
-    } catch (error) {
-      console.error('❌ [PLAYER CHAT] Failed to load messages:', error);
-    }
-  };
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !isConnected) return;
@@ -148,140 +164,172 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
         body: JSON.stringify({
           playerId: parseInt(playerId.toString()),
           playerName: playerName,
-          message: newMessage.trim(),
+          message: newMessage,
           isFromPlayer: true
         })
       });
-      
-      const result = await response.json();
-      
-      if (result.success) {
-        const sentMessage: ChatMessage = {
-          id: result.id,
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ [PLAYER CHAT] Message sent successfully:', result);
+        
+        // Add message to local state immediately
+        const newMsg: ChatMessage = {
+          id: result.id || `msg-${Date.now()}`,
           message: newMessage,
           sender: 'player',
           sender_name: playerName,
-          timestamp: result.timestamp,
+          timestamp: new Date().toISOString(),
           isFromStaff: false
         };
         
-        setMessages(prev => [...prev, sentMessage]);
+        setMessages(prev => [...prev, newMsg]);
         setNewMessage('');
         setSessionStatus('pending');
-        console.log('✅ [PLAYER CHAT] Message sent successfully');
+      } else {
+        console.error('❌ [PLAYER CHAT] Failed to send message:', response.statusText);
       }
     } catch (error) {
-      console.error('❌ [PLAYER CHAT] Failed to send message:', error);
+      console.error('❌ [PLAYER CHAT] Send error:', error);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
+  const toggleChat = () => {
+    setIsOpen(!isOpen);
+    if (!isOpen) {
+      setHasUnread(false);
     }
-  };
-
-  const openChat = () => {
-    setIsOpen(true);
-    setHasUnread(false);
   };
 
   const closeChat = () => {
     setIsOpen(false);
   };
 
-  if (!isOpen) {
-    return (
-      <div className="fixed bottom-4 right-4 z-50">
-        <button
-          onClick={openChat}
-          className="relative bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full shadow-lg transition-colors"
-        >
-          <MessageCircle size={24} />
-          {hasUnread && (
-            <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-              !
-            </div>
-          )}
-        </button>
-      </div>
-    );
-  }
+  // Status color mapping
+  const getStatusColor = () => {
+    switch (sessionStatus) {
+      case 'pending': return 'text-yellow-500';
+      case 'active': return 'text-green-500'; 
+      case 'recent': return 'text-blue-500';
+      default: return 'text-gray-500';
+    }
+  };
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
-      <div className="flex flex-col h-96 w-80 bg-white border rounded-lg shadow-xl">
-        {/* Header */}
-        <div className="bg-blue-500 text-white p-4 rounded-t-lg flex justify-between items-center">
-          <div>
-            <h3 className="font-semibold">Customer Support</h3>
-            <div className="flex items-center gap-2 text-sm">
-              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-300' : 'bg-red-300'}`}></div>
-              {isConnected ? 'Connected' : 'Connecting...'}
-              {sessionStatus !== 'none' && (
-                <span className="ml-2 text-xs bg-blue-600 px-2 py-1 rounded">
-                  {sessionStatus.toUpperCase()}
-                </span>
-              )}
+      {/* Chat Toggle Button */}
+      {!isOpen && (
+        <button
+          onClick={toggleChat}
+          className={`relative bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-colors ${
+            !isConnected ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+          disabled={!isConnected}
+        >
+          <MessageCircle size={24} />
+          
+          {/* Unread indicator */}
+          {hasUnread && (
+            <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
+              !
             </div>
-          </div>
-          <button onClick={closeChat} className="text-white hover:text-gray-200">
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-          {messages.length === 0 ? (
-            <div className="text-center text-gray-500 text-sm">
-              <MessageCircle className="mx-auto mb-2 opacity-50" size={32} />
-              <p>Start a conversation with our support team</p>
-            </div>
-          ) : (
-            messages.map(message => (
-              <div key={message.id} className={`flex ${message.isFromStaff ? 'justify-start' : 'justify-end'}`}>
-                <div className={`max-w-xs px-4 py-2 rounded-lg ${
-                  message.isFromStaff
-                    ? 'bg-white text-gray-800 border'
-                    : 'bg-blue-500 text-white'
-                }`}>
-                  <div className="text-xs font-semibold mb-1 opacity-75">
-                    {message.sender_name}
-                  </div>
-                  <p className="text-sm whitespace-pre-wrap">{message.message}</p>
-                  <div className="text-xs opacity-60 mt-1">
-                    {new Date(message.timestamp).toLocaleTimeString()}
-                  </div>
-                </div>
-              </div>
-            ))
           )}
-          <div ref={messagesEndRef} />
-        </div>
+          
+          {/* Status indicator */}
+          <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full ${
+            sessionStatus === 'pending' ? 'bg-yellow-500' :
+            sessionStatus === 'active' ? 'bg-green-500' :
+            sessionStatus === 'recent' ? 'bg-blue-500' :
+            'bg-gray-500'
+          }`} />
+        </button>
+      )}
 
-        {/* Input */}
-        <div className="border-t p-4 bg-white rounded-b-lg">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Type your message..."
-              className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              disabled={!isConnected}
-            />
+      {/* Chat Window */}
+      {isOpen && (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl w-80 h-96 flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center space-x-2">
+              <MessageCircle size={20} className="text-blue-600" />
+              <span className="font-semibold text-gray-900 dark:text-white">Guest Relations</span>
+              <div className={`w-2 h-2 rounded-full ${
+                sessionStatus === 'pending' ? 'bg-yellow-500' :
+                sessionStatus === 'active' ? 'bg-green-500' :
+                sessionStatus === 'recent' ? 'bg-blue-500' :
+                'bg-gray-500'
+              }`} />
+            </div>
             <button
-              onClick={sendMessage}
-              disabled={!newMessage.trim() || !isConnected}
-              className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 transition-colors"
+              onClick={closeChat}
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
             >
-              <Send size={16} />
+              <X size={20} />
             </button>
           </div>
+
+          {/* Status Bar */}
+          <div className={`px-3 py-1 text-xs ${getStatusColor()} bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700`}>
+            Status: {sessionStatus === 'none' ? 'Ready to chat' : sessionStatus.charAt(0).toUpperCase() + sessionStatus.slice(1)}
+            {!isConnected && ' • Disconnected'}
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {messages.length === 0 ? (
+              <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                <MessageCircle size={32} className="mx-auto mb-2 opacity-50" />
+                <p>No messages yet</p>
+                <p className="text-xs">Start a conversation with our team</p>
+              </div>
+            ) : (
+              messages.map((msg, index) => (
+                <div
+                  key={`${msg.id}-${index}`}
+                  className={`flex ${msg.isFromStaff ? 'justify-start' : 'justify-end'}`}
+                >
+                  <div className={`max-w-[80%] p-2 rounded-lg ${
+                    msg.isFromStaff
+                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
+                      : 'bg-blue-600 text-white'
+                  }`}>
+                    <div className="text-xs opacity-75 mb-1">
+                      {msg.sender_name}
+                    </div>
+                    <div className="text-sm">{msg.message}</div>
+                    <div className="text-xs opacity-75 mt-1">
+                      {new Date(msg.timestamp).toLocaleTimeString()}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input */}
+          <div className="p-3 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex space-x-2">
+              <input
+                type="text"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                placeholder={isConnected ? "Type your message..." : "Connecting..."}
+                disabled={!isConnected}
+                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+              />
+              <button
+                onClick={sendMessage}
+                disabled={!newMessage.trim() || !isConnected}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white p-2 rounded-lg transition-colors"
+              >
+                <Send size={16} />
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

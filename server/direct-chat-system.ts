@@ -144,21 +144,34 @@ export class DirectChatSystem {
         status: 'sent'
       };
 
-      // Staff Portal notification (EXACT MATCH with staff portal channels)
-      await this.pusher.trigger('staff-portal', 'new-player-message', payload);
-      console.log('✅ [DIRECT CHAT] Staff portal notification sent via Pusher');
-
-      // Player channel notification (EXACT MATCH format)
-      await this.pusher.trigger(`player-${playerId}`, 'new-staff-message', payload);
-      console.log('✅ [DIRECT CHAT] Player channel notification sent via Pusher');
-
-      // Universal chat channel (EXACT MATCH)
-      await this.pusher.trigger('universal-chat', 'new-message', {
-        ...payload,
-        player_id: playerId,
-        playerId: playerId
-      });
-      console.log('✅ [DIRECT CHAT] Universal channel notification sent via Pusher');
+      // UNIFIED BIDIRECTIONAL BRIDGE - Staff Portal Integration
+      if (senderType === 'player') {
+        // Player → Staff: Broadcast to both channels for complete visibility
+        await Promise.all([
+          this.pusher.trigger('staff-portal', 'chat-message-received', {
+            ...payload,
+            type: 'player-to-staff'
+          }),
+          this.pusher.trigger(`player-${playerId}`, 'chat-message-received', {
+            ...payload,
+            type: 'player-confirmation'
+          })
+        ]);
+        console.log('✅ [BIDIRECTIONAL BRIDGE] Player message broadcasted to both channels');
+      } else {
+        // Staff → Player: Broadcast to both channels for complete synchronization
+        await Promise.all([
+          this.pusher.trigger(`player-${playerId}`, 'chat-message-received', {
+            ...payload,
+            type: 'staff-to-player'
+          }),
+          this.pusher.trigger('staff-portal', 'chat-message-received', {
+            ...payload,
+            type: 'staff-confirmation'
+          })
+        ]);
+        console.log('✅ [BIDIRECTIONAL BRIDGE] Staff message broadcasted to both channels');
+      }
 
       // OneSignal push notification (optional)
       if (process.env.ONESIGNAL_API_KEY && process.env.ONESIGNAL_APP_ID) {
