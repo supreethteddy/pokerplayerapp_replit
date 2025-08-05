@@ -36,12 +36,50 @@ const oneSignalClient = new OneSignal.Client(
 
 console.log('🚀 [SERVER] Pusher and OneSignal initialized successfully');
 
+// Import production unified chat system
+import { productionChat } from './production-unified-chat';
+
 export function registerRoutes(app: Express) {
-  // UNIFIED CHAT SYSTEM - Single source of truth
+  // UNIFIED CHAT SYSTEM - Single source of truth (NEW CORE)
   
-  // Send Chat Message - MICROSECOND SPEED - PUSHER ONLY (Fixed exec_sql issue)
-  // Get chat history for player (last 3 conversations)
+  // PRODUCTION CHAT - Send Message (Player/Staff)
+  app.post("/api/unified-chat/send", async (req, res) => {
+    try {
+      const { playerId, playerName, message, senderType } = req.body;
+      const result = await productionChat.sendMessage(playerId, playerName, message, senderType);
+      res.json(result);
+    } catch (error: any) {
+      console.error('❌ [PRODUCTION SEND] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PRODUCTION CHAT - Clear History 
+  app.delete("/api/unified-chat/clear/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const result = await productionChat.clearPlayerChat(playerId);
+      res.json(result);
+    } catch (error: any) {
+      console.error('❌ [PRODUCTION CLEAR] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // PRODUCTION CHAT - Get History
   app.get("/api/chat-history/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const result = await productionChat.getChatHistory(playerId);
+      res.json(result);
+    } catch (error: any) {
+      console.error('❌ [PRODUCTION HISTORY] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // LEGACY ENDPOINT - TO BE REMOVED
+  app.get("/api/OLD-chat-history/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId); // CRITICAL FIX: Convert string to integer
       
@@ -396,59 +434,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Clear Chat History Endpoint (Soft Delete with Archive)
-  app.delete("/api/unified-chat/clear/:playerId", async (req, res) => {
-    try {
-      const { playerId } = req.params;
-      console.log(`🧹 [CHAT CLEAR] Soft deleting chat history for player: ${playerId}`);
-
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      // Archive chat messages (soft delete - keep data for 2 weeks)
-      const archiveDate = new Date();
-      archiveDate.setDate(archiveDate.getDate() + 14); // Archive for 2 weeks
-
-      const { error: messagesError } = await supabase
-        .from('chat_messages')
-        .update({ 
-          status: 'archived',
-          updated_at: new Date().toISOString()
-        })
-        .eq('player_id', playerId)
-        .neq('status', 'archived');
-
-      if (messagesError) {
-        console.error('❌ [CHAT CLEAR] Error archiving messages:', messagesError);
-        return res.status(500).json({ error: 'Failed to archive chat messages' });
-      }
-
-      // Archive chat requests (soft delete)
-      const { error: requestsError } = await supabase
-        .from('chat_requests')
-        .update({ 
-          status: 'archived',
-          updated_at: new Date().toISOString()
-        })
-        .eq('player_id', playerId)
-        .neq('status', 'archived');
-
-      if (requestsError) {
-        console.error('❌ [CHAT CLEAR] Error archiving requests:', requestsError);
-        return res.status(500).json({ error: 'Failed to archive chat requests' });
-      }
-
-      console.log('🧹 [CHAT CLEAR] ✅ Successfully archived chat data for player:', playerId);
-      res.json({ success: true, message: 'Chat history cleared (archived for 2 weeks)' });
-
-    } catch (error) {
-      console.error('❌ [CHAT CLEAR] Error:', error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
+  // REMOVED - Using unified core system
 
   // Get Active (Non-Archived) Chat Messages
   app.get("/api/unified-chat/messages/:playerId", async (req, res) => {
@@ -494,37 +480,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Clear Chat History - NEW FEATURE
-  app.delete("/api/unified-chat/clear/:playerId", async (req, res) => {
-    try {
-      const { playerId } = req.params;
-      console.log(`🗑️ [CHAT SYSTEM] Clearing chat history for player: ${playerId}`);
-
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      // Delete all messages for this player
-      const { error } = await supabase
-        .from('chat_messages')
-        .delete()
-        .eq('player_id', playerId);
-
-      if (error) {
-        console.error('❌ [CHAT SYSTEM] Error clearing chat history:', error);
-        return res.status(500).json({ error: 'Failed to clear chat history' });
-      }
-
-      console.log(`✅ [CHAT SYSTEM] Chat history cleared for player ${playerId}`);
-      res.json({ success: true, message: 'Chat history cleared successfully' });
-
-    } catch (error) {
-      console.error('❌ [CHAT SYSTEM] Error clearing chat history:', error);
-      res.status(500).json({ error: 'Failed to clear chat history' });
-    }
-  });
+  // REMOVED DUPLICATE ENDPOINT - Using unified clear above
 
   // Real-time Chat Connectivity Test - PRODUCTION DIAGNOSTIC
   app.post("/api/unified-chat/test-connection", async (req, res) => {
