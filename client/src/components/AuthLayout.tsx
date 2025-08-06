@@ -1,461 +1,202 @@
-import { useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Spade, Upload, Shield, Clock } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-// Clean minimal design - no branding elements
+import { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Spade, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../hooks/use-toast';
 
 export default function AuthLayout() {
-  const { signIn, signUp, signupCooldown } = useAuth();
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [loading, setLoading] = useState(false);
+  
+  const { signIn, signUp } = useAuth();
   const { toast } = useToast();
-  const [loginForm, setLoginForm] = useState({ email: "", password: "", loading: false });
-  const [signupForm, setSignupForm] = useState({
-    email: "",
-    password: "",
-    firstName: "",
-    lastName: "",
-    phone: "",
-    agreeTerms: false,
-  });
-  const [showSignupModal, setShowSignupModal] = useState(false);
-  const [showKycModal, setShowKycModal] = useState(false);
-  const [kycFiles, setKycFiles] = useState<{
-    id: File | null;
-    address: File | null;
-    photo: File | null;
-  }>({ id: null, address: null, photo: null });
-  const [isSubmittingKyc, setIsSubmittingKyc] = useState(false);
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!loginForm.email || !loginForm.password) {
-      toast({
-        title: "Missing Information",
-        description: "Please enter both email and password",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setLoginForm(prev => ({ ...prev, loading: true }));
+    setLoading(true);
 
     try {
-      const result = await signIn(loginForm.email, loginForm.password);
-      if (result.success) {
-        sessionStorage.setItem('just_signed_in', 'true');
-        setLoginForm({ email: "", password: "", loading: false });
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      toast({
-        title: "Login Error",
-        description: "Unable to sign in. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoginForm(prev => ({ ...prev, loading: false }));
-    }
-  };
-
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!signupForm.agreeTerms) {
-      toast({
-        title: "Terms Required",
-        description: "Please agree to the Terms of Service",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const result = await signUp(
-        signupForm.email,
-        signupForm.password,
-        signupForm.firstName,
-        signupForm.lastName,
-        signupForm.phone
-      );
-
-      if (result.success) {
-        setShowSignupModal(false);
-        setShowKycModal(true);
-        setSignupForm({
-          email: "",
-          password: "",
-          firstName: "",
-          lastName: "",
-          phone: "",
-          agreeTerms: false,
+      if (isSignUp) {
+        const result = await signUp(email, password, {
+          firstName,
+          lastName,
+          phone
         });
-        toast({
-          title: "Account Created",
-          description: "Please complete KYC verification",
-        });
-      }
-    } catch (error) {
-      console.error('Signup error:', error);
-    }
-  };
-
-  const handleKycSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const { id, address, photo } = kycFiles;
-    if (!id || !address || !photo) {
-      toast({
-        title: "Missing Documents",
-        description: "Please upload all required documents",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSubmittingKyc(true);
-
-    try {
-      const userResponse = await apiRequest('GET', '/api/user');
-      if (!userResponse.ok) {
-        throw new Error('Failed to get user data');
-      }
-      const player = await userResponse.json();
-
-      if (player?.id) {
-        const existingDocsResponse = await apiRequest('GET', `/api/kyc-documents/player/${player.id}`);
-        const existingDocs = await existingDocsResponse.json();
-        if (existingDocs.length > 0) {
+        
+        if (result.success) {
           toast({
-            title: "Documents Already Submitted",
-            description: "Your KYC documents have already been submitted",
+            title: "Account created successfully",
+            description: "Welcome to Tilt Poker!"
           });
-          setShowKycModal(false);
-          return;
+        } else {
+          throw new Error(result.error || 'Sign up failed');
+        }
+      } else {
+        const result = await signIn(email, password);
+        
+        if (result.success) {
+          sessionStorage.setItem('just_signed_in', 'true');
+          toast({
+            title: "Welcome back!",
+            description: "Successfully signed in to your account."
+          });
+        } else {
+          throw new Error(result.error || 'Sign in failed');
         }
       }
-      
-      const convertFileToDataUrl = (file: File): Promise<string> => {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            const dataUrl = event.target?.result as string;
-            resolve(dataUrl);
-          };
-          reader.onerror = () => reject(new Error('Failed to read file'));
-          reader.readAsDataURL(file);
-        });
-      };
-
-      const [idDataUrl, addressDataUrl, photoDataUrl] = await Promise.all([
-        convertFileToDataUrl(id),
-        convertFileToDataUrl(address),
-        convertFileToDataUrl(photo)
-      ]);
-
-      const kycData = [
-        { playerId: player.id, documentType: "government_id", fileName: id.name, dataUrl: idDataUrl },
-        { playerId: player.id, documentType: "utility_bill", fileName: address.name, dataUrl: addressDataUrl },
-        { playerId: player.id, documentType: "profile_photo", fileName: photo.name, dataUrl: photoDataUrl },
-      ];
-
-      for (const doc of kycData) {
-        await apiRequest('POST', '/api/kyc-documents', doc);
-      }
-
+    } catch (error: any) {
       toast({
-        title: "KYC Submitted",
-        description: "Your documents have been submitted for review",
-      });
-
-      setShowKycModal(false);
-    } catch (error) {
-      console.error('KYC submission error:', error);
-      toast({
-        title: "Submission Failed",
-        description: "Failed to submit KYC documents",
-        variant: "destructive",
+        title: isSignUp ? "Sign up failed" : "Sign in failed",
+        description: error.message || "Please try again",
+        variant: "destructive"
       });
     } finally {
-      setIsSubmittingKyc(false);
-    }
-  };
-
-  const validateFileType = (file: File): boolean => {
-    const allowedTypes = [
-      'image/jpeg',
-      'image/jpg', 
-      'image/png',
-      'application/pdf'
-    ];
-    
-    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.pdf'];
-    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
-    
-    return allowedTypes.includes(file.type) && allowedExtensions.includes(fileExtension);
-  };
-
-  const validateFileSize = (file: File): boolean => {
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    return file.size <= maxSize;
-  };
-
-  const handleFileUpload = (type: 'id' | 'address' | 'photo') => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!validateFileType(file)) {
-        toast({
-          title: "Invalid File Type",
-          description: "Please upload JPG, PNG, or PDF files only",
-          variant: "destructive",
-        });
-        e.target.value = '';
-        return;
-      }
-
-      if (!validateFileSize(file)) {
-        toast({
-          title: "File Too Large",
-          description: "File size must be less than 5MB",
-          variant: "destructive",
-        });
-        e.target.value = '';
-        return;
-      }
-
-      setKycFiles(prev => ({ ...prev, [type]: file }));
+      setLoading(false);
     }
   };
 
   return (
-    <>
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4">
-        <div className="max-w-md w-full">
-          <Card className="bg-white/10 backdrop-blur-md border border-white/20 shadow-2xl">
-            <CardContent className="pt-6">
-              <div className="text-center mb-6">
-                <div className="flex items-center justify-center mb-4">
-                  <Spade className="w-8 h-8 text-green-500 mr-2" />
-                  <h1 className="text-2xl font-bold text-white">Pokeroom</h1>
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-md space-y-8">
+        {/* Header */}
+        <div className="text-center">
+          <div className="flex justify-center mb-4">
+            <div className="w-16 h-16 bg-emerald-600 rounded-full flex items-center justify-center">
+              <Spade className="w-8 h-8 text-white" />
+            </div>
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-2">
+            {isSignUp ? 'Join Tilt Poker' : 'Welcome Back'}
+          </h1>
+          <p className="text-slate-400">
+            {isSignUp ? 'Create your account to get started' : 'Sign in to your account'}
+          </p>
+        </div>
+
+        {/* Form */}
+        <Card className="bg-slate-800 border-slate-700">
+          <CardHeader>
+            <CardTitle className="text-white text-center">
+              {isSignUp ? 'Create Account' : 'Sign In'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {isSignUp && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName" className="text-slate-300">First Name</Label>
+                    <Input
+                      id="firstName"
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      className="bg-slate-700 border-slate-600 text-white"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName" className="text-slate-300">Last Name</Label>
+                    <Input
+                      id="lastName"
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      className="bg-slate-700 border-slate-600 text-white"
+                      required
+                    />
+                  </div>
                 </div>
-                <h2 className="text-lg font-medium text-gray-300">Player Portal</h2>
-              </div>
-              
-              <form onSubmit={handleSignIn} className="space-y-4">
-                <div>
-                  <Label htmlFor="email" className="text-gray-300">Email</Label>
+              )}
+
+              {isSignUp && (
+                <div className="space-y-2">
+                  <Label htmlFor="phone" className="text-slate-300">Phone Number</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="bg-slate-700 border-slate-600 text-white"
+                    placeholder="+1 (555) 123-4567"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-slate-300">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                   <Input
                     id="email"
                     type="email"
-                    placeholder="Enter your email"
-                    value={loginForm.email}
-                    onChange={(e) => setLoginForm(prev => ({ ...prev, email: e.target.value }))}
-                    className="bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-green-500 focus:ring-green-500"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="bg-slate-700 border-slate-600 text-white pl-10"
+                    placeholder="your@email.com"
                     required
                   />
                 </div>
-                
-                <div>
-                  <Label htmlFor="password" className="text-gray-300">Password</Label>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-slate-300">Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                   <Input
                     id="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="bg-slate-700 border-slate-600 text-white pl-10 pr-10"
                     placeholder="Enter your password"
-                    value={loginForm.password}
-                    onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
-                    className="bg-white/10 border-white/20 text-white placeholder-gray-400 focus:border-green-500 focus:ring-green-500"
                     required
                   />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 text-slate-400 hover:text-white"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
                 </div>
-
-                <Button 
-                  type="submit" 
-                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold"
-                  disabled={loginForm.loading}
-                >
-                  {loginForm.loading ? "Signing In..." : "Sign In"}
-                </Button>
-              </form>
-
-              <div className="mt-6 text-center">
-                <p className="text-gray-400">Don't have an account?</p>
-                <Button 
-                  variant="link" 
-                  onClick={() => setShowSignupModal(true)}
-                  className="text-gray-300 hover:text-white font-medium mt-1"
-                >
-                  Create Player Account
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Signup Modal */}
-      <Dialog open={showSignupModal} onOpenChange={setShowSignupModal}>
-        <DialogContent className="bg-gray-900 border-gray-800">
-          <DialogHeader>
-            <DialogTitle className="text-white">Create Player Account</DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleSignUp} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="firstName" className="text-slate-300">First Name</Label>
-                <Input
-                  id="firstName"
-                  type="text"
-                  placeholder="John"
-                  value={signupForm.firstName}
-                  onChange={(e) => setSignupForm(prev => ({ ...prev, firstName: e.target.value }))}
-                  className="bg-slate-700 border-slate-600 text-white placeholder-slate-400"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="lastName" className="text-slate-300">Last Name</Label>
-                <Input
-                  id="lastName"
-                  type="text"
-                  placeholder="Doe"
-                  value={signupForm.lastName}
-                  onChange={(e) => setSignupForm(prev => ({ ...prev, lastName: e.target.value }))}
-                  className="bg-slate-700 border-slate-600 text-white placeholder-slate-400"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="signupEmail" className="text-slate-300">Email</Label>
-              <Input
-                id="signupEmail"
-                type="email"
-                placeholder="john.doe@example.com"
-                value={signupForm.email}
-                onChange={(e) => setSignupForm(prev => ({ ...prev, email: e.target.value }))}
-                className="bg-slate-700 border-slate-600 text-white placeholder-slate-400"
-                required
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="phone" className="text-slate-300">Phone</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="(555) 123-4567"
-                value={signupForm.phone}
-                onChange={(e) => setSignupForm(prev => ({ ...prev, phone: e.target.value }))}
-                className="bg-slate-700 border-slate-600 text-white placeholder-slate-400"
-                required
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="signupPassword" className="text-slate-300">Password</Label>
-              <Input
-                id="signupPassword"
-                type="password"
-                placeholder="Create a password"
-                value={signupForm.password}
-                onChange={(e) => setSignupForm(prev => ({ ...prev, password: e.target.value }))}
-                className="bg-slate-700 border-slate-600 text-white placeholder-slate-400"
-                required
-              />
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="agreeTerms"
-                checked={signupForm.agreeTerms}
-                onCheckedChange={(checked) => setSignupForm(prev => ({ ...prev, agreeTerms: !!checked }))}
-              />
-              <Label htmlFor="agreeTerms" className="text-sm text-slate-300">
-                I agree to the Terms of Service
-              </Label>
-            </div>
-
-            <Button 
-              type="submit" 
-              className="w-full bg-emerald-500 hover:bg-emerald-600"
-              disabled={signupCooldown}
-            >
-              Create Account
-            </Button>
-
-            {signupCooldown && (
-              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-md">
-                <p className="text-sm text-amber-200 flex items-center">
-                  <Clock className="w-4 h-4 mr-1" />
-                  Rate limit: 60 seconds between signup attempts
-                </p>
-              </div>
-            )}
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* KYC Modal */}
-      <Dialog open={showKycModal} onOpenChange={setShowKycModal}>
-        <DialogContent className="bg-slate-800 border-slate-700 max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="text-white">KYC Document Upload</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-6">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Shield className="w-8 h-8 text-indigo-500" />
-              </div>
-              <p className="text-slate-300">Please upload the required documents to complete your registration</p>
-            </div>
-
-            <form onSubmit={handleKycSubmit} className="space-y-4">
-              <div className="space-y-4">
-                {[
-                  { type: 'id' as const, label: 'Photo ID', description: "Driver's License, Passport, etc." },
-                  { type: 'address' as const, label: 'Proof of Address', description: 'Utility bill, bank statement, etc.' },
-                  { type: 'photo' as const, label: 'Profile Photo', description: 'Clear photo of yourself' },
-                ].map(({ type, label, description }) => (
-                  <div key={type} className="border-2 border-dashed border-slate-600 rounded-lg p-6 text-center hover:border-emerald-500 transition-colors">
-                    <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                    <p className="text-sm text-slate-300 mb-1">{label}</p>
-                    <p className="text-xs text-slate-500 mb-1">{description}</p>
-                    <p className="text-xs text-slate-400 mb-2">Allowed: JPG, PNG, PDF (max 5MB)</p>
-                    <Input
-                      type="file"
-                      accept=".jpg,.jpeg,.png,.pdf"
-                      onChange={handleFileUpload(type)}
-                      className="bg-slate-700 border-slate-600 text-white"
-                    />
-                    {kycFiles[type] && (
-                      <p className="text-xs text-emerald-400 mt-1">
-                        Selected: {kycFiles[type]?.name}
-                      </p>
-                    )}
-                  </div>
-                ))}
               </div>
 
-              <Button 
-                type="submit" 
-                className="w-full bg-emerald-500 hover:bg-emerald-600"
-                disabled={isSubmittingKyc}
+              <Button
+                type="submit"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                disabled={loading}
               >
-                {isSubmittingKyc ? "Submitting..." : "Submit Documents"}
+                {loading ? 'Please wait...' : (isSignUp ? 'Create Account' : 'Sign In')}
               </Button>
             </form>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
+
+            <div className="mt-6 text-center">
+              <p className="text-slate-400 text-sm">
+                {isSignUp ? 'Already have an account?' : "Don't have an account?"}
+              </p>
+              <Button
+                variant="link"
+                className="text-emerald-400 hover:text-emerald-300 p-0 h-auto"
+                onClick={() => setIsSignUp(!isSignUp)}
+              >
+                {isSignUp ? 'Sign in here' : 'Create one here'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }

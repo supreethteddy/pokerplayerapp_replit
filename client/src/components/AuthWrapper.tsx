@@ -15,25 +15,30 @@ export default function AuthWrapper() {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
+        // Set timeout to avoid infinite loading
+        const timeout = setTimeout(() => {
+          console.log('⚠️ [AUTH] Timeout reached, using legacy authentication');
+          setAuthMethod('legacy');
+          setIsInitializing(false);
+        }, 2000); // Reduced from 3000ms
+
         // Check if Clerk is working properly
         const clerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
         
         if (clerkKey?.startsWith('pk_test_') || clerkKey?.startsWith('pk_live_')) {
-          console.log('✅ [AUTH] Clerk key is valid, waiting for initialization...');
+          console.log('✅ [AUTH] Clerk key detected, checking initialization...');
           
-          // Wait a bit for Clerk to initialize
-          setTimeout(() => {
-            if (isLoaded) {
-              console.log('✅ [AUTH] Clerk loaded successfully');
-              setAuthMethod('clerk');
-            } else {
-              console.log('⚠️ [AUTH] Clerk failed to load, falling back to legacy');
-              setAuthMethod('legacy');
-            }
+          // Check if Clerk loaded within reasonable time
+          if (isLoaded) {
+            clearTimeout(timeout);
+            console.log('✅ [AUTH] Clerk loaded successfully');
+            setAuthMethod('clerk');
             setIsInitializing(false);
-          }, 3000);
+          }
+          // If not loaded within timeout, fallback will handle it
         } else {
-          console.log('⚠️ [AUTH] Invalid Clerk key, using legacy authentication');
+          clearTimeout(timeout);
+          console.log('⚠️ [AUTH] No valid Clerk key, using legacy authentication');
           setAuthMethod('legacy');
           setIsInitializing(false);
         }
@@ -47,7 +52,7 @@ export default function AuthWrapper() {
     initializeAuth();
   }, [isLoaded]);
 
-  // Show loading state during initialization
+  // Show loading state during initialization with fallback button
   if (isInitializing) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
@@ -61,8 +66,18 @@ export default function AuthWrapper() {
             <CardTitle className="text-white">Loading Authentication</CardTitle>
             <p className="text-slate-400 text-sm">Initializing secure login system...</p>
           </CardHeader>
-          <CardContent className="text-center">
+          <CardContent className="text-center space-y-4">
             <Loader className="w-8 h-8 animate-spin mx-auto text-emerald-400" />
+            <Button
+              onClick={() => {
+                setAuthMethod('legacy');
+                setIsInitializing(false);
+              }}
+              variant="outline"
+              className="border-slate-600 text-slate-300 hover:bg-slate-700"
+            >
+              Continue with Standard Login
+            </Button>
           </CardContent>
         </Card>
       </div>
