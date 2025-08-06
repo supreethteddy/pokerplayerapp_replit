@@ -214,17 +214,7 @@ export class SupabaseOnlyStorage {
     }
   }
 
-  async updatePlayerSupabaseId(playerId: number, supabaseId: string): Promise<Player> {
-    // Since supabase_id column doesn't exist in the current schema,
-    // we'll just return the player as-is since the connection is made via email
-    const player = await this.getPlayer(playerId);
-    if (!player) {
-      throw new Error(`Player not found with ID: ${playerId}`);
-    }
-    
-    console.log('SupabaseOnlyStorage: Supabase ID association handled via email lookup');
-    return player;
-  }
+
 
   async createPlayer(player: InsertPlayer): Promise<Player> {
     try {
@@ -505,40 +495,7 @@ export class SupabaseOnlyStorage {
     return this.transformPlayerFromSupabase(data);
   }
 
-  async updatePlayerKycStatus(playerId: number, kycStatus: string): Promise<Player> {
-    // Use RPC to bypass the trigger if needed
-    const { data, error } = await supabase
-      .rpc('update_player_kyc_status', {
-        player_id: playerId,
-        new_kyc_status: kycStatus
-      });
 
-    if (error) {
-      console.error('RPC update failed, trying direct update:', error.message);
-      
-      // Fallback to direct update without trigger
-      const { data: directData, error: directError } = await supabase
-        .from('players')
-        .update({ kyc_status: kycStatus })
-        .eq('id', playerId)
-        .select()
-        .single();
-
-      if (directError) {
-        throw new Error(`Failed to update player KYC status: ${directError.message}`);
-      }
-
-      return this.transformPlayerFromSupabase(directData);
-    }
-
-    // If RPC succeeded, get the updated player
-    const updatedPlayer = await this.getPlayer(playerId);
-    if (!updatedPlayer) {
-      throw new Error('Player not found after KYC update');
-    }
-
-    return updatedPlayer;
-  }
 
   // Transform functions to convert between Supabase snake_case and camelCase
   private transformPlayerFromSupabase(data: any): Player {
