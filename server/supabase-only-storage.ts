@@ -545,6 +545,9 @@ export class SupabaseOnlyStorage {
     console.log('SupabaseOnlyStorage: transformPlayerFromSupabase input:', data);
     const transformed = {
       id: data.id,
+      clerkUserId: data.clerk_user_id || null,
+      supabaseId: data.supabase_id || null,
+      universalId: data.universal_id || null,
       email: data.email,
       password: data.password,
       firstName: data.first_name,
@@ -559,7 +562,15 @@ export class SupabaseOnlyStorage {
       gamesPlayed: data.games_played,
       hoursPlayed: data.hours_played,
       creditApproved: data.credit_approved || false,
-      createdAt: new Date(data.created_at)
+      panCardNumber: data.pan_card_number || null,
+      panCardVerified: data.pan_card_verified || false,
+      panCardUploadedAt: data.pan_card_uploaded_at ? new Date(data.pan_card_uploaded_at) : null,
+      panCardDocumentUrl: data.pan_card_document_url || null,
+      panCardStatus: data.pan_card_status || 'missing',
+      totalRsPlayed: data.total_rs_played || 0,
+      currentVipPoints: data.current_vip_points || 0,
+      lifetimeVipPoints: data.lifetime_vip_points || 0,
+      createdAt: data.created_at ? new Date(data.created_at) : null
     };
     console.log('SupabaseOnlyStorage: transformPlayerFromSupabase output:', transformed);
     return transformed;

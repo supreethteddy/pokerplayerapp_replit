@@ -178,8 +178,13 @@ export function useAuth() {
 
       toast({
         title: "Account Created Successfully",
-        description: "Please complete KYC document upload. Your account will be activated after staff approval.",
+        description: "Redirecting to KYC document upload...",
       });
+
+      // Redirect to thank you page which will guide to KYC process
+      setTimeout(() => {
+        window.location.href = '/thank-you';
+      }, 1500);
 
       return { success: true };
     } catch (error: any) {

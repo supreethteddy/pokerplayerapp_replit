@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Mail, ArrowRight, RefreshCw, Copy, ExternalLink } from "lucide-react";
+import { CheckCircle, Mail, ArrowRight, RefreshCw, Copy, ExternalLink, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 
@@ -202,9 +202,15 @@ export default function ThankYou() {
                     <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
                       2
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <p className="text-white font-medium">Complete KYC Verification</p>
-                      <p className="text-slate-400 text-sm">Upload your ID and address documents</p>
+                      <p className="text-slate-400 text-sm mb-2">Upload your ID and address documents</p>
+                      <Link href="/kyc-upload">
+                        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                          <Upload className="w-4 h-4 mr-2" />
+                          Start KYC Upload
+                        </Button>
+                      </Link>
                     </div>
                   </div>
                   <div className="flex items-start space-x-3">

@@ -74,6 +74,12 @@ function AppContent() {
         <Route path="/dashboard">
           {user ? <PlayerDashboard /> : <Redirect to="/" />}
         </Route>
+        <Route path="/thank-you">
+          <ThankYou />
+        </Route>
+        <Route path="/kyc-upload">
+          {user ? <PlayerDashboard /> : <Redirect to="/thank-you" />}
+        </Route>
         <Route path="/vip-shop">
           {user ? <VipShop /> : <Redirect to="/" />}
         </Route>
