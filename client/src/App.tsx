@@ -3,8 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClerkWrapper } from "./clerk";
-import { useHybridAuth } from "./hooks/useHybridAuth";
+import { useAuth } from "./hooks/useAuth";
 import AuthWrapper from "./components/AuthWrapper";
 import SafeAuthWrapper from "./components/AuthErrorBoundary";
 import ClerkSignInPage from "./components/ClerkSignInPage";
@@ -21,7 +20,7 @@ import NotFound from "@/pages/not-found";
 import ThankYou from "@/pages/thank-you";
 
 function AppContent() {
-  const { user, loading } = useHybridAuth();
+  const { user, loading } = useAuth();
   const [showLoadingScreen, setShowLoadingScreen] = useState(false);
   const [hasShownLoadingScreen, setHasShownLoadingScreen] = useState(false);
 
@@ -101,14 +100,12 @@ function AppContent() {
 function App() {
   return (
     <SafeAuthWrapper>
-      <ClerkWrapper>
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <Toaster />
-            <AppContent />
-          </TooltipProvider>
-        </QueryClientProvider>
-      </ClerkWrapper>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <AppContent />
+        </TooltipProvider>
+      </QueryClientProvider>
     </SafeAuthWrapper>
   );
 }
