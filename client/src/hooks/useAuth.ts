@@ -83,9 +83,9 @@ export function useAuth() {
     console.log('Starting fetchUserData for:', supabaseUserId);
     
     try {
-      // Fetch player data using Supabase ID with increased timeout
+      // Use a shorter timeout and immediate loading state fix
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // Increased timeout
+      const timeoutId = setTimeout(() => controller.abort(), 3000); // Reduced timeout
       
       const response = await fetch(`/api/players/supabase/${supabaseUserId}`, {
         signal: controller.signal,
@@ -107,8 +107,8 @@ export function useAuth() {
       const userData = await response.json();
       console.log('User data fetched successfully:', userData);
       setUser(userData);
-      console.log('User state updated, current loading state:', loading);
-      setLoading(false);
+      setLoading(false); // Immediately set loading to false
+      console.log('✅ Authentication complete - user logged in:', userData.firstName, userData.lastName);
     } catch (error) {
       console.error('Error fetching user data:', error);
       
