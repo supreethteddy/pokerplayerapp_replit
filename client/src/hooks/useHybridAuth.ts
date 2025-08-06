@@ -6,8 +6,7 @@ import type { AuthUser } from './useAuth';
 
 // Hybrid authentication hook that works with both Clerk and Supabase
 export function useHybridAuth() {
-  const clerkAvailable = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-  const { user: clerkUser, isLoaded: clerkLoaded } = clerkAvailable ? useUser() : { user: null, isLoaded: true };
+  const { user: clerkUser, isLoaded: clerkLoaded } = useUser();
   const { user: supabaseUser, loading: supabaseLoading, signOut: supabaseSignOut } = useAuth();
   const [hybridUser, setHybridUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,7 +59,7 @@ export function useHybridAuth() {
       }
 
       try {
-        if (clerkAvailable && clerkUser) {
+        if (clerkUser) {
           // Clerk user is authenticated
           const email = clerkUser.primaryEmailAddress?.emailAddress;
           if (email) {
@@ -87,7 +86,7 @@ export function useHybridAuth() {
   // Unified sign out
   const signOut = async () => {
     try {
-      if (clerkAvailable && clerkUser) {
+      if (clerkUser) {
         // Clerk sign out will be handled by ClerkProvider
         window.location.reload();
       } else {
@@ -103,7 +102,7 @@ export function useHybridAuth() {
     user: hybridUser,
     loading,
     isAuthenticated: !!hybridUser,
-    authProvider: (clerkAvailable && clerkUser) ? 'clerk' : supabaseUser ? 'supabase' : null,
+    authProvider: clerkUser ? 'clerk' : supabaseUser ? 'supabase' : null,
     signOut
   };
 }

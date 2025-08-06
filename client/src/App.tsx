@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ClerkWrapper } from "./clerk";
 import { useHybridAuth } from "./hooks/useHybridAuth";
 import HybridAuthWrapper from "./components/HybridAuthWrapper";
+import SafeAuthWrapper from "./components/AuthErrorBoundary";
 import PlayerDashboard from "./components/PlayerDashboard";
 import VipShop from "./pages/VipShop";
 import TableView from "./pages/TableView";
@@ -91,14 +92,16 @@ function AppContent() {
 
 function App() {
   return (
-    <ClerkWrapper>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster />
-          <AppContent />
-        </TooltipProvider>
-      </QueryClientProvider>
-    </ClerkWrapper>
+    <SafeAuthWrapper>
+      <ClerkWrapper>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <Toaster />
+            <AppContent />
+          </TooltipProvider>
+        </QueryClientProvider>
+      </ClerkWrapper>
+    </SafeAuthWrapper>
   );
 }
 

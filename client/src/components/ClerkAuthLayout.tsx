@@ -214,12 +214,19 @@ export default function ClerkAuthLayout() {
                     headerTitle: "text-white",
                     headerSubtitle: "text-slate-400",
                     socialButtonsBlockButton: "bg-slate-700 border-slate-600 text-white hover:bg-slate-600",
+                    socialButtonsBlockButtonText: "text-white",
                     formFieldInput: "bg-slate-700 border-slate-600 text-white",
+                    formFieldLabel: "text-slate-300",
                     formButtonPrimary: "bg-emerald-600 hover:bg-emerald-700",
-                    footerActionLink: "text-emerald-400 hover:text-emerald-300"
+                    footerActionLink: "text-emerald-400 hover:text-emerald-300",
+                    dividerLine: "bg-slate-600",
+                    dividerText: "text-slate-400"
                   }
                 }}
                 redirectUrl="/dashboard"
+                routing="path"
+                path="/sign-up"
+                signInUrl="/sign-in"
               />
             ) : (
               <SignIn 
@@ -230,12 +237,19 @@ export default function ClerkAuthLayout() {
                     headerTitle: "text-white",
                     headerSubtitle: "text-slate-400",
                     socialButtonsBlockButton: "bg-slate-700 border-slate-600 text-white hover:bg-slate-600",
+                    socialButtonsBlockButtonText: "text-white",
                     formFieldInput: "bg-slate-700 border-slate-600 text-white",
+                    formFieldLabel: "text-slate-300",
                     formButtonPrimary: "bg-emerald-600 hover:bg-emerald-700",
-                    footerActionLink: "text-emerald-400 hover:text-emerald-300"
+                    footerActionLink: "text-emerald-400 hover:text-emerald-300",
+                    dividerLine: "bg-slate-600",
+                    dividerText: "text-slate-400"
                   }
                 }}
                 redirectUrl="/dashboard"
+                routing="path"
+                path="/sign-in"
+                signUpUrl="/sign-up"
               />
             )}
           </CardContent>
