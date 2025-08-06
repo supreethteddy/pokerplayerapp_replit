@@ -1,6 +1,6 @@
-import ClubsPokerAuth from './ClubsPokerAuth';
+import DirectClubsAuth from './DirectClubsAuth';
 
 export default function AuthWrapper() {
-  // Bypass all Clerk initialization and show the UI directly
-  return <ClubsPokerAuth />;
+  // Direct UI rendering without any Clerk dependencies
+  return <DirectClubsAuth />;
 }
