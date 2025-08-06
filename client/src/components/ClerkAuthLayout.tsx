@@ -1,16 +1,18 @@
-import { useEffect } from 'react';
-import { useUser, useAuth, SignIn, SignUp } from '@clerk/clerk-react';
+import { useEffect, useState } from 'react';
+import { useUser, useAuth, SignIn, SignUp, useClerk } from '@clerk/clerk-react';
 import { useLocation } from 'wouter';
 import { createClerkSupabaseUser } from '../hooks/useHybridAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Spade, ArrowRight, Phone, Mail, Chrome } from 'lucide-react';
+import { Spade, ArrowRight, Phone, Mail, Chrome, AlertTriangle } from 'lucide-react';
 import { Link } from 'wouter';
 
 export default function ClerkAuthLayout() {
   const { user, isLoaded } = useUser();
   const { isSignedIn } = useAuth();
+  const clerk = useClerk();
   const [location, navigate] = useLocation();
+  const [showSignIn, setShowSignIn] = useState(true);
 
   useEffect(() => {
     if (isLoaded && isSignedIn && user) {
@@ -26,17 +28,11 @@ export default function ClerkAuthLayout() {
     }
   }, [isLoaded, isSignedIn, user, navigate]);
 
-  // Show loading state while Clerk initializes
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-white">Initializing authentication...</div>
-      </div>
-    );
-  }
+  // Always show the auth interface, don't wait for isLoaded
+  const isReady = clerk !== undefined;
 
-  // Show sign-in page
-  if (location === '/sign-in' || location === '/') {
+  // Main authentication interface
+  if (showSignIn) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="w-full max-w-md space-y-8">
@@ -74,29 +70,39 @@ export default function ClerkAuthLayout() {
           {/* Clerk SignIn Component */}
           <Card className="bg-slate-800 border-slate-700">
             <CardContent className="p-6">
-              <SignIn 
-                appearance={{
-                  elements: {
-                    rootBox: "w-full",
-                    card: "bg-transparent shadow-none",
-                    headerTitle: "text-white",
-                    headerSubtitle: "text-slate-400",
-                    socialButtonsBlockButton: "bg-slate-700 border-slate-600 text-white hover:bg-slate-600 transition-colors",
-                    socialButtonsBlockButtonText: "text-white font-medium",
-                    socialButtonsBlockButtonArrow: "text-white",
-                    formFieldInput: "bg-slate-700 border-slate-600 text-white placeholder-slate-400",
-                    formFieldLabel: "text-slate-300",
-                    formButtonPrimary: "bg-emerald-600 hover:bg-emerald-700 transition-colors",
-                    footerActionLink: "text-emerald-400 hover:text-emerald-300",
-                    dividerLine: "bg-slate-600",
-                    dividerText: "text-slate-400",
-                    phoneInputBox: "bg-slate-700 border-slate-600 text-white",
-                    otpCodeFieldInput: "bg-slate-700 border-slate-600 text-white"
-                  }
-                }}
-                afterSignInUrl="/dashboard"
-                signUpUrl="/sign-up"
-              />
+              {isReady ? (
+                <SignIn 
+                  appearance={{
+                    elements: {
+                      rootBox: "w-full",
+                      card: "bg-transparent shadow-none border-0",
+                      headerTitle: "text-white text-xl font-semibold",
+                      headerSubtitle: "text-slate-400",
+                      socialButtonsBlockButton: "bg-slate-700 border-slate-600 text-white hover:bg-slate-600 transition-colors text-sm font-medium",
+                      socialButtonsBlockButtonText: "text-white font-medium",
+                      socialButtonsBlockButtonArrow: "text-white",
+                      formFieldInput: "bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-emerald-500",
+                      formFieldLabel: "text-slate-300 font-medium",
+                      formButtonPrimary: "bg-emerald-600 hover:bg-emerald-700 transition-colors font-medium",
+                      footerActionLink: "text-emerald-400 hover:text-emerald-300 font-medium",
+                      dividerLine: "bg-slate-600",
+                      dividerText: "text-slate-400",
+                      phoneInputBox: "bg-slate-700 border-slate-600 text-white",
+                      otpCodeFieldInput: "bg-slate-700 border-slate-600 text-white",
+                      formFieldInputShowPasswordButton: "text-slate-400 hover:text-white"
+                    }
+                  }}
+                  afterSignInUrl="/dashboard"
+                  signUpUrl="#"
+                  routing="virtual"
+                />
+              ) : (
+                <div className="text-center py-8">
+                  <AlertTriangle className="w-8 h-8 mx-auto text-amber-500 mb-4" />
+                  <p className="text-white font-medium">Authentication Loading</p>
+                  <p className="text-slate-400 text-sm">Setting up secure login...</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -105,12 +111,14 @@ export default function ClerkAuthLayout() {
             <p className="text-slate-400 text-sm mb-4">
               New to Tilt Poker?
             </p>
-            <Link href="/sign-up">
-              <Button variant="outline" className="border-emerald-600 text-emerald-400 hover:bg-emerald-600 hover:text-white">
-                Create Account
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </Link>
+            <Button 
+              onClick={() => setShowSignIn(false)}
+              variant="outline" 
+              className="border-emerald-600 text-emerald-400 hover:bg-emerald-600 hover:text-white"
+            >
+              Create Account
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
           </div>
         </div>
       </div>
@@ -118,7 +126,7 @@ export default function ClerkAuthLayout() {
   }
 
   // Show sign-up page
-  if (location === '/sign-up') {
+  if (!showSignIn) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="w-full max-w-md space-y-8">
@@ -159,29 +167,39 @@ export default function ClerkAuthLayout() {
           {/* Clerk SignUp Component */}
           <Card className="bg-slate-800 border-slate-700">
             <CardContent className="p-6">
-              <SignUp 
-                appearance={{
-                  elements: {
-                    rootBox: "w-full",
-                    card: "bg-transparent shadow-none",
-                    headerTitle: "text-white",
-                    headerSubtitle: "text-slate-400",
-                    socialButtonsBlockButton: "bg-slate-700 border-slate-600 text-white hover:bg-slate-600 transition-colors",
-                    socialButtonsBlockButtonText: "text-white font-medium",
-                    socialButtonsBlockButtonArrow: "text-white",
-                    formFieldInput: "bg-slate-700 border-slate-600 text-white placeholder-slate-400",
-                    formFieldLabel: "text-slate-300",
-                    formButtonPrimary: "bg-emerald-600 hover:bg-emerald-700 transition-colors",
-                    footerActionLink: "text-emerald-400 hover:text-emerald-300",
-                    dividerLine: "bg-slate-600",
-                    dividerText: "text-slate-400",
-                    phoneInputBox: "bg-slate-700 border-slate-600 text-white",
-                    otpCodeFieldInput: "bg-slate-700 border-slate-600 text-white"
-                  }
-                }}
-                afterSignUpUrl="/dashboard"
-                signInUrl="/sign-in"
-              />
+              {isReady ? (
+                <SignUp 
+                  appearance={{
+                    elements: {
+                      rootBox: "w-full",
+                      card: "bg-transparent shadow-none border-0",
+                      headerTitle: "text-white text-xl font-semibold",
+                      headerSubtitle: "text-slate-400",
+                      socialButtonsBlockButton: "bg-slate-700 border-slate-600 text-white hover:bg-slate-600 transition-colors text-sm font-medium",
+                      socialButtonsBlockButtonText: "text-white font-medium",
+                      socialButtonsBlockButtonArrow: "text-white",
+                      formFieldInput: "bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-emerald-500",
+                      formFieldLabel: "text-slate-300 font-medium",
+                      formButtonPrimary: "bg-emerald-600 hover:bg-emerald-700 transition-colors font-medium",
+                      footerActionLink: "text-emerald-400 hover:text-emerald-300 font-medium",
+                      dividerLine: "bg-slate-600",
+                      dividerText: "text-slate-400",
+                      phoneInputBox: "bg-slate-700 border-slate-600 text-white",
+                      otpCodeFieldInput: "bg-slate-700 border-slate-600 text-white",
+                      formFieldInputShowPasswordButton: "text-slate-400 hover:text-white"
+                    }
+                  }}
+                  afterSignUpUrl="/dashboard"
+                  signInUrl="#"
+                  routing="virtual"
+                />
+              ) : (
+                <div className="text-center py-8">
+                  <AlertTriangle className="w-8 h-8 mx-auto text-amber-500 mb-4" />
+                  <p className="text-white font-medium">Authentication Loading</p>
+                  <p className="text-slate-400 text-sm">Setting up secure registration...</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -190,12 +208,14 @@ export default function ClerkAuthLayout() {
             <p className="text-slate-400 text-sm mb-4">
               Already have an account?
             </p>
-            <Link href="/sign-in">
-              <Button variant="outline" className="border-emerald-600 text-emerald-400 hover:bg-emerald-600 hover:text-white">
-                Sign In
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </Link>
+            <Button 
+              onClick={() => setShowSignIn(true)}
+              variant="outline" 
+              className="border-emerald-600 text-emerald-400 hover:bg-emerald-600 hover:text-white"
+            >
+              Sign In
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
           </div>
         </div>
       </div>
