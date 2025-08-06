@@ -110,25 +110,39 @@ export function useHybridAuth() {
 // Function to create/sync Clerk user with Supabase
 export async function createClerkSupabaseUser(clerkUser: any) {
   try {
-    const response = await fetch('/api/players/sync-clerk', {
+    console.log('🔄 [CLERK] Creating/syncing Supabase user for:', clerkUser.emailAddresses[0]?.emailAddress);
+    
+    const response = await fetch('/api/clerk/sync-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         clerk_user_id: clerkUser.id,
         email: clerkUser.emailAddresses[0]?.emailAddress,
-        first_name: clerkUser.firstName,
-        last_name: clerkUser.lastName,
-        phone: clerkUser.phoneNumbers[0]?.phoneNumber
+        first_name: clerkUser.firstName || '',
+        last_name: clerkUser.lastName || '',
+        phone: clerkUser.phoneNumbers[0]?.phoneNumber || ''
       })
     });
     
     if (!response.ok) {
-      throw new Error('Failed to sync Clerk user');
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
     
-    return await response.json();
-  } catch (error) {
-    console.error('Error syncing Clerk user with Supabase:', error);
-    throw error;
+    const result = await response.json();
+    
+    if (result.success) {
+      console.log('✅ [CLERK] User synced successfully:', result.player);
+      
+      // Store player data in sessionStorage for immediate access
+      sessionStorage.setItem('player_data', JSON.stringify(result.player));
+      
+      return { success: true, player: result.player };
+    } else {
+      console.error('❌ [CLERK] Sync failed:', result.error);
+      return { success: false, error: result.error };
+    }
+  } catch (error: any) {
+    console.error('❌ [CLERK] Sync error:', error);
+    return { success: false, error: error.message };
   }
 }

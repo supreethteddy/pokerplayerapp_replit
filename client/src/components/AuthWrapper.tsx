@@ -3,7 +3,7 @@ import { useUser, useAuth, useClerk } from '@clerk/clerk-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Spade, Loader, AlertTriangle, Chrome, Phone, Mail } from 'lucide-react';
-import ClerkAuthLayout from './ClerkAuthLayout';
+import CustomClerkAuth from './CustomClerkAuth';
 
 export default function AuthWrapper() {
   const { isLoaded, isSignedIn, user } = useUser();
@@ -112,6 +112,6 @@ export default function AuthWrapper() {
     );
   }
 
-  // Render Clerk authentication
-  return <ClerkAuthLayout />;
+  // Render custom Clerk authentication
+  return <CustomClerkAuth />;
 }
