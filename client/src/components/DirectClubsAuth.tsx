@@ -32,7 +32,14 @@ export default function DirectClubsAuth() {
 
     try {
       if (activeTab === 'signin') {
-        const result = await signIn(email, password);
+        // Use email or phone based on selected method
+        const authIdentifier = authMethod === 'email' ? email : phone;
+        
+        if (!authIdentifier) {
+          throw new Error(`Please enter your ${authMethod}`);
+        }
+        
+        const result = await signIn(authIdentifier, password);
         
         if (result.success) {
           // Success is handled by useAuth hook
@@ -40,7 +47,11 @@ export default function DirectClubsAuth() {
           throw new Error('Sign in failed');
         }
       } else {
-        const result = await signUp(email, password, firstName, lastName, phone);
+        // Use email or phone based on selected method
+        const authEmail = authMethod === 'email' ? email : '';
+        const authPhone = authMethod === 'phone' ? phone : '';
+        
+        const result = await signUp(authEmail || authPhone, password, firstName, lastName, authPhone);
         
         if (result.success) {
           // Success is handled by useAuth hook

@@ -237,10 +237,25 @@ export class SupabaseOnlyStorage implements IStorage {
       // Transform player data with unified system fields (avoiding schema cache issues)
       const playerData = this.transformPlayerToSupabase(player);
       
-      // Create player without unified fields first, then update via SQL
+      // Add the unified fields directly to the insert
+      const finalPlayerData = {
+        ...playerData,
+        supabase_id: supabaseId,
+        universal_id: universalId,
+        clerk_user_id: player.clerkUserId || null // Add Clerk ID support
+      };
+      
+      console.log('🔄 [UNIFIED] Creating player with data:', {
+        email: finalPlayerData.email,
+        phone: finalPlayerData.phone,
+        supabase_id: finalPlayerData.supabase_id,
+        clerk_user_id: finalPlayerData.clerk_user_id
+      });
+      
+      // Create player with all fields in one operation
       const { data, error } = await supabase
         .from('players')
-        .insert(playerData)
+        .insert(finalPlayerData)
         .select()
         .single();
       
@@ -249,19 +264,13 @@ export class SupabaseOnlyStorage implements IStorage {
         throw new Error(`Failed to create player: ${error.message}`);
       }
       
-      // Update with unified system fields using raw SQL
-      if (data && !error) {
-        try {
-          await supabase
-            .from('players')
-            .update({ supabase_id: supabaseId, universal_id: universalId })
-            .eq('id', data.id);
-          
-          console.log('✅ [UNIFIED] SupabaseOnlyStorage: Player created successfully - ID:', data.id, 'Universal ID:', universalId);
-        } catch (updateError) {
-          console.log('⚠️ [UNIFIED] Player created but unified fields not updated:', updateError);
-        }
-      }
+      console.log('✅ [UNIFIED] SupabaseOnlyStorage: Player created successfully:', {
+        id: data.id,
+        email: data.email,
+        phone: data.phone,
+        supabase_id: data.supabase_id,
+        universal_id: data.universal_id
+      });
       
       return this.transformPlayerFromSupabase(data);
     } catch (error: any) {

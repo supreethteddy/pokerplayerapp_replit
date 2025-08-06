@@ -113,9 +113,10 @@ export function useAuth() {
       console.error('Error fetching user data:', error);
       
       // Handle different error types gracefully
-      if (error?.name === 'AbortError') {
+      if (error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') {
         console.log('Fetch aborted due to timeout');
-      } else if (error?.message && error.message.includes('404')) {
+      } else if (error && typeof error === 'object' && 'message' in error && 
+                 typeof error.message === 'string' && error.message.includes('404')) {
         console.log('Player not found in database, signing out');
         await supabase.auth.signOut();
       }
@@ -124,7 +125,7 @@ export function useAuth() {
     }
   };
 
-  const signUp = async (email: string, password: string, firstName: string, lastName: string, phone: string) => {
+  const signUp = async (emailOrPhone: string, password: string, firstName: string, lastName: string, phone: string) => {
     if (signupCooldown) {
       toast({
         title: "Rate Limited",
@@ -138,6 +139,10 @@ export function useAuth() {
       setSignupCooldown(true);
       setTimeout(() => setSignupCooldown(false), 60000);
 
+      // Determine if input is email or phone
+      const isEmail = emailOrPhone.includes('@');
+      const email = isEmail ? emailOrPhone : `${phone}@placeholder.com`; // Temporary email for phone users
+      
       // Create Supabase auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -154,12 +159,13 @@ export function useAuth() {
 
       // Create player record with Supabase ID
       const playerData = {
-        email,
+        email: isEmail ? emailOrPhone : '', // Use actual email if provided, empty if phone
         password, // In production, this should be hashed
         firstName,
         lastName,
         phone,
         supabaseId: authData.user?.id, // Link to Supabase auth user
+        clerkUserId: '', // Will be set when Clerk integration is activated
       };
 
       const playerResponse = await apiRequest('POST', '/api/players', playerData);
@@ -203,12 +209,37 @@ export function useAuth() {
     }
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (identifier: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      // Check if identifier is email or phone
+      const isEmail = identifier.includes('@');
+      
+      let authResult;
+      if (isEmail) {
+        authResult = await supabase.auth.signInWithPassword({
+          email: identifier,
+          password,
+        });
+      } else {
+        // For phone authentication, we need to find the user by phone first
+        // Then use their email for authentication
+        const { data: players, error: findError } = await supabase
+          .from('players')
+          .select('email')
+          .eq('phone', identifier)
+          .single();
+          
+        if (findError || !players?.email) {
+          throw new Error('Phone number not found. Please check your number or sign up.');
+        }
+        
+        authResult = await supabase.auth.signInWithPassword({
+          email: players.email,
+          password,
+        });
+      }
+      
+      const { error } = authResult;
 
       if (error) {
         // Handle specific error cases
