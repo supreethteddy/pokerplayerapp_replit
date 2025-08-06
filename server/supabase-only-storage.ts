@@ -178,38 +178,61 @@ export class SupabaseOnlyStorage {
   }
 
   async getPlayerBySupabaseId(supabaseId: string): Promise<Player | undefined> {
-    console.log('SupabaseOnlyStorage: Searching for player with Supabase ID:', supabaseId);
+    console.log('🔍 [UNIFIED] Getting player by Supabase ID:', supabaseId);
     
-    // Since supabase_id column doesn't exist in the current schema,
-    // we need to find the player by looking up the email from Supabase auth
     try {
-      // Get the email from Supabase auth using the ID
+      // First try direct lookup by supabase_id
+      const { data: directData, error: directError } = await supabase
+        .from('players')
+        .select('*')
+        .eq('supabase_id', supabaseId)
+        .single();
+      
+      if (!directError && directData) {
+        console.log('✅ [UNIFIED] Direct Supabase ID lookup successful:', directData.email);
+        return this.transformPlayerFromSupabase(directData);
+      }
+      
+      console.log('🔄 [UNIFIED] Direct lookup failed, trying auth email lookup');
+      
+      // Fallback: Get email from Supabase auth and lookup by email
       const { data: { user }, error: authError } = await supabase.auth.admin.getUserById(supabaseId);
       
       if (authError || !user?.email) {
-        console.error('SupabaseOnlyStorage: Error getting user from auth:', authError);
+        console.error('❌ [UNIFIED] Auth user not found:', authError?.message);
         return undefined;
       }
       
-      console.log('SupabaseOnlyStorage: Found email from auth:', user.email);
+      console.log('🔍 [UNIFIED] Found auth email:', user.email);
       
-      // Now find the player by email
-      const { data, error } = await supabase
+      // Find player by email and update with Supabase ID
+      const { data: emailData, error: emailError } = await supabase
         .from('players')
         .select('*')
         .eq('email', user.email)
         .single();
       
-      if (error) {
-        console.error('SupabaseOnlyStorage: Error fetching player by email:', error);
+      if (emailError || !emailData) {
+        console.log('❌ [UNIFIED] Player not found by email:', user.email);
         return undefined;
       }
       
-      console.log('SupabaseOnlyStorage: Found player by email lookup:', data);
-      return this.transformPlayerFromSupabase(data);
+      // Update player with Supabase ID for future direct lookups
+      const { error: updateError } = await supabase
+        .from('players')
+        .update({ supabase_id: supabaseId })
+        .eq('id', emailData.id);
       
-    } catch (error) {
-      console.error('SupabaseOnlyStorage: Error in getPlayerBySupabaseId:', error);
+      if (!updateError) {
+        emailData.supabase_id = supabaseId; // Update local data
+        console.log('✅ [UNIFIED] Updated player', emailData.id, 'with Supabase ID');
+      }
+      
+      console.log('✅ [UNIFIED] Player found and linked:', emailData.email);
+      return this.transformPlayerFromSupabase(emailData);
+      
+    } catch (error: any) {
+      console.error('❌ [UNIFIED] Error in getPlayerBySupabaseId:', error);
       return undefined;
     }
   }
