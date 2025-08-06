@@ -4,10 +4,11 @@ import { z } from "zod";
 
 export const players = pgTable("players", {
   id: serial("id").primaryKey(),
-  supabaseId: text("supabase_id").notNull().unique(), // Link to Supabase auth.users.id
+  supabaseId: text("supabase_id"), // Link to Supabase auth.users.id (now optional for Clerk users)
   universalId: text("universal_id").unique(), // Enterprise-grade universal ID for cross-portal sync
+  clerkUserId: text("clerk_user_id").unique(), // Link to Clerk user ID for new authentication
   email: text("email").notNull().unique(),
-  password: text("password").notNull(),
+  password: text("password"), // Optional for Clerk users
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   phone: text("phone").notNull(),

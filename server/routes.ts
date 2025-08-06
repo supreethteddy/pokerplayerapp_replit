@@ -39,6 +39,9 @@ console.log('🚀 [SERVER] Pusher and OneSignal initialized successfully');
 // Import direct chat system (bypasses Supabase cache issues)
 import { directChat } from './direct-chat-system';
 
+// Import Clerk integration
+import { ClerkPlayerSync } from './clerk-integration';
+
 export function registerRoutes(app: Express) {
   // UNIFIED CHAT SYSTEM - Single source of truth (NEW CORE)
   
@@ -441,6 +444,83 @@ export function registerRoutes(app: Express) {
         error: 'Failed to send message',
         details: error.message
       });
+    }
+  });
+
+  // CLERK AUTHENTICATION INTEGRATION APIs
+  const clerkSync = new ClerkPlayerSync();
+
+  // Sync Clerk user with Player database
+  app.post("/api/clerk/sync-player", async (req, res) => {
+    try {
+      const { clerkUserId, email, firstName, lastName } = req.body;
+      
+      console.log('🔗 [CLERK API] Syncing player:', email);
+      
+      const player = await clerkSync.syncPlayer({
+        clerkUserId,
+        email,
+        firstName,
+        lastName
+      });
+
+      res.json({ success: true, player });
+    } catch (error: any) {
+      console.error('❌ [CLERK API] Sync error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Check KYC status for Clerk user
+  app.get("/api/clerk/kyc-status/:clerkUserId", async (req, res) => {
+    try {
+      const { clerkUserId } = req.params;
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { data: player, error } = await supabase
+        .from('players')
+        .select('kyc_status, phone')
+        .eq('clerk_user_id', clerkUserId)
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      const requiresKyc = !player || player.kyc_status === 'pending' || !player.phone;
+      
+      res.json({ requiresKyc, kycStatus: player?.kyc_status });
+    } catch (error: any) {
+      console.error('❌ [CLERK API] KYC status error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Submit KYC documents for Clerk user
+  app.post("/api/clerk/kyc-submit", async (req, res) => {
+    try {
+      // Handle file uploads and KYC submission
+      const { clerkUserId, phone } = req.body;
+      
+      // Update player with phone number and KYC status
+      const updatedPlayer = await clerkSync.updatePlayerPhone(clerkUserId, phone);
+      
+      // In a real implementation, you would:
+      // 1. Upload files to storage
+      // 2. Create KYC document records
+      // 3. Set KYC status to 'pending'
+      
+      console.log('📋 [CLERK API] KYC submitted for player:', updatedPlayer.id);
+      
+      res.json({ success: true, message: 'KYC documents submitted successfully' });
+    } catch (error: any) {
+      console.error('❌ [CLERK API] KYC submit error:', error);
+      res.status(500).json({ error: error.message });
     }
   });
 

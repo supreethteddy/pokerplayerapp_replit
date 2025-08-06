@@ -1,0 +1,85 @@
+{
+  "integration": "Unified Clerk Authentication for Player Portal",
+  "purpose": "Add Clerk for login and sign-up, with KYC, connecting ONLY to authentication; preserve all existing Player ID, roles, Supabase logic, and unified data model.",
+  "steps": [
+    {
+      "step": "Environment Setup",
+      "details": [
+        "In Replit Secrets (or .env), set:",
+        "VITE_CLERK_PUBLISHABLE_KEY=YOUR_CLERK_PUBLISHABLE_KEY",
+        "CLERK_SECRET_KEY=YOUR_CLERK_SECRET_KEY",
+        "CLERK_WEBHOOK_SECRET=YOUR_CLERK_WEBHOOK_SECRET (already present, do not change)"
+      ]
+    },
+    {
+      "step": "Frontend Integration (React/Vite)",
+      "details": [
+        "Install Clerk React SDK: npm install @clerk/clerk-react",
+        "Initialize ClerkProvider in your main App entry (App.tsx or main.tsx):",
+        "import { ClerkProvider } from '@clerk/clerk-react';",
+        "const clerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;",
+        "<ClerkProvider publishableKey={clerkKey}> ... </ClerkProvider>",
+        "Replace any custom sign-in/up forms with Clerk <SignIn /> and <SignUp /> components."
+      ]
+    },
+    {
+      "step": "Sign-Up Flow and KYC",
+      "details": [
+        "After successful Clerk sign-up, redirect user automatically to /kyc (KYC form page).",
+        "On the KYC page, capture phone number and all required KYC info (do NOT use Clerk for extra profile fields, store directly in Supabase).",
+        "Block dashboard/app access until KYC is submitted and flagged as 'APPROVED' by admin in Supabase.",
+        "Super admin sees new users in the admin dashboard, reviews and approves KYC.",
+        "Upon KYC approval, trigger Clerk (or send custom email via API) to notify user that account is activated."
+      ]
+    },
+    {
+      "step": "Backend Mapping & Supabase Connection",
+      "details": [
+        "When a user signs in via Clerk, lookup (or create on first login) the corresponding player in Supabase 'players' table with clerk_user_id field mapped to Clerk userId.",
+        "Use ONLY Clerk for authentication, but preserve your playerId and unified roles system for application permissions, chat, history, etc.",
+        "Example mapping code (Node.js/TS):",
+        "// Extract Clerk user ID from session (middleware/context);",
+        "// Use/find/create Supabase player row with clerk_user_id === session.userId;",
+        "// Use existing playerId for all business logic."
+      ]
+    },
+    {
+      "step": "KYC Approval Email",
+      "details": [
+        "On KYC approval (in Supabase), trigger an email using Clerk email template or custom endpoint to inform the user that login is enabled."
+      ]
+    },
+    {
+      "step": "Role Management (if needed for staff/advanced roles)",
+      "details": [
+        "Maintain all staff and player roles in your Supabase 'roles' table (do NOT use Clerk roles for business logic).",
+        "Assign unified playerId/staffId on Clerk-Supabase linkage, and use that throughout the app.",
+        "Demo/test credentials (superadmin, admin, manager, staff, HR, cashier) should still work for now."
+      ]
+    },
+    {
+      "step": "Preserve All Existing Logic",
+      "details": [
+        "Do NOT change your chat, tables, transaction, or historical data logic.",
+        "Clerk is ONLY used for secure login/signup/session management.",
+        "All player/session/business logic continues to use the Supabase playerId and unified data system."
+      ]
+    }
+  ],
+  "golden_rules": [
+    "Never change or remove the playerId/unified data structure.",
+    "Never use Clerk userId for any logic except authentication/session.",
+    "All roles, KYC, permissions, data, chat, and tables must use the existing app/system, NOT Clerk.",
+    "Clerk is strictly an authentication provider, not a user profile or data store.",
+    "If in doubt, always favor using legacy playerId and your tables as source of truth."
+  ],
+  "test_criteria": [
+    "User can sign up/log in via Clerk.",
+    "After sign-up, user sees KYC form (phone + details).",
+    "User cannot access dashboard until KYC is approved.",
+    "After KYC approval, user receives confirmation and can log in fully.",
+    "All new/existing users have mapping in Supabase with correct playerId.",
+    "Legacy staff/admin/demo credentials still work.",
+    "No existing system feature is broken."
+  ]
+}
