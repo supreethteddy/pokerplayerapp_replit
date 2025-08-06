@@ -139,6 +139,91 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Clerk sync endpoint for unified authentication
+  app.post('/api/auth/clerk-sync', async (req, res) => {
+    console.log('🔐 [CLERK SYNC] Received sync request:', req.body);
+    
+    try {
+      const { clerkUserId, email, firstName, lastName, phone, emailVerified } = req.body;
+      
+      if (!clerkUserId || !email) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+      
+      // Check if player already exists by email
+      const { data: existingPlayer, error: findError } = await supabase
+        .from('players')
+        .select('*')
+        .eq('email', email)
+        .single();
+      
+      let playerData;
+      
+      if (existingPlayer && !findError) {
+        // Update existing player with Clerk ID
+        const { data: updatedPlayer, error: updateError } = await supabase
+          .from('players')
+          .update({ 
+            clerk_user_id: clerkUserId,
+            clerk_synced_at: new Date().toISOString(),
+            first_name: firstName || existingPlayer.first_name,
+            last_name: lastName || existingPlayer.last_name,
+            phone: phone || existingPlayer.phone
+          })
+          .eq('id', existingPlayer.id)
+          .select()
+          .single();
+        
+        if (updateError) throw updateError;
+        
+        playerData = updatedPlayer;
+        console.log('✅ [CLERK SYNC] Updated existing player:', existingPlayer.id);
+        
+      } else {
+        // Create new player with Clerk ID
+        const { data: newPlayer, error: createError } = await supabase
+          .from('players')
+          .insert({
+            email,
+            first_name: firstName,
+            last_name: lastName,
+            phone,
+            clerk_user_id: clerkUserId,
+            clerk_synced_at: new Date().toISOString(),
+            kyc_status: emailVerified ? 'pending' : 'incomplete',
+            password: 'clerk_managed', // Placeholder since Clerk handles auth
+            universal_id: `unified_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            balance: '0.00',
+            is_active: true
+          })
+          .select()
+          .single();
+        
+        if (createError) throw createError;
+        
+        playerData = newPlayer;
+        console.log('✅ [CLERK SYNC] Created new player:', newPlayer.id);
+      }
+      
+      res.json({
+        success: true,
+        player: {
+          id: playerData.id,
+          email: playerData.email,
+          firstName: playerData.first_name,
+          lastName: playerData.last_name,
+          phone: playerData.phone,
+          kycStatus: playerData.kyc_status,
+          clerkUserId: playerData.clerk_user_id
+        }
+      });
+      
+    } catch (error: any) {
+      console.error('❌ [CLERK SYNC] Error:', error);
+      res.status(500).json({ error: error.message || 'Sync failed' });
+    }
+  });
+
   // LEGACY ENDPOINT - TO BE REMOVED
   app.get("/api/OLD-chat-history/:playerId", async (req, res) => {
     try {

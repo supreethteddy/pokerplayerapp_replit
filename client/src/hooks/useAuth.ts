@@ -30,13 +30,13 @@ export function useAuth() {
   useEffect(() => {
     let mounted = true;
 
-    // Force loading to false after 5 seconds to prevent infinite loading
+    // Reduced timeout for better UX - 3 seconds max loading
     const forceTimeout = setTimeout(() => {
       if (mounted) {
-        console.log('Force timeout - ending loading state');
+        console.log('🕐 [AUTH] Force timeout - ending loading state');
         setLoading(false);
       }
-    }, 5000);
+    }, 3000);
 
     // Check current session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -83,9 +83,9 @@ export function useAuth() {
     console.log('🔍 [AUTH] Fetching user data for:', supabaseUserId);
     
     try {
-      // Optimized timeout for unified authentication system
+      // Optimized timeout - 2 seconds for faster response
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // Increased timeout for auth lookup
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
       
       const response = await fetch(`/api/players/supabase/${supabaseUserId}`, {
         signal: controller.signal,
