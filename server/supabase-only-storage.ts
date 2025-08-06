@@ -227,19 +227,18 @@ export class SupabaseOnlyStorage {
       // Transform player data with unified system fields (avoiding schema cache issues)
       const playerData = this.transformPlayerToSupabase(player);
       
-      // Add the unified fields directly to the insert
+      // Add the unified fields directly to the insert (excluding clerk_user_id for now)
       const finalPlayerData = {
         ...playerData,
         supabase_id: supabaseId,
-        universal_id: universalId,
-        clerk_user_id: player.clerkUserId || null // Add Clerk ID support
+        universal_id: universalId
       };
       
       console.log('🔄 [UNIFIED] Creating player with data:', {
         email: finalPlayerData.email,
         phone: finalPlayerData.phone,
         supabase_id: finalPlayerData.supabase_id,
-        clerk_user_id: finalPlayerData.clerk_user_id
+        universal_id: finalPlayerData.universal_id
       });
       
       // Create player with all fields in one operation

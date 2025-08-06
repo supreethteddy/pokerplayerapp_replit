@@ -41,6 +41,7 @@ import { directChat } from './direct-chat-system';
 
 // Import Clerk integration
 import { ClerkPlayerSync } from './clerk-integration';
+import { SupabaseOnlyStorage } from './supabase-only-storage';
 
 export function registerRoutes(app: Express) {
   // UNIFIED CHAT SYSTEM - Single source of truth (NEW CORE)
@@ -449,6 +450,39 @@ export function registerRoutes(app: Express) {
 
   // CLERK AUTHENTICATION INTEGRATION APIs
   const clerkSync = new ClerkPlayerSync();
+
+  // Create new player (Signup endpoint)
+  app.post("/api/players", async (req, res) => {
+    try {
+      const { email, password, firstName, lastName, phone, supabaseId, clerkUserId } = req.body;
+      
+      console.log('🆕 [SIGNUP API] Creating player:', { email, firstName, lastName, phone });
+      
+      // Validate required fields
+      if (!email || !firstName || !lastName || !phone) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // Create player using storage
+      const storage = new SupabaseOnlyStorage();
+      const player = await storage.createPlayer({
+        email,
+        password,
+        firstName,
+        lastName,
+        phone,
+        supabaseId,
+        clerkUserId,
+        kycStatus: 'pending'
+      });
+
+      console.log('✅ [SIGNUP API] Player created successfully:', player.id);
+      res.json(player);
+    } catch (error: any) {
+      console.error('❌ [SIGNUP API] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   // Sync Clerk user with Player database
   app.post("/api/clerk/sync-player", async (req, res) => {
