@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { X, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '../lib/supabase';
 
 export default function DirectClubsAuth() {
   const [activeTab, setActiveTab] = useState<'signin' | 'signup'>('signin');
@@ -24,11 +25,30 @@ export default function DirectClubsAuth() {
   const { toast } = useToast();
 
   const handleGoogleAuth = async () => {
-    toast({
-      title: "Google Authentication",
-      description: "Google sign-in integration coming soon!",
-      variant: "default"
-    });
+    setLoading(true);
+    try {
+      // Use Clerk's Google OAuth integration
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      // The redirect will happen automatically on success
+    } catch (error: any) {
+      console.error('Google auth error:', error);
+      toast({
+        title: "Google Sign-In Failed",
+        description: error.message || "Please try again or use email/password",
+        variant: "destructive"
+      });
+      setLoading(false);
+    }
   };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
