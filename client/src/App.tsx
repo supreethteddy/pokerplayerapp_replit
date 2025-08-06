@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ClerkWrapper } from "./clerk";
 import { useHybridAuth } from "./hooks/useHybridAuth";
-import HybridAuthWrapper from "./components/HybridAuthWrapper";
+import AuthWrapper from "./components/AuthWrapper";
 import SafeAuthWrapper from "./components/AuthErrorBoundary";
 import ClerkSignInPage from "./components/ClerkSignInPage";
 import ClerkSignUpPage from "./components/ClerkSignUpPage";
@@ -69,7 +69,7 @@ function AppContent() {
       
       <Switch>
         <Route path="/">
-          {user ? <Redirect to="/dashboard" /> : <HybridAuthWrapper />}
+          {user ? <Redirect to="/dashboard" /> : <AuthWrapper />}
         </Route>
         <Route path="/dashboard">
           {user ? <PlayerDashboard /> : <Redirect to="/" />}

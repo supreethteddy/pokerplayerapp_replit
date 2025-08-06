@@ -637,12 +637,8 @@ export function registerRoutes(app: Express) {
 
       console.log(`🔍 [CLERK SYNC] Syncing Clerk user: ${email} (${clerk_user_id})`);
 
-      // Check if player already exists by Clerk ID
-      const { data: existingPlayer } = await supabase
-        .from('players')
-        .select('*')
-        .eq('clerk_user_id', clerk_user_id)
-        .single();
+      // Check if player already exists by Clerk ID  
+      const existingPlayer = await storage.getPlayerByClerkId(clerk_user_id);
 
       if (existingPlayer) {
         console.log(`✅ [CLERK SYNC] Existing player found: ${existingPlayer.email} (ID: ${existingPlayer.id})`);
@@ -654,26 +650,16 @@ export function registerRoutes(app: Express) {
       }
 
       // Create new player with Clerk ID
-      const { data: newPlayer, error } = await supabase
-        .from('players')
-        .insert({
-          clerk_user_id,
-          email,
-          first_name: first_name || '',
-          last_name: last_name || '',
-          phone: phone || '',
-          kyc_status: 'pending',
-          balance: '0.00',
-          is_active: true,
-          created_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('❌ [CLERK SYNC] Error creating player:', error);
-        return res.status(500).json({ error: "Failed to create player" });
-      }
+      const newPlayer = await storage.createClerkPlayer({
+        clerk_user_id,
+        email,
+        first_name: first_name || '',
+        last_name: last_name || '',
+        phone: phone || '',
+        kyc_status: 'pending',
+        balance: '0.00',
+        is_active: true
+      });
 
       console.log(`✅ [CLERK SYNC] New player created: ${newPlayer.email} (ID: ${newPlayer.id})`);
       res.json({ 

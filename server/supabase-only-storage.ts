@@ -31,6 +31,49 @@ export class SupabaseOnlyStorage implements IStorage {
    * All functions enhanced for perfect cross-portal compatibility
    */
 
+  // Get player by Clerk ID
+  async getPlayerByClerkId(clerkId: string): Promise<Player | null> {
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .eq('clerk_user_id', clerkId)
+        .single();
+      
+      if (error || !data) {
+        return null;
+      }
+      
+      return data as Player;
+    } catch (error) {
+      console.error('Error getting player by Clerk ID:', error);
+      return null;
+    }
+  }
+
+  // Create player from Clerk
+  async createClerkPlayer(playerData: any): Promise<Player> {
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .insert({
+          ...playerData,
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      return data as Player;
+    } catch (error) {
+      console.error('Error creating Clerk player:', error);
+      throw error;
+    }
+  }
+
   // Universal player count for health checks
   async getPlayerCount(): Promise<number> {
     try {
