@@ -9,7 +9,8 @@ import { Shield, Users } from 'lucide-react';
 
 // Hybrid authentication wrapper that supports both Clerk and legacy Supabase
 export default function HybridAuthWrapper() {
-  const { user: clerkUser, isLoaded } = useUser();
+  const clerkAvailable = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+  const { user: clerkUser, isLoaded } = clerkAvailable ? useUser() : { user: null, isLoaded: true };
   const { user: supabaseUser, loading: supabaseLoading } = useAuth();
   const [authMode, setAuthMode] = useState<'clerk' | 'legacy' | null>(null);
 
@@ -41,6 +42,11 @@ export default function HybridAuthWrapper() {
   // If user is authenticated with either system, they're good to go
   if (authMode === 'clerk' || authMode === 'legacy') {
     return null; // Let the main app handle authenticated users
+  }
+
+  // If Clerk is not available, go straight to legacy auth
+  if (!clerkAvailable) {
+    return <AuthLayout />;
   }
 
   // Show authentication choice for new users
