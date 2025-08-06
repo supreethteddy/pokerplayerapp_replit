@@ -106,3 +106,29 @@ export function useHybridAuth() {
     signOut
   };
 }
+
+// Function to create/sync Clerk user with Supabase
+export async function createClerkSupabaseUser(clerkUser: any) {
+  try {
+    const response = await fetch('/api/players/sync-clerk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clerk_user_id: clerkUser.id,
+        email: clerkUser.emailAddresses[0]?.emailAddress,
+        first_name: clerkUser.firstName,
+        last_name: clerkUser.lastName,
+        phone: clerkUser.phoneNumbers[0]?.phoneNumber
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to sync Clerk user');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error syncing Clerk user with Supabase:', error);
+    throw error;
+  }
+}

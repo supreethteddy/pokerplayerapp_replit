@@ -1,234 +1,79 @@
-import { SignIn, SignUp, useUser } from '@clerk/clerk-react';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
+import { useUser, useAuth, SignIn, SignUp } from '@clerk/clerk-react';
+import { useLocation } from 'wouter';
+import { createClerkSupabaseUser } from '../hooks/useHybridAuth';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Spade, Shield, Clock } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { apiRequest } from '@/lib/queryClient';
-import { Card, CardContent } from '@/components/ui/card';
+import { Spade, ArrowRight, Phone, Mail, Chrome } from 'lucide-react';
+import { Link } from 'wouter';
 
 export default function ClerkAuthLayout() {
-  const { user: clerkUser } = useUser();
-  const [showSignUp, setShowSignUp] = useState(false);
-  const [showKycModal, setShowKycModal] = useState(false);
-  const [kycForm, setKycForm] = useState({
-    phone: '',
-    loading: false
-  });
-  const [kycFiles, setKycFiles] = useState<{
-    id: File | null;
-    address: File | null;
-    photo: File | null;
-  }>({ id: null, address: null, photo: null });
-  const { toast } = useToast();
+  const { user, isLoaded } = useUser();
+  const { isSignedIn } = useAuth();
+  const [location, navigate] = useLocation();
 
-  // Check if user needs KYC after Clerk authentication
   useEffect(() => {
-    if (clerkUser) {
-      checkKycStatus();
-    }
-  }, [clerkUser]);
-
-  const checkKycStatus = async () => {
-    try {
-      const response = await fetch(`/api/clerk/kyc-status/${clerkUser?.id}`);
-      const data = await response.json();
-      if (data.requiresKyc) {
-        setShowKycModal(true);
-      }
-    } catch (error) {
-      console.error('Error checking KYC status:', error);
-    }
-  };
-
-  const handleKycSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!kycForm.phone || !kycFiles.id || !kycFiles.address || !kycFiles.photo) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill all fields and upload all required documents",
-        variant: "destructive",
+    if (isLoaded && isSignedIn && user) {
+      // Sync Clerk user with Supabase
+      createClerkSupabaseUser(user).then(() => {
+        console.log('Clerk user synchronized with Supabase');
+        navigate('/dashboard');
+      }).catch((err: Error) => {
+        console.error('Error syncing Clerk user:', err);
+        // Still navigate to dashboard even if sync fails
+        navigate('/dashboard');
       });
-      return;
     }
+  }, [isLoaded, isSignedIn, user, navigate]);
 
-    setKycForm(prev => ({ ...prev, loading: true }));
-
-    try {
-      // Upload KYC documents
-      const formData = new FormData();
-      formData.append('clerkUserId', clerkUser?.id || '');
-      formData.append('phone', kycForm.phone);
-      formData.append('id', kycFiles.id);
-      formData.append('address', kycFiles.address);
-      formData.append('photo', kycFiles.photo);
-
-      const response = await fetch('/api/clerk/kyc-submit', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (response.ok) {
-        toast({
-          title: "KYC Submitted",
-          description: "Your documents have been submitted for review. You'll be notified once approved.",
-        });
-        setShowKycModal(false);
-      } else {
-        throw new Error('KYC submission failed');
-      }
-    } catch (error) {
-      console.error('KYC submission error:', error);
-      toast({
-        title: "Submission Error",
-        description: "Failed to submit KYC documents. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setKycForm(prev => ({ ...prev, loading: false }));
-    }
-  };
-
-  const handleFileChange = (type: 'id' | 'address' | 'photo', file: File | null) => {
-    setKycFiles(prev => ({ ...prev, [type]: file }));
-  };
-
-  // Show KYC modal if user is authenticated but needs KYC
-  if (clerkUser && showKycModal) {
+  // Show loading state while Clerk initializes
+  if (!isLoaded) {
     return (
-      <Dialog open={showKycModal} onOpenChange={setShowKycModal}>
-        <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700">
-          <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <Shield className="w-5 h-5 text-emerald-500" />
-              Complete KYC Verification
-            </DialogTitle>
-          </DialogHeader>
-          
-          <form onSubmit={handleKycSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="phone" className="text-slate-300">Phone Number</Label>
-              <Input
-                id="phone"
-                type="tel"
-                value={kycForm.phone}
-                onChange={(e) => setKycForm(prev => ({ ...prev, phone: e.target.value }))}
-                className="bg-slate-800 border-slate-600 text-white"
-                placeholder="Enter your phone number"
-                required
-              />
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <Label className="text-slate-300">Government ID</Label>
-                <Input
-                  type="file"
-                  accept="image/*,.pdf"
-                  onChange={(e) => handleFileChange('id', e.target.files?.[0] || null)}
-                  className="bg-slate-800 border-slate-600 text-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <Label className="text-slate-300">Address Proof</Label>
-                <Input
-                  type="file"
-                  accept="image/*,.pdf"
-                  onChange={(e) => handleFileChange('address', e.target.files?.[0] || null)}
-                  className="bg-slate-800 border-slate-600 text-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <Label className="text-slate-300">Profile Photo</Label>
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleFileChange('photo', e.target.files?.[0] || null)}
-                  className="bg-slate-800 border-slate-600 text-white"
-                  required
-                />
-              </div>
-            </div>
-
-            <Button 
-              type="submit" 
-              className="w-full bg-emerald-600 hover:bg-emerald-700"
-              disabled={kycForm.loading}
-            >
-              {kycForm.loading ? 'Submitting...' : 'Submit KYC Documents'}
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-white">Initializing authentication...</div>
+      </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-8">
-        {/* Header */}
-        <div className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-emerald-600 rounded-full flex items-center justify-center">
-              <Spade className="w-8 h-8 text-white" />
+  // Show sign-in page
+  if (location === '/sign-in' || location === '/') {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="w-full max-w-md space-y-8">
+          {/* Header */}
+          <div className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-emerald-600 rounded-full flex items-center justify-center">
+                <Spade className="w-8 h-8 text-white" />
+              </div>
             </div>
+            <h1 className="text-3xl font-bold text-white mb-2">Welcome Back</h1>
+            <p className="text-slate-400">Sign in to your poker account</p>
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Welcome to Tilt</h1>
-          <p className="text-slate-400">Professional Poker Room Platform</p>
-        </div>
 
-        {/* Auth Toggle */}
-        <div className="flex bg-slate-800 rounded-lg p-1">
-          <Button
-            variant={!showSignUp ? "default" : "ghost"}
-            className={`flex-1 ${!showSignUp ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
-            onClick={() => setShowSignUp(false)}
-          >
-            Sign In
-          </Button>
-          <Button
-            variant={showSignUp ? "default" : "ghost"}
-            className={`flex-1 ${showSignUp ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
-            onClick={() => setShowSignUp(true)}
-          >
-            Sign Up
-          </Button>
-        </div>
+          {/* Feature Preview Card */}
+          <Card className="bg-slate-800 border-slate-700 mb-6">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <Chrome className="w-4 h-4" />
+                  <span>Google Sign-in</span>
+                </div>
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <Phone className="w-4 h-4" />
+                  <span>Phone Auth</span>
+                </div>
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <Mail className="w-4 h-4" />
+                  <span>Email</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-        {/* Clerk Auth Components */}
-        <Card className="bg-slate-800 border-slate-700">
-          <CardContent className="p-6">
-            {showSignUp ? (
-              <SignUp 
-                appearance={{
-                  elements: {
-                    rootBox: "w-full",
-                    card: "bg-transparent shadow-none",
-                    headerTitle: "text-white",
-                    headerSubtitle: "text-slate-400",
-                    socialButtonsBlockButton: "bg-slate-700 border-slate-600 text-white hover:bg-slate-600",
-                    socialButtonsBlockButtonText: "text-white",
-                    formFieldInput: "bg-slate-700 border-slate-600 text-white",
-                    formFieldLabel: "text-slate-300",
-                    formButtonPrimary: "bg-emerald-600 hover:bg-emerald-700",
-                    footerActionLink: "text-emerald-400 hover:text-emerald-300",
-                    dividerLine: "bg-slate-600",
-                    dividerText: "text-slate-400"
-                  }
-                }}
-                redirectUrl="/dashboard"
-                routing="path"
-                path="/sign-up"
-                signInUrl="/sign-in"
-              />
-            ) : (
+          {/* Clerk SignIn Component */}
+          <Card className="bg-slate-800 border-slate-700">
+            <CardContent className="p-6">
               <SignIn 
                 appearance={{
                   elements: {
@@ -236,37 +81,131 @@ export default function ClerkAuthLayout() {
                     card: "bg-transparent shadow-none",
                     headerTitle: "text-white",
                     headerSubtitle: "text-slate-400",
-                    socialButtonsBlockButton: "bg-slate-700 border-slate-600 text-white hover:bg-slate-600",
-                    socialButtonsBlockButtonText: "text-white",
-                    formFieldInput: "bg-slate-700 border-slate-600 text-white",
+                    socialButtonsBlockButton: "bg-slate-700 border-slate-600 text-white hover:bg-slate-600 transition-colors",
+                    socialButtonsBlockButtonText: "text-white font-medium",
+                    socialButtonsBlockButtonArrow: "text-white",
+                    formFieldInput: "bg-slate-700 border-slate-600 text-white placeholder-slate-400",
                     formFieldLabel: "text-slate-300",
-                    formButtonPrimary: "bg-emerald-600 hover:bg-emerald-700",
+                    formButtonPrimary: "bg-emerald-600 hover:bg-emerald-700 transition-colors",
                     footerActionLink: "text-emerald-400 hover:text-emerald-300",
                     dividerLine: "bg-slate-600",
-                    dividerText: "text-slate-400"
+                    dividerText: "text-slate-400",
+                    phoneInputBox: "bg-slate-700 border-slate-600 text-white",
+                    otpCodeFieldInput: "bg-slate-700 border-slate-600 text-white"
                   }
                 }}
-                redirectUrl="/dashboard"
-                routing="path"
-                path="/sign-in"
+                afterSignInUrl="/dashboard"
                 signUpUrl="/sign-up"
               />
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        {/* Features */}
-        <div className="text-center text-slate-400 text-sm space-y-2">
-          <div className="flex items-center justify-center gap-2">
-            <Shield className="w-4 h-4 text-emerald-500" />
-            <span>Secure Authentication with Google Sign-in</span>
-          </div>
-          <div className="flex items-center justify-center gap-2">
-            <Clock className="w-4 h-4 text-emerald-500" />
-            <span>Quick KYC Verification Process</span>
+          {/* Call to Action */}
+          <div className="text-center">
+            <p className="text-slate-400 text-sm mb-4">
+              New to Tilt Poker?
+            </p>
+            <Link href="/sign-up">
+              <Button variant="outline" className="border-emerald-600 text-emerald-400 hover:bg-emerald-600 hover:text-white">
+                Create Account
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
+    );
+  }
+
+  // Show sign-up page
+  if (location === '/sign-up') {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="w-full max-w-md space-y-8">
+          {/* Header */}
+          <div className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-emerald-600 rounded-full flex items-center justify-center">
+                <Spade className="w-8 h-8 text-white" />
+              </div>
+            </div>
+            <h1 className="text-3xl font-bold text-white mb-2">Join Tilt Poker</h1>
+            <p className="text-slate-400">Create your account and start playing</p>
+          </div>
+
+          {/* Feature Preview Card */}
+          <Card className="bg-slate-800 border-slate-700 mb-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-white text-center text-sm">Enhanced Security Features</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-3 gap-4 text-xs">
+                <div className="text-center">
+                  <Chrome className="w-6 h-6 mx-auto mb-1 text-emerald-400" />
+                  <div className="text-slate-300">Google Sign-in</div>
+                </div>
+                <div className="text-center">
+                  <Phone className="w-6 h-6 mx-auto mb-1 text-emerald-400" />
+                  <div className="text-slate-300">Phone Verification</div>
+                </div>
+                <div className="text-center">
+                  <Mail className="w-6 h-6 mx-auto mb-1 text-emerald-400" />
+                  <div className="text-slate-300">Email Auth</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Clerk SignUp Component */}
+          <Card className="bg-slate-800 border-slate-700">
+            <CardContent className="p-6">
+              <SignUp 
+                appearance={{
+                  elements: {
+                    rootBox: "w-full",
+                    card: "bg-transparent shadow-none",
+                    headerTitle: "text-white",
+                    headerSubtitle: "text-slate-400",
+                    socialButtonsBlockButton: "bg-slate-700 border-slate-600 text-white hover:bg-slate-600 transition-colors",
+                    socialButtonsBlockButtonText: "text-white font-medium",
+                    socialButtonsBlockButtonArrow: "text-white",
+                    formFieldInput: "bg-slate-700 border-slate-600 text-white placeholder-slate-400",
+                    formFieldLabel: "text-slate-300",
+                    formButtonPrimary: "bg-emerald-600 hover:bg-emerald-700 transition-colors",
+                    footerActionLink: "text-emerald-400 hover:text-emerald-300",
+                    dividerLine: "bg-slate-600",
+                    dividerText: "text-slate-400",
+                    phoneInputBox: "bg-slate-700 border-slate-600 text-white",
+                    otpCodeFieldInput: "bg-slate-700 border-slate-600 text-white"
+                  }
+                }}
+                afterSignUpUrl="/dashboard"
+                signInUrl="/sign-in"
+              />
+            </CardContent>
+          </Card>
+
+          {/* Back to Sign In */}
+          <div className="text-center">
+            <p className="text-slate-400 text-sm mb-4">
+              Already have an account?
+            </p>
+            <Link href="/sign-in">
+              <Button variant="outline" className="border-emerald-600 text-emerald-400 hover:bg-emerald-600 hover:text-white">
+                Sign In
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Default fallback
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="text-white">Redirecting...</div>
     </div>
   );
 }

@@ -626,6 +626,67 @@ export function registerRoutes(app: Express) {
   });
 
   // CRITICAL: Player authentication endpoint for login system
+  // Clerk User Sync API
+  app.post("/api/players/sync-clerk", async (req, res) => {
+    try {
+      const { clerk_user_id, email, first_name, last_name, phone } = req.body;
+      
+      if (!clerk_user_id || !email) {
+        return res.status(400).json({ error: "clerk_user_id and email are required" });
+      }
+
+      console.log(`🔍 [CLERK SYNC] Syncing Clerk user: ${email} (${clerk_user_id})`);
+
+      // Check if player already exists by Clerk ID
+      const { data: existingPlayer } = await supabase
+        .from('players')
+        .select('*')
+        .eq('clerk_user_id', clerk_user_id)
+        .single();
+
+      if (existingPlayer) {
+        console.log(`✅ [CLERK SYNC] Existing player found: ${existingPlayer.email} (ID: ${existingPlayer.id})`);
+        return res.json({ 
+          success: true, 
+          player: existingPlayer,
+          message: "Clerk user already synchronized" 
+        });
+      }
+
+      // Create new player with Clerk ID
+      const { data: newPlayer, error } = await supabase
+        .from('players')
+        .insert({
+          clerk_user_id,
+          email,
+          first_name: first_name || '',
+          last_name: last_name || '',
+          phone: phone || '',
+          kyc_status: 'pending',
+          balance: '0.00',
+          is_active: true,
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ [CLERK SYNC] Error creating player:', error);
+        return res.status(500).json({ error: "Failed to create player" });
+      }
+
+      console.log(`✅ [CLERK SYNC] New player created: ${newPlayer.email} (ID: ${newPlayer.id})`);
+      res.json({ 
+        success: true, 
+        player: newPlayer,
+        message: "Clerk user synchronized successfully" 
+      });
+    } catch (error) {
+      console.error("❌ [CLERK SYNC] Error syncing Clerk user:", error);
+      res.status(500).json({ error: "Failed to sync Clerk user" });
+    }
+  });
+
   app.get("/api/players/supabase/:supabaseId", async (req, res) => {
     try {
       const { supabaseId } = req.params;

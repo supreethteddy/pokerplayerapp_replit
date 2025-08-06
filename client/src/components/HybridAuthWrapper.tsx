@@ -96,6 +96,6 @@ export default function HybridAuthWrapper() {
     );
   }
 
-  // Render the appropriate auth layout based on chosen mode
-  return authMode === 'clerk' ? <ClerkAuthLayout /> : <AuthLayout />;
+  // Show Clerk auth by default since it's now properly configured
+  return <ClerkAuthLayout />;
 }
