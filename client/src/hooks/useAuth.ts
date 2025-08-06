@@ -80,24 +80,33 @@ export function useAuth() {
   }, []);
 
   const fetchUserData = async (supabaseUserId: string) => {
-    console.log('Starting fetchUserData for:', supabaseUserId);
+    console.log('🔍 [AUTH] Fetching user data for:', supabaseUserId);
     
     try {
-      // Use a shorter timeout and immediate loading state fix
+      // Optimized timeout for unified authentication system
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // Reduced timeout
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // Increased timeout for auth lookup
       
       const response = await fetch(`/api/players/supabase/${supabaseUserId}`, {
         signal: controller.signal,
         credentials: 'include',
-        cache: 'no-cache'
+        cache: 'no-cache',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
       
       clearTimeout(timeoutId);
       
       if (!response.ok) {
         if (response.status === 401) {
-          console.log('Unauthorized during authentication, this is normal');
+          console.log('🚫 [AUTH] Unauthorized - redirecting to login');
+          setLoading(false);
+          return;
+        }
+        if (response.status === 404) {
+          console.log('🚫 [AUTH] Player not found - signing out');
+          await supabase.auth.signOut();
           setLoading(false);
           return;
         }
@@ -105,19 +114,18 @@ export function useAuth() {
       }
       
       const userData = await response.json();
-      console.log('User data fetched successfully:', userData);
+      console.log('✅ [AUTH] User data fetched:', userData.email, `(ID: ${userData.id})`);
       setUser(userData);
-      setLoading(false); // Immediately set loading to false
-      console.log('✅ Authentication complete - user logged in:', userData.firstName, userData.lastName);
-    } catch (error) {
-      console.error('Error fetching user data:', error);
+      setLoading(false);
+      console.log('🎉 [AUTH] Authentication complete:', userData.firstName, userData.lastName);
+    } catch (error: any) {
+      console.error('❌ [AUTH] Fetch error:', error);
       
-      // Handle different error types gracefully
-      if (error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') {
-        console.log('Fetch aborted due to timeout');
-      } else if (error && typeof error === 'object' && 'message' in error && 
-                 typeof error.message === 'string' && error.message.includes('404')) {
-        console.log('Player not found in database, signing out');
+      // Handle specific error types
+      if (error.name === 'AbortError') {
+        console.log('⏰ [AUTH] Request timeout - ending loading state');
+      } else if (error.message?.includes('404')) {
+        console.log('🚫 [AUTH] Player not found - signing out');
         await supabase.auth.signOut();
       }
       
