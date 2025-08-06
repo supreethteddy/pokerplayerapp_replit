@@ -227,7 +227,7 @@ export class SupabaseOnlyStorage {
       // Transform player data with unified system fields (avoiding schema cache issues)
       const playerData = this.transformPlayerToSupabase(player);
       
-      // Add the unified fields directly to the insert (excluding clerk_user_id for now)
+      // Add the unified fields directly to the insert
       const finalPlayerData = {
         ...playerData,
         supabase_id: supabaseId,
@@ -546,7 +546,8 @@ export class SupabaseOnlyStorage {
       total_winnings: player.totalWinnings || '0.00',
       total_losses: player.totalLosses || '0.00',
       games_played: player.gamesPlayed || 0,
-      hours_played: player.hoursPlayed || '0.00'
+      hours_played: player.hoursPlayed || '0.00',
+      clerk_user_id: player.clerkUserId || null
     };
   }
 

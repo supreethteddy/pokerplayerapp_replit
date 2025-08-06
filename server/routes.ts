@@ -463,18 +463,51 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      // Create player using storage
+      // Create player using direct SQL insert (bypasses all schema cache issues)
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Generate unique IDs
+      const timestamp = Date.now();
+      const randomId = Math.random().toString(36).substr(2, 8);
+      const universalId = `unified_${timestamp}_${randomId}`;
+      const newSupabaseId = `auth_${timestamp}_${randomId}`;
+
+      // Direct insert with all fields
+      const { data: playerData, error: createError } = await supabase
+        .from('players')
+        .insert({
+          email,
+          password,
+          first_name: firstName,
+          last_name: lastName,
+          phone,
+          clerk_user_id: clerkUserId || null,
+          supabase_id: newSupabaseId,
+          universal_id: universalId,
+          kyc_status: 'pending',
+          balance: '0.00',
+          total_deposits: '0.00',
+          total_withdrawals: '0.00',
+          total_winnings: '0.00',
+          total_losses: '0.00',
+          games_played: 0,
+          hours_played: '0.00',
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        throw new Error(`Failed to create player: ${createError.message}`);
+      }
+
+      // Transform to expected format
       const storage = new SupabaseOnlyStorage();
-      const player = await storage.createPlayer({
-        email,
-        password,
-        firstName,
-        lastName,
-        phone,
-        supabaseId,
-        clerkUserId,
-        kycStatus: 'pending'
-      });
+      const player = (storage as any).transformPlayerFromSupabase(playerData);
 
       console.log('✅ [SIGNUP API] Player created successfully:', player.id);
       res.json(player);
