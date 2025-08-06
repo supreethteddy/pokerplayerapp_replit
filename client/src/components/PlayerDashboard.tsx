@@ -1782,47 +1782,8 @@ function PlayerDashboard() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {/* Regular Account Balance */}
-                  <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
-                    <div>
-                      <span className="text-slate-300 text-sm">Regular Account Balance</span>
-                      <p className="text-xs text-slate-400">Managed by cashier/admin</p>
-                    </div>
-                    <span className="text-emerald-500 font-bold text-lg">
-                      ₹{(accountBalance as any)?.regular_balance || user?.balance || "0.00"}
-                    </span>
-                  </div>
-                  
-                  {/* Credit Limit */}
-                  <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
-                    <div>
-                      <span className="text-slate-300 text-sm">Credit Limit</span>
-                      <p className="text-xs text-slate-400">Approved by super admin</p>
-                    </div>
-                    <span className="text-blue-500 font-bold text-lg">
-                      ₹{(accountBalance as any)?.credit_limit || "0.00"}
-                    </span>
-                  </div>
-                  
-                  {/* Available Credit */}
-                  <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
-                    <div>
-                      <span className="text-slate-300 text-sm">Available Credit</span>
-                      <p className="text-xs text-slate-400">Remaining credit to use</p>
-                    </div>
-                    <span className="text-purple-500 font-bold text-lg">
-                      ₹{(accountBalance as any)?.available_credit || "0.00"}
-                    </span>
-                  </div>
-                  
-                  {/* Total Funds Available */}
-                  <div className="border-t border-slate-600 pt-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-white font-medium">Total Funds Available</span>
-                      <span className="text-yellow-500 font-bold text-xl">
-                        ₹{((parseFloat((accountBalance as any)?.regular_balance || user?.balance || "0") + parseFloat((accountBalance as any)?.available_credit || "0")).toFixed(2))}
-                      </span>
-                    </div>
-                  </div>
+                  {/* Enhanced Dual Balance Display */}
+                  <DualBalanceDisplay className="mb-6" />
                   
                   {/* Balance Management Note */}
                   <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3">

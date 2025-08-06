@@ -136,10 +136,10 @@ export function useAuth() {
         totalBalance: (parseFloat(userData.balance || '0.00') + parseFloat(userData.currentCredit || '0.00')).toFixed(2)
       };
       
+      console.log('🎉 [AUTH] User data prepared:', enhancedUserData);
       setUser(enhancedUserData);
       setLoading(false);
-      console.log('🎉 [AUTH] Authentication complete with dual balance:', userData.firstName, userData.lastName);
-      console.log('💰 [BALANCE] Real:', enhancedUserData.realBalance, 'Credit:', enhancedUserData.creditBalance, 'Total:', enhancedUserData.totalBalance);
+      console.log('✅ [AUTH] Authentication complete - Player ID:', userData.id);
       
     } catch (error: any) {
       console.error('❌ [AUTH] Fetch error:', error);
@@ -157,6 +157,7 @@ export function useAuth() {
       } else {
         // Network errors - keep trying but stop loading
         console.log('🔄 [AUTH] Network error - stopping loading state');
+        setUser(null); // Clear user state on network errors
         setLoading(false);
       }
     }

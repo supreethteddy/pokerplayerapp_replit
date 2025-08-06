@@ -6,8 +6,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "./hooks/useAuth";
 import AuthWrapper from "./components/AuthWrapper";
 import SafeAuthWrapper from "./components/AuthErrorBoundary";
-import ClerkSignInPage from "./components/ClerkSignInPage";
-import ClerkSignUpPage from "./components/ClerkSignUpPage";
 import PlayerDashboard from "./components/PlayerDashboard";
 import VipShop from "./pages/VipShop";
 import TableView from "./pages/TableView";
@@ -90,13 +88,10 @@ function AppContent() {
           {user ? <OfferDetail /> : <Redirect to="/" />}
         </Route>
         <Route path="/sign-in">
-          <ClerkSignInPage />
+          <AuthWrapper />
         </Route>
         <Route path="/sign-up">
-          <ClerkSignUpPage />
-        </Route>
-        <Route path="/thank-you">
-          <ThankYou />
+          <AuthWrapper />
         </Route>
         <Route component={NotFound} />
       </Switch>
