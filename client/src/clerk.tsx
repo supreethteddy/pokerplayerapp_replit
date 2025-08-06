@@ -1,10 +1,10 @@
 import { ClerkProvider } from '@clerk/clerk-react';
 import { ReactNode } from 'react';
 
-const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const clerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
-if (!publishableKey) {
-  throw new Error('Missing Clerk Publishable Key - Please ensure VITE_CLERK_PUBLISHABLE_KEY is set');
+if (!clerkKey) {
+  throw new Error('Missing Clerk key');
 }
 
 interface ClerkWrapperProps {
@@ -13,7 +13,7 @@ interface ClerkWrapperProps {
 
 export function ClerkWrapper({ children }: ClerkWrapperProps) {
   return (
-    <ClerkProvider publishableKey={publishableKey}>
+    <ClerkProvider publishableKey={clerkKey}>
       {children}
     </ClerkProvider>
   );

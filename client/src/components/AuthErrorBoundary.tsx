@@ -42,7 +42,7 @@ export class AuthErrorBoundary extends React.Component<Props, State> {
               </div>
               <CardTitle className="text-white">Authentication System</CardTitle>
               <p className="text-slate-400 text-sm">
-                Clerk configuration detected - using legacy authentication
+                Clerk key mismatch detected - Expected: pk_test_c3RhYmxlLWJ1bm55... but found old key
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -72,7 +72,9 @@ export class AuthErrorBoundary extends React.Component<Props, State> {
               </Button>
               
               <p className="text-xs text-slate-500 text-center">
-                To enable Google sign-in and phone authentication, ensure valid Clerk credentials are configured.
+                Current key: {import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.substring(0, 20)}...<br/>
+                Expected: pk_test_c3RhYmxlLWJ1bm55...<br/>
+                Update VITE_CLERK_PUBLISHABLE_KEY to enable Clerk features.
               </p>
             </CardContent>
           </Card>

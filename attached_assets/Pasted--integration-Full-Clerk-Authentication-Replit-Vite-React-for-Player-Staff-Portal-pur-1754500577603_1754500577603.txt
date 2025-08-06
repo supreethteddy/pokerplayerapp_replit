@@ -1,0 +1,87 @@
+{
+  "integration": "Full Clerk Authentication (Replit/Vite/React) for Player & Staff Portal",
+  "purpose": "Seamlessly add Clerk authentication (sign up, log in, account security) to Replit-hosted portals. Keep your player/staff ID system, unified Supabase logic, chat, KYC, and business rules exactly as-is. Clerk is strictly for authentication and session management.",
+  "setup_steps": [
+    {
+      "step": "1. Secrets & Env Setup",
+      "instructions": [
+        "Add these secrets in your Replit project:",
+        "VITE_CLERK_PUBLISHABLE_KEY = [your Clerk publishable key]",
+        "CLERK_SECRET_KEY = [your Clerk secret key]",
+        "CLERK_WEBHOOK_SECRET = [if needed, existing value]",
+        "Only 'VITE_CLERK_PUBLISHABLE_KEY' is used in frontend React. 'CLERK_SECRET_KEY' is for backend only."
+      ]
+    },
+    {
+      "step": "2. Install Clerk React SDK",
+      "instructions": [
+        "In your Replit shell or package manager, run:",
+        "npm install @clerk/clerk-react"
+      ]
+    },
+    {
+      "step": "3. Integrate ClerkProvider in Your App Entry Point",
+      "instructions": [
+        "In your src/main.tsx or App.tsx, add at the root:",
+        "import { ClerkProvider } from '@clerk/clerk-react';",
+        "const clerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;",
+        "if (!clerkKey) throw new Error('Missing Clerk key');",
+        "<ClerkProvider publishableKey={clerkKey}> ... </ClerkProvider>"
+      ]
+    },
+    {
+      "step": "4. Replace Custom Auth UI with Clerk Components",
+      "instructions": [
+        "Use Clerk's built-in components for sign-in/sign-up/account (SignIn, SignUp, UserButton):",
+        "import { SignIn, SignUp, UserButton, SignedIn, SignedOut } from '@clerk/clerk-react';",
+        "Show <SignIn /> and <SignUp /> on your login/signup pages.",
+        "Use <UserButton /> for user menu.",
+        "Wrap sensitive UI with <SignedIn>...</SignedIn> and public or log-in screens with <SignedOut>...</SignedOut>."
+      ]
+    },
+    {
+      "step": "5. On First Clerk Sign-Up: Link to Supabase",
+      "instructions": [
+        "After Clerk sign-up, check if a Supabase player/staff record exists for the user's Clerk userId.",
+        "If not, create a new row in your players/super tables, with clerk_user_id field set to Clerk userId and map/generate your custom playerId.",
+        "DO NOT migrate or change existing playerId logic. Only link Clerk userId to playerId for auth."
+      ]
+    },
+    {
+      "step": "6. KYC/Approval Flow",
+      "instructions": [
+        "After sign-up, redirect to your KYC (onboarding) page. Capture phone/verification data in Supabase.",
+        "Block access until admin in staff portal reviews and sets KYC status = 'APPROVED'.",
+        "Send email or use Clerk notification after KYC approval.",
+        "Login is always controlled via Supabase playerId lookup, never by Clerk userId alone."
+      ]
+    },
+    {
+      "step": "7. ALL Features Must Use Existing playerId/staffId System",
+      "instructions": [
+        "Every core feature (chat, roles, offers, transactions, historical data) MUST use your internal playerId/staffId tables.",
+        "Clerk is ONLY for auth—no chat, roles, or profile data stored in Clerk.",
+        "Maintain proper mapping: clerk_user_id <=> playerId in your API/session layer."
+      ]
+    }
+  ],
+  "rules": [
+    "Never allow Clerk userId to replace your internal playerId/staffId/business keys.",
+    "Never use Clerk for chat, business logic, or custom roles. Use Supabase as source of truth.",
+    "If a user logs in but has no matching record in 'players'/'staff', auto-create one on first login and assign your ID.",
+    "Do not change or remove any legacy/unified table or function.",
+    "All role management, data validation, and business logic remains in your existing tables."
+  ],
+  "test_success_criteria": [
+    "1. User can sign up, log in through Clerk UI.",
+    "2. After sign-up, KYC flow appears; access is blocked until approved in Supabase.",
+    "3. playerId/staffId remains the source of truth in session/context.",
+    "4. All existing features work and reference playerId, not Clerk userId.",
+    "5. Clerk is used ONLY for authentication/session. No core functionality or data storage moved to Clerk."
+  ],
+  "notes": [
+    "Provide this JSON as documentation or a working prompt for full integration.",
+    "All further improvements should never compromise your unified table, chat, key, or business-system structure.",
+    "Update ONLY the [your Clerk publishable key]/[your Clerk secret key] as required per environment."
+  ]
+}
