@@ -11,7 +11,12 @@ export interface AuthUser {
   lastName: string;
   phone: string;
   kycStatus: string;
-  balance: string;
+  balance: string; // Real cash balance
+  realBalance: string; // Real cash balance (same as balance)
+  creditBalance: string; // Credit balance from cashier
+  creditLimit: string; // Maximum credit allowed
+  creditApproved: boolean; // Whether credit is approved
+  totalBalance: string; // Real + Credit combined
   totalDeposits: string;
   totalWithdrawals: string;
   totalWinnings: string;
@@ -30,13 +35,13 @@ export function useAuth() {
   useEffect(() => {
     let mounted = true;
 
-    // Reduced timeout for better UX - 3 seconds max loading
+    // Aggressive timeout - 1 second max for immediate response
     const forceTimeout = setTimeout(() => {
       if (mounted) {
         console.log('🕐 [AUTH] Force timeout - ending loading state');
         setLoading(false);
       }
-    }, 3000);
+    }, 1000);
 
     // Check current session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -83,9 +88,12 @@ export function useAuth() {
     console.log('🔍 [AUTH] Fetching user data for:', supabaseUserId);
     
     try {
-      // Optimized timeout - 2 seconds for faster response
+      // Immediate response with 1 second timeout for faster auth
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        console.log('⏰ [AUTH] Request timeout after 1 second');
+      }, 1000);
       
       const response = await fetch(`/api/players/supabase/${supabaseUserId}`, {
         signal: controller.signal,
@@ -101,12 +109,14 @@ export function useAuth() {
       if (!response.ok) {
         if (response.status === 401) {
           console.log('🚫 [AUTH] Unauthorized - redirecting to login');
+          setUser(null);
           setLoading(false);
           return;
         }
         if (response.status === 404) {
           console.log('🚫 [AUTH] Player not found - signing out');
           await supabase.auth.signOut();
+          setUser(null);
           setLoading(false);
           return;
         }
@@ -115,21 +125,40 @@ export function useAuth() {
       
       const userData = await response.json();
       console.log('✅ [AUTH] User data fetched:', userData.email, `(ID: ${userData.id})`);
-      setUser(userData);
+      
+      // Enhanced user data with dual balance system
+      const enhancedUserData = {
+        ...userData,
+        realBalance: userData.balance || '0.00',
+        creditBalance: userData.currentCredit || '0.00',
+        creditLimit: userData.creditLimit || '0.00',
+        creditApproved: userData.creditApproved || false,
+        totalBalance: (parseFloat(userData.balance || '0.00') + parseFloat(userData.currentCredit || '0.00')).toFixed(2)
+      };
+      
+      setUser(enhancedUserData);
       setLoading(false);
-      console.log('🎉 [AUTH] Authentication complete:', userData.firstName, userData.lastName);
+      console.log('🎉 [AUTH] Authentication complete with dual balance:', userData.firstName, userData.lastName);
+      console.log('💰 [BALANCE] Real:', enhancedUserData.realBalance, 'Credit:', enhancedUserData.creditBalance, 'Total:', enhancedUserData.totalBalance);
+      
     } catch (error: any) {
       console.error('❌ [AUTH] Fetch error:', error);
       
-      // Handle specific error types
+      // Handle specific error types with proper state management
       if (error.name === 'AbortError') {
-        console.log('⏰ [AUTH] Request timeout - ending loading state');
+        console.log('⏰ [AUTH] Request timeout - checking if user should remain authenticated');
+        // Don't force logout on timeout - user might still be valid
+        setLoading(false);
       } else if (error.message?.includes('404')) {
         console.log('🚫 [AUTH] Player not found - signing out');
         await supabase.auth.signOut();
+        setUser(null);
+        setLoading(false);
+      } else {
+        // Network errors - keep trying but stop loading
+        console.log('🔄 [AUTH] Network error - stopping loading state');
+        setLoading(false);
       }
-      
-      setLoading(false);
     }
   };
 

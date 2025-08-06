@@ -533,14 +533,16 @@ export class SupabaseOnlyStorage {
       lastName: data.last_name,
       phone: data.phone,
       kycStatus: data.kyc_status,
-      balance: data.balance,
-      totalDeposits: data.total_deposits,
-      totalWithdrawals: data.total_withdrawals,
-      totalWinnings: data.total_winnings,
-      totalLosses: data.total_losses,
-      gamesPlayed: data.games_played,
-      hoursPlayed: data.hours_played,
-      creditApproved: data.credit_approved || false,
+      balance: data.balance || '0.00', // Real cash balance
+      currentCredit: data.current_credit || '0.00', // Credit balance from cashier
+      creditLimit: data.credit_limit || '0.00', // Maximum credit allowed
+      creditApproved: data.credit_approved || false, // Credit approval status
+      totalDeposits: data.total_deposits || '0.00',
+      totalWithdrawals: data.total_withdrawals || '0.00',
+      totalWinnings: data.total_winnings || '0.00',
+      totalLosses: data.total_losses || '0.00',
+      gamesPlayed: data.games_played || 0,
+      hoursPlayed: data.hours_played || '0.00',
       panCardNumber: data.pan_card_number || null,
       panCardVerified: data.pan_card_verified || false,
       panCardUploadedAt: data.pan_card_uploaded_at ? new Date(data.pan_card_uploaded_at) : null,

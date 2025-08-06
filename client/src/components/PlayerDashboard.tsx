@@ -48,7 +48,7 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
 import type { Table as TableType, SeatRequest, KycDocument } from "@shared/schema";
-import BalanceDisplay from "./BalanceDisplay";
+import DualBalanceDisplay from "./DualBalanceDisplay";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
