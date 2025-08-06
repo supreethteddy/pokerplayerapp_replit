@@ -125,7 +125,7 @@ export function useAuth() {
     }
   };
 
-  const signUp = async (emailOrPhone: string, password: string, firstName: string, lastName: string, phone: string) => {
+  const signUp = async (email: string, password: string, firstName: string, lastName: string, phone: string) => {
     if (signupCooldown) {
       toast({
         title: "Rate Limited",
@@ -139,10 +139,6 @@ export function useAuth() {
       setSignupCooldown(true);
       setTimeout(() => setSignupCooldown(false), 60000);
 
-      // Determine if input is email or phone
-      const isEmail = emailOrPhone.includes('@');
-      const email = isEmail ? emailOrPhone : `${phone}@placeholder.com`; // Temporary email for phone users
-      
       // Create Supabase auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -159,7 +155,7 @@ export function useAuth() {
 
       // Create player record with Supabase ID
       const playerData = {
-        email: isEmail ? emailOrPhone : '', // Use actual email if provided, empty if phone
+        email,
         password, // In production, this should be hashed
         firstName,
         lastName,
@@ -181,8 +177,8 @@ export function useAuth() {
       // No need to create them separately
 
       toast({
-        title: "Account Created",
-        description: "Please complete KYC verification to continue",
+        title: "Account Created Successfully",
+        description: "Please complete KYC document upload. Your account will be activated after staff approval.",
       });
 
       return { success: true };
@@ -209,37 +205,12 @@ export function useAuth() {
     }
   };
 
-  const signIn = async (identifier: string, password: string) => {
+  const signIn = async (email: string, password: string) => {
     try {
-      // Check if identifier is email or phone
-      const isEmail = identifier.includes('@');
-      
-      let authResult;
-      if (isEmail) {
-        authResult = await supabase.auth.signInWithPassword({
-          email: identifier,
-          password,
-        });
-      } else {
-        // For phone authentication, we need to find the user by phone first
-        // Then use their email for authentication
-        const { data: players, error: findError } = await supabase
-          .from('players')
-          .select('email')
-          .eq('phone', identifier)
-          .single();
-          
-        if (findError || !players?.email) {
-          throw new Error('Phone number not found. Please check your number or sign up.');
-        }
-        
-        authResult = await supabase.auth.signInWithPassword({
-          email: players.email,
-          password,
-        });
-      }
-      
-      const { error } = authResult;
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
       if (error) {
         // Handle specific error cases

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { IStorage } from './storage';
+// Storage interface removed - using direct implementation
 import type { 
   Player, 
   InsertPlayer, 
@@ -25,7 +25,7 @@ const supabase = createClient(
   }
 );
 
-export class SupabaseOnlyStorage implements IStorage {
+export class SupabaseOnlyStorage {
   /**
    * UNIVERSAL CROSS-PORTAL STORAGE SYSTEM
    * All functions enhanced for perfect cross-portal compatibility

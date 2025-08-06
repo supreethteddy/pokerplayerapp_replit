@@ -9,7 +9,6 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function DirectClubsAuth() {
   const [activeTab, setActiveTab] = useState<'signin' | 'signup'>('signin');
-  const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberPassword, setRememberPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -32,14 +31,11 @@ export default function DirectClubsAuth() {
 
     try {
       if (activeTab === 'signin') {
-        // Use email or phone based on selected method
-        const authIdentifier = authMethod === 'email' ? email : phone;
-        
-        if (!authIdentifier) {
-          throw new Error(`Please enter your ${authMethod}`);
+        if (!email) {
+          throw new Error('Please enter your email');
         }
         
-        const result = await signIn(authIdentifier, password);
+        const result = await signIn(email, password);
         
         if (result.success) {
           // Success is handled by useAuth hook
@@ -47,14 +43,14 @@ export default function DirectClubsAuth() {
           throw new Error('Sign in failed');
         }
       } else {
-        // Use email or phone based on selected method
-        const authEmail = authMethod === 'email' ? email : '';
-        const authPhone = authMethod === 'phone' ? phone : '';
+        if (!email || !firstName || !lastName || !phone) {
+          throw new Error('Please fill in all required fields');
+        }
         
-        const result = await signUp(authEmail || authPhone, password, firstName, lastName, authPhone);
+        const result = await signUp(email, password, firstName, lastName, phone);
         
         if (result.success) {
-          // Success is handled by useAuth hook
+          // Success handled by useAuth hook - will redirect to KYC process
         } else {
           throw new Error('Sign up failed');
         }
@@ -118,36 +114,7 @@ export default function DirectClubsAuth() {
         </CardHeader>
 
         <CardContent className="space-y-4 px-6">
-
-          {/* Authentication Method Selector */}
-          <div className="flex space-x-2 mb-6">
-            <Button
-              type="button"
-              onClick={() => setAuthMethod('email')}
-              variant={authMethod === 'email' ? 'default' : 'outline'}
-              className={`flex-1 h-12 ${authMethod === 'email' 
-                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                : 'bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700'
-              }`}
-            >
-              <Mail className="w-4 h-4 mr-2" />
-              Email
-            </Button>
-            <Button
-              type="button"
-              onClick={() => setAuthMethod('phone')}
-              variant={authMethod === 'phone' ? 'default' : 'outline'}
-              className={`flex-1 h-12 ${authMethod === 'phone' 
-                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                : 'bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700'
-              }`}
-            >
-              <Phone className="w-4 h-4 mr-2" />
-              Phone
-            </Button>
-          </div>
-
-          {/* Email/Phone/Password Form */}
+          {/* Email/Password Form */}
           <form onSubmit={handleEmailAuth} className="space-y-4">
             {activeTab === 'signup' && (
               <>
@@ -179,25 +146,14 @@ export default function DirectClubsAuth() {
               </>
             )}
 
-            {authMethod === 'email' ? (
-              <Input
-                type="email"
-                placeholder="Enter Email Address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
-                required
-              />
-            ) : (
-              <Input
-                type="tel"
-                placeholder="Enter Phone Number"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
-                required
-              />
-            )}
+            <Input
+              type="email"
+              placeholder="Enter Email Address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
+              required
+            />
 
             <div className="relative">
               <Input
