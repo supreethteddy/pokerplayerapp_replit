@@ -435,7 +435,7 @@ function PlayerDashboard() {
 
   // Fetch dual balance system data (regular balance + credit limit)
   const { data: accountBalance, isLoading: balanceLoading } = useQuery({
-    queryKey: ['/api/account-balance', user?.id],
+    queryKey: ['/api/balance', user?.id],
     enabled: !!user?.id,
     refetchInterval: 3000, // Refresh every 3 seconds for real-time balance updates
     refetchOnWindowFocus: true,

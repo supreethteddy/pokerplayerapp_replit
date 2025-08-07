@@ -41,8 +41,10 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
     );
   }
 
-  const creditBalance = balance?.availableCredit || 0;
-  const creditLimit = balance?.creditLimit || 0;
+  // Handle both old and new balance data formats
+  const creditBalance = parseFloat((balance as any)?.creditBalance || balance?.availableCredit || '0');
+  const creditLimit = parseFloat((balance as any)?.creditLimit || '0');
+  const currentCashBalance = parseFloat((balance as any)?.currentBalance || balance?.cashBalance || '0');
 
   return (
     <div className="space-y-4">
@@ -50,7 +52,7 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
       <div className="bg-gradient-to-r from-emerald-600 to-green-700 rounded-lg p-6 text-white shadow-lg">
         <div className="text-center">
           <h2 className="text-lg font-medium opacity-90 mb-2">Available Cash Balance</h2>
-          <div className="text-5xl font-bold mb-4">₹{cashBalance?.toLocaleString() || '0'}</div>
+          <div className="text-5xl font-bold mb-4">₹{currentCashBalance.toLocaleString()}</div>
           <div className="text-sm opacity-75 bg-black/20 rounded-full px-4 py-2 inline-block">
             Ready for withdrawal at cashier counter
           </div>
@@ -75,7 +77,7 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
       <div className="bg-gradient-to-r from-slate-700 to-slate-800 rounded-lg p-4 text-white shadow-lg border border-slate-600">
         <div className="text-center">
           <h3 className="text-md font-medium opacity-90 mb-2">Total Available</h3>
-          <div className="text-2xl font-bold">₹{(cashBalance + creditBalance).toLocaleString()}</div>
+          <div className="text-2xl font-bold">₹{(currentCashBalance + creditBalance).toLocaleString()}</div>
         </div>
       </div>
       

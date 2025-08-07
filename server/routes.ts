@@ -1659,41 +1659,44 @@ export function registerRoutes(app: Express) {
   app.get("/api/account-balance/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-      const result = await supabase
-        .from('account_balances')
-        .select('*')
-        .eq('player_id', playerId)
-        .single();
+      console.log(`💰 [DUAL BALANCE API] Getting balance for player:`, playerId);
       
-      if (result.error) {
-        const playerResult = await supabase
-          .from('players')
-          .select('balance')
-          .eq('id', playerId)
-          .single();
-          
-        const balance = {
-          currentBalance: playerResult.data?.balance || "₹0.00",
-          availableBalance: playerResult.data?.balance || "₹0.00", 
-          pendingWithdrawals: "₹0.00"
-        };
-        return res.json(balance);
+      // Use direct PostgreSQL query to get balance data
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      const query = `
+        SELECT balance, current_credit, credit_limit, credit_approved 
+        FROM players 
+        WHERE id = $1
+      `;
+      
+      const result = await pool.query(query, [playerId]);
+      await pool.end();
+
+      if (result.rows.length === 0) {
+        throw new Error('Player not found');
       }
 
-      const balance = {
-        currentBalance: result.data.current_balance || "₹0.00",
-        availableBalance: result.data.available_balance || "₹0.00",
-        pendingWithdrawals: result.data.pending_withdrawals || "₹0.00"
+      const player = result.rows[0];
+      const response = {
+        currentBalance: (parseFloat(player.balance || '0')).toString(),
+        availableBalance: (parseFloat(player.balance || '0')).toString(),
+        creditBalance: (parseFloat(player.current_credit || '0')).toString(),
+        creditLimit: (parseFloat(player.credit_limit || '0')).toString(),
+        creditApproved: player.credit_approved || false,
+        totalBalance: (parseFloat(player.balance || '0') + parseFloat(player.current_credit || '0')).toString(),
+        pendingWithdrawals: "₹0.00"
       };
-      res.json(balance);
+
+      console.log(`✅ [DUAL BALANCE API] Retrieved dual balance:`, response);
+      res.json(response);
     } catch (error) {
-      console.error('❌ [BALANCE API] Error:', error);
-      res.status(500).json({ error: "Internal server error" });
+      console.error('❌ [DUAL BALANCE API] Error:', error);
+      res.status(404).json({ error: 'Player not found' });
     }
   });
 
@@ -1859,6 +1862,86 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error('❌ [NOTIFICATIONS API] Error:', error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ========== DUAL BALANCE MANAGEMENT SYSTEM ==========
+  
+  // Enhanced balance API with dual balance support
+  app.get('/api/balance/:playerId', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      console.log(`💰 [DUAL BALANCE] Getting balance for player:`, playerId);
+      
+      // Use direct PostgreSQL query to get balance data
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      const query = `
+        SELECT balance, current_credit, credit_limit, credit_approved 
+        FROM players 
+        WHERE id = $1
+      `;
+      
+      const result = await pool.query(query, [playerId]);
+      await pool.end();
+
+      if (result.rows.length === 0) {
+        throw new Error('Player not found');
+      }
+
+      const player = result.rows[0];
+      const balanceData = {
+        cashBalance: parseFloat(player.balance || '0'),
+        creditBalance: parseFloat(player.current_credit || '0'),
+        creditLimit: parseFloat(player.credit_limit || '0'),
+        creditApproved: player.credit_approved || false,
+        totalBalance: parseFloat(player.balance || '0') + parseFloat(player.current_credit || '0')
+      };
+
+      console.log(`✅ [DUAL BALANCE] Retrieved:`, balanceData);
+      res.json(balanceData);
+    } catch (error) {
+      console.error('❌ [DUAL BALANCE] Error:', error);
+      res.status(500).json({ error: 'Failed to fetch balance' });
+    }
+  });
+
+  // Legacy account balance endpoint (backwards compatibility)
+  app.get('/api/account-balance/:playerId', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      console.log(`💰 [LEGACY BALANCE] Getting balance for player:`, playerId);
+      
+      const { data: player, error } = await supabase
+        .from('players')
+        .select('balance, current_credit, credit_limit, credit_approved')
+        .eq('id', playerId)
+        .single();
+
+      if (error) throw error;
+      if (!player) throw new Error('Player not found');
+
+      const balanceData = {
+        currentBalance: player.balance || '0.00',
+        availableBalance: player.balance || '0.00',
+        pendingWithdrawals: '₹0.00',
+        // Added for dual balance support
+        cashBalance: parseFloat(player.balance || '0'),
+        creditBalance: parseFloat(player.current_credit || '0'),
+        creditLimit: parseFloat(player.credit_limit || '0'),
+        creditApproved: player.credit_approved || false,
+        totalBalance: parseFloat(player.balance || '0') + parseFloat(player.current_credit || '0')
+      };
+
+      console.log(`✅ [LEGACY BALANCE] Balance retrieved:`, balanceData);
+      res.json(balanceData);
+    } catch (error) {
+      console.error('❌ [LEGACY BALANCE] Error:', error);
+      res.status(500).json({ error: 'Failed to fetch balance' });
     }
   });
 
