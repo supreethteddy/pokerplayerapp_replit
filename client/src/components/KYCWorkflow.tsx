@@ -28,15 +28,15 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     firstName: playerData.firstName || '',
     lastName: playerData.lastName || '',
     email: playerData.email || '',
-    phone: '',
-    panCard: '',
-    address: ''
+    phone: ''
   });
   const [uploadedDocs, setUploadedDocs] = useState({
     governmentId: null as string | null,
     utilityBill: null as string | null,
-    profilePhoto: null as string | null
+    profilePhoto: null as string | null,
+    panCard: null as string | null
   });
+  const [panCardNumber, setPanCardNumber] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -47,13 +47,12 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
         const playerResponse = await fetch(`/api/players/${playerData.id}`);
         if (playerResponse.ok) {
           const player = await playerResponse.json();
-          if (player.pan_card && player.phone && player.address) {
+          if (player.phone) {
             setUserDetails(prev => ({
               ...prev,
-              phone: player.phone || '',
-              panCard: player.pan_card || '',
-              address: player.address || ''
+              phone: player.phone || ''
             }));
+            setPanCardNumber(player.pan_card || '');
             
             // Check document uploads
             const docsResponse = await fetch(`/api/documents/player/${playerData.id}`);
@@ -62,7 +61,8 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
               const docStatus = {
                 governmentId: docs.find((doc: any) => doc.document_type === 'government_id')?.file_url || null,
                 utilityBill: docs.find((doc: any) => doc.document_type === 'utility_bill')?.file_url || null,
-                profilePhoto: docs.find((doc: any) => doc.document_type === 'profile_photo')?.file_url || null
+                profilePhoto: docs.find((doc: any) => doc.document_type === 'profile_photo')?.file_url || null,
+                panCard: docs.find((doc: any) => doc.document_type === 'pan_card')?.file_url || null
               };
               setUploadedDocs(docStatus);
               
@@ -71,9 +71,9 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                 setCurrentStep(4); // Already approved
               } else if (playerData.kycStatus === 'submitted' || playerData.kycStatus === 'pending') {
                 setCurrentStep(4); // Waiting for approval
-              } else if (docStatus.governmentId && docStatus.utilityBill && docStatus.profilePhoto) {
+              } else if (docStatus.governmentId && docStatus.utilityBill && docStatus.profilePhoto && docStatus.panCard) {
                 setCurrentStep(3); // Ready to submit
-              } else if (player.pan_card && player.phone && player.address) {
+              } else if (player.phone) {
                 setCurrentStep(2); // Ready for document upload
               } else {
                 setCurrentStep(1); // Need user details
@@ -98,9 +98,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
       const response = await apiRequest('PUT', `/api/players/${playerData.id}`, {
         firstName: userDetails.firstName,
         lastName: userDetails.lastName,
-        phone: userDetails.phone,
-        panCard: userDetails.panCard,
-        address: userDetails.address
+        phone: userDetails.phone
       });
 
       if (response.ok) {
@@ -144,7 +142,8 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
 
         if (response.ok) {
           const docKey = documentType === 'government_id' ? 'governmentId' : 
-                        documentType === 'utility_bill' ? 'utilityBill' : 'profilePhoto';
+                        documentType === 'utility_bill' ? 'utilityBill' : 
+                        documentType === 'profile_photo' ? 'profilePhoto' : 'panCard';
           
           setUploadedDocs(prev => ({
             ...prev,
@@ -231,12 +230,12 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
   };
 
   const isStep1Complete = () => {
-    return userDetails.firstName && userDetails.lastName && userDetails.email && 
-           userDetails.phone && userDetails.panCard && userDetails.address;
+    return userDetails.firstName && userDetails.lastName && userDetails.email && userDetails.phone;
   };
 
   const isStep2Complete = () => {
-    return uploadedDocs.governmentId && uploadedDocs.utilityBill && uploadedDocs.profilePhoto;
+    return uploadedDocs.governmentId && uploadedDocs.utilityBill && uploadedDocs.profilePhoto && 
+           uploadedDocs.panCard && panCardNumber;
   };
 
   return (
@@ -309,33 +308,12 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-white">PAN Card Number *</Label>
-                <Input
-                  value={userDetails.panCard}
-                  onChange={(e) => updateUserDetail('panCard', e.target.value.toUpperCase())}
-                  className="bg-gray-800 border-gray-600 text-white"
-                  placeholder="Enter your PAN card number"
-                  maxLength={10}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-white">Address *</Label>
-                <Input
-                  value={userDetails.address}
-                  onChange={(e) => updateUserDetail('address', e.target.value)}
-                  className="bg-gray-800 border-gray-600 text-white"
-                  placeholder="Enter your complete address"
-                />
-              </div>
-
-              <Button 
-                onClick={saveUserDetails}
-                disabled={!isStep1Complete() || uploading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+              <Button
+                onClick={() => setCurrentStep(2)}
+                disabled={!isStep1Complete()}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12"
               >
-                {uploading ? "Saving..." : "Save Details & Continue"}
+                Save Details & Continue
               </Button>
             </div>
           )}
@@ -401,6 +379,46 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                 )}
               </div>
 
+              {/* PAN Card Upload */}
+              <div className={`p-4 rounded-lg border ${uploadedDocs.panCard ? 'border-green-500 bg-green-900/20' : 'border-gray-600 bg-gray-800'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center">
+                    <CreditCard className="w-5 h-5 mr-2 text-yellow-500" />
+                    <Label className="text-white font-medium">PAN Card</Label>
+                  </div>
+                  {uploadedDocs.panCard && <CheckCircle className="w-5 h-5 text-green-500" />}
+                </div>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label className="text-white text-sm">PAN Card Number *</Label>
+                    <Input
+                      value={panCardNumber}
+                      onChange={(e) => setPanCardNumber(e.target.value.toUpperCase())}
+                      className="bg-gray-700 border-gray-600 text-white"
+                      placeholder="Enter PAN card number (e.g., ABCDE1234F)"
+                      maxLength={10}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-white text-sm">Upload PAN Card Document *</Label>
+                    {!uploadedDocs.panCard ? (
+                      <Input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFileUpload('pan_card', file);
+                        }}
+                        disabled={uploading}
+                        className="bg-gray-700 border-gray-600 text-white"
+                      />
+                    ) : (
+                      <div className="text-green-400 text-sm">✓ PAN card uploaded successfully</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Profile Photo Upload */}
               <div className={`p-4 rounded-lg border ${uploadedDocs.profilePhoto ? 'border-green-500 bg-green-900/20' : 'border-gray-600 bg-gray-800'}`}>
                 <div className="flex items-center justify-between mb-3">
@@ -451,9 +469,8 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                   <div><span className="text-gray-400">Name:</span> <span className="text-white">{userDetails.firstName} {userDetails.lastName}</span></div>
                   <div><span className="text-gray-400">Email:</span> <span className="text-white">{userDetails.email}</span></div>
                   <div><span className="text-gray-400">Phone:</span> <span className="text-white">{userDetails.phone}</span></div>
-                  <div><span className="text-gray-400">PAN:</span> <span className="text-white">{userDetails.panCard}</span></div>
+                  <div><span className="text-gray-400">PAN:</span> <span className="text-white">{panCardNumber}</span></div>
                 </div>
-                <div><span className="text-gray-400">Address:</span> <span className="text-white">{userDetails.address}</span></div>
               </div>
 
               <div className="bg-gray-800 p-6 rounded-lg space-y-4">
@@ -466,6 +483,10 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                   <div className="flex items-center">
                     <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
                     <span className="text-white">Address Proof Document</span>
+                  </div>
+                  <div className="flex items-center">
+                    <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
+                    <span className="text-white">PAN Card Document</span>
                   </div>
                   <div className="flex items-center">
                     <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
