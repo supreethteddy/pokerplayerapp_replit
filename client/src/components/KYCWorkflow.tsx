@@ -33,7 +33,6 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
   const [uploadedDocs, setUploadedDocs] = useState({
     governmentId: null as string | null,
     utilityBill: null as string | null,
-    profilePhoto: null as string | null,
     panCard: null as string | null
   });
   const [panCardNumber, setPanCardNumber] = useState('');
@@ -61,7 +60,6 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
               const docStatus = {
                 governmentId: docs.find((doc: any) => doc.document_type === 'government_id')?.file_url || null,
                 utilityBill: docs.find((doc: any) => doc.document_type === 'utility_bill')?.file_url || null,
-                profilePhoto: docs.find((doc: any) => doc.document_type === 'profile_photo')?.file_url || null,
                 panCard: docs.find((doc: any) => doc.document_type === 'pan_card')?.file_url || null
               };
               setUploadedDocs(docStatus);
@@ -71,7 +69,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                 setCurrentStep(4); // Already approved
               } else if (playerData.kycStatus === 'submitted' || playerData.kycStatus === 'pending') {
                 setCurrentStep(4); // Waiting for approval
-              } else if (docStatus.governmentId && docStatus.utilityBill && docStatus.profilePhoto && docStatus.panCard) {
+              } else if (docStatus.governmentId && docStatus.utilityBill && docStatus.panCard) {
                 setCurrentStep(3); // Ready to submit
               } else if (player.phone) {
                 setCurrentStep(2); // Ready for document upload
@@ -142,8 +140,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
 
         if (response.ok) {
           const docKey = documentType === 'government_id' ? 'governmentId' : 
-                        documentType === 'utility_bill' ? 'utilityBill' : 
-                        documentType === 'profile_photo' ? 'profilePhoto' : 'panCard';
+                        documentType === 'utility_bill' ? 'utilityBill' : 'panCard';
           
           setUploadedDocs(prev => ({
             ...prev,
@@ -234,8 +231,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
   };
 
   const isStep2Complete = () => {
-    return uploadedDocs.governmentId && uploadedDocs.utilityBill && uploadedDocs.profilePhoto && 
-           uploadedDocs.panCard && panCardNumber;
+    return uploadedDocs.governmentId && uploadedDocs.utilityBill && uploadedDocs.panCard && panCardNumber;
   };
 
   return (
@@ -419,38 +415,10 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                 </div>
               </div>
 
-              {/* Profile Photo Upload */}
-              <div className={`p-4 rounded-lg border ${uploadedDocs.profilePhoto ? 'border-green-500 bg-green-900/20' : 'border-gray-600 bg-gray-800'}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center">
-                    <Camera className="w-5 h-5 mr-2 text-purple-500" />
-                    <Label className="text-white font-medium">Profile Photo</Label>
-                  </div>
-                  {uploadedDocs.profilePhoto && <CheckCircle className="w-5 h-5 text-green-500" />}
-                </div>
-                <p className="text-sm text-gray-400 mb-3">
-                  Upload a clear photo of yourself
-                </p>
-                {!uploadedDocs.profilePhoto ? (
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleFileUpload('profile_photo', file);
-                    }}
-                    disabled={uploading}
-                    className="bg-gray-700 border-gray-600 text-white"
-                  />
-                ) : (
-                  <div className="text-green-400 text-sm">✓ Profile photo uploaded successfully</div>
-                )}
-              </div>
-
               {isStep2Complete() && (
                 <Button 
                   onClick={() => setCurrentStep(3)}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                  className="w-full bg-green-600 hover:bg-green-700 text-white h-12"
                 >
                   All Documents Uploaded - Continue to Submit
                 </Button>
@@ -487,10 +455,6 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                   <div className="flex items-center">
                     <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
                     <span className="text-white">PAN Card Document</span>
-                  </div>
-                  <div className="flex items-center">
-                    <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
-                    <span className="text-white">Profile Photo</span>
                   </div>
                 </div>
               </div>
