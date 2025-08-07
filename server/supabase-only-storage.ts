@@ -31,6 +31,57 @@ export class SupabaseOnlyStorage {
    * All functions enhanced for perfect cross-portal compatibility
    */
 
+  // Staff Portal Integration Methods
+  async updatePlayerBalance(playerId: string, balanceData: any): Promise<Player> {
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .update(balanceData)
+        .eq('id', playerId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return this.transformPlayerFromSupabase(data);
+    } catch (error) {
+      console.error('Error updating player balance:', error);
+      throw error;
+    }
+  }
+
+  async updatePlayerCredit(playerId: string, creditData: any): Promise<Player> {
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .update(creditData)
+        .eq('id', playerId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return this.transformPlayerFromSupabase(data);
+    } catch (error) {
+      console.error('Error updating player credit:', error);
+      throw error;
+    }
+  }
+
+  async getPlayer(playerId: string): Promise<Player | null> {
+    try {
+      const { data, error } = await supabase
+        .from('players')
+        .select('*')
+        .eq('id', playerId)
+        .single();
+      
+      if (error || !data) return null;
+      return this.transformPlayerFromSupabase(data);
+    } catch (error) {
+      console.error('Error getting player:', error);
+      return null;
+    }
+  }
+
   // Get player by Clerk ID
   async getPlayerByClerkId(clerkId: string): Promise<Player | null> {
     try {

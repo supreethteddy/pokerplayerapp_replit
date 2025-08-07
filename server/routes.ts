@@ -43,6 +43,9 @@ import { directChat } from './direct-chat-system';
 import { ClerkPlayerSync } from './clerk-integration';
 import { SupabaseOnlyStorage } from './supabase-only-storage';
 
+// Import staff portal integration
+import staffPortalRoutes from './routes/staff-portal-integration';
+
 export function registerRoutes(app: Express) {
   // UNIFIED CHAT SYSTEM - Single source of truth (NEW CORE)
   

@@ -92,8 +92,8 @@ export function useAuth() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         controller.abort();
-        console.log('⏰ [AUTH] Request timeout after 1 second');
-      }, 1000);
+        console.log('⏰ [AUTH] Request timeout after 3 seconds - increasing timeout for better reliability');
+      }, 3000);
       
       const response = await fetch(`/api/players/supabase/${supabaseUserId}`, {
         signal: controller.signal,
@@ -146,19 +146,20 @@ export function useAuth() {
       
       // Handle specific error types with proper state management
       if (error.name === 'AbortError') {
-        console.log('⏰ [AUTH] Request timeout - checking if user should remain authenticated');
-        // Don't force logout on timeout - user might still be valid
+        console.log('⏰ [AUTH] Request timeout - keeping existing session state');
+        // On timeout, stop loading but keep user authenticated if session exists
         setLoading(false);
+        return; // Don't continue to other error handling
       } else if (error.message?.includes('404')) {
         console.log('🚫 [AUTH] Player not found - signing out');
         await supabase.auth.signOut();
         setUser(null);
         setLoading(false);
       } else {
-        // Network errors - keep trying but stop loading
-        console.log('🔄 [AUTH] Network error - stopping loading state');
-        setUser(null); // Clear user state on network errors
+        // Network errors - keep trying but stop loading, DON'T clear user state
+        console.log('🔄 [AUTH] Network error - stopping loading state but keeping user session');
         setLoading(false);
+        // Keep existing user state intact on network errors
       }
     }
   };
