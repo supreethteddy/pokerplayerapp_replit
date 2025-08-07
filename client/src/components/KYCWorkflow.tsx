@@ -152,15 +152,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
             description: `${documentType.replace('_', ' ')} uploaded successfully!`,
           });
 
-          // Check if all documents are uploaded
-          const allDocsUploaded = Object.values({
-            ...uploadedDocs,
-            [docKey]: 'uploaded'
-          }).every(doc => doc !== null);
-          
-          if (allDocsUploaded) {
-            setTimeout(() => setCurrentStep(3), 1000);
-          }
+          // Don't auto-advance, let user click submit button
         }
       };
       reader.readAsDataURL(file);
@@ -185,7 +177,8 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
         playerId: playerData.id,
         email: userDetails.email,
         firstName: userDetails.firstName,
-        lastName: userDetails.lastName
+        lastName: userDetails.lastName,
+        panCardNumber: panCardNumber
       });
 
       if (response.ok) {
@@ -231,7 +224,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
   };
 
   const isStep2Complete = () => {
-    return uploadedDocs.governmentId && uploadedDocs.utilityBill && uploadedDocs.panCard && panCardNumber;
+    return uploadedDocs.governmentId && uploadedDocs.utilityBill && uploadedDocs.panCard && panCardNumber.length >= 10;
   };
 
   return (
@@ -415,14 +408,20 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                 </div>
               </div>
 
-              {isStep2Complete() && (
+              <div className="mt-6">
                 <Button 
                   onClick={() => setCurrentStep(3)}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white h-12"
+                  disabled={!isStep2Complete()}
+                  className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white h-12 text-lg font-semibold"
                 >
-                  All Documents Uploaded - Continue to Submit
+                  {isStep2Complete() ? "Submit Documents & Continue" : "Upload All Documents & Enter PAN"}
                 </Button>
-              )}
+                {!isStep2Complete() && (
+                  <p className="text-center text-sm text-gray-400 mt-2">
+                    Please upload all 3 documents and enter your PAN card number
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
