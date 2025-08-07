@@ -310,7 +310,7 @@ export function useUltraFastAuth() {
       
       // Set session flag for KYC redirect
       sessionStorage.setItem('kyc_redirect', JSON.stringify({
-        playerId: playerData.id,
+        id: playerData.id,
         email: playerData.email,
         firstName: playerData.firstName,
         lastName: playerData.lastName,

@@ -44,8 +44,8 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     // Determine the correct step based on KYC status and existing data
     const initializeStep = async () => {
       try {
-        // Force player ID 29 for vignesh.wildleaf (override incorrect routing)
-        const playerId = 29;
+        // Use dynamic player ID from props
+        const playerId = playerData?.id;
         const playerResponse = await fetch(`/api/players/${playerId}`);
         if (playerResponse.ok) {
           const player = await playerResponse.json();
@@ -96,8 +96,8 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     try {
       setUploading(true);
       
-      // Force player ID 29 for vignesh.wildleaf
-      const playerId = 29;
+      // Use dynamic player ID from props
+      const playerId = playerData?.id;
       const response = await apiRequest('PUT', `/api/players/${playerId}`, {
         firstName: userDetails.firstName,
         lastName: userDetails.lastName,
@@ -134,11 +134,10 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
       reader.onload = async (event) => {
         const dataUrl = event.target?.result as string;
         
-        // Get player ID - handle both id and playerId fields
-        const playerId = playerData?.id || playerData?.playerId || sessionStorage.getItem('playerId') || localStorage.getItem('playerId');
+        // Use dynamic player ID from props
+        const playerId = playerData?.id;
         console.log('🔍 [DEBUG] PlayerData object:', playerData);
         console.log('🔍 [DEBUG] PlayerData.id:', playerData?.id);
-        console.log('🔍 [DEBUG] PlayerData.playerId:', playerData?.playerId);
         console.log('🔍 [DEBUG] Using player ID for upload:', playerId);
         
         if (!playerId) {
@@ -188,11 +187,10 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     try {
       setSubmitting(true);
       
-      // Force player ID 29 for vignesh.wildleaf
-      const playerId = 29;
+      // Use dynamic player ID from props
+      const playerId = playerData?.id;
       console.log('🔍 [DEBUG] PlayerData object:', playerData);
       console.log('🔍 [DEBUG] PlayerData.id:', playerData?.id);
-      console.log('🔍 [DEBUG] PlayerData.playerId:', playerData?.playerId);
       console.log('🔍 [DEBUG] Using player ID for KYC submit:', playerId);
       
       if (!playerId) {

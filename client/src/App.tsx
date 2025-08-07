@@ -31,6 +31,12 @@ function AppContent() {
     if (kycData) {
       try {
         const parsedData = JSON.parse(kycData);
+        
+        // Convert playerId to id for KYC component compatibility
+        if (parsedData.playerId && !parsedData.id) {
+          parsedData.id = parsedData.playerId;
+        }
+        
         setKycRedirectData(parsedData);
         console.log('🎯 [APP] KYC redirect detected:', parsedData);
       } catch (error) {

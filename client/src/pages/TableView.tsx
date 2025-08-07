@@ -24,9 +24,10 @@ export default function TableView() {
     refetchInterval: 2000,
   });
   
-  // Fetch user data from correct endpoint
+  // Get user data dynamically from current authenticated user
   const { data: user } = useQuery({
-    queryKey: ['/api/players/supabase/e0953527-a5d5-402c-9e00-8ed590d19cde'],
+    queryKey: ['/api/auth/user'],
+    retry: false, // Don't retry if not authenticated
   });
   
   const currentTable = tables?.find((table: any) => table.id === tableId);

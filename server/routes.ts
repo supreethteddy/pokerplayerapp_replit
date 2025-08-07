@@ -924,6 +924,74 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Dynamic user endpoint for authenticated users (replaces hardcoded player IDs)
+  app.get('/api/auth/user', async (req, res) => {
+    try {
+      console.log('🔍 [AUTH USER] Dynamic user endpoint called');
+      
+      // Check for Supabase session token in Authorization header
+      const authHeader = req.headers.authorization;
+      let supabaseToken = null;
+      
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        supabaseToken = authHeader.split(' ')[1];
+      }
+      
+      // If we have a Supabase token, verify and get user data
+      if (supabaseToken) {
+        try {
+          const { createClient } = await import('@supabase/supabase-js');
+          const supabase = createClient(
+            process.env.VITE_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+          );
+          
+          // Verify the token and get user
+          const { data: { user }, error } = await supabase.auth.getUser(supabaseToken);
+          
+          if (error || !user) {
+            return res.status(401).json({ error: 'Invalid token' });
+          }
+          
+          // Fetch player data from our database
+          const { data: playerData, error: playerError } = await supabase
+            .from('players')
+            .select('*')
+            .eq('supabase_id', user.id)
+            .single();
+          
+          if (playerError || !playerData) {
+            return res.status(404).json({ error: 'Player not found' });
+          }
+          
+          // Return formatted player data
+          res.json({
+            id: playerData.id,
+            email: playerData.email,
+            firstName: playerData.first_name,
+            lastName: playerData.last_name,
+            phone: playerData.phone,
+            kycStatus: playerData.kyc_status,
+            balance: playerData.balance,
+            authenticated: true,
+            supabaseId: user.id
+          });
+          
+        } catch (authError: any) {
+          console.error('❌ [AUTH USER] Supabase auth error:', authError);
+          return res.status(401).json({ error: 'Authentication failed' });
+        }
+      } else {
+        // No authentication provided
+        return res.status(401).json({ error: 'No authentication provided' });
+      }
+      
+    } catch (error: any) {
+      console.error('❌ [AUTH USER] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // LEGACY ENDPOINT - TO BE REMOVED
   app.get("/api/OLD-chat-history/:playerId", async (req, res) => {
     try {
