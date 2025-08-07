@@ -2313,8 +2313,7 @@ export function registerRoutes(app: Express) {
         .from('players')
         .update({ 
           kyc_status: 'submitted',
-          pan_card: panCardNumber,
-          updated_at: new Date().toISOString()
+          pan_card_number: panCardNumber
         })
         .eq('id', playerId);
 

@@ -195,7 +195,7 @@ export class SupabaseDocumentStorage {
           documentType,
           fileName,
           fileUrl: urlData.publicUrl,
-          status: 'approved'
+          status: 'pending'
         });
         
         console.log('📤 [SupabaseDocumentStorage] Database storage insert succeeded:', insertedDoc);
