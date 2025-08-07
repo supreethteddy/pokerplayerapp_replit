@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
+import { useInvisibleClerk } from './useInvisibleClerk';
 
 export interface AuthUser {
   id: string;
@@ -26,6 +27,12 @@ export function useUltraFastAuth() {
   const { toast } = useToast();
   const syncInProgress = useRef(false);
   const fetchController = useRef<AbortController | null>(null);
+
+  // Invisible Clerk integration - runs silently in background
+  useInvisibleClerk(user);
+
+  // Invisible Clerk integration - runs silently in background
+  useInvisibleClerk(user);
 
   useEffect(() => {
     console.log('🚀 [ULTRA-FAST AUTH] Initializing...');
