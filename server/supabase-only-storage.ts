@@ -484,7 +484,7 @@ export class SupabaseOnlyStorage {
         document_type: document.documentType,
         file_name: document.fileName,
         file_url: document.fileUrl,
-        file_size: document.fileSize || 0,
+        file_size: 0,
         status: document.status || 'pending',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
