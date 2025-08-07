@@ -2176,35 +2176,24 @@ export function registerRoutes(app: Express) {
       
       console.log(`📄 [KYC UPLOAD] Uploading ${documentType} for player:`, playerId);
       
-      // Initialize Supabase client
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabaseClient = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      if (!playerId || !documentType || !fileName || !fileData) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      // Use the existing working Supabase document storage
+      const { SupabaseDocumentStorage } = await import('./supabase-document-storage.js');
+      const documentStorage = new SupabaseDocumentStorage();
+      
+      // Upload to Supabase Storage and save metadata
+      const uploadedDoc = await documentStorage.uploadDocument(
+        parseInt(playerId),
+        documentType,
+        fileName,
+        fileData
       );
-      
-      // Save document to database with file URL simulation
-      const fileUrl = `/documents/${playerId}/${documentType}_${Date.now()}.${fileName.split('.').pop()}`;
-      
-      const { data, error } = await supabaseClient
-        .from('kyc_documents')
-        .insert({
-          player_id: playerId,
-          document_type: documentType,
-          file_name: fileName,
-          file_url: fileUrl,
-          file_size: fileSize,
-          mime_type: mimeType,
-          status: 'pending',
-          uploaded_at: new Date().toISOString()
-        })
-        .select()
-        .single();
 
-      if (error) throw error;
-
-      console.log(`✅ [KYC UPLOAD] Document uploaded successfully:`, data.id);
-      res.json({ success: true, document: data, fileUrl: fileUrl });
+      console.log(`✅ [KYC UPLOAD] Document uploaded successfully:`, uploadedDoc.id);
+      res.json({ success: true, document: uploadedDoc });
     } catch (error) {
       console.error('❌ [KYC UPLOAD] Error:', error);
       res.status(500).json({ error: 'Failed to upload document' });
