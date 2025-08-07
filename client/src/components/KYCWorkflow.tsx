@@ -129,13 +129,12 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
       reader.onload = async (event) => {
         const dataUrl = event.target?.result as string;
         
-        const actualPlayerId = playerData?.id || localStorage.getItem('playerId');
-        if (!actualPlayerId) {
-          throw new Error('Player ID not found. Please log in again.');
-        }
+        // Use the player ID from props - it's already available from the redirect
+        const playerId = playerData.id;
+        console.log('🔍 [DEBUG] Using player ID for upload:', playerId);
 
         const response = await apiRequest('POST', '/api/documents/upload', {
-          playerId: actualPlayerId,
+          playerId: playerId,
           documentType,
           fileName: file.name,
           fileData: dataUrl,
@@ -177,14 +176,13 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     try {
       setSubmitting(true);
       
-      const actualPlayerId = playerData?.id || localStorage.getItem('playerId');
-      if (!actualPlayerId) {
-        throw new Error('Player ID not found. Please log in again.');
-      }
+      // Use the player ID from props - it's already available from the redirect
+      const playerId = playerData.id;
+      console.log('🔍 [DEBUG] Using player ID for KYC submit:', playerId);
 
       // Update player KYC status to submitted
       const response = await apiRequest('POST', '/api/kyc/submit', {
-        playerId: actualPlayerId,
+        playerId: playerId,
         email: userDetails.email,
         firstName: userDetails.firstName,
         lastName: userDetails.lastName,
@@ -204,11 +202,17 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
           body: JSON.stringify({
             email: userDetails.email,
             firstName: userDetails.firstName,
-            playerId: playerData.id
+            playerId: playerId
           })
         });
         
         setCurrentStep(4);
+        
+        // Send success notification to parent
+        toast({
+          title: "Success!",
+          description: "Thank you for registering to the Poker Club. Your documents have been submitted for review.",
+        });
       }
     } catch (error: any) {
       toast({

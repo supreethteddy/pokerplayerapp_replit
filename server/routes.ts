@@ -2175,6 +2175,7 @@ export function registerRoutes(app: Express) {
       const { playerId, documentType, fileName, fileData, fileSize, mimeType } = req.body;
       
       console.log(`📄 [KYC UPLOAD] Uploading ${documentType} for player:`, playerId);
+      console.log(`📄 [KYC UPLOAD] All request data:`, { playerId, documentType, fileName, fileDataLength: fileData?.length });
       
       if (!playerId || !documentType || !fileName || !fileData) {
         return res.status(400).json({ error: 'Missing required fields' });
