@@ -39,6 +39,7 @@ console.log('🚀 [SERVER] Pusher and OneSignal initialized successfully');
 // Import direct chat system (bypasses Supabase cache issues)
 import { directChat } from './direct-chat-system';
 import { directKycStorage } from './direct-kyc-storage';
+import { enterprisePlayerSystem } from './enterprise-player-system';
 
 // Import Clerk integration
 import { ClerkPlayerSync } from './clerk-integration';
@@ -1460,82 +1461,46 @@ export function registerRoutes(app: Express) {
   // CLERK AUTHENTICATION INTEGRATION APIs
   const clerkSync = new ClerkPlayerSync();
 
-  // Create new player (Signup endpoint)
+  // Create new player (Enterprise-optimized Signup endpoint)
   app.post("/api/players", async (req, res) => {
     try {
       const { email, password, firstName, lastName, phone, supabaseId, clerkUserId } = req.body;
       
-      console.log('🆕 [SIGNUP API] Creating player:', { email, firstName, lastName, phone });
+      console.log('🆕 [ENTERPRISE SIGNUP] Creating player:', { email, firstName, lastName, phone });
       
       // Validate required fields
       if (!email || !firstName || !lastName || !phone) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      // Create player using direct SQL insert (bypasses all schema cache issues)
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      // Generate unique IDs
-      const timestamp = Date.now();
-      const randomId = Math.random().toString(36).substr(2, 8);
-      const universalId = `unified_${timestamp}_${randomId}`;
-      const newSupabaseId = `auth_${timestamp}_${randomId}`;
-
-      // Use PostgreSQL client directly to bypass Supabase schema cache
-      const { Client } = await import('pg');
-      const pgClient = new Client({
-        connectionString: process.env.DATABASE_URL
+      // Use enterprise player system for optimized creation
+      const result = await enterprisePlayerSystem.createSinglePlayer({
+        email,
+        firstName,
+        lastName,
+        phone,
+        clerkUserId,
+        supabaseId: supabaseId,
+        password,
+        metadata: { signupSource: 'player_portal' }
       });
-      
-      await pgClient.connect();
-      
-      const insertQuery = `
-        INSERT INTO players (
-          email, password, first_name, last_name, phone, 
-          clerk_user_id, supabase_id, universal_id,
-          kyc_status, balance, total_deposits, total_withdrawals,
-          total_winnings, total_losses, games_played, hours_played, 
-          is_active, created_at
-        ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, 
-          'pending', '0.00', '0.00', '0.00', '0.00', '0.00', 0, '0.00', 
-          true, NOW()
-        ) RETURNING *
-      `;
-      
-      const result = await pgClient.query(insertQuery, [
-        email, password, firstName, lastName, phone, 
-        clerkUserId, newSupabaseId, universalId
-      ]);
-      
-      await pgClient.end();
-      
-      const playerData = result.rows[0];
 
-      if (!playerData) {
-        throw new Error('Failed to create player: No data returned');
-      }
-
-      // Transform to expected format - manual transformation to avoid schema issues
+      // Transform to expected frontend format
       const player = {
-        id: playerData.id,
-        email: playerData.email,
-        firstName: playerData.first_name,
-        lastName: playerData.last_name,
-        phone: playerData.phone,
-        kycStatus: playerData.kyc_status,
-        balance: playerData.balance,
-        createdAt: playerData.created_at,
-        clerkUserId: playerData.clerk_user_id,
-        supabaseId: playerData.supabase_id,
-        universalId: playerData.universal_id
+        id: result.playerId,
+        email,
+        firstName,
+        lastName,
+        phone,
+        kycStatus: 'pending',
+        balance: '0.00',
+        createdAt: new Date().toISOString(),
+        clerkUserId,
+        supabaseId,
+        universalId: `enterprise_${result.playerId}_${Date.now()}`
       };
 
-      console.log('✅ [SIGNUP API] Player created successfully:', player.id);
+      console.log(`✅ [ENTERPRISE SIGNUP] Player ${result.status}:`, result.playerId);
       res.json(player);
     } catch (error: any) {
       console.error('❌ [SIGNUP API] Error:', error);
@@ -2472,6 +2437,110 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error('❌ [DIRECT KYC SUBMIT] Error:', error);
       res.status(500).json({ error: 'Failed to submit KYC' });
+    }
+  });
+
+  // ========== ENTERPRISE-GRADE PLAYER CREATION SYSTEM ==========
+  
+  // Enterprise single player creation (optimized for scalability)
+  app.post('/api/enterprise/players/create', async (req, res) => {
+    try {
+      const playerData = req.body;
+      
+      console.log('🏢 [ENTERPRISE CREATE] Creating player:', playerData.email);
+      
+      const result = await enterprisePlayerSystem.createSinglePlayer(playerData);
+      
+      console.log(`✅ [ENTERPRISE CREATE] Player ${result.status}:`, result.playerId);
+      res.json({
+        success: true,
+        playerId: result.playerId,
+        status: result.status,
+        message: result.message
+      });
+      
+    } catch (error: any) {
+      console.error('❌ [ENTERPRISE CREATE] Error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: error.message || 'Failed to create player' 
+      });
+    }
+  });
+
+  // Enterprise bulk player creation (handles 10,000+ players)
+  app.post('/api/enterprise/players/bulk-create', async (req, res) => {
+    try {
+      const { players } = req.body;
+      
+      if (!Array.isArray(players) || players.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid players array provided'
+        });
+      }
+      
+      console.log(`🏢 [ENTERPRISE BULK] Starting bulk creation of ${players.length} players`);
+      
+      const result = await enterprisePlayerSystem.createBulkPlayers(players);
+      
+      console.log(`✅ [ENTERPRISE BULK] Completed: ${result.created} created, ${result.failed} failed`);
+      res.json(result);
+      
+    } catch (error: any) {
+      console.error('❌ [ENTERPRISE BULK] Error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: error.message || 'Bulk creation failed' 
+      });
+    }
+  });
+
+  // Generate test data for bulk operations
+  app.get('/api/enterprise/players/generate-test/:count', async (req, res) => {
+    try {
+      const count = parseInt(req.params.count);
+      
+      if (isNaN(count) || count <= 0 || count > 50000) {
+        return res.status(400).json({
+          error: 'Count must be between 1 and 50,000'
+        });
+      }
+      
+      console.log(`🏢 [ENTERPRISE TEST] Generating ${count} test players`);
+      
+      const testPlayers = enterprisePlayerSystem.generateTestPlayers(count);
+      
+      res.json({
+        count: testPlayers.length,
+        players: testPlayers
+      });
+      
+    } catch (error: any) {
+      console.error('❌ [ENTERPRISE TEST] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Enterprise health check
+  app.get('/api/enterprise/health', async (req, res) => {
+    try {
+      console.log('🏢 [ENTERPRISE HEALTH] Running health check...');
+      
+      const healthCheck = await enterprisePlayerSystem.healthCheck();
+      
+      res.json({
+        status: healthCheck.databaseConnected && healthCheck.supabaseConnected ? 'healthy' : 'degraded',
+        ...healthCheck,
+        timestamp: new Date().toISOString()
+      });
+      
+    } catch (error: any) {
+      console.error('❌ [ENTERPRISE HEALTH] Error:', error);
+      res.status(500).json({ 
+        status: 'unhealthy',
+        error: error.message 
+      });
     }
   });
 
