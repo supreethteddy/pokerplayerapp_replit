@@ -132,9 +132,32 @@ const ScrollableOffersDisplay = () => {
             onClick={() => trackOfferView.mutate(offer.id)}
           >
             <CardContent className="p-0">
-              {/* Green header section - text only */}
-              <div className="relative aspect-video rounded-t-lg bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center">
-                <Gift className="w-16 h-16 text-white" />
+              {/* Staff portal media or fallback */}
+              <div className="relative">
+                {offer.video_url ? (
+                  <div className="aspect-video rounded-t-lg overflow-hidden bg-slate-900">
+                    <video 
+                      className="w-full h-full object-cover" 
+                      poster={offer.image_url}
+                      controls
+                      preload="metadata"
+                    >
+                      <source src={offer.video_url} type="video/mp4" />
+                    </video>
+                  </div>
+                ) : offer.image_url ? (
+                  <div className="aspect-video rounded-t-lg overflow-hidden bg-slate-900">
+                    <img 
+                      src={offer.image_url} 
+                      alt={offer.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="aspect-video rounded-t-lg bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center">
+                    <Gift className="w-16 h-16 text-white" />
+                  </div>
+                )}
                 
                 {/* Offer type badge */}
                 <Badge 
@@ -482,11 +505,11 @@ function PlayerDashboard() {
   const joinWaitListMutation = useMutation({
     mutationFn: async (tableId: string) => {
       console.log('🎯 [SIMPLE JOIN] Joining waitlist for table:', tableId, 'player:', user?.id);
-      const response = await apiRequest('POST', '/api/waitlist/join', {
+      const response = await apiRequest('POST', '/api/seat-requests', {
         playerId: user?.id,
         tableId: tableId,
         tableName: tables?.find((t: any) => t.id === tableId)?.name || 'Table',
-        preferredSeat: null
+        seatNumber: 1 // Default seat preference
       });
       return response.json();
     },

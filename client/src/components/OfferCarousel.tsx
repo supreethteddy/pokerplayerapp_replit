@@ -37,7 +37,7 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
   // Use only real staff offers from database - identical to offers tab logic
   const displayOffers = (offers && Array.isArray(offers)) ? offers : [];
 
-  // Transform to carousel format only if real data exists - text-only green cards
+  // Transform to carousel format with staff portal media support
   const displayItems = displayOffers.length > 0 ? 
     displayOffers.map((offer: any, index: number) => ({
       id: offer.id,
@@ -49,7 +49,9 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
         id: offer.id,
         title: offer.title,
         description: offer.description,
-        offer_type: offer.offer_type
+        offer_type: offer.offer_type,
+        image_url: offer.image_url,
+        video_url: offer.video_url
       }
     })) : [];
 
@@ -126,9 +128,27 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
                 onClick={() => onOfferClick(item.offer_id)}
               >
                 <CardContent className="p-0">
-                  <div className="w-full h-48 bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center rounded-lg">
-                    <Gift className="w-16 h-16 text-white" />
-                  </div>
+                  {item.staff_offers.image_url ? (
+                    <img
+                      src={item.staff_offers.image_url}
+                      alt={item.staff_offers.title}
+                      className="w-full h-48 object-cover rounded-lg"
+                      loading="eager"
+                      decoding="async"
+                    />
+                  ) : item.staff_offers.video_url ? (
+                    <video
+                      src={item.staff_offers.video_url}
+                      className="w-full h-48 object-cover rounded-lg"
+                      controls
+                      muted
+                      preload="metadata"
+                    />
+                  ) : (
+                    <div className="w-full h-48 bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center rounded-lg">
+                      <Gift className="w-16 h-16 text-white" />
+                    </div>
+                  )}
                   <div className="p-4">
                     <h3 className="text-lg font-semibold text-white mb-2">
                       {item.staff_offers.title}
