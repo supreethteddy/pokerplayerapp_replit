@@ -1890,22 +1890,30 @@ export function registerRoutes(app: Express) {
         });
       }
       
-      // Add to seat_requests table
-      const { data: requestData, error: requestError } = await supabase
-        .from('seat_requests')
-        .insert({
-          player_id: playerId,
-          table_id: tableId,
-          seat_number: seatNumber,
-          status: 'waiting',
-          notes: notes || '',
-          created_at: new Date().toISOString()
-        })
-        .select()
-        .single();
+      // Use direct PostgreSQL client to bypass Supabase schema cache issues
+      const { Client } = await import('pg');
+      const pgClient = new Client({
+        connectionString: process.env.DATABASE_URL
+      });
       
-      if (requestError) {
-        console.error('❌ [SEAT REQUEST] Insert error:', requestError);
+      await pgClient.connect();
+      
+      const insertQuery = `
+        INSERT INTO seat_requests (player_id, table_id, seat_number, status, created_at)
+        VALUES ($1, $2, $3, $4, NOW())
+        RETURNING *
+      `;
+      
+      const result = await pgClient.query(insertQuery, [
+        playerId, tableId, seatNumber, 'waiting'
+      ]);
+      
+      await pgClient.end();
+      
+      const requestData = result.rows[0];
+      
+      if (!requestData) {
+        console.error('❌ [SEAT REQUEST] No data returned from insert');
         return res.status(500).json({ error: "Failed to create seat request" });
       }
       
