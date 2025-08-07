@@ -47,9 +47,9 @@ import { SupabaseOnlyStorage } from './supabase-only-storage';
 import staffPortalRoutes from './routes/staff-portal-integration';
 
 export function registerRoutes(app: Express) {
-  // THREE-TIER BALANCE MANAGEMENT SYSTEM - PRODUCTION INTEGRATION
+  // SIMPLE CASH BALANCE SYSTEM - MANAGER HANDLES TABLE OPERATIONS
   
-  // Player Balance API - Get complete balance breakdown
+  // Player Balance API - Simple cash balance only (no table balance display)
   app.get("/api/player/:playerId/balance", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
@@ -61,43 +61,27 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      // Get account balance from three-tier balance system
-      const { data: accountBalance, error: accountError } = await supabase
-        .from('account_balances')
-        .select('*')
-        .eq('player_id', playerId)
+      // Get player's main balance only
+      const { data: player, error: playerError } = await supabase
+        .from('players')
+        .select('id, first_name, last_name, balance')
+        .eq('id', playerId)
         .single();
 
-      if (accountError || !accountBalance) {
-        console.error('❌ [BALANCE API] Account balance not found:', accountError);
-        return res.status(404).json({ error: 'Account balance not found' });
+      if (playerError || !player) {
+        console.error('❌ [BALANCE API] Player not found:', playerError);
+        return res.status(404).json({ error: 'Player not found' });
       }
 
-      // Get table balances (active sessions)
-      const { data: tableBalances, error: tableError } = await supabase
-        .from('table_balances')
-        .select('amount')
-        .eq('player_id', playerId)
-        .eq('is_active', true);
-
-      let totalTableBalance = 0;
-      if (!tableError && tableBalances) {
-        totalTableBalance = tableBalances.reduce((sum, tb) => sum + parseFloat(tb.amount), 0);
-      }
-
-      const cashBalance = parseFloat(accountBalance.regular_balance || '0');
-      const tableBalance = totalTableBalance;
-      const totalBalance = cashBalance + tableBalance;
-      const creditLimit = parseFloat(accountBalance.credit_limit || '0');
-      const availableCredit = parseFloat(accountBalance.available_credit || '0');
+      const cashBalance = parseFloat(player.balance || '0');
 
       const response = {
-        playerId: playerId,
+        playerId: player.id,
         cashBalance,
-        tableBalance,
-        totalBalance,
-        creditLimit,
-        availableCredit
+        tableBalance: 0, // Hidden from player - managed by manager only
+        totalBalance: cashBalance,
+        creditLimit: 0,
+        availableCredit: 0
       };
 
       console.log(`✅ [BALANCE API] Balance retrieved:`, response);

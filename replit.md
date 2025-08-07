@@ -30,21 +30,21 @@ Preferred communication style: Simple, everyday language.
 - **Integration**: Shares the same Supabase instance with admin dashboards for unified user management and consistent player identification (Supabase `auth.users.id` and application `players.id`).
 - **Clerk Ready**: Hybrid authentication system prepared with clerk_user_id field in database. Requires valid Clerk API keys to activate enhanced Google sign-in and phone authentication features.
 
-### Recent Achievements (August 7, 2025) - AUTHENTICATION & BALANCE SYSTEM FIX ✅  
+### Recent Achievements (August 7, 2025) - SIMPLIFIED BALANCE SYSTEM COMPLETE ✅  
 - **🔐 AUTHENTICATION FIXED**: Resolved "Loading your dashboard" spinner - authentication now works seamlessly
-- **💰 BALANCE SYSTEM DIAGNOSED**: Identified credit system fields missing from Supabase production database
-- **🎯 PLAYER PORTAL OPERATIONAL**: Player ID 29 successfully authenticates and accesses dashboard
+- **💰 SIMPLIFIED BALANCE SYSTEM**: Replaced three-tier complexity with simple cash balance display
+- **🎯 PLAYER PORTAL OPERATIONAL**: Player ID 29 (Vignesh Gana) successfully authenticates with ₹77,000 balance
 - **📱 REAL-TIME FEATURES ACTIVE**: Chat, notifications, table interactions all functioning
 - **🏆 BIDIRECTIONAL MESSAGING**: Player Portal ↔ Staff Portal communication maintained
 - **🚀 PUSHER INTEGRATION**: Multi-channel real-time delivery confirmed working
-- **💾 PRODUCTION DATA**: Using authentic Supabase database with ₹2,000 balance for Player 29
-- **🔧 HYBRID SYSTEM**: Supabase primary + Neon development environments synchronized
-- **⚡ LOADING STATES**: Fixed race conditions in authentication flow
-- **✅ USER ACCESS**: Direct portal access without intermediate authentication pages
+- **💾 PRODUCTION DATA**: Using authentic Supabase database with real player data
+- **🔧 MANAGER-ONLY TABLE OPERATIONS**: Table buy-ins/cash-outs handled exclusively by managers
+- **⚡ CLEAN BALANCE DISPLAY**: Players see only available cash balance (table operations hidden)
+- **✅ CASHIER WORKFLOW**: Simple flow - deposit with cashier → play at tables → cash out with cashier
 
 ### Key Features
 - **Authentication**: Secure login/signup with KYC document upload. Features branded loading screens and robust error handling.
-- **Player Dashboard**: Displays real-time cash table and tournament information, allows joining/leaving waitlists with seat selection, provides a read-only balance view, and enables profile management including PAN card verification and transaction history.
+- **Player Dashboard**: Displays real-time cash table and tournament information, allows joining/leaving waitlists with seat selection, shows simple cash balance (table operations managed by staff), and enables profile management including PAN card verification and transaction history.
 - **KYC Document Management**: Comprehensive system for uploading, viewing, and managing KYC documents (government ID, utility bill, profile photo) with cross-portal status synchronization and file type validation.
 - **Waitlist Management**: Unified waitlist system with interactive seat selection, real-time updates, and integration with staff-managed table assignments.
 - **Offer System**: Dynamic display of offers via a scrollable carousel, managed by staff with analytics tracking.

@@ -74,7 +74,7 @@ export function usePlayerBalance(playerId: string) {
     isLoading,
     error,
     cashBalance: balance?.cashBalance || 0,
-    tableBalance: balance?.tableBalance || 0,
-    totalBalance: balance?.totalBalance || 0,
+    tableBalance: 0, // Hidden from player view
+    totalBalance: balance?.cashBalance || 0, // Only show cash balance
   };
 }
