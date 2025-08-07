@@ -70,7 +70,14 @@ function AppContent() {
           {user ? <Redirect to="/dashboard" /> : <AuthWrapper />}
         </Route>
         <Route path="/dashboard">
-          {user ? <PlayerDashboard /> : <Redirect to="/" />}
+          {loading ? (
+            <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+              <div className="text-center">
+                <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-white font-medium">Loading your dashboard...</p>
+              </div>
+            </div>
+          ) : user ? <PlayerDashboard /> : <Redirect to="/" />}
         </Route>
         <Route path="/thank-you">
           <ThankYou />

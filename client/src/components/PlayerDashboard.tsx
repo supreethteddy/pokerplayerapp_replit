@@ -1345,22 +1345,15 @@ function PlayerDashboard() {
     }
   };
 
+  // Show loading screen instead of "Not authenticated" to prevent flash
   if (!user) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <Card className="max-w-md w-full bg-slate-900 border-slate-800">
-          <CardContent className="p-6">
-            <div className="text-center space-y-4">
-              <div className="w-12 h-12 bg-slate-800 rounded-full flex items-center justify-center mx-auto">
-                <User className="w-6 h-6 text-slate-400" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-white">Not Authenticated</h2>
-                <p className="text-slate-400">Please log in to access your dashboard</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white font-medium">Loading your dashboard...</p>
+          <p className="text-slate-500 text-sm mt-2">Connecting to your account...</p>
+        </div>
       </div>
     );
   }

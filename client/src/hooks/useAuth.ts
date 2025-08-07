@@ -35,13 +35,13 @@ export function useAuth() {
   useEffect(() => {
     let mounted = true;
 
-    // Aggressive timeout - 1 second max for immediate response
+    // Extended timeout - 5 seconds for reliable Supabase connection
     const forceTimeout = setTimeout(() => {
       if (mounted) {
         console.log('🕐 [AUTH] Force timeout - ending loading state');
         setLoading(false);
       }
-    }, 1000);
+    }, 5000);
 
     // Check current session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -88,12 +88,12 @@ export function useAuth() {
     console.log('🔍 [AUTH] Fetching user data for:', supabaseUserId);
     
     try {
-      // Immediate response with 1 second timeout for faster auth
+      // Extended timeout for reliable Supabase connection
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         controller.abort();
-        console.log('⏰ [AUTH] Request timeout after 3 seconds - increasing timeout for better reliability');
-      }, 3000);
+        console.log('⏰ [AUTH] Request timeout after 8 seconds - increasing timeout for better reliability');
+      }, 8000);
       
       const response = await fetch(`/api/players/supabase/${supabaseUserId}`, {
         signal: controller.signal,
