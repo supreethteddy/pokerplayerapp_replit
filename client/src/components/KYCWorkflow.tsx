@@ -21,6 +21,8 @@ interface KYCWorkflowProps {
 }
 
 export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps) {
+  console.log('🔍 [KYC DEBUG] PlayerData received:', playerData);
+  console.log('🔍 [KYC DEBUG] PlayerData ID:', playerData?.id);
   const [currentStep, setCurrentStep] = useState(1);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -129,9 +131,16 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
       reader.onload = async (event) => {
         const dataUrl = event.target?.result as string;
         
-        // Use the player ID from props - it's already available from the redirect
-        const playerId = playerData.id;
+        // Get player ID - handle both id and playerId fields
+        const playerId = playerData?.id || playerData?.playerId || sessionStorage.getItem('playerId') || localStorage.getItem('playerId');
+        console.log('🔍 [DEBUG] PlayerData object:', playerData);
+        console.log('🔍 [DEBUG] PlayerData.id:', playerData?.id);
+        console.log('🔍 [DEBUG] PlayerData.playerId:', playerData?.playerId);
         console.log('🔍 [DEBUG] Using player ID for upload:', playerId);
+        
+        if (!playerId) {
+          throw new Error('Player ID not found. Please refresh and try again.');
+        }
 
         const response = await apiRequest('POST', '/api/documents/upload', {
           playerId: playerId,
@@ -176,9 +185,16 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     try {
       setSubmitting(true);
       
-      // Use the player ID from props - it's already available from the redirect
-      const playerId = playerData.id;
+      // Get player ID - handle both id and playerId fields  
+      const playerId = playerData?.id || playerData?.playerId || sessionStorage.getItem('playerId') || localStorage.getItem('playerId');
+      console.log('🔍 [DEBUG] PlayerData object:', playerData);
+      console.log('🔍 [DEBUG] PlayerData.id:', playerData?.id);
+      console.log('🔍 [DEBUG] PlayerData.playerId:', playerData?.playerId);
       console.log('🔍 [DEBUG] Using player ID for KYC submit:', playerId);
+      
+      if (!playerId) {
+        throw new Error('Player ID not found. Please refresh and try again.');
+      }
 
       // Update player KYC status to submitted
       const response = await apiRequest('POST', '/api/kyc/submit', {

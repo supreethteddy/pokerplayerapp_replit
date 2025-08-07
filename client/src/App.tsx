@@ -77,6 +77,13 @@ function AppContent() {
 
   // Show KYC workflow if redirect data exists
   if (kycRedirectData) {
+    // Store player ID in session storage for KYC workflow
+    if (kycRedirectData.playerId) {
+      sessionStorage.setItem('playerId', kycRedirectData.playerId.toString());
+      localStorage.setItem('playerId', kycRedirectData.playerId.toString());
+      console.log('🔍 [APP] Stored player ID:', kycRedirectData.playerId);
+    }
+    
     return (
       <div className="min-h-screen bg-slate-900 dark">
         <KYCWorkflow 
