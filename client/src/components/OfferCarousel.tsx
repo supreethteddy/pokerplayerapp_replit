@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Gift } from 'lucide-react';
 
 interface CarouselItem {
   id: string;
@@ -27,20 +27,22 @@ interface OfferCarouselProps {
 export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Fetch real staff offers directly from Supabase - production data only
-  const { data: staffOffers, isLoading, error } = useQuery({
+  // Fetch staff offers using exact same query as offers tab - no mock data
+  const { data: offers, isLoading, error } = useQuery({
     queryKey: ['/api/staff-offers'],
-    refetchInterval: 30000,
-    refetchOnWindowFocus: true,
-    staleTime: 0,
+    refetchInterval: 5000, // Same as offers tab
+    retry: 1, // Same as offers tab
   });
 
-  // Transform real staff offers into carousel items - 100% live data with microsecond optimization
-  const displayItems = (staffOffers as any[]) && (staffOffers as any[]).length > 0 ? 
-    (staffOffers as any[]).map((offer: any, index: number) => ({
-      id: `real-offer-${offer.id}`,
+  // Use only real staff offers from database - identical to offers tab logic
+  const displayOffers = (offers && Array.isArray(offers)) ? offers : [];
+
+  // Transform to carousel format only if real data exists
+  const displayItems = displayOffers.length > 0 ? 
+    displayOffers.map((offer: any, index: number) => ({
+      id: offer.id,
       offer_id: offer.id,
-      media_url: offer.image_url || offer.image || `https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=500&h=300&fit=crop&auto=format`,
+      media_url: offer.image_url,
       media_type: 'image' as const,
       position: index + 1,
       is_active: offer.is_active,
@@ -126,16 +128,19 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
                 onClick={() => onOfferClick(item.offer_id)}
               >
                 <CardContent className="p-0">
-                  <img
-                    src={item.media_url}
-                    alt={item.staff_offers.title}
-                    className="w-full h-48 object-cover rounded-lg"
-                    loading="eager"
-                    decoding="async"
-                    onError={(e) => {
-                      e.currentTarget.src = 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=500&h=300&fit=crop&auto=format';
-                    }}
-                  />
+                  {item.media_url ? (
+                    <img
+                      src={item.media_url}
+                      alt={item.staff_offers.title}
+                      className="w-full h-48 object-cover rounded-lg"
+                      loading="eager"
+                      decoding="async"
+                    />
+                  ) : (
+                    <div className="w-full h-48 bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center rounded-lg">
+                      <Gift className="w-16 h-16 text-white" />
+                    </div>
+                  )}
                   <div className="p-4">
                     <h3 className="text-lg font-semibold text-white mb-2">
                       {item.staff_offers.title}

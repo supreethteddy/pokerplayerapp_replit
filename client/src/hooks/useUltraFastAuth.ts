@@ -41,6 +41,12 @@ export function useUltraFastAuth() {
         if (event === 'SIGNED_IN' && session?.user) {
           console.log('✅ [ULTRA-FAST AUTH] User signed in');
           await fetchUserDataUltraFast(session.user.id);
+          // Show blue welcome notification
+          toast({
+            title: "Welcome Back!",
+            description: "You have successfully logged into the Poker Club portal.",
+            className: "bg-blue-500 text-white border-blue-600",
+          });
         } else if (event === 'SIGNED_OUT') {
           console.log('🚪 [ULTRA-FAST AUTH] User signed out');
           handleSignOut();
