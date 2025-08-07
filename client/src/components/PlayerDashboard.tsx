@@ -1404,10 +1404,10 @@ function PlayerDashboard() {
               <Gift className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger 
-              value="stats" 
+              value="balance" 
               className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
             >
-              <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
+              <CreditCard className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger 
               value="profile" 
@@ -1746,64 +1746,63 @@ function PlayerDashboard() {
             <ScrollableOffersDisplay />
           </TabsContent>
 
-          {/* Stats Tab */}
-          <TabsContent value="stats" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Gaming Statistics */}
-              <Card className="bg-slate-800 border-slate-700">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <BarChart3 className="w-5 h-5 mr-2 text-emerald-500" />
-                    Gaming Statistics
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-300">Games Played</span>
-                    <span className="text-white font-semibold">{user?.gamesPlayed || 0}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-300">Hours Played</span>
-                    <span className="text-white font-semibold">{user?.hoursPlayed || "0.00"} hrs</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Financial Statistics */}
-              <Card className="bg-slate-800 border-slate-700">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <CreditCard className="w-5 h-5 mr-2 text-emerald-500" />
-                    Financial Overview {balanceLoading && <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin ml-2"></div>}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* THREE-TIER BALANCE MANAGEMENT SYSTEM */}
-                  <div className="space-y-4">
-                    {/* Main Balance Display */}
-                    <PlayerBalanceDisplay playerId={user?.id?.toString() || ''} />
-                    
-                    {/* Balance Actions Grid */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      <div className="bg-slate-700/50 border border-slate-600 rounded-lg p-4">
-                        <h4 className="text-white font-medium mb-3">Request Cash-Out</h4>
-                        <CashOutRequest playerId={user?.id?.toString() || ''} />
+          {/* Balance Tab - Simplified Cash Balance System */}
+          <TabsContent value="balance" className="space-y-4">
+            {/* Simplified Balance Display - Single Cash Balance Only */}
+            <div className="space-y-6">
+              {/* Main Balance Card */}
+              <div className="max-w-2xl mx-auto">
+                <PlayerBalanceDisplay playerId={user?.id?.toString() || ''} />
+              </div>
+              
+              {/* Balance Actions */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl mx-auto">
+                <Card className="bg-slate-800 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <CreditCard className="w-5 h-5 mr-2 text-emerald-500" />
+                      Cash Out Request
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <CashOutRequest playerId={user?.id?.toString() || ''} />
+                  </CardContent>
+                </Card>
+                
+                <Card className="bg-slate-800 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <BarChart3 className="w-5 h-5 mr-2 text-emerald-500" />
+                      Recent Transactions
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="max-h-60 overflow-y-auto">
+                      <PlayerTransactionHistory playerId={user?.id?.toString() || ''} limit={5} />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              {/* Cashier Workflow Information */}
+              <Card className="bg-emerald-900/20 border border-emerald-500/30 max-w-3xl mx-auto">
+                <CardContent className="p-6">
+                  <div className="text-center">
+                    <h3 className="text-emerald-300 font-semibold text-lg mb-4">Simple Cashier Workflow</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div className="bg-slate-800/50 rounded-lg p-4">
+                        <div className="text-emerald-400 font-medium mb-2">1. Deposit</div>
+                        <div className="text-slate-300">Visit cashier to add funds to your balance</div>
                       </div>
-                      
-                      <div className="bg-slate-700/50 border border-slate-600 rounded-lg p-4">
-                        <h4 className="text-white font-medium mb-3">Recent Transactions</h4>
-                        <div className="max-h-40 overflow-y-auto">
-                          <PlayerTransactionHistory playerId={user?.id?.toString() || ''} limit={3} />
-                        </div>
+                      <div className="bg-slate-800/50 rounded-lg p-4">
+                        <div className="text-emerald-400 font-medium mb-2">2. Play</div>
+                        <div className="text-slate-300">Manager handles table buy-ins and cash-outs</div>
+                      </div>
+                      <div className="bg-slate-800/50 rounded-lg p-4">
+                        <div className="text-emerald-400 font-medium mb-2">3. Withdraw</div>
+                        <div className="text-slate-300">Cash out with cashier when ready</div>
                       </div>
                     </div>
-                  </div>
-                  
-                  {/* Balance Management Note */}
-                  <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-lg p-3 mt-4">
-                    <p className="text-xs text-emerald-300">
-                      <strong>Three-Tier Balance System:</strong> Real-time balance updates with instant table operations and cash-out requests.
-                    </p>
                   </div>
                 </CardContent>
               </Card>
