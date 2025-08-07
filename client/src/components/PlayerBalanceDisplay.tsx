@@ -54,7 +54,7 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
           <h2 className="text-lg font-medium opacity-90 mb-2">Available Cash Balance</h2>
           <div className="text-5xl font-bold mb-4">₹{currentCashBalance.toLocaleString()}</div>
           <div className="text-sm opacity-75 bg-black/20 rounded-full px-4 py-2 inline-block">
-            Ready for withdrawal at cashier counter
+            Visit cashier counter for cash-out
           </div>
         </div>
       </div>

@@ -35,10 +35,11 @@ Preferred communication style: Simple, everyday language.
 - **🔄 EXISTING USER HANDLING**: Smart detection of existing players with automatic KYC status-based redirection (no more signup failures)
 - **📄 COMPLETE KYC WORKFLOW**: Full document upload system (Government ID, Utility Bill, Profile Photo) with progress tracking
 - **🔐 HYBRID AUTHENTICATION SYSTEM**: Successfully integrated Clerk with existing Supabase authentication while preserving all original functionality
-- **💰 INTELLIGENT DUAL BALANCE SYSTEM**: Complete credit handling logic implemented with conditional cash-out rules
+- **💰 INTELLIGENT DUAL BALANCE SYSTEM**: Complete credit handling logic with view-only player interface
   - **Cash ₹77,000 + Credit ₹0 = Normal cash-out**: Players can withdraw full cash balance when no credit is taken
   - **Cash ₹77,000 + Credit ₹15,000 = Credit deduction**: Automatic credit deduction first, player receives cash portion only
-  - **Smart UI Logic**: Interface adapts based on credit status - shows appropriate limits and warnings
+  - **View-Only Player Portal**: Completely removed cash-out request functionality - players can only view balance
+  - **Cashier-Only Operations**: All financial operations (cash-out, credit transfer) handled exclusively by cashier counter
   - **Credit Restrictions**: Credit balance clearly marked "Cannot be withdrawn" by players
 - **🔄 REAL-TIME STAFF PORTAL SYNC**: All balance changes trigger Pusher events for instant staff portal updates
 - **📱 THANK YOU PAGE INTEGRATION**: Professional completion flow with "Thank you for registering to the Poker Club" message

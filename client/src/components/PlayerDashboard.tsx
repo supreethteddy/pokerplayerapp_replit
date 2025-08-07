@@ -51,8 +51,7 @@ import type { Table as TableType, SeatRequest, KycDocument } from "@shared/schem
 import DualBalanceDisplay from "./DualBalanceDisplay";
 import { PlayerBalanceDisplay } from "./PlayerBalanceDisplay";
 import { PlayerTransactionHistory } from "./PlayerTransactionHistory";
-import { CashOutRequest } from "./CashOutRequest";
-import { CreditTransfer } from "./CreditTransfer";
+// Cash-out and credit transfer removed - players can only view balance, all financial operations handled by cashier
 // TableOperations removed - players can only view balance, all operations handled by managers/cashiers
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
@@ -1796,32 +1795,29 @@ function PlayerDashboard() {
                 <PlayerBalanceDisplay playerId={user?.id?.toString() || ''} />
               </div>
               
-              {/* Balance Actions - Credit Transfer & Cash Out */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-                <Card className="bg-slate-800 border-slate-700">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center">
-                      <CreditCard className="w-5 h-5 mr-2 text-blue-500" />
-                      Credit Transfer
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <CreditTransfer 
-                      playerId={user?.id?.toString() || ''} 
-                      availableCredit={(accountBalance as any)?.availableCredit || 0}
-                    />
-                  </CardContent>
-                </Card>
 
+              {/* Balance Display Only - All financial operations handled by cashier */}
+              <div className="max-w-4xl mx-auto">
                 <Card className="bg-slate-800 border-slate-700">
                   <CardHeader>
                     <CardTitle className="text-white flex items-center">
-                      <CreditCard className="w-5 h-5 mr-2 text-emerald-500" />
-                      Cash Out Request
+                      <Info className="w-5 h-5 mr-2 text-blue-500" />
+                      Financial Operations Notice
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <CashOutRequest playerId={user?.id?.toString() || ''} />
+                    <div className="text-center p-6 bg-blue-950/50 rounded-lg border border-blue-800">
+                      <CreditCard className="w-12 h-12 mx-auto mb-4 text-blue-400" />
+                      <h3 className="text-lg font-semibold text-white mb-2">Visit Cashier Counter</h3>
+                      <p className="text-slate-300 mb-4">
+                        All cash-out and credit operations are handled exclusively by our cashier team.
+                      </p>
+                      <div className="space-y-2 text-sm text-slate-400">
+                        <p>• Cash withdrawals: Visit cashier with your player ID</p>
+                        <p>• Credit transfers: Managed by cashier staff only</p>
+                        <p>• Balance updates: Real-time after cashier transactions</p>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
                 
