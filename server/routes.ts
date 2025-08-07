@@ -65,7 +65,7 @@ export function registerRoutes(app: Express) {
       console.log(`🔍 [BALANCE API] Querying fresh data for player: ${playerId}`);
       const { data: player, error: playerError } = await supabase
         .from('players')
-        .select('id, first_name, last_name, balance')
+        .select('id, first_name, last_name, balance, credit_limit, current_credit, credit_approved')
         .eq('id', playerId)
         .single();
 
@@ -84,13 +84,16 @@ export function registerRoutes(app: Express) {
         cashBalance = 77000;
       }
 
+      const creditLimit = parseFloat(player.credit_limit || '0');
+      const availableCredit = parseFloat(player.current_credit || '0');
+
       const response = {
         playerId: player.id,
         cashBalance,
         tableBalance: 0, // Hidden from player - managed by manager only
         totalBalance: cashBalance,
-        creditLimit: 0,
-        availableCredit: 0
+        creditLimit,
+        availableCredit
       };
 
       console.log(`✅ [BALANCE API] Balance retrieved:`, response);
@@ -134,6 +137,93 @@ export function registerRoutes(app: Express) {
     } catch (error: any) {
       console.error('❌ [BALANCE UPDATE] Error:', error);
       res.status(500).json({ error: 'Failed to update balance' });
+    }
+  });
+
+  // Credit Transfer API - Transfer credit to cash balance
+  app.post("/api/player/:playerId/credit-transfer", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const { amount } = req.body;
+      
+      console.log(`💳 [CREDIT TRANSFER] Player ${playerId} transferring: ${amount}`);
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Get current player data
+      const { data: player, error: playerError } = await supabase
+        .from('players')
+        .select('id, balance, credit_limit, current_credit, credit_approved')
+        .eq('id', playerId)
+        .single();
+
+      if (playerError || !player) {
+        console.error('❌ [CREDIT TRANSFER] Player not found:', playerError);
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      const currentCredit = parseFloat(player.current_credit || '0');
+      const currentCash = parseFloat(player.balance || '0');
+      const transferAmount = parseFloat(amount);
+
+      // Validation checks
+      if (!transferAmount || transferAmount <= 0) {
+        return res.status(400).json({ error: 'Invalid transfer amount' });
+      }
+
+      if (transferAmount > currentCredit) {
+        return res.status(400).json({ error: 'Insufficient credit balance' });
+      }
+
+      if (!player.credit_approved) {
+        return res.status(403).json({ error: 'Credit not approved for this player' });
+      }
+
+      // Calculate new balances
+      const newCreditBalance = currentCredit - transferAmount;
+      const newCashBalance = currentCash + transferAmount;
+
+      // Update player balances
+      const { data: updatedPlayer, error: updateError } = await supabase
+        .from('players')
+        .update({ 
+          balance: newCashBalance.toFixed(2),
+          current_credit: newCreditBalance.toFixed(2)
+        })
+        .eq('id', playerId)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('❌ [CREDIT TRANSFER] Update failed:', updateError);
+        return res.status(500).json({ error: 'Failed to transfer credit' });
+      }
+
+      // Create transaction record
+      await supabase
+        .from('transactions')
+        .insert({
+          player_id: playerId,
+          type: 'credit_transfer',
+          amount: transferAmount.toFixed(2),
+          description: `Credit transferred to cash balance`,
+          status: 'completed'
+        });
+
+      console.log(`✅ [CREDIT TRANSFER] Player ${playerId} transferred ₹${transferAmount} from credit to cash`);
+      res.json({ 
+        message: 'Credit transferred successfully', 
+        newCashBalance: newCashBalance.toFixed(2),
+        newCreditBalance: newCreditBalance.toFixed(2)
+      });
+
+    } catch (error: any) {
+      console.error('❌ [CREDIT TRANSFER] Error:', error);
+      res.status(500).json({ error: 'Failed to transfer credit' });
     }
   });
 

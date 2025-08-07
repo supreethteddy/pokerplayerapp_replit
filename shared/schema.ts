@@ -22,6 +22,8 @@ export const players = pgTable("players", {
   gamesPlayed: integer("games_played").notNull().default(0), // Games played
   hoursPlayed: text("hours_played").notNull().default("0.00"), // Hours played
   creditApproved: boolean("credit_approved").default(false), // Credit system approval
+  creditLimit: text("credit_limit").notNull().default("0.00"), // Maximum credit allowed
+  currentCredit: text("current_credit").notNull().default("0.00"), // Current credit balance
   panCardNumber: text("pan_card_number"), // PAN card number (10 characters)
   panCardDocumentUrl: text("pan_card_document_url"), // URL to uploaded PAN card document
   panCardStatus: text("pan_card_status").default("missing"), // missing, pending, approved, rejected
