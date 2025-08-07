@@ -465,9 +465,30 @@ export class SupabaseOnlyStorage {
 
   // KYC document operations
   async createKycDocument(document: InsertKycDocument): Promise<KycDocument> {
+    // Ensure player exists first
+    const { data: playerCheck } = await supabase
+      .from('players')
+      .select('id')
+      .eq('id', document.playerId)
+      .single();
+    
+    if (!playerCheck) {
+      throw new Error(`Player with ID ${document.playerId} not found`);
+    }
+    
+    // Insert document without foreign key constraints
     const { data, error } = await supabase
       .from('kyc_documents')
-      .insert(this.transformKycDocumentToSupabase(document))
+      .insert({
+        player_id: document.playerId,
+        document_type: document.documentType,
+        file_name: document.fileName,
+        file_url: document.fileUrl,
+        file_size: document.fileSize || 0,
+        status: document.status || 'pending',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
       .select()
       .single();
     
