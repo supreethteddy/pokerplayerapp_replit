@@ -1174,6 +1174,45 @@ export function registerRoutes(app: Express) {
       res.json(player);
     } catch (error: any) {
       console.error('❌ [SIGNUP API] Error:', error);
+      
+      // Handle duplicate email - redirect to KYC process if player exists
+      if (error.code === '23505' && error.constraint === 'players_email_unique') {
+        console.log('🔄 [SIGNUP API] Player exists - checking KYC status for:', req.body.email);
+        
+        try {
+          const { Client } = await import('pg');
+          const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+          await pgClient.connect();
+          
+          const existingPlayerQuery = `
+            SELECT id, first_name, last_name, email, kyc_status, created_at 
+            FROM players 
+            WHERE email = $1
+          `;
+          const existingResult = await pgClient.query(existingPlayerQuery, [req.body.email]);
+          await pgClient.end();
+          
+          if (existingResult.rows.length > 0) {
+            const existingPlayer = existingResult.rows[0];
+            console.log('✅ [SIGNUP API] Existing player found - redirecting to KYC:', existingPlayer.kyc_status);
+            
+            // Return existing player data for KYC redirect
+            res.json({
+              id: existingPlayer.id,
+              email: existingPlayer.email,
+              firstName: existingPlayer.first_name,
+              lastName: existingPlayer.last_name,
+              kycStatus: existingPlayer.kyc_status,
+              existing: true, // Flag to indicate existing user
+              message: 'Account exists - redirecting to KYC process'
+            });
+            return;
+          }
+        } catch (lookupError) {
+          console.error('❌ [SIGNUP API] Lookup error:', lookupError);
+        }
+      }
+      
       res.status(500).json({ error: error.message });
     }
   });
@@ -1820,6 +1859,86 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error('❌ [NOTIFICATIONS API] Error:', error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ========== KYC DOCUMENT UPLOAD AND MANAGEMENT SYSTEM ==========
+  
+  // Document upload endpoint
+  app.post('/api/documents/upload', async (req, res) => {
+    try {
+      const { playerId, documentType, fileName, fileData, fileSize, mimeType } = req.body;
+      
+      console.log(`📄 [KYC UPLOAD] Uploading ${documentType} for player:`, playerId);
+      
+      // Save document to database (simulate file storage)
+      const { data, error } = await supabase
+        .from('kyc_documents')
+        .insert({
+          player_id: playerId,
+          document_type: documentType,
+          file_name: fileName,
+          file_size: fileSize,
+          mime_type: mimeType,
+          status: 'pending',
+          uploaded_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      console.log(`✅ [KYC UPLOAD] Document uploaded successfully:`, data.id);
+      res.json({ success: true, document: data });
+    } catch (error) {
+      console.error('❌ [KYC UPLOAD] Error:', error);
+      res.status(500).json({ error: 'Failed to upload document' });
+    }
+  });
+
+  // Get player documents
+  app.get('/api/documents/player/:playerId', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      
+      const { data, error } = await supabase
+        .from('kyc_documents')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('uploaded_at', { ascending: false });
+
+      if (error) throw error;
+
+      res.json(data || []);
+    } catch (error) {
+      console.error('❌ [KYC DOCS] Error:', error);
+      res.status(500).json({ error: 'Failed to fetch documents' });
+    }
+  });
+
+  // KYC submission endpoint
+  app.post('/api/kyc/submit', async (req, res) => {
+    try {
+      const { playerId, email, firstName, lastName } = req.body;
+      
+      console.log(`📋 [KYC SUBMIT] Submitting KYC for player:`, playerId);
+      
+      // Update player KYC status to submitted
+      const { error } = await supabase
+        .from('players')
+        .update({ 
+          kyc_status: 'submitted',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', playerId);
+
+      if (error) throw error;
+
+      console.log(`✅ [KYC SUBMIT] KYC submitted successfully for player:`, playerId);
+      res.json({ success: true, message: 'KYC documents submitted for review' });
+    } catch (error) {
+      console.error('❌ [KYC SUBMIT] Error:', error);
+      res.status(500).json({ error: 'Failed to submit KYC' });
     }
   });
 

@@ -268,7 +268,29 @@ export function useUltraFastAuth() {
       
       const playerData = await response.json();
       
-      // Log signup activity
+      // Check if this is an existing player redirect
+      if (playerData.existing) {
+        console.log('🔄 [SIGNUP] Existing player - redirecting to KYC:', playerData.kycStatus);
+        
+        // Set session flag for KYC redirect
+        sessionStorage.setItem('kyc_redirect', JSON.stringify({
+          playerId: playerData.id,
+          email: playerData.email,
+          firstName: playerData.firstName,
+          lastName: playerData.lastName,
+          kycStatus: playerData.kycStatus
+        }));
+        
+        toast({
+          title: "Account Found!",
+          description: "Redirecting to KYC document upload process...",
+        });
+        
+        // Redirect to KYC process - will be handled by App.tsx
+        return { success: true, redirectToKYC: true, playerData };
+      }
+      
+      // Log signup activity for new user
       logAuthActivity('signup', email, authData.user.id);
       
       // Background Clerk sync for new user
@@ -280,12 +302,21 @@ export function useUltraFastAuth() {
       // Send welcome email (fire-and-forget)
       sendWelcomeEmail(email, firstName).catch(console.warn);
       
+      // Set session flag for KYC redirect
+      sessionStorage.setItem('kyc_redirect', JSON.stringify({
+        playerId: playerData.id,
+        email: playerData.email,
+        firstName: playerData.firstName,
+        lastName: playerData.lastName,
+        kycStatus: 'pending'
+      }));
+      
       toast({
         title: "Account Created!",
-        description: "Please wait for approval from the club. You'll receive an email once approved.",
+        description: "Now redirecting to KYC document upload...",
       });
       
-      return { success: true };
+      return { success: true, redirectToKYC: true, playerData };
     } catch (error: any) {
       console.error('❌ [ULTRA-FAST AUTH] Sign up error:', error);
       setLoading(false);

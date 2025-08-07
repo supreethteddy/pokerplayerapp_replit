@@ -50,9 +50,13 @@ export default function DirectClubsAuth() {
         const result = await signUp(email, password, firstName, lastName, phone);
         
         if (result.success) {
-          // Success handled by useAuth hook - will redirect to KYC process
+          // Check if we need to redirect to KYC process
+          if (result.redirectToKYC) {
+            console.log('🎯 [AUTH] Redirecting to KYC process for player:', result.playerData?.id);
+            // KYC redirect will be handled by the parent component
+          }
         } else {
-          throw new Error('Sign up failed');
+          throw new Error(result.error || 'Sign up failed');
         }
       }
     } catch (error: any) {

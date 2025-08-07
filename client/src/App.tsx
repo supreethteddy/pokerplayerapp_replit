@@ -8,6 +8,7 @@ import { useUltraFastAuth } from "./hooks/useUltraFastAuth";
 import AuthWrapper from "./components/AuthWrapper";
 import SafeAuthWrapper from "./components/AuthErrorBoundary";
 import PlayerDashboard from "./components/PlayerDashboard";
+import KYCWorkflow from "./components/KYCWorkflow";
 import VipShop from "./pages/VipShop";
 import TableView from "./pages/TableView";
 import OfferDetail from "./pages/OfferDetail";
@@ -22,6 +23,22 @@ function AppContent() {
   const { user, loading, authChecked } = useUltraFastAuth();
   const [showLoadingScreen, setShowLoadingScreen] = useState(false);
   const [hasShownLoadingScreen, setHasShownLoadingScreen] = useState(false);
+  const [kycRedirectData, setKycRedirectData] = useState<any>(null);
+
+  // Check for KYC redirect from signup process
+  useEffect(() => {
+    const kycData = sessionStorage.getItem('kyc_redirect');
+    if (kycData) {
+      try {
+        const parsedData = JSON.parse(kycData);
+        setKycRedirectData(parsedData);
+        console.log('🎯 [APP] KYC redirect detected:', parsedData);
+      } catch (error) {
+        console.error('Error parsing KYC redirect data:', error);
+        sessionStorage.removeItem('kyc_redirect');
+      }
+    }
+  }, []);
 
   // Show loading screen when user signs in 
   useEffect(() => {
@@ -39,6 +56,12 @@ function AppContent() {
     }
   }, [user, loading, hasShownLoadingScreen]);
 
+  const handleKYCComplete = () => {
+    console.log('✅ [APP] KYC process completed');
+    setKycRedirectData(null);
+    sessionStorage.removeItem('kyc_redirect');
+  };
+
   // Ultra-fast authentication loading with optimized state management
   if (!authChecked || (loading && !user)) {
     return (
@@ -48,6 +71,18 @@ function AppContent() {
           <p className="text-white font-medium">Connecting your account...</p>
           <p className="text-slate-500 text-sm mt-2">Ultra-fast authentication in progress...</p>
         </div>
+      </div>
+    );
+  }
+
+  // Show KYC workflow if redirect data exists
+  if (kycRedirectData) {
+    return (
+      <div className="min-h-screen bg-slate-900 dark">
+        <KYCWorkflow 
+          playerData={kycRedirectData} 
+          onComplete={handleKYCComplete}
+        />
       </div>
     );
   }
