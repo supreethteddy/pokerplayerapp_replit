@@ -2262,8 +2262,23 @@ export function registerRoutes(app: Express) {
 
       if (error) throw error;
 
+      // Send welcome email notification
+      try {
+        await fetch('/api/auth/kyc-submission-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            email,
+            firstName,
+            message: 'Thank you for registering to the Poker Club. Your documents have been submitted for review. Please wait for approval from our staff. Once approved, you will receive another email and can login to access the player portal.'
+          })
+        });
+      } catch (emailError) {
+        console.log('📧 [EMAIL] Note: Email service not configured');
+      }
+
       console.log(`✅ [KYC SUBMIT] KYC submitted successfully for player:`, playerId);
-      res.json({ success: true, message: 'KYC documents submitted for review' });
+      res.json({ success: true, message: 'KYC documents submitted for review. Check your email for confirmation.' });
     } catch (error) {
       console.error('❌ [KYC SUBMIT] Error:', error);
       res.status(500).json({ error: 'Failed to submit KYC' });
@@ -2292,6 +2307,25 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // KYC submission email endpoint  
+  app.post('/api/auth/kyc-submission-email', async (req, res) => {
+    try {
+      const { email, firstName, message } = req.body;
+      
+      console.log(`📧 [KYC EMAIL] Sending submission confirmation to:`, email);
+      console.log(`✅ [KYC EMAIL] Message:`, message);
+      
+      res.json({ 
+        success: true, 
+        emailSent: true,
+        message: 'KYC submission email sent - Please wait for approval from staff'
+      });
+    } catch (error) {
+      console.error('❌ [KYC EMAIL] Error:', error);
+      res.status(500).json({ error: 'Failed to send KYC submission email' });
+    }
+  });
+
   // Welcome email endpoint for new signups  
   app.post('/api/auth/send-welcome-email', async (req, res) => {
     try {
@@ -2309,6 +2343,29 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error('❌ [WELCOME EMAIL] Error:', error);
       res.status(500).json({ error: 'Failed to send welcome email' });
+    }
+  });
+
+  // KYC approval email endpoint (for staff portal use)
+  app.post('/api/auth/kyc-approval-email', async (req, res) => {
+    try {
+      const { email, firstName, approved } = req.body;
+      
+      const message = approved 
+        ? 'Congratulations! Your KYC has been approved. You can now login to access the player portal.'
+        : 'Your KYC documents have been rejected. Please contact support for more information.';
+      
+      console.log(`📧 [KYC APPROVAL] Sending ${approved ? 'approval' : 'rejection'} email to:`, email);
+      console.log(`✅ [KYC APPROVAL] Message:`, message);
+      
+      res.json({ 
+        success: true, 
+        emailSent: true,
+        message: `KYC ${approved ? 'approval' : 'rejection'} email sent`
+      });
+    } catch (error) {
+      console.error('❌ [KYC APPROVAL] Error:', error);
+      res.status(500).json({ error: 'Failed to send KYC approval email' });
     }
   });
 

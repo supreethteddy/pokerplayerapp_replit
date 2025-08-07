@@ -130,7 +130,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
         const dataUrl = event.target?.result as string;
         
         const response = await apiRequest('POST', '/api/documents/upload', {
-          playerId: playerData.id,
+          playerId: playerData?.id || localStorage.getItem('playerId'),
           documentType,
           fileName: file.name,
           fileData: dataUrl,
@@ -174,7 +174,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
       
       // Update player KYC status to submitted
       const response = await apiRequest('POST', '/api/kyc/submit', {
-        playerId: playerData.id,
+        playerId: playerData?.id || localStorage.getItem('playerId'),
         email: userDetails.email,
         firstName: userDetails.firstName,
         lastName: userDetails.lastName,
@@ -223,8 +223,14 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     return userDetails.firstName && userDetails.lastName && userDetails.email && userDetails.phone;
   };
 
+  const isValidPAN = (pan: string) => {
+    // PAN format: 5 letters + 4 numbers + 1 letter (e.g., ABCDE1234F)
+    const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+    return panRegex.test(pan.toUpperCase());
+  };
+
   const isStep2Complete = () => {
-    return uploadedDocs.governmentId && uploadedDocs.utilityBill && uploadedDocs.panCard && panCardNumber.length >= 10;
+    return uploadedDocs.governmentId && uploadedDocs.utilityBill && uploadedDocs.panCard && isValidPAN(panCardNumber);
   };
 
   return (
@@ -383,10 +389,15 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                     <Input
                       value={panCardNumber}
                       onChange={(e) => setPanCardNumber(e.target.value.toUpperCase())}
-                      className="bg-gray-700 border-gray-600 text-white"
-                      placeholder="Enter PAN card number (e.g., ABCDE1234F)"
+                      className={`bg-gray-700 border-gray-600 text-white ${
+                        panCardNumber && !isValidPAN(panCardNumber) ? 'border-red-500' : ''
+                      }`}
+                      placeholder="ABCDE1234F"
                       maxLength={10}
                     />
+                    {panCardNumber && !isValidPAN(panCardNumber) && (
+                      <p className="text-red-400 text-xs">Invalid PAN format. Use: 5 letters + 4 numbers + 1 letter</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-white text-sm">Upload PAN Card Document *</Label>
@@ -414,11 +425,11 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                   disabled={!isStep2Complete()}
                   className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white h-12 text-lg font-semibold"
                 >
-                  {isStep2Complete() ? "Submit Documents & Continue" : "Upload All Documents & Enter PAN"}
+                  {isStep2Complete() ? "Submit Documents" : "Upload All Documents & Enter Valid PAN"}
                 </Button>
                 {!isStep2Complete() && (
                   <p className="text-center text-sm text-gray-400 mt-2">
-                    Please upload all 3 documents and enter your PAN card number
+                    Please upload all 3 documents and enter valid PAN (Format: ABCDE1234F)
                   </p>
                 )}
               </div>
