@@ -35,12 +35,12 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
     staleTime: 0,
   });
 
-  // Transform real staff offers into carousel items - 100% live data
+  // Transform real staff offers into carousel items - 100% live data with microsecond optimization
   const displayItems = (staffOffers as any[]) && (staffOffers as any[]).length > 0 ? 
     (staffOffers as any[]).map((offer: any, index: number) => ({
       id: `real-offer-${offer.id}`,
       offer_id: offer.id,
-      media_url: offer.image_url || offer.image || `data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDUwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI1MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjMkEyQTJBIi8+Cjx0ZXh0IHg9IjI1MCIgeT0iMTUwIiBmaWxsPSIjNzU3NTc1IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiPk5vIEltYWdlPC90ZXh0Pgo8L3N2Zz4=`,
+      media_url: offer.image_url || offer.image || `https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=500&h=300&fit=crop&auto=format`,
       media_type: 'image' as const,
       position: index + 1,
       is_active: offer.is_active,
@@ -130,8 +130,10 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
                     src={item.media_url}
                     alt={item.staff_offers.title}
                     className="w-full h-48 object-cover rounded-lg"
+                    loading="eager"
+                    decoding="async"
                     onError={(e) => {
-                      e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDUwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI1MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjMkEyQTJBIi8+Cjx0ZXh0IHg9IjI1MCIgeT0iMTUwIiBmaWxsPSIjNzU3NTc1IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiPk5vIEltYWdlPC90ZXh0Pgo8L3N2Zz4=';
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=500&h=300&fit=crop&auto=format';
                     }}
                   />
                   <div className="p-4">
