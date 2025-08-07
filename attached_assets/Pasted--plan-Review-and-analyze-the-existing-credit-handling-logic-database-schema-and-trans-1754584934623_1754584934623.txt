@@ -1,0 +1,21 @@
+{
+  "plan": [
+    "Review and analyze the existing credit handling logic, database schema, and transactional flow in the Replit app for both player and staff portals.",
+    "Identify integration points for the specified logic without introducing new database tables, APIs, or external schema changes.",
+    "Refactor existing code to ensure: (a) credits approved via staff portal immediately reflect as credit_balance in the player portal; (b) credit_balance is always visible and cannot be transferred to real_balance by the player.",
+    "Enforce cash-out flow: on cash-out, automatically deduct credit_balance from chips before computing the player's net receivable or payable; update displayed_balance accordingly and communicate result to staff and player in real-time with Pusher.",
+    "Ensure all player-side and staff-side changes are strictly additive fixes—no new business logic or UI/UX routes unless they clarify current credit/balance display, and all notifications (OneSignal) use pre-existing messaging/integrations.",
+    "Verify end-to-end by running through real user scenarios given in Examples 1 and 2 (from your previous message), recording expected field values and external notifications."
+  ],
+  "purpose": "To correct and extend the existing player and staff portal logic so that staff-awarded credits are utilized, tracked, and displayed in accordance with business rules, strictly leveraging and improving current implementation in the Replit app. This serves to guarantee fully-aligned credit handling, smoother operations, and accurate accounting for both users and business, preventing duplicate, conflicting, or redundant code.",
+  "constraints": [
+    "Use only current data structures (Supabase, Pusher, OneSignal) and workflows: DO NOT create new tables or services.",
+    "Do NOT introduce new endpoints, jobs, or schema migrations.",
+    "Do NOT rework unrelated logic or make breaking UI/UX/notification changes.",
+    "Preserve all previous workflows, permission checks, and audit logging.",
+    "Edits should be composable on top of existing code, with all previous business flows (e.g., buy-in, cash-out, credit approval) maintained.",
+    "Test with provided Example 1 and Example 2; ensure output matches the logic statement in the requirement."
+  ],
+  "approval": "Pause after incorporating and testing the fixes. Present a summary of the touched files, updated functions, and a before/after display of all relevant balance states and events—with notes on edge case handling. Await explicit approval before merging or deploying to staging/production.",
+  "execute": "After approval, fully verify all edge cases (including negative and zero balances, multiple credits in sequence, and incomplete repayments) using the current Replit app test suite. For any failed test or unhandled edge case, output the stack trace and diagnostic data for review, without rolling back confirmed/working code."
+}

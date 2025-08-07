@@ -1693,6 +1693,16 @@ export function registerRoutes(app: Express) {
       };
 
       console.log(`✅ [DUAL BALANCE API] Retrieved dual balance:`, response);
+      
+      // Trigger real-time update for any connected staff portals
+      if ((global as any).pusher) {
+        (global as any).pusher.trigger('cross-portal-sync', 'balance_query', {
+          playerId: parseInt(playerId),
+          timestamp: new Date().toISOString(),
+          balance: response
+        });
+      }
+      
       res.json(response);
     } catch (error) {
       console.error('❌ [DUAL BALANCE API] Error:', error);
@@ -1984,6 +1994,12 @@ export function registerRoutes(app: Express) {
     try {
       const { playerId } = req.params;
       
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      
       const { data, error } = await supabase
         .from('kyc_documents')
         .select('*')
@@ -2005,6 +2021,12 @@ export function registerRoutes(app: Express) {
       const { playerId, email, firstName, lastName } = req.body;
       
       console.log(`📋 [KYC SUBMIT] Submitting KYC for player:`, playerId);
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
       
       // Update player KYC status to submitted
       const { error } = await supabase
@@ -2087,8 +2109,113 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Cash-out request endpoint with credit deduction logic
+  app.post('/api/cash-out-request', async (req, res) => {
+    try {
+      const { playerId, amount, cashBalance, creditBalance, totalBalance } = req.body;
+      console.log(`💰 [CASH-OUT] Processing request for player ${playerId}: ₹${amount}`);
+      
+      // Get current player balance from database
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      const query = `
+        SELECT balance, current_credit, credit_limit, credit_approved 
+        FROM players 
+        WHERE id = $1
+      `;
+      
+      const result = await pool.query(query, [playerId]);
+      
+      if (result.rows.length === 0) {
+        await pool.end();
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      const player = result.rows[0];
+      const currentCash = parseFloat(player.balance || '0');
+      const currentCredit = parseFloat(player.current_credit || '0');
+      const requestAmount = parseFloat(amount);
+
+      // Calculate cash-out with credit deduction logic
+      let netReceivable = 0;
+      let creditDeducted = 0;
+      let remainingCash = currentCash;
+      let remainingCredit = currentCredit;
+
+      if (requestAmount <= currentCash) {
+        // Simple cash withdrawal
+        netReceivable = requestAmount;
+        remainingCash = currentCash - requestAmount;
+      } else if (requestAmount <= (currentCash + currentCredit)) {
+        // Cash + credit deduction
+        netReceivable = currentCash; // Player only receives cash portion
+        creditDeducted = requestAmount - currentCash;
+        remainingCash = 0;
+        remainingCredit = currentCredit - creditDeducted;
+      } else {
+        await pool.end();
+        return res.status(400).json({ 
+          error: 'Insufficient total balance',
+          availableBalance: currentCash + currentCredit 
+        });
+      }
+
+      // Update player balances
+      const updateQuery = `
+        UPDATE players 
+        SET balance = $1, current_credit = $2, updated_at = NOW()
+        WHERE id = $3
+        RETURNING balance, current_credit
+      `;
+      
+      const updateResult = await pool.query(updateQuery, [
+        remainingCash.toFixed(2),
+        remainingCredit.toFixed(2),
+        playerId
+      ]);
+
+      await pool.end();
+
+      // Prepare response
+      const cashOutResult = {
+        success: true,
+        playerId: parseInt(playerId),
+        requestedAmount: requestAmount,
+        netReceivable: netReceivable,
+        creditDeducted: creditDeducted,
+        newCashBalance: remainingCash,
+        newCreditBalance: remainingCredit,
+        newTotalBalance: remainingCash + remainingCredit,
+        timestamp: new Date().toISOString()
+      };
+
+      // Send real-time updates to staff portal
+      if ((global as any).pusher) {
+        (global as any).pusher.trigger('cross-portal-sync', 'cash_out_processed', cashOutResult);
+        (global as any).pusher.trigger('cross-portal-sync', 'player_balance_update', {
+          playerId: parseInt(playerId),
+          cashBalance: remainingCash,
+          creditBalance: remainingCredit,
+          totalBalance: remainingCash + remainingCredit
+        });
+      }
+
+      console.log(`✅ [CASH-OUT] Processed successfully:`, cashOutResult);
+      res.json(cashOutResult);
+
+    } catch (error) {
+      console.error('❌ [CASH-OUT] Error:', error);
+      res.status(500).json({ error: 'Failed to process cash-out request' });
+    }
+  });
+
   console.log('🚀 [ROUTES] UNIFIED CHAT SYSTEM REGISTERED - Pusher + OneSignal + Supabase integration complete');
   console.log('🔐 [ROUTES] CLERK AUTHENTICATION LOGGING SYSTEM REGISTERED - Login/Logout tracking + KYC email notifications');
+  console.log('💰 [ROUTES] CREDIT DEDUCTION CASH-OUT SYSTEM REGISTERED - Automatic credit balance deduction with real-time staff portal sync');
   
   return app;
 }

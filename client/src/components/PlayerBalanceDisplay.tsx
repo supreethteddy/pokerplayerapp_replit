@@ -68,7 +68,7 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
             Credit Limit: ₹{creditLimit.toLocaleString()}
           </div>
           <div className="text-sm opacity-75 bg-black/20 rounded-full px-4 py-2 inline-block">
-            Transfer to cash balance to play
+            Credit only - Cannot be withdrawn
           </div>
         </div>
       </div>

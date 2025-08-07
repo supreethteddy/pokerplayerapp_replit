@@ -10,7 +10,7 @@ interface CashOutRequestProps {
 export function CashOutRequest({ playerId }: CashOutRequestProps) {
   const [amount, setAmount] = useState('');
   const [isRequesting, setIsRequesting] = useState(false);
-  const { cashBalance } = usePlayerBalance(playerId);
+  const { cashBalance, creditBalance, totalBalance } = usePlayerBalance(playerId);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -23,6 +23,9 @@ export function CashOutRequest({ playerId }: CashOutRequestProps) {
           playerId: data.playerId,
           amount: data.amount,
           requestedAt: new Date().toISOString(),
+          cashBalance: cashBalance,
+          creditBalance: creditBalance,
+          totalBalance: totalBalance,
         }),
       });
       if (!response.ok) {
@@ -63,13 +66,23 @@ export function CashOutRequest({ playerId }: CashOutRequestProps) {
       return;
     }
     
-    if (requestAmount > cashBalance) {
+    if (requestAmount > totalBalance) {
       toast({
-        title: "Insufficient Balance",
-        description: `Available cash balance: ₹${cashBalance.toLocaleString()}`,
+        title: "Insufficient Total Balance",
+        description: `Available balance: ₹${totalBalance.toLocaleString()} (Cash: ₹${cashBalance.toLocaleString()}, Credit: ₹${creditBalance.toLocaleString()})`,
         variant: "destructive",
       });
       return;
+    }
+
+    // Show warning if credit will be deducted
+    if (requestAmount > cashBalance && creditBalance > 0) {
+      const creditDeduction = requestAmount - cashBalance;
+      toast({
+        title: "Credit Deduction Notice",
+        description: `Cash-out will deduct ₹${creditDeduction.toLocaleString()} from your credit balance. Net receivable: ₹${cashBalance.toLocaleString()}`,
+        variant: "default",
+      });
     }
 
     requestCashOut.mutate({ amount: requestAmount, playerId });
@@ -95,7 +108,7 @@ export function CashOutRequest({ playerId }: CashOutRequestProps) {
         <input
           type="number"
           min="1"
-          max={cashBalance}
+          max={totalBalance}
           step="1"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
@@ -104,7 +117,10 @@ export function CashOutRequest({ playerId }: CashOutRequestProps) {
           required
         />
         <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Available: ₹{cashBalance.toLocaleString()}
+          Available: ₹{totalBalance.toLocaleString()} (Cash: ₹{cashBalance.toLocaleString()}, Credit: ₹{creditBalance.toLocaleString()})
+        </div>
+        <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+          Note: Cash-out deducts credit first, you receive cash portion only
         </div>
       </div>
       

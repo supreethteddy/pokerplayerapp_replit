@@ -18,11 +18,11 @@ interface PlayerBalance {
 export function usePlayerBalance(playerId: string) {
   const queryClient = useQueryClient();
 
-  // Fetch player balance from our backend API using the working endpoint
+  // Fetch player balance from our backend API using the dual balance endpoint
   const { data: balance, isLoading, error } = useQuery<PlayerBalance>({
     queryKey: [`/api/account-balance/${playerId}`],
-    refetchInterval: 5000, // Refetch every 5 seconds as fallback
-    staleTime: 0, // Always consider data stale for fresh updates
+    refetchInterval: 3000, // Refetch every 3 seconds for real-time credit updates
+    staleTime: 0, // Always consider data stale for fresh credit updates from staff portal
   });
 
   // Real-time balance updates via Pusher (optional)
@@ -49,7 +49,17 @@ export function usePlayerBalance(playerId: string) {
       if (data.playerId?.toString() === playerId) {
         console.log('💰 [REAL-TIME BALANCE] Update received:', data);
         
-        // Invalidate and refetch balance immediately
+        // Invalidate and refetch balance immediately for credit updates
+        queryClient.invalidateQueries({ queryKey: [`/api/account-balance/${playerId}`] });
+      }
+    });
+
+    // Listen for staff portal credit approvals
+    channel.bind('credit_approved', (data: any) => {
+      if (data.playerId?.toString() === playerId) {
+        console.log('✅ [REAL-TIME CREDIT] Credit approved by staff:', data);
+        
+        // Immediately refresh balance to show new credit_balance
         queryClient.invalidateQueries({ queryKey: [`/api/account-balance/${playerId}`] });
       }
     });
@@ -92,7 +102,10 @@ export function usePlayerBalance(playerId: string) {
     isLoading,
     error,
     cashBalance: parseFloat((balance as any)?.currentBalance || balance?.cashBalance || '0'),
+    creditBalance: parseFloat((balance as any)?.creditBalance || '0'),
+    creditLimit: parseFloat((balance as any)?.creditLimit || '0'),
+    creditApproved: (balance as any)?.creditApproved || false,
     tableBalance: 0, // Hidden from player view
-    totalBalance: parseFloat((balance as any)?.currentBalance || balance?.cashBalance || '0'), // Only show cash balance
+    totalBalance: parseFloat((balance as any)?.totalBalance || (balance as any)?.currentBalance || balance?.cashBalance || '0')
   };
 }
