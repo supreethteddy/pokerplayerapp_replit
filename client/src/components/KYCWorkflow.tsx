@@ -263,7 +263,12 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
   };
 
   const isStep2Complete = () => {
-    return uploadedDocs.governmentId && uploadedDocs.utilityBill && uploadedDocs.panCard && isValidPAN(panCardNumber);
+    const panValid = isValidPAN(panCardNumber);
+    const allDocsUploaded = uploadedDocs.governmentId && uploadedDocs.utilityBill && uploadedDocs.panCard;
+    console.log('🔍 [STEP2] All docs uploaded:', allDocsUploaded, 'PAN valid:', panValid);
+    console.log('🔍 [STEP2] Docs status:', uploadedDocs);
+    console.log('🔍 [STEP2] PAN number:', panCardNumber);
+    return allDocsUploaded && panValid;
   };
 
   return (
@@ -455,16 +460,14 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
               <div className="mt-6">
                 <Button 
                   onClick={submitKYC}
-                  disabled={!isStep2Complete() || submitting}
-                  className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white h-12 text-lg font-semibold"
+                  disabled={submitting}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white h-12 text-lg font-semibold"
                 >
                   {submitting ? "Submitting..." : "Submit Documents"}
                 </Button>
-                {!isStep2Complete() && (
-                  <p className="text-center text-sm text-gray-400 mt-2">
-                    Please upload all 3 documents and enter valid PAN (Format: ABCDE1234F)
-                  </p>
-                )}
+                <p className="text-center text-sm text-green-400 mt-2">
+                  Ready to submit! Click the button above to submit your documents.
+                </p>
               </div>
             </div>
           )}
