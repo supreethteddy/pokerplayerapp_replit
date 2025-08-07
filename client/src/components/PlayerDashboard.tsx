@@ -52,7 +52,7 @@ import DualBalanceDisplay from "./DualBalanceDisplay";
 import { PlayerBalanceDisplay } from "./PlayerBalanceDisplay";
 import { PlayerTransactionHistory } from "./PlayerTransactionHistory";
 import { CashOutRequest } from "./CashOutRequest";
-import { TableOperations } from "./TableOperations";
+// TableOperations removed - players can only view balance, all operations handled by managers/cashiers
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
@@ -1845,18 +1845,7 @@ function PlayerDashboard() {
               </Card>
             </div>
 
-            {/* Table Operations Management */}
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center">
-                  <Table className="w-5 h-5 mr-2 text-emerald-500" />
-                  Table Operations
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <TableOperations playerId={user?.id?.toString() || ''} />
-              </CardContent>
-            </Card>
+            {/* Table Operations removed - players only view balance, all operations handled by managers/cashiers */}
 
             {/* VIP Club Loyalty Program */}
             <Card className="bg-gradient-to-r from-yellow-900/20 to-yellow-800/20 border-yellow-600/30">
