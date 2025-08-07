@@ -1,0 +1,116 @@
+# 🛠️  [EXPERT AGENT/DEV PROMPT] – FULL CLERK X REPLIT X SUPABASE INTEGRATION REPAIR
+
+## 🧠 Context:
+- Clerk is set up in the dashboard, keys configured, and webhooks enabled.
+- *But*: No users/orgs are syncing; no webhook activity from player/staff registration in Tracker/Staff portals.
+- Supabase “Poker Pro 2” table is *not* updated on Clerk auth events.
+- No loss or breaking of existing app functionality is allowed.
+
+---
+
+## 1️⃣   **Diagnose Current Hookup**
+
+**A. Confirm .env in ALL Replit projects (Player, Staff) contains:**
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=...` (from Clerk dashboard)
+- `CLERK_SECRET_KEY=...` (from Clerk dashboard admin/API keys)
+- All Supabase keys remain untouched!
+
+**B. In Both Projects:**
+- Confirm Clerk SDK is initialized using above keys in entry point (index.tsx, App.tsx, or server.js/ts).
+- Confirm the backend uses `CLERK_SECRET_KEY` for JWTs, not just frontend keys.
+
+---
+
+## 2️⃣   **Connect Poker Player Signup to Clerk**
+
+### Steps for Agent Execution (can be converted to JSON steps for a code agent):
+
+1. **On new player registration:**
+   - Use Clerk’s `signUp.create()` programmatically via SDK or REST endpoint—not manual DB insert!
+   - On successful creation, Clerk returns a `userId`—extract it and save to your local player record in Supabase.
+   - If KYC data is part of signup, store in Supabase, but link all with Clerk’s `userId`.
+
+2. **If already using Clerk UI for signup:**
+   - On `onSignUp` callback, extract user profile object (incl. Clerk `userId`).
+   - Push this user, along with email/phone/etc., into Supabase `<players>` or equivalent table.
+
+---
+
+## 3️⃣   **Enable Webhook Flow (Clerk → Staff Portal)**
+
+1. **Ensure your webhook endpoint is public (not localhost-only)!**
+   - Should be something like: `https://[your-staff-portal]/api/clerk/webhook`
+2. **Verify endpoint correctly parses ALL Clerk event JSONs:**
+   - Especially: `user.created`, `user.updated`, `user.deleted`, `organization.created`, etc.
+3. **For each event, log the payload and:**
+   - On `user.created`, `user.updated`: Merge/update matching Supabase record using Clerk’s `userId`.
+   - For team/org features, sync Clerk’s organization IDs/roles to your own Supabase/role system.
+
+---
+
+## 4️⃣   **Validate End-To-End (MUST DO QUANTITATIVE ASSERTIONS)**
+
+- Run sign up in Poker Room Tracker.  
+  - You **MUST see the user appear in Clerk dashboard instantly**.
+  - Within seconds, webhook log in Clerk dashboard should show delivery to your backend.
+  - In Supabase, the new player should now contain:
+    - `clerk_user_id`
+    - Email, normalized metadata, whatever extra you require.
+
+- Repeat with admin/staff roles, and verify bi-directional linkage.
+
+---
+
+## 5️⃣   **Error Handling & Logging**
+
+- Any failure at any step should be logged CLEARLY (with error/message) to Replit console, staff dashboard, *and* (optionally) sent to your admin notification system.
+- Do NOT block any other user action due to Clerk sync errors—always fallback to transactional consistency in Supabase.
+
+---
+
+## 6️⃣   **Post-Integration Checklist**
+
+- [ ] Test with new player - user in Clerk, in Supabase, and visible in portals
+- [ ] Test with new staff/admin - visible in both systems
+- [ ] KYC upload, update, and approvals flow tight linkage to user’s Clerk identity
+- [ ] Webhook logs show “200 OK” on every user/org event from Clerk
+- [ ] Supabase tables reflect all Clerk user/org/role updates
+
+---
+
+## 7️⃣   **(Optional) JSON AGENT SEQUENCE**
+
+[
+{
+"step": "Check and update all .envs with Clerk keys (frontend + backend)",
+"action": "Ensure NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY set in all projects"
+},
+{
+"step": "Update player registration API to call Clerk signUp.create (SDK/REST). On success, write clerk_user_id to Supabase.",
+"action": "Replace or augment direct Supabase user inserts with Clerk as single source of truth for auth."
+},
+{
+"step": "Configure webhook endpoint on Replit staff portal; verify is online/public.",
+"action": "Process Clerk webhook events and update Supabase player/staff/org records accordingly."
+},
+{
+"step": "Run register/login/log events; verify in Clerk, then confirm webhook logs/Clerk dashboard activity.",
+"action": "For every event, check debug logs and Supabase tables for proper writes."
+},
+{
+"step": "Audit/fix all fallback flows for error handling/unknown edge cases.",
+"action": "Never break functionality; always allow registration even if Clerk/Supabase conflict (show admin log)."
+}
+]
+
+￼
+text
+
+---
+
+# 🎯 **Agent Objective (comment to paste in repo):**
+> Full, resistant-to-interruption Clerk <> Poker portal <> Supabase round-trip integration for bulletproof, B2B-grade user, KYC, and staff management—done without breaking any existing features.
+
+---
+
+**If you copy this prompt to a Replit agent or into an integration task, it will perform a complete, expert-level, step-by-step Clerk integration/repair, audit, and rocket you to 100% compliance with best modern standards.**

@@ -914,6 +914,10 @@ export function registerRoutes(app: Express) {
           lastName: playerData.last_name,
           phone: playerData.phone,
           kycStatus: playerData.kyc_status,
+          balance: playerData.balance || '0.00',
+          current_credit: playerData.current_credit || '0.00',
+          credit_limit: playerData.credit_limit || '0.00',
+          credit_approved: playerData.credit_approved || false,
           clerkUserId: playerData.clerk_user_id
         }
       });
@@ -923,6 +927,158 @@ export function registerRoutes(app: Express) {
       res.status(500).json({ error: error.message || 'Sync failed' });
     }
   });
+
+  // ========== PRODUCTION-READY CLERK WEBHOOK ENDPOINT ==========
+  
+  // Clerk webhook endpoint for production integration
+  app.post('/api/clerk/webhook', async (req, res) => {
+    console.log('🪝 [CLERK WEBHOOK] Received event:', req.body?.type);
+    
+    try {
+      const { type, data } = req.body;
+      
+      if (!type || !data) {
+        return res.status(400).json({ error: 'Invalid webhook payload' });
+      }
+      
+      const { Client } = await import('pg');
+      const pgClient = new Client({
+        connectionString: process.env.DATABASE_URL
+      });
+      
+      await pgClient.connect();
+      
+      // Log webhook event
+      await pgClient.query(`
+        INSERT INTO clerk_webhook_events (event_type, clerk_user_id, email, webhook_payload, success)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [
+        type,
+        data.id || null,
+        data.email_addresses?.[0]?.email_address || null,
+        JSON.stringify(req.body),
+        true
+      ]);
+      
+      // Handle different webhook events
+      switch (type) {
+        case 'user.created':
+        case 'user.updated':
+          await handleUserWebhook(pgClient, data, type);
+          break;
+          
+        case 'user.deleted':
+          await handleUserDeletion(pgClient, data);
+          break;
+          
+        default:
+          console.log(`ℹ️ [CLERK WEBHOOK] Unhandled event type: ${type}`);
+      }
+      
+      await pgClient.end();
+      
+      console.log(`✅ [CLERK WEBHOOK] Successfully processed ${type} event`);
+      res.json({ success: true, processed: type });
+      
+    } catch (error: any) {
+      console.error('❌ [CLERK WEBHOOK] Error:', error);
+      
+      // Log webhook error
+      try {
+        const { Client } = await import('pg');
+        const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+        await pgClient.connect();
+        
+        await pgClient.query(`
+          INSERT INTO clerk_webhook_events (event_type, webhook_payload, success, error_message)
+          VALUES ($1, $2, $3, $4)
+        `, [
+          req.body?.type || 'unknown',
+          JSON.stringify(req.body),
+          false,
+          error.message
+        ]);
+        
+        await pgClient.end();
+      } catch (logError) {
+        console.warn('⚠️ [CLERK WEBHOOK] Could not log error:', logError.message);
+      }
+      
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  async function handleUserWebhook(pgClient: any, userData: any, eventType: string) {
+    const clerkUserId = userData.id;
+    const email = userData.email_addresses?.[0]?.email_address;
+    const firstName = userData.first_name;
+    const lastName = userData.last_name;
+    const phone = userData.phone_numbers?.[0]?.phone_number;
+    
+    if (!clerkUserId || !email) {
+      console.warn('⚠️ [CLERK WEBHOOK] Missing required user data');
+      return;
+    }
+    
+    // Check if player exists
+    const findResult = await pgClient.query(
+      'SELECT * FROM players WHERE clerk_user_id = $1 OR email = $2 LIMIT 1',
+      [clerkUserId, email]
+    );
+    
+    if (findResult.rows.length > 0) {
+      // Update existing player
+      await pgClient.query(`
+        UPDATE players 
+        SET 
+          clerk_user_id = $1,
+          email = $2,
+          first_name = COALESCE($3, first_name),
+          last_name = COALESCE($4, last_name),
+          phone = COALESCE($5, phone),
+          clerk_synced_at = NOW(),
+          last_login_at = NOW()
+        WHERE id = $6
+      `, [clerkUserId, email, firstName, lastName, phone, findResult.rows[0].id]);
+      
+      console.log(`✅ [CLERK WEBHOOK] Updated player ${findResult.rows[0].id} from ${eventType}`);
+    } else {
+      // Create new player
+      const universalId = `unified_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      await pgClient.query(`
+        INSERT INTO players (
+          email, first_name, last_name, phone, clerk_user_id, clerk_synced_at,
+          kyc_status, password, universal_id, balance, is_active, last_login_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, NOW(), 'pending', 'clerk_managed', $6, '0.00', true, NOW()
+        )
+      `, [email, firstName, lastName, phone, clerkUserId, universalId]);
+      
+      console.log(`✅ [CLERK WEBHOOK] Created new player from ${eventType}`);
+    }
+  }
+  
+  async function handleUserDeletion(pgClient: any, userData: any) {
+    const clerkUserId = userData.id;
+    
+    if (!clerkUserId) {
+      console.warn('⚠️ [CLERK WEBHOOK] Missing user ID for deletion');
+      return;
+    }
+    
+    // Mark user as inactive instead of deleting
+    await pgClient.query(`
+      UPDATE players 
+      SET 
+        is_active = false,
+        clerk_user_id = NULL,
+        clerk_synced_at = NOW()
+      WHERE clerk_user_id = $1
+    `, [clerkUserId]);
+    
+    console.log(`✅ [CLERK WEBHOOK] Deactivated player with Clerk ID: ${clerkUserId}`);
+  }
 
   // Dynamic user endpoint for authenticated users (replaces hardcoded player IDs)
   app.get('/api/auth/user', async (req, res) => {
