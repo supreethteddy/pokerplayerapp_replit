@@ -1105,38 +1105,55 @@ export function registerRoutes(app: Express) {
       const universalId = `unified_${timestamp}_${randomId}`;
       const newSupabaseId = `auth_${timestamp}_${randomId}`;
 
-      // Direct insert with all fields
-      const { data: playerData, error: createError } = await supabase
-        .from('players')
-        .insert({
-          email,
-          password,
-          first_name: firstName,
-          last_name: lastName,
-          phone,
-          clerk_user_id: clerkUserId || null,
-          supabase_id: newSupabaseId,
-          universal_id: universalId,
-          kyc_status: 'pending',
-          balance: '0.00',
-          total_deposits: '0.00',
-          total_withdrawals: '0.00',
-          total_winnings: '0.00',
-          total_losses: '0.00',
-          games_played: 0,
-          hours_played: '0.00',
-          is_active: true
-        })
-        .select()
-        .single();
+      // Use PostgreSQL client directly to bypass Supabase schema cache
+      const { Client } = await import('pg');
+      const pgClient = new Client({
+        connectionString: process.env.DATABASE_URL
+      });
+      
+      await pgClient.connect();
+      
+      const insertQuery = `
+        INSERT INTO players (
+          email, password, first_name, last_name, phone, 
+          clerk_user_id, supabase_id, universal_id,
+          kyc_status, balance, total_deposits, total_withdrawals,
+          total_winnings, total_losses, games_played, hours_played, 
+          is_active, created_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, 
+          'pending', '0.00', '0.00', '0.00', '0.00', '0.00', 0, '0.00', 
+          true, NOW()
+        ) RETURNING *
+      `;
+      
+      const result = await pgClient.query(insertQuery, [
+        email, password, firstName, lastName, phone, 
+        clerkUserId, newSupabaseId, universalId
+      ]);
+      
+      await pgClient.end();
+      
+      const playerData = result.rows[0];
 
-      if (createError) {
-        throw new Error(`Failed to create player: ${createError.message}`);
+      if (!playerData) {
+        throw new Error('Failed to create player: No data returned');
       }
 
-      // Transform to expected format
-      const storage = new SupabaseOnlyStorage();
-      const player = (storage as any).transformPlayerFromSupabase(playerData);
+      // Transform to expected format - manual transformation to avoid schema issues
+      const player = {
+        id: playerData.id,
+        email: playerData.email,
+        firstName: playerData.first_name,
+        lastName: playerData.last_name,
+        phone: playerData.phone,
+        kycStatus: playerData.kyc_status,
+        balance: playerData.balance,
+        createdAt: playerData.created_at,
+        clerkUserId: playerData.clerk_user_id,
+        supabaseId: playerData.supabase_id,
+        universalId: playerData.universal_id
+      };
 
       console.log('✅ [SIGNUP API] Player created successfully:', player.id);
       res.json(player);

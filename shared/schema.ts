@@ -29,6 +29,7 @@ export const players = pgTable("players", {
   panCardStatus: text("pan_card_status").default("missing"), // missing, pending, approved, rejected
   panCardVerified: boolean("pan_card_verified").default(false), // PAN card verification status
   panCardUploadedAt: timestamp("pan_card_uploaded_at"), // PAN card upload timestamp
+  isActive: boolean("is_active").default(true), // Player active status
   createdAt: timestamp("created_at").defaultNow(),
 });
 
