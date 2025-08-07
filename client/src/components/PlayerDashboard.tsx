@@ -61,9 +61,10 @@ import UnifiedChatDialog from "./UnifiedChatDialog";
 
 // Scrollable Offers Display Component
 const ScrollableOffersDisplay = () => {
-  const { data: offers, isLoading } = useQuery({
+  const { data: offers, isLoading, error } = useQuery({
     queryKey: ['/api/staff-offers'],
     refetchInterval: 5000, // Refresh every 5 seconds
+    retry: 1, // Only retry once to avoid spamming
   });
 
   const trackOfferView = useMutation({
@@ -73,6 +74,29 @@ const ScrollableOffersDisplay = () => {
 
   // Use only real staff offers from database - no fallback demo data
   const displayOffers = (offers && Array.isArray(offers)) ? offers : [];
+
+  // Handle error state gracefully
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <Card className="bg-slate-800 border-slate-700">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center">
+              <Gift className="w-5 h-5 mr-2 text-emerald-500" />
+              Special Offers
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-slate-400 text-center py-8">
+              <Gift className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No offers available at the moment</p>
+              <p className="text-sm mt-2">Check back later for special promotions!</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -84,6 +108,19 @@ const ScrollableOffersDisplay = () => {
           </CardTitle>
         </CardHeader>
       </Card>
+
+      {/* Show message when no offers available */}
+      {displayOffers.length === 0 && !isLoading && (
+        <Card className="bg-slate-800 border-slate-700">
+          <CardContent className="p-8">
+            <div className="text-slate-400 text-center">
+              <Gift className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No special offers available at the moment</p>
+              <p className="text-sm mt-2">Check back later for exclusive promotions!</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Scrollable offers container */}
       <div className="max-h-[600px] overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">

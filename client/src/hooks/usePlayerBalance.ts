@@ -20,13 +20,23 @@ export function usePlayerBalance(playerId: string) {
     refetchInterval: 10000, // Refetch every 10 seconds as fallback
   });
 
-  // Real-time balance updates via Pusher
+  // Real-time balance updates via Pusher (optional)
   useEffect(() => {
     if (!playerId) return;
 
-    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, {
-      cluster: import.meta.env.VITE_PUSHER_CLUSTER,
-    });
+    // Only connect to Pusher if environment variables are available
+    const pusherKey = import.meta.env.VITE_PUSHER_KEY;
+    const pusherCluster = import.meta.env.VITE_PUSHER_CLUSTER;
+    
+    if (!pusherKey || !pusherCluster) {
+      console.log('⚠️ [BALANCE] Pusher not configured, using polling only');
+      return;
+    }
+
+    try {
+      const pusher = new Pusher(pusherKey, {
+        cluster: pusherCluster,
+      });
 
     const channel = pusher.subscribe('cross-portal-sync');
     
@@ -62,11 +72,14 @@ export function usePlayerBalance(playerId: string) {
       // Could show notification here
     });
 
-    return () => {
-      pusher.unsubscribe('cross-portal-sync');
-      pusher.unsubscribe(`player-${playerId}`);
-      pusher.disconnect();
-    };
+      return () => {
+        pusher.unsubscribe('cross-portal-sync');
+        pusher.unsubscribe(`player-${playerId}`);
+        pusher.disconnect();
+      };
+    } catch (error) {
+      console.error('❌ [BALANCE] Pusher connection failed:', error);
+    }
   }, [playerId, queryClient]);
 
   return {
