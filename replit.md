@@ -30,12 +30,17 @@ Preferred communication style: Simple, everyday language.
 - **Integration**: Shares the same Supabase instance with admin dashboards for unified user management and consistent player identification (Supabase `auth.users.id` and application `players.id`).
 - **Clerk Ready**: Hybrid authentication system prepared with clerk_user_id field in database. Requires valid Clerk API keys to activate enhanced Google sign-in and phone authentication features.
 
-### Recent Achievements (August 7, 2025) - COMPLETE SIGNUP-TO-KYC WORKFLOW DEPLOYED ✅  
+### Recent Achievements (August 7, 2025) - COMPLETE CREDIT HANDLING SYSTEM DEPLOYED ✅  
 - **🎯 SEAMLESS SIGNUP-TO-KYC FLOW**: Players now experience automatic redirect from signup to KYC document upload process
 - **🔄 EXISTING USER HANDLING**: Smart detection of existing players with automatic KYC status-based redirection (no more signup failures)
 - **📄 COMPLETE KYC WORKFLOW**: Full document upload system (Government ID, Utility Bill, Profile Photo) with progress tracking
 - **🔐 HYBRID AUTHENTICATION SYSTEM**: Successfully integrated Clerk with existing Supabase authentication while preserving all original functionality
-- **💰 BALANCE TAB FULLY OPERATIONAL**: Real-time dual balance system (cash + credit) with manager/cashier control logic displaying ₹53,000 correctly
+- **💰 INTELLIGENT DUAL BALANCE SYSTEM**: Complete credit handling logic implemented with conditional cash-out rules
+  - **Cash ₹77,000 + Credit ₹0 = Normal cash-out**: Players can withdraw full cash balance when no credit is taken
+  - **Cash ₹77,000 + Credit ₹15,000 = Credit deduction**: Automatic credit deduction first, player receives cash portion only
+  - **Smart UI Logic**: Interface adapts based on credit status - shows appropriate limits and warnings
+  - **Credit Restrictions**: Credit balance clearly marked "Cannot be withdrawn" by players
+- **🔄 REAL-TIME STAFF PORTAL SYNC**: All balance changes trigger Pusher events for instant staff portal updates
 - **📱 THANK YOU PAGE INTEGRATION**: Professional completion flow with "Thank you for registering to the Poker Club" message
 - **📧 EMAIL NOTIFICATION SYSTEM**: Welcome emails on signup, KYC submission confirmations, and admin approval notifications
 - **🚀 PRODUCTION-GRADE INTEGRATION**: Complete activity logging, IP tracking, document management, and approval workflow

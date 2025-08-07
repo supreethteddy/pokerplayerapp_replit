@@ -66,23 +66,37 @@ export function CashOutRequest({ playerId }: CashOutRequestProps) {
       return;
     }
     
-    if (requestAmount > totalBalance) {
-      toast({
-        title: "Insufficient Total Balance",
-        description: `Available balance: ₹${totalBalance.toLocaleString()} (Cash: ₹${cashBalance.toLocaleString()}, Credit: ₹${creditBalance.toLocaleString()})`,
-        variant: "destructive",
-      });
-      return;
-    }
+    // Different validation based on whether player has credit
+    if (creditBalance === 0) {
+      // No credit - validate against cash balance only
+      if (requestAmount > cashBalance) {
+        toast({
+          title: "Insufficient Cash Balance",
+          description: `Available cash: ₹${cashBalance.toLocaleString()}`,
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      // Has credit - validate against total balance
+      if (requestAmount > totalBalance) {
+        toast({
+          title: "Insufficient Total Balance",
+          description: `Available balance: ₹${totalBalance.toLocaleString()} (Cash: ₹${cashBalance.toLocaleString()}, Credit: ₹${creditBalance.toLocaleString()})`,
+          variant: "destructive",
+        });
+        return;
+      }
 
-    // Show warning if credit will be deducted
-    if (requestAmount > cashBalance && creditBalance > 0) {
-      const creditDeduction = requestAmount - cashBalance;
-      toast({
-        title: "Credit Deduction Notice",
-        description: `Cash-out will deduct ₹${creditDeduction.toLocaleString()} from your credit balance. Net receivable: ₹${cashBalance.toLocaleString()}`,
-        variant: "default",
-      });
+      // Show warning if credit will be deducted
+      if (requestAmount > cashBalance && creditBalance > 0) {
+        const creditDeduction = requestAmount - cashBalance;
+        toast({
+          title: "Credit Deduction Notice",
+          description: `Cash-out will deduct ₹${creditDeduction.toLocaleString()} from your credit balance. Net receivable: ₹${cashBalance.toLocaleString()}`,
+          variant: "default",
+        });
+      }
     }
 
     requestCashOut.mutate({ amount: requestAmount, playerId });
@@ -108,7 +122,7 @@ export function CashOutRequest({ playerId }: CashOutRequestProps) {
         <input
           type="number"
           min="1"
-          max={totalBalance}
+          max={creditBalance === 0 ? cashBalance : totalBalance}
           step="1"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
@@ -116,12 +130,20 @@ export function CashOutRequest({ playerId }: CashOutRequestProps) {
           placeholder="Enter amount"
           required
         />
-        <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Available: ₹{totalBalance.toLocaleString()} (Cash: ₹{cashBalance.toLocaleString()}, Credit: ₹{creditBalance.toLocaleString()})
-        </div>
-        <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-          Note: Cash-out deducts credit first, you receive cash portion only
-        </div>
+        {creditBalance === 0 ? (
+          <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Available for cash-out: ₹{cashBalance.toLocaleString()}
+          </div>
+        ) : (
+          <>
+            <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Available: ₹{totalBalance.toLocaleString()} (Cash: ₹{cashBalance.toLocaleString()}, Credit: ₹{creditBalance.toLocaleString()})
+            </div>
+            <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+              Note: Cash-out deducts credit first, you receive cash portion only
+            </div>
+          </>
+        )}
       </div>
       
       <div className="flex space-x-2">

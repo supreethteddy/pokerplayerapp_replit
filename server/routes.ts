@@ -2146,22 +2146,37 @@ export function registerRoutes(app: Express) {
       let remainingCash = currentCash;
       let remainingCredit = currentCredit;
 
-      if (requestAmount <= currentCash) {
-        // Simple cash withdrawal
-        netReceivable = requestAmount;
-        remainingCash = currentCash - requestAmount;
-      } else if (requestAmount <= (currentCash + currentCredit)) {
-        // Cash + credit deduction
-        netReceivable = currentCash; // Player only receives cash portion
-        creditDeducted = requestAmount - currentCash;
-        remainingCash = 0;
-        remainingCredit = currentCredit - creditDeducted;
+      if (currentCredit === 0) {
+        // No credit taken - player can cash out full amount from their cash balance
+        if (requestAmount <= currentCash) {
+          netReceivable = requestAmount;
+          remainingCash = currentCash - requestAmount;
+        } else {
+          await pool.end();
+          return res.status(400).json({ 
+            error: 'Insufficient cash balance',
+            availableCash: currentCash 
+          });
+        }
       } else {
-        await pool.end();
-        return res.status(400).json({ 
-          error: 'Insufficient total balance',
-          availableBalance: currentCash + currentCredit 
-        });
+        // Player has credit - apply credit deduction logic
+        if (requestAmount <= currentCash) {
+          // Simple cash withdrawal (no credit needed)
+          netReceivable = requestAmount;
+          remainingCash = currentCash - requestAmount;
+        } else if (requestAmount <= (currentCash + currentCredit)) {
+          // Cash + credit deduction
+          netReceivable = currentCash; // Player only receives cash portion
+          creditDeducted = requestAmount - currentCash;
+          remainingCash = 0;
+          remainingCredit = currentCredit - creditDeducted;
+        } else {
+          await pool.end();
+          return res.status(400).json({ 
+            error: 'Insufficient total balance',
+            availableBalance: currentCash + currentCredit 
+          });
+        }
       }
 
       // Update player balances
