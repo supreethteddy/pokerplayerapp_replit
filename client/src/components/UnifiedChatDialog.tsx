@@ -151,17 +151,17 @@ const UnifiedChatDialog: React.FC<UnifiedChatDialogProps> = ({
     const loadExistingMessages = async () => {
       try {
         console.log('📚 [UNIFIED CHAT] Loading existing messages for player:', playerId);
-        const response = await fetch(`/api/chat-history/${playerId}`);
+        const response = await fetch(`/api/unified-chat/messages/${playerId}`);
         const data = await response.json();
         
         if (data.success && data.conversations && data.conversations[0]) {
           const formattedMessages: ChatMessage[] = data.conversations[0].chat_messages.map((msg: any) => ({
             id: msg.id,
-            message: msg.message_text,
+            message: msg.message || msg.message_text,
             sender: msg.sender as 'player' | 'staff',
             sender_name: msg.sender_name,
             timestamp: msg.timestamp,
-            isFromStaff: msg.sender === 'staff'
+            isFromStaff: msg.sender === 'staff' || msg.sender === 'gre'
           }));
           setMessages(formattedMessages);
           console.log('✅ [UNIFIED CHAT] Loaded', formattedMessages.length, 'messages');

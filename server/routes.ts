@@ -760,44 +760,36 @@ export function registerRoutes(app: Express) {
   // Get Active (Non-Archived) Chat Messages
   app.get("/api/unified-chat/messages/:playerId", async (req, res) => {
     try {
-      const { playerId } = req.params;
-      console.log(`📋 [CHAT SYSTEM] Getting messages for player: ${playerId}`);
+      const playerId = parseInt(req.params.playerId);
+      console.log(`📋 [FIXED CHAT SYSTEM] Getting messages for player: ${playerId}`);
 
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      // Get only active (non-archived) messages
-      const { data: messages, error } = await supabase
-        .from('chat_messages')
-        .select('id, player_id, sender_name, sender, message_text, status, timestamp')
-        .eq('player_id', playerId)
-        .neq('status', 'archived')
-        .order('timestamp', { ascending: true });
-
-      if (error) {
-        console.error('❌ [CHAT SYSTEM] Error fetching messages:', error);
-        return res.status(500).json({ error: 'Failed to fetch messages' });
+      // Use direct chat system to get messages (it handles the database correctly)
+      const result = await directChat.getChatHistory(playerId);
+      
+      if (!result.success) {
+        console.error('❌ [FIXED CHAT SYSTEM] Error from direct chat system');
+        return res.status(500).json({ error: "Failed to fetch messages" });
       }
-
-      // Transform messages to frontend format
-      const transformedMessages = (messages || []).map(msg => ({
-        id: msg.id,
-        message: msg.message_text,
-        sender: msg.sender === 'player' ? 'player' : 'staff',
-        sender_name: msg.sender_name || 'System',
-        timestamp: msg.timestamp,
-        status: msg.status || 'sent'
-      }));
-
-      console.log(`✅ [CHAT SYSTEM] Retrieved ${transformedMessages.length} messages for player ${playerId}`);
-      res.json(transformedMessages);
-
-    } catch (error) {
-      console.error('❌ [CHAT SYSTEM] Error loading messages:', error);
-      res.status(500).json({ error: 'Failed to load messages' });
+      
+      console.log(`✅ [FIXED CHAT SYSTEM] Retrieved ${result.conversations[0]?.chat_messages?.length || 0} messages for player ${playerId}`);
+      
+      // Transform messages to expected frontend format
+      if (result.conversations[0]?.chat_messages) {
+        result.conversations[0].chat_messages = result.conversations[0].chat_messages.map(msg => ({
+          id: msg.id,
+          message: msg.message_text,
+          sender: msg.sender,
+          sender_name: msg.sender_name,
+          timestamp: msg.timestamp,
+          isFromStaff: msg.sender === 'staff' || msg.sender === 'gre'
+        }));
+      }
+      
+      res.json(result);
+      
+    } catch (error: any) {
+      console.error('❌ [FIXED CHAT SYSTEM] Error:', error);
+      res.status(500).json({ error: error.message });
     }
   });
 
