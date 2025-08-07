@@ -44,8 +44,9 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     // Determine the correct step based on KYC status and existing data
     const initializeStep = async () => {
       try {
-        // Check player details completion
-        const playerResponse = await fetch(`/api/players/${playerData.id}`);
+        // Check player details completion - use correct ID field
+        const playerId = playerData?.id || playerData?.playerId;
+        const playerResponse = await fetch(`/api/players/${playerId}`);
         if (playerResponse.ok) {
           const player = await playerResponse.json();
           if (player.phone) {
@@ -56,7 +57,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
             setPanCardNumber(player.pan_card || '');
             
             // Check document uploads
-            const docsResponse = await fetch(`/api/documents/player/${playerData.id}`);
+            const docsResponse = await fetch(`/api/documents/player/${playerId}`);
             if (docsResponse.ok) {
               const docs = await docsResponse.json();
               const docStatus = {
@@ -95,7 +96,9 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     try {
       setUploading(true);
       
-      const response = await apiRequest('PUT', `/api/players/${playerData.id}`, {
+      // Get correct player ID
+      const playerId = playerData?.id || playerData?.playerId;
+      const response = await apiRequest('PUT', `/api/players/${playerId}`, {
         firstName: userDetails.firstName,
         lastName: userDetails.lastName,
         phone: userDetails.phone
