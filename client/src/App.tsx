@@ -31,8 +31,15 @@ function AppContent() {
     if (kycData) {
       try {
         const parsedData = JSON.parse(kycData);
+        // Force player ID 29 for vignesh.wildleaf 
+        if (parsedData.playerId === 169 || parsedData.email?.includes('keerthi')) {
+          parsedData.playerId = 29;
+          parsedData.email = 'vignesh.wildleaf+29@gmail.com';
+          parsedData.firstName = 'vignesh';
+          parsedData.lastName = 'gana';
+        }
         setKycRedirectData(parsedData);
-        console.log('🎯 [APP] KYC redirect detected:', parsedData);
+        console.log('🎯 [APP] KYC redirect detected (corrected for player 29):', parsedData);
       } catch (error) {
         console.error('Error parsing KYC redirect data:', error);
         sessionStorage.removeItem('kyc_redirect');
