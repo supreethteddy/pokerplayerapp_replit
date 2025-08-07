@@ -49,6 +49,10 @@ import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
 import type { Table as TableType, SeatRequest, KycDocument } from "@shared/schema";
 import DualBalanceDisplay from "./DualBalanceDisplay";
+import { PlayerBalanceDisplay } from "./PlayerBalanceDisplay";
+import { PlayerTransactionHistory } from "./PlayerTransactionHistory";
+import { CashOutRequest } from "./CashOutRequest";
+import { TableOperations } from "./TableOperations";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
@@ -1774,20 +1778,49 @@ function PlayerDashboard() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Regular Account Balance */}
-                  {/* Enhanced Dual Balance Display */}
-                  <DualBalanceDisplay className="mb-6" />
+                  {/* THREE-TIER BALANCE MANAGEMENT SYSTEM */}
+                  <div className="space-y-4">
+                    {/* Main Balance Display */}
+                    <PlayerBalanceDisplay playerId={user?.id?.toString() || ''} />
+                    
+                    {/* Balance Actions Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div className="bg-slate-700/50 border border-slate-600 rounded-lg p-4">
+                        <h4 className="text-white font-medium mb-3">Request Cash-Out</h4>
+                        <CashOutRequest playerId={user?.id?.toString() || ''} />
+                      </div>
+                      
+                      <div className="bg-slate-700/50 border border-slate-600 rounded-lg p-4">
+                        <h4 className="text-white font-medium mb-3">Recent Transactions</h4>
+                        <div className="max-h-40 overflow-y-auto">
+                          <PlayerTransactionHistory playerId={user?.id?.toString() || ''} limit={3} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   
                   {/* Balance Management Note */}
-                  <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3">
-                    <p className="text-xs text-blue-300">
-                      <strong>Balance Management:</strong> Regular balance changes are handled by cashier/admin staff. 
-                      Credit limit adjustments require super admin approval through the credit request system.
+                  <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-lg p-3 mt-4">
+                    <p className="text-xs text-emerald-300">
+                      <strong>Three-Tier Balance System:</strong> Real-time balance updates with instant table operations and cash-out requests.
                     </p>
                   </div>
                 </CardContent>
               </Card>
             </div>
+
+            {/* Table Operations Management */}
+            <Card className="bg-slate-800 border-slate-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center">
+                  <Table className="w-5 h-5 mr-2 text-emerald-500" />
+                  Table Operations
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <TableOperations playerId={user?.id?.toString() || ''} />
+              </CardContent>
+            </Card>
 
             {/* VIP Club Loyalty Program */}
             <Card className="bg-gradient-to-r from-yellow-900/20 to-yellow-800/20 border-yellow-600/30">
