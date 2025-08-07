@@ -41,7 +41,6 @@ import { directChat } from './direct-chat-system';
 
 // Import Clerk integration
 import { ClerkPlayerSync } from './clerk-integration';
-import { SupabaseOnlyStorage } from './supabase-only-storage';
 
 // Import staff portal integration
 import staffPortalRoutes from './routes/staff-portal-integration';
@@ -2715,6 +2714,16 @@ export function registerRoutes(app: Express) {
   });
 
   console.log('🚀 [ROUTES] UNIFIED CHAT SYSTEM REGISTERED - Pusher + OneSignal + Supabase integration complete');
+
+  // ========== CLERK INTEGRATION ENDPOINTS ==========
+  
+  // Production-ready Clerk webhook endpoint
+  app.post('/api/clerk/webhook', ClerkPlayerSync.handleWebhook);
+  
+  // Manual Clerk sync endpoint 
+  app.post('/api/clerk/sync', ClerkPlayerSync.syncPlayer);
+  
+  console.log('🔐 [ROUTES] CLERK INTEGRATION REGISTERED - Webhook + Sync endpoints active');
   console.log('🔐 [ROUTES] CLERK AUTHENTICATION LOGGING SYSTEM REGISTERED - Login/Logout tracking + KYC email notifications');
   console.log('💰 [ROUTES] CREDIT DEDUCTION CASH-OUT SYSTEM REGISTERED - Automatic credit balance deduction with real-time staff portal sync');
   
