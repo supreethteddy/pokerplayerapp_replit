@@ -332,6 +332,151 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // CRITICAL MISSING ENDPOINT: Cashier Cash-Out Processing 
+  app.post("/api/cashier/process-cash-out", async (req, res) => {
+    try {
+      const { requestId, approvedBy, notes } = req.body;
+      console.log(`💰 [CASHIER PROCESSING] Processing cash-out request: ${requestId}`);
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Get the cash-out request details
+      const { data: request, error: requestError } = await supabase
+        .from('cash_out_requests')
+        .select('*')
+        .eq('id', requestId)
+        .eq('status', 'pending')
+        .single();
+
+      if (requestError || !request) {
+        return res.status(404).json({ error: 'Cash-out request not found or already processed' });
+      }
+
+      const { player_id: playerId, amount } = request;
+
+      // Get current player balance
+      const { data: player, error: playerError } = await supabase
+        .from('players')
+        .select('balance, first_name, last_name')
+        .eq('id', playerId)
+        .single();
+
+      if (playerError || !player) {
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      const currentBalance = parseFloat(player.balance || '0');
+      
+      // Validate sufficient balance
+      if (amount > currentBalance) {
+        // Mark request as rejected
+        await supabase
+          .from('cash_out_requests')
+          .update({
+            status: 'rejected',
+            processed_at: new Date().toISOString(),
+            processed_by: approvedBy,
+            notes: `Insufficient balance. Available: ₹${currentBalance.toLocaleString()}`
+          })
+          .eq('id', requestId);
+
+        return res.status(400).json({ 
+          error: `Insufficient balance. Available: ₹${currentBalance.toLocaleString()}`
+        });
+      }
+
+      // CRITICAL: Update player balance by deducting the cash-out amount
+      const newBalance = currentBalance - amount;
+      const { error: updateError } = await supabase
+        .from('players')
+        .update({ balance: newBalance.toString() })
+        .eq('id', playerId);
+
+      if (updateError) {
+        console.error('❌ [CASHIER PROCESSING] Balance update error:', updateError);
+        return res.status(500).json({ error: 'Failed to update player balance' });
+      }
+
+      // Update request status to approved
+      const { error: statusError } = await supabase
+        .from('cash_out_requests')
+        .update({
+          status: 'approved',
+          processed_at: new Date().toISOString(),
+          processed_by: approvedBy,
+          notes: notes || 'Processed by cashier'
+        })
+        .eq('id', requestId);
+
+      if (statusError) {
+        console.error('❌ [CASHIER PROCESSING] Status update error:', statusError);
+      }
+
+      // Record transaction for the cash-out
+      const { data: transaction, error: transactionError } = await supabase
+        .from('transactions')
+        .insert({
+          player_id: playerId,
+          type: 'cashier_withdrawal',
+          amount,
+          description: `Cash-out processed by cashier: ${approvedBy}`,
+          staff_id: approvedBy || 'cashier',
+          status: 'completed'
+        })
+        .select()
+        .single();
+
+      if (transactionError) {
+        console.error('❌ [CASHIER PROCESSING] Transaction error:', transactionError);
+      }
+
+      // CRITICAL: Trigger real-time balance updates via Pusher
+      await pusher.trigger('cross-portal-sync', 'player_balance_update', {
+        playerId,
+        type: 'cashier_withdrawal',
+        amount,
+        newBalance,
+        requestId,
+        timestamp: new Date().toISOString()
+      });
+
+      // Notify player of processed cash-out
+      await pusher.trigger(`player-${playerId}`, 'balance_updated', {
+        cashBalance: newBalance,
+        operation: 'cashier_withdrawal',
+        amount,
+        requestId
+      });
+
+      // Notify staff portal of processed request
+      await pusher.trigger('cashier-notifications', 'cash_out_processed', {
+        requestId,
+        playerId,
+        playerName: `${player.first_name} ${player.last_name}`,
+        amount,
+        newBalance,
+        processedBy: approvedBy,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log(`✅ [CASHIER PROCESSING] Cash-out approved: Player ${playerId}, Amount: ₹${amount}, New Balance: ₹${newBalance}`);
+      res.json({ 
+        success: true,
+        newBalance,
+        transaction: transaction?.id,
+        message: `Cash-out processed successfully. New balance: ₹${newBalance.toLocaleString()}`
+      });
+
+    } catch (error: any) {
+      console.error('❌ [CASHIER PROCESSING] Error:', error);
+      res.status(500).json({ error: 'Failed to process cash-out request' });
+    }
+  });
+
   // Table Buy-in API - Deduct balance for table operations
   app.post("/api/table/buy-in", async (req, res) => {
     try {
