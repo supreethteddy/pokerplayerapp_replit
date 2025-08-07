@@ -1,229 +1,127 @@
-import { useState, useEffect } from "react";
-import { useUser, useClerk } from "@clerk/clerk-react";
-import { supabase } from "@/lib/supabase";
-import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useUser, useAuth as useClerkAuth } from '@clerk/clerk-react';
+import { useUltraFastAuth } from './useUltraFastAuth';
+import { useState, useEffect } from 'react';
 
-export interface AuthUser {
-  id: string;
+export interface HybridUser {
+  id: number;
   email: string;
   firstName: string;
   lastName: string;
-  phone: string;
+  phone?: string;
   kycStatus: string;
   balance: string;
-  realBalance: string;
-  creditBalance: string;
-  creditLimit: string;
-  creditApproved: boolean;
-  totalBalance: string;
-  totalDeposits: string;
-  totalWithdrawals: string;
-  totalWinnings: string;
-  totalLosses: string;
-  gamesPlayed: number;
-  hoursPlayed: string;
+  current_credit: string;
+  credit_limit: string;
+  credit_approved: boolean;
   clerkUserId?: string;
+  authType: 'clerk' | 'supabase' | 'hybrid';
 }
 
 export function useHybridAuth() {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Clerk authentication state
   const { user: clerkUser, isLoaded: clerkLoaded, isSignedIn } = useUser();
-  const clerk = useClerk();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const { signOut: clerkSignOut } = useClerkAuth();
+  
+  // Existing Supabase authentication state
+  const { user: supabaseUser, loading: supabaseLoading, authChecked } = useUltraFastAuth();
+  
+  const [hybridUser, setHybridUser] = useState<HybridUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [syncInProgress, setSyncInProgress] = useState(false);
 
+  // Sync Clerk user with backend when Clerk auth state changes
   useEffect(() => {
-    let mounted = true;
-
-    // Force timeout after 8 seconds for reliable initialization
-    const forceTimeout = setTimeout(() => {
-      if (mounted) {
-        console.log('🕐 [HYBRID AUTH] Force timeout - ending loading state');
-        setLoading(false);
+    async function syncClerkUser() {
+      if (!clerkLoaded || !isSignedIn || !clerkUser || syncInProgress) {
+        return;
       }
-    }, 8000);
 
-    // Wait for Clerk to load before proceeding
-    if (!clerkLoaded) {
-      console.log('⏳ [HYBRID AUTH] Waiting for Clerk to load...');
-      return;
-    }
-
-    console.log('🔄 [HYBRID AUTH] Clerk loaded, signed in:', isSignedIn);
-
-    if (isSignedIn && clerkUser) {
-      // User is signed in with Clerk - sync with Supabase
-      syncWithSupabase(clerkUser);
-    } else {
-      // No Clerk user - check Supabase session
-      checkSupabaseSession();
-    }
-
-    return () => {
-      mounted = false;
-      clearTimeout(forceTimeout);
-    };
-
-    async function syncWithSupabase(clerkUser: any) {
-      console.log('🔗 [HYBRID AUTH] Syncing Clerk user with Supabase:', clerkUser.emailAddresses[0]?.emailAddress);
+      setSyncInProgress(true);
       
       try {
-        const response = await fetch('/api/auth/clerk-sync', {
+        console.log('🔄 [HYBRID AUTH] Syncing Clerk user with backend...');
+        
+        const response = await fetch('/api/clerk/sync', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             clerkUserId: clerkUser.id,
-            email: clerkUser.emailAddresses[0]?.emailAddress,
+            email: clerkUser.primaryEmailAddress?.emailAddress,
             firstName: clerkUser.firstName,
             lastName: clerkUser.lastName,
-            phone: clerkUser.phoneNumbers[0]?.phoneNumber,
-            emailVerified: clerkUser.emailAddresses[0]?.verification.status === 'verified'
-          }),
+            phone: clerkUser.primaryPhoneNumber?.phoneNumber,
+            emailVerified: clerkUser.primaryEmailAddress?.verification?.status === 'verified'
+          })
         });
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const { player } = await response.json();
-        
-        // Enhanced user data with dual balance system
-        const enhancedUserData: AuthUser = {
-          ...player,
-          realBalance: player.balance || '0.00',
-          creditBalance: player.current_credit || '0.00',
-          creditLimit: player.credit_limit || '0.00',
-          creditApproved: player.credit_approved || false,
-          totalBalance: (parseFloat(player.balance || '0.00') + parseFloat(player.current_credit || '0.00')).toFixed(2),
-          clerkUserId: clerkUser.id
-        };
-        
-        console.log('✅ [HYBRID AUTH] Clerk user synced:', enhancedUserData.email);
-        setUser(enhancedUserData);
-        setLoading(false);
-
-        // Set session storage flag for loading screen
-        sessionStorage.setItem('just_signed_in', 'true');
-        
-      } catch (error: any) {
-        console.error('❌ [HYBRID AUTH] Clerk sync error:', error);
-        toast({
-          title: "Sync Error",
-          description: "Failed to sync account data. Please try signing out and back in.",
-          variant: "destructive",
-        });
-        setLoading(false);
-      }
-    }
-
-    async function checkSupabaseSession() {
-      console.log('🔍 [HYBRID AUTH] Checking Supabase session...');
-      
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          console.log('📧 [HYBRID AUTH] Found Supabase session:', session.user.email);
-          await fetchUserData(session.user.id);
+        if (response.ok) {
+          const data = await response.json();
+          setHybridUser({
+            ...data.player,
+            authType: 'clerk' as const
+          });
+          console.log('✅ [HYBRID AUTH] Clerk user synced successfully');
         } else {
-          console.log('🚫 [HYBRID AUTH] No active sessions found');
-          setLoading(false);
+          console.error('❌ [HYBRID AUTH] Failed to sync Clerk user');
         }
       } catch (error) {
-        console.error('❌ [HYBRID AUTH] Supabase session check error:', error);
-        setLoading(false);
+        console.error('❌ [HYBRID AUTH] Sync error:', error);
+      } finally {
+        setSyncInProgress(false);
       }
     }
-  }, [clerkLoaded, isSignedIn, clerkUser]);
 
-  const fetchUserData = async (supabaseUserId: string) => {
-    console.log('🔍 [HYBRID AUTH] Fetching user data for Supabase ID:', supabaseUserId);
-    
-    try {
-      const response = await fetch(`/api/players/supabase/${supabaseUserId}`, {
-        credentials: 'include',
-        cache: 'no-cache',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+    syncClerkUser();
+  }, [clerkUser, clerkLoaded, isSignedIn, syncInProgress]);
+
+  // Use Supabase user if no Clerk user is available
+  useEffect(() => {
+    if (!isSignedIn && supabaseUser && !syncInProgress) {
+      setHybridUser({
+        ...supabaseUser,
+        authType: 'supabase' as const
       });
-      
-      if (!response.ok) {
-        if (response.status === 404) {
-          console.log('🚫 [HYBRID AUTH] Player not found - signing out');
-          await supabase.auth.signOut();
-          setUser(null);
-          setLoading(false);
-          return;
-        }
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const userData = await response.json();
-      
-      // Enhanced user data with dual balance system
-      const enhancedUserData: AuthUser = {
-        ...userData,
-        realBalance: userData.balance || '0.00',
-        creditBalance: userData.currentCredit || '0.00',
-        creditLimit: userData.creditLimit || '0.00',
-        creditApproved: userData.creditApproved || false,
-        totalBalance: (parseFloat(userData.balance || '0.00') + parseFloat(userData.currentCredit || '0.00')).toFixed(2)
-      };
-      
-      console.log('✅ [HYBRID AUTH] User data fetched:', enhancedUserData.email);
-      setUser(enhancedUserData);
-      setLoading(false);
-      
-    } catch (error: any) {
-      console.error('❌ [HYBRID AUTH] Fetch error:', error);
-      setLoading(false);
+      console.log('📱 [HYBRID AUTH] Using Supabase authentication');
+    } else if (!isSignedIn && !supabaseUser && clerkLoaded && authChecked) {
+      setHybridUser(null);
+      console.log('🚫 [HYBRID AUTH] No authenticated user');
     }
-  };
+  }, [isSignedIn, supabaseUser, clerkLoaded, authChecked, syncInProgress]);
+
+  // Update loading state
+  useEffect(() => {
+    const loading = !clerkLoaded || supabaseLoading || syncInProgress;
+    setIsLoading(loading);
+  }, [clerkLoaded, supabaseLoading, syncInProgress]);
 
   const signOut = async () => {
     try {
-      setLoading(true);
-      
-      // Sign out from both systems
-      if (isSignedIn && clerk) {
-        await clerk.signOut();
-        console.log('✅ [HYBRID AUTH] Clerk signed out');
+      // Sign out from Clerk if signed in
+      if (isSignedIn) {
+        await clerkSignOut();
       }
       
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      // Clear hybrid user state
+      setHybridUser(null);
       
-      console.log('✅ [HYBRID AUTH] Supabase signed out');
-      
-      setUser(null);
-      queryClient.clear();
-      
-      toast({
-        title: "Signed Out",
-        description: "You have been signed out successfully",
-      });
-    } catch (error: any) {
+      // The existing Supabase signout will be handled by useUltraFastAuth
+      console.log('✅ [HYBRID AUTH] Signed out successfully');
+    } catch (error) {
       console.error('❌ [HYBRID AUTH] Sign out error:', error);
-      toast({
-        title: "Sign Out Failed",
-        description: error.message || "Failed to sign out",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
     }
   };
 
   return {
-    user,
-    loading,
-    isSignedIn,
-    clerkUser,
+    user: hybridUser,
+    loading: isLoading,
+    authChecked: clerkLoaded && authChecked,
+    isAuthenticated: !!hybridUser,
+    isClerkUser: isSignedIn,
+    isSupabaseUser: !isSignedIn && !!supabaseUser,
     signOut,
+    clerkUser,
+    supabaseUser
   };
 }

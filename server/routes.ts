@@ -773,7 +773,7 @@ export function registerRoutes(app: Express) {
               // Send OneSignal notification to staff
               try {
                 await oneSignalClient.createNotification({
-                  app_id: process.env.ONESIGNAL_APP_ID!,
+                  app_id: process.env.ONESIGNAL_APP_ID! as any,
                   contents: { en: `New chat from ${playerName}: ${message.substring(0, 50)}...` },
                   headings: { en: "New Player Chat Request" },
                   included_segments: ['All']
@@ -1000,7 +1000,7 @@ export function registerRoutes(app: Express) {
         ]);
         
         await pgClient.end();
-      } catch (logError) {
+      } catch (logError: any) {
         console.warn('⚠️ [CLERK WEBHOOK] Could not log error:', logError.message);
       }
       

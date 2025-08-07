@@ -4,7 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { X, Eye, EyeOff, Phone, Mail } from 'lucide-react';
+import { useHybridAuth } from '../hooks/useHybridAuth';
 import { useUltraFastAuth } from '../hooks/useUltraFastAuth';
+import { SignIn, SignUp } from '@clerk/clerk-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function DirectClubsAuth() {
@@ -20,6 +22,7 @@ export default function DirectClubsAuth() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   
+  const { user, loading: authLoading, isClerkUser } = useHybridAuth();
   const { signIn, signUp } = useUltraFastAuth();
   const { toast } = useToast();
 
