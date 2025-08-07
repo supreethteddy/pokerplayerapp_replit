@@ -694,54 +694,72 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
       
+      // Use direct PostgreSQL connection to bypass schema cache issues
+      const { Client } = await import('pg');
+      const pgClient = new Client({
+        connectionString: process.env.DATABASE_URL
+      });
+      
+      await pgClient.connect();
+      
       // Check if player already exists by email
-      const { data: existingPlayer, error: findError } = await supabase
-        .from('players')
-        .select('*')
-        .eq('email', email)
-        .single();
+      const findQuery = 'SELECT * FROM players WHERE email = $1 LIMIT 1';
+      const findResult = await pgClient.query(findQuery, [email]);
+      const existingPlayer = findResult.rows[0];
       
       let playerData;
       
-      if (existingPlayer && !findError) {
+      if (existingPlayer) {
         // Update existing player with Clerk ID
-        const { data: updatedPlayer, error: updateError } = await supabase
-          .from('players')
-          .update({ 
-            clerk_user_id: clerkUserId,
-            clerk_synced_at: new Date().toISOString(),
-            first_name: firstName || existingPlayer.first_name,
-            last_name: lastName || existingPlayer.last_name,
-            phone: phone || existingPlayer.phone
-          })
-          .eq('id', existingPlayer.id)
-          .select()
-          .single();
+        const updateQuery = `
+          UPDATE players 
+          SET 
+            clerk_user_id = $1,
+            clerk_synced_at = NOW(),
+            first_name = COALESCE($2, first_name),
+            last_name = COALESCE($3, last_name),
+            phone = COALESCE($4, phone)
+          WHERE id = $5
+          RETURNING *
+        `;
         
-        if (updateError) throw updateError;
+        const updateResult = await pgClient.query(updateQuery, [
+          clerkUserId,
+          firstName,
+          lastName,
+          phone,
+          existingPlayer.id
+        ]);
         
-        playerData = updatedPlayer;
+        playerData = updateResult.rows[0];
         console.log('✅ [CLERK SYNC] Updated existing player:', existingPlayer.id);
         
       } else {
         // Create new player with Clerk ID
-        const { data: newPlayer, error: createError } = await supabase
-          .from('players')
-          .insert({
-            email,
-            first_name: firstName,
-            last_name: lastName,
-            phone,
-            clerk_user_id: clerkUserId,
-            clerk_synced_at: new Date().toISOString(),
-            kyc_status: emailVerified ? 'pending' : 'incomplete',
-            password: 'clerk_managed', // Placeholder since Clerk handles auth
-            universal_id: `unified_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            balance: '0.00',
-            is_active: true
-          })
-          .select()
-          .single();
+        const insertQuery = `
+          INSERT INTO players (
+            email, first_name, last_name, phone, clerk_user_id, clerk_synced_at,
+            kyc_status, password, universal_id, balance, is_active
+          ) VALUES (
+            $1, $2, $3, $4, $5, NOW(), $6, 'clerk_managed', $7, '0.00', true
+          )
+          RETURNING *
+        `;
+        
+        const universalId = `unified_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        const createResult = await pgClient.query(insertQuery, [
+          email,
+          firstName,
+          lastName,
+          phone,
+          clerkUserId,
+          emailVerified ? 'pending' : 'incomplete',
+          universalId
+        ]);
+        
+        playerData = createResult.rows[0];
+        console.log('✅ [CLERK SYNC] Created new player:', playerData.id);
         
         if (createError) throw createError;
         
