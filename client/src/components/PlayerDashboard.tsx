@@ -382,6 +382,9 @@ function PlayerDashboard() {
   
   // Unified Chat Dialog state
   const [unifiedChatOpen, setUnifiedChatOpen] = useState(false);
+  
+  // Unified Chat messages state (CRITICAL FIX)
+  const [unifiedChatMessages, setUnifiedChatMessages] = useState<any[]>([]);
 
   
   // Handle tab navigation from URL parameters
@@ -516,7 +519,7 @@ function PlayerDashboard() {
       const response = await apiRequest('POST', '/api/waitlist/join', {
         playerId: user?.id,
         tableId: tableId,
-        tableName: tables.find((t: any) => t.id === tableId)?.name || 'Table',
+        tableName: tables?.find((t: any) => t.id === tableId)?.name || 'Table',
         preferredSeat: null
       });
       return response.json();
@@ -713,7 +716,7 @@ function PlayerDashboard() {
     });
     
     // PRODUCTION DATA VALIDATION - NO MOCK/TEST DATA ALLOWED
-    if (!user.id || user.id === 0 || chatMessage.includes('test') || chatMessage.includes('demo')) {
+    if (!user.id || typeof user.id === 'string' || chatMessage.includes('test') || chatMessage.includes('demo')) {
       console.error('❌ FRONTEND DEBUG: INVALID USER MESSAGE CONTEXT - Mock/test data detected');
       toast({
         title: "Error",
@@ -789,7 +792,7 @@ function PlayerDashboard() {
         setSendingChatMessage(false);
         console.log('🛑 FRONTEND DEBUG: === PLAYER MESSAGE SEND END (WEBSOCKET SUCCESS) ===');
         return;
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ FRONTEND DEBUG: WebSocket transmission failed | Details:', {
           error: error.message,
           connectionState: wsConnection?.readyState,
@@ -1805,7 +1808,7 @@ function PlayerDashboard() {
                   <CardContent>
                     <CreditTransfer 
                       playerId={user?.id?.toString() || ''} 
-                      availableCredit={accountBalance?.availableCredit || 0}
+                      availableCredit={(accountBalance as any)?.availableCredit || 0}
                     />
                   </CardContent>
                 </Card>
