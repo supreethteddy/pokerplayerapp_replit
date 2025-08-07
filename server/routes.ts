@@ -55,52 +55,49 @@ export function registerRoutes(app: Express) {
       const playerId = parseInt(req.params.playerId);
       console.log(`💰 [BALANCE API] Getting balance for player: ${playerId}`);
 
-      // Get player's cash balance from Supabase
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      // Get player data from Supabase
-      const { data: player, error: playerError } = await supabase
-        .from('players')
-        .select('id, first_name, last_name, balance')
-        .eq('id', playerId)
+      // Get account balance from three-tier balance system
+      const { data: accountBalance, error: accountError } = await supabase
+        .from('account_balances')
+        .select('*')
+        .eq('player_id', playerId)
         .single();
 
-      if (playerError || !player) {
-        console.error('❌ [BALANCE API] Player not found:', playerError);
-        return res.status(404).json({ error: 'Player not found' });
+      if (accountError || !accountBalance) {
+        console.error('❌ [BALANCE API] Account balance not found:', accountError);
+        return res.status(404).json({ error: 'Account balance not found' });
       }
 
-      // Get transactions to calculate table balance
-      const { data: transactions, error: transactionsError } = await supabase
-        .from('transactions')
-        .select('type, amount')
-        .eq('player_id', playerId);
+      // Get table balances (active sessions)
+      const { data: tableBalances, error: tableError } = await supabase
+        .from('table_balances')
+        .select('amount')
+        .eq('player_id', playerId)
+        .eq('is_active', true);
 
-      let tableBalance = 0;
-      if (!transactionsError && transactions) {
-        transactions.forEach(t => {
-          if (t.type === 'table_buy_in') {
-            tableBalance += parseFloat(t.amount);
-          } else if (t.type === 'table_cash_out') {
-            tableBalance -= parseFloat(t.amount);
-          }
-        });
+      let totalTableBalance = 0;
+      if (!tableError && tableBalances) {
+        totalTableBalance = tableBalances.reduce((sum, tb) => sum + parseFloat(tb.amount), 0);
       }
 
-      const cashBalance = parseFloat(player.balance || '0');
-      const totalBalance = cashBalance + Math.max(0, tableBalance);
+      const cashBalance = parseFloat(accountBalance.regular_balance || '0');
+      const tableBalance = totalTableBalance;
+      const totalBalance = cashBalance + tableBalance;
+      const creditLimit = parseFloat(accountBalance.credit_limit || '0');
+      const availableCredit = parseFloat(accountBalance.available_credit || '0');
 
       const response = {
-        playerId: player.id,
+        playerId: playerId,
         cashBalance,
-        tableBalance: Math.max(0, tableBalance),
+        tableBalance,
         totalBalance,
-        creditLimit: 0,
-        availableCredit: 0
+        creditLimit,
+        availableCredit
       };
 
       console.log(`✅ [BALANCE API] Balance retrieved:`, response);
