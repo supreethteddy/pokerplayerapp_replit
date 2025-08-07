@@ -4,11 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { CheckCircle, Upload, FileText, Camera, CreditCard, Clock, User, DocumentCheck } from 'lucide-react';
+import { CheckCircle, Upload, FileText, Camera, CreditCard, Clock, User, FileCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { ObjectUploader } from './ObjectUploader';
-import type { UploadResult } from '@uppy/core';
+// Removed ObjectUploader - using existing Supabase document upload system
 
 interface KYCWorkflowProps {
   playerData: {
@@ -124,29 +123,23 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     }
   };
 
-  // Step 2: Handle document uploads with object storage
-  const handleGetUploadParameters = async () => {
-    const response = await fetch('/api/objects/upload', {
-      method: 'POST'
-    });
-    const data = await response.json();
-    return {
-      method: 'PUT' as const,
-      url: data.uploadURL,
-    };
-  };
+  // Step 2: Handle document uploads using existing Supabase system
+  const handleFileUpload = async (documentType: string, file: File) => {
+    if (!file) return;
 
-  const handleDocumentUploadComplete = async (documentType: string, result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
+    setUploading(true);
     try {
-      if (result.successful.length > 0) {
-        const uploadURL = result.successful[0].uploadURL;
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const dataUrl = event.target?.result as string;
         
-        // Save document metadata to database
-        const response = await apiRequest('POST', '/api/documents/object-upload', {
+        const response = await apiRequest('POST', '/api/documents/upload', {
           playerId: playerData.id,
           documentType,
-          fileUrl: uploadURL,
-          fileName: result.successful[0].name
+          fileName: file.name,
+          fileData: dataUrl,
+          fileSize: file.size,
+          mimeType: file.type
         });
 
         if (response.ok) {
@@ -155,7 +148,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
           
           setUploadedDocs(prev => ({
             ...prev,
-            [docKey]: uploadURL
+            [docKey]: 'uploaded'
           }));
 
           toast({
@@ -166,20 +159,23 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
           // Check if all documents are uploaded
           const allDocsUploaded = Object.values({
             ...uploadedDocs,
-            [docKey]: uploadURL
+            [docKey]: 'uploaded'
           }).every(doc => doc !== null);
           
           if (allDocsUploaded) {
             setTimeout(() => setCurrentStep(3), 1000);
           }
         }
-      }
+      };
+      reader.readAsDataURL(file);
     } catch (error: any) {
       toast({
         title: "Upload Failed",
-        description: error.message || "Failed to process document upload",
+        description: error.message || "Failed to upload document",
         variant: "destructive"
       });
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -250,7 +246,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
           <CardTitle className="text-white text-xl flex items-center">
             {currentStep === 1 && <User className="w-6 h-6 mr-2 text-blue-500" />}
             {currentStep === 2 && <Upload className="w-6 h-6 mr-2 text-green-500" />}
-            {currentStep === 3 && <DocumentCheck className="w-6 h-6 mr-2 text-yellow-500" />}
+            {currentStep === 3 && <FileCheck className="w-6 h-6 mr-2 text-yellow-500" />}
             {currentStep === 4 && <Clock className="w-6 h-6 mr-2 text-purple-500" />}
             {currentStep === 1 && "Step 1: Personal Details"}
             {currentStep === 2 && "Step 2: Document Upload"}
@@ -362,16 +358,16 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                   Upload your Aadhaar Card, PAN Card, or Passport
                 </p>
                 {!uploadedDocs.governmentId ? (
-                  <ObjectUploader
-                    maxNumberOfFiles={1}
-                    maxFileSize={5242880} // 5MB
-                    onGetUploadParameters={handleGetUploadParameters}
-                    onComplete={(result) => handleDocumentUploadComplete('government_id', result)}
-                    buttonClassName="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload Government ID
-                  </ObjectUploader>
+                  <Input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFileUpload('government_id', file);
+                    }}
+                    disabled={uploading}
+                    className="bg-gray-700 border-gray-600 text-white"
+                  />
                 ) : (
                   <div className="text-green-400 text-sm">✓ Government ID uploaded successfully</div>
                 )}
@@ -390,16 +386,16 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                   Upload your Utility Bill, Bank Statement, or Rental Agreement
                 </p>
                 {!uploadedDocs.utilityBill ? (
-                  <ObjectUploader
-                    maxNumberOfFiles={1}
-                    maxFileSize={5242880} // 5MB
-                    onGetUploadParameters={handleGetUploadParameters}
-                    onComplete={(result) => handleDocumentUploadComplete('utility_bill', result)}
-                    buttonClassName="w-full bg-green-600 hover:bg-green-700 text-white"
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload Address Proof
-                  </ObjectUploader>
+                  <Input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFileUpload('utility_bill', file);
+                    }}
+                    disabled={uploading}
+                    className="bg-gray-700 border-gray-600 text-white"
+                  />
                 ) : (
                   <div className="text-green-400 text-sm">✓ Address proof uploaded successfully</div>
                 )}
@@ -418,16 +414,16 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                   Upload a clear photo of yourself
                 </p>
                 {!uploadedDocs.profilePhoto ? (
-                  <ObjectUploader
-                    maxNumberOfFiles={1}
-                    maxFileSize={5242880} // 5MB
-                    onGetUploadParameters={handleGetUploadParameters}
-                    onComplete={(result) => handleDocumentUploadComplete('profile_photo', result)}
-                    buttonClassName="w-full bg-purple-600 hover:bg-purple-700 text-white"
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload Profile Photo
-                  </ObjectUploader>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFileUpload('profile_photo', file);
+                    }}
+                    disabled={uploading}
+                    className="bg-gray-700 border-gray-600 text-white"
+                  />
                 ) : (
                   <div className="text-green-400 text-sm">✓ Profile photo uploaded successfully</div>
                 )}
@@ -531,96 +527,6 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
               </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-            </p>
-            <Input
-              type="file"
-              accept="image/*,.pdf"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleFileUpload('government_id', file);
-              }}
-              disabled={uploading || uploadedDocs.governmentId}
-              className="bg-gray-700 border-gray-600 text-white"
-            />
-          </div>
-
-          {/* Utility Bill Upload */}
-          <div className={`p-4 rounded-lg border ${uploadedDocs.utilityBill ? 'border-green-500 bg-green-900/20' : 'border-gray-600 bg-gray-800'}`}>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center">
-                <FileText className="w-5 h-5 mr-2 text-blue-500" />
-                <Label className="text-white font-medium">Address Proof</Label>
-              </div>
-              {uploadedDocs.utilityBill && <CheckCircle className="w-5 h-5 text-green-500" />}
-            </div>
-            <p className="text-sm text-gray-400 mb-3">
-              Upload utility bill, bank statement, or rental agreement
-            </p>
-            <Input
-              type="file"
-              accept="image/*,.pdf"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleFileUpload('utility_bill', file);
-              }}
-              disabled={uploading || uploadedDocs.utilityBill}
-              className="bg-gray-700 border-gray-600 text-white"
-            />
-          </div>
-
-          {/* Profile Photo Upload */}
-          <div className={`p-4 rounded-lg border ${uploadedDocs.profilePhoto ? 'border-green-500 bg-green-900/20' : 'border-gray-600 bg-gray-800'}`}>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center">
-                <Camera className="w-5 h-5 mr-2 text-blue-500" />
-                <Label className="text-white font-medium">Profile Photo</Label>
-              </div>
-              {uploadedDocs.profilePhoto && <CheckCircle className="w-5 h-5 text-green-500" />}
-            </div>
-            <p className="text-sm text-gray-400 mb-3">
-              Upload a clear photo of yourself
-            </p>
-            <Input
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleFileUpload('profile_photo', file);
-              }}
-              disabled={uploading || uploadedDocs.profilePhoto}
-              className="bg-gray-700 border-gray-600 text-white"
-            />
-          </div>
-
-          {/* Submit Button */}
-          <div className="pt-4">
-            <Button
-              onClick={submitKYC}
-              disabled={!Object.values(uploadedDocs).every(Boolean) || uploading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12"
-            >
-              {uploading ? (
-                <>
-                  <Upload className="w-4 h-4 mr-2 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Submit KYC Documents
-                </>
-              )}
-            </Button>
-          </div>
-
-          <p className="text-xs text-gray-500 text-center">
-            All documents are encrypted and stored securely. You'll receive an email once approved.
-          </p>
         </CardContent>
       </Card>
     </div>
