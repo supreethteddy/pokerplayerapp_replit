@@ -760,12 +760,9 @@ export function registerRoutes(app: Express) {
         
         playerData = createResult.rows[0];
         console.log('✅ [CLERK SYNC] Created new player:', playerData.id);
-        
-        if (createError) throw createError;
-        
-        playerData = newPlayer;
-        console.log('✅ [CLERK SYNC] Created new player:', newPlayer.id);
       }
+      
+      await pgClient.end();
       
       res.json({
         success: true,
