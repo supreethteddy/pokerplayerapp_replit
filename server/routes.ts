@@ -77,12 +77,8 @@ export function registerRoutes(app: Express) {
         return res.status(404).json({ error: 'Player not found' });
       }
 
-      // TEMPORARY FIX: Force correct balance for Player 29 due to Supabase sync issue
+      // Use actual balance from database - no more hardcoded fixes
       let cashBalance = parseFloat(player.balance || '0');
-      if (playerId === 29) {
-        console.log(`🔧 [BALANCE FIX] Correcting Player 29 balance from ${cashBalance} to 77000`);
-        cashBalance = 77000;
-      }
 
       const creditLimit = parseFloat(player.credit_limit || '0');
       const availableCredit = parseFloat(player.current_credit || '0');
@@ -1872,6 +1868,63 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error('❌ [NOTIFICATIONS API] Error:', error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Manual Balance Update Trigger - For fixing sync issues
+  app.post('/api/trigger-balance-update/:playerId', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      const { operation = 'manual_sync' } = req.body;
+      
+      console.log(`🔄 [MANUAL SYNC] Triggering balance update for player: ${playerId}`);
+      
+      // Get fresh balance from database
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      const query = `SELECT balance, current_credit FROM players WHERE id = $1`;
+      const result = await pool.query(query, [playerId]);
+      await pool.end();
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      const player = result.rows[0];
+      const cashBalance = parseFloat(player.balance || '0');
+      const creditBalance = parseFloat(player.current_credit || '0');
+
+      // Trigger Pusher events for real-time sync
+      await pusher.trigger('cross-portal-sync', 'player_balance_update', {
+        playerId: parseInt(playerId),
+        type: operation,
+        newBalance: cashBalance,
+        creditBalance,
+        timestamp: new Date().toISOString()
+      });
+
+      await pusher.trigger(`player-${playerId}`, 'balance_updated', {
+        cashBalance,
+        creditBalance,
+        operation,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log(`✅ [MANUAL SYNC] Balance update triggered: ₹${cashBalance}`);
+      res.json({ 
+        success: true, 
+        cashBalance, 
+        creditBalance,
+        message: 'Balance sync triggered successfully' 
+      });
+
+    } catch (error) {
+      console.error('❌ [MANUAL SYNC] Error:', error);
+      res.status(500).json({ error: 'Failed to trigger balance update' });
     }
   });
 

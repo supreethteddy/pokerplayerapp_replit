@@ -18,10 +18,10 @@ interface PlayerBalance {
 export function usePlayerBalance(playerId: string) {
   const queryClient = useQueryClient();
 
-  // Fetch player balance from our backend API using the dual balance endpoint
+  // Fetch player balance from our backend API using the correct dual balance endpoint
   const { data: balance, isLoading, error } = useQuery<PlayerBalance>({
-    queryKey: [`/api/account-balance/${playerId}`],
-    refetchInterval: 3000, // Refetch every 3 seconds for real-time credit updates
+    queryKey: [`/api/balance/${playerId}`],
+    refetchInterval: 1000, // Refetch every 1 second for microsecond-level balance updates
     staleTime: 0, // Always consider data stale for fresh credit updates from staff portal
   });
 
@@ -50,7 +50,7 @@ export function usePlayerBalance(playerId: string) {
         console.log('💰 [REAL-TIME BALANCE] Update received:', data);
         
         // Invalidate and refetch balance immediately for credit updates
-        queryClient.invalidateQueries({ queryKey: [`/api/account-balance/${playerId}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/balance/${playerId}`] });
       }
     });
 
@@ -60,7 +60,7 @@ export function usePlayerBalance(playerId: string) {
         console.log('✅ [REAL-TIME CREDIT] Credit approved by staff:', data);
         
         // Immediately refresh balance to show new credit_balance
-        queryClient.invalidateQueries({ queryKey: [`/api/account-balance/${playerId}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/balance/${playerId}`] });
       }
     });
 
@@ -69,7 +69,7 @@ export function usePlayerBalance(playerId: string) {
         console.log('💳 [REAL-TIME BALANCE] Transaction update:', data);
         
         // Invalidate balance and transaction queries
-        queryClient.invalidateQueries({ queryKey: [`/api/account-balance/${playerId}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/balance/${playerId}`] });
         queryClient.invalidateQueries({ queryKey: [`/api/player/${playerId}/transactions`] });
       }
     });
@@ -79,7 +79,7 @@ export function usePlayerBalance(playerId: string) {
     
     playerChannel.bind('balance_updated', (data: any) => {
       console.log('💰 [REAL-TIME BALANCE] Direct player update:', data);
-      queryClient.invalidateQueries({ queryKey: [`/api/account-balance/${playerId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/balance/${playerId}`] });
     });
 
     playerChannel.bind('cash_out_request_submitted', (data: any) => {
