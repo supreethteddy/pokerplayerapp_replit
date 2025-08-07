@@ -37,13 +37,11 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
   // Use only real staff offers from database - identical to offers tab logic
   const displayOffers = (offers && Array.isArray(offers)) ? offers : [];
 
-  // Transform to carousel format only if real data exists
+  // Transform to carousel format only if real data exists - text-only green cards
   const displayItems = displayOffers.length > 0 ? 
     displayOffers.map((offer: any, index: number) => ({
       id: offer.id,
       offer_id: offer.id,
-      media_url: offer.image_url,
-      media_type: 'image' as const,
       position: index + 1,
       is_active: offer.is_active,
       created_at: offer.created_at,
@@ -124,23 +122,13 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
           {displayItems.map((item) => (
             <div key={item.id} className="w-full flex-shrink-0">
               <Card 
-                className="bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 cursor-pointer hover:scale-105 transition-transform duration-200"
+                className="bg-gradient-to-br from-emerald-800 to-emerald-900 border-emerald-600 cursor-pointer hover:scale-105 transition-transform duration-200"
                 onClick={() => onOfferClick(item.offer_id)}
               >
                 <CardContent className="p-0">
-                  {item.media_url ? (
-                    <img
-                      src={item.media_url}
-                      alt={item.staff_offers.title}
-                      className="w-full h-48 object-cover rounded-lg"
-                      loading="eager"
-                      decoding="async"
-                    />
-                  ) : (
-                    <div className="w-full h-48 bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center rounded-lg">
-                      <Gift className="w-16 h-16 text-white" />
-                    </div>
-                  )}
+                  <div className="w-full h-48 bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center rounded-lg">
+                    <Gift className="w-16 h-16 text-white" />
+                  </div>
                   <div className="p-4">
                     <h3 className="text-lg font-semibold text-white mb-2">
                       {item.staff_offers.title}

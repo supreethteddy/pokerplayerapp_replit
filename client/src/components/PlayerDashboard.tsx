@@ -128,46 +128,13 @@ const ScrollableOffersDisplay = () => {
           <Card 
             key={offer.id}
             id={`offer-${offer.id}`}
-            className="bg-slate-800 border-slate-700 hover:border-emerald-500/50 transition-all duration-300"
+            className="bg-gradient-to-br from-emerald-800 to-emerald-900 border-emerald-600 hover:border-emerald-400 transition-all duration-300"
             onClick={() => trackOfferView.mutate(offer.id)}
           >
             <CardContent className="p-0">
-              {/* Dynamic Image/Video Display */}
-              <div className="relative">
-                {offer.video_url ? (
-                  <div className="aspect-video rounded-t-lg overflow-hidden bg-slate-900">
-                    <video 
-                      className="w-full h-full object-cover" 
-                      poster={offer.image_url}
-                      controls
-                      preload="metadata"
-                    >
-                      <source src={offer.video_url} type="video/mp4" />
-                      <div className="flex items-center justify-center h-full">
-                        <Play className="w-12 h-12 text-white" />
-                      </div>
-                    </video>
-                  </div>
-                ) : offer.image_url ? (
-                  <div className="aspect-video rounded-t-lg overflow-hidden bg-slate-900">
-                    <img 
-                      src={offer.image_url} 
-                      alt={offer.title}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                      }}
-                    />
-                    <div className="hidden flex items-center justify-center h-full">
-                      <Image className="w-12 h-12 text-slate-400" />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="aspect-video rounded-t-lg bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center">
-                    <Gift className="w-16 h-16 text-white" />
-                  </div>
-                )}
+              {/* Green header section - text only */}
+              <div className="relative aspect-video rounded-t-lg bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center">
+                <Gift className="w-16 h-16 text-white" />
                 
                 {/* Offer type badge */}
                 <Badge 
