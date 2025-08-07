@@ -1,4 +1,4 @@
-import { useAuth } from "@/hooks/useAuth";
+import { useUltraFastAuth } from "@/hooks/useUltraFastAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -361,7 +361,7 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
 };
 
 function PlayerDashboard() {
-  const { user, signOut } = useAuth();
+  const { user, signOut } = useUltraFastAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [callTime, setCallTime] = useState("02:45");
@@ -1805,7 +1805,7 @@ function PlayerDashboard() {
                   <CardContent>
                     <CreditTransfer 
                       playerId={user?.id?.toString() || ''} 
-                      availableCredit={balanceQuery?.data?.availableCredit || 0}
+                      availableCredit={accountBalance?.availableCredit || 0}
                     />
                   </CardContent>
                 </Card>

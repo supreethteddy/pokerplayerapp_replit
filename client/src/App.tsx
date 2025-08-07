@@ -3,7 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useEnhancedAuth } from "./hooks/useEnhancedAuth";
+import { useUltraFastAuth } from "./hooks/useUltraFastAuth";
 
 import AuthWrapper from "./components/AuthWrapper";
 import SafeAuthWrapper from "./components/AuthErrorBoundary";
@@ -19,7 +19,7 @@ import NotFound from "@/pages/not-found";
 import ThankYou from "@/pages/thank-you";
 
 function AppContent() {
-  const { user, loading } = useEnhancedAuth();
+  const { user, loading, authChecked } = useUltraFastAuth();
   const [showLoadingScreen, setShowLoadingScreen] = useState(false);
   const [hasShownLoadingScreen, setHasShownLoadingScreen] = useState(false);
 
@@ -39,14 +39,14 @@ function AppContent() {
     }
   }, [user, loading, hasShownLoadingScreen]);
 
-  // Improved loading check with better state management
-  if (loading) {
+  // Ultra-fast authentication loading with optimized state management
+  if (!authChecked || (loading && !user)) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white font-medium">Authenticating...</p>
-          <p className="text-slate-500 text-sm mt-2">Verifying your account...</p>
+          <p className="text-white font-medium">Connecting your account...</p>
+          <p className="text-slate-500 text-sm mt-2">Ultra-fast authentication in progress...</p>
         </div>
       </div>
     );
@@ -71,14 +71,7 @@ function AppContent() {
           {user ? <Redirect to="/dashboard" /> : <AuthWrapper />}
         </Route>
         <Route path="/dashboard">
-          {loading ? (
-            <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                <p className="text-white font-medium">Loading your dashboard...</p>
-              </div>
-            </div>
-          ) : user ? <PlayerDashboard /> : <Redirect to="/" />}
+          {user ? <PlayerDashboard /> : <Redirect to="/" />}
         </Route>
         <Route path="/thank-you">
           <ThankYou />

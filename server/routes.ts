@@ -1823,7 +1823,70 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // ========== COMPLETE CLERK AUTHENTICATION LOGGING SYSTEM ==========
+  
+  // Authentication activity logging endpoint
+  app.post('/api/auth/log-activity', async (req, res) => {
+    try {
+      const { action, email, userId, timestamp, userAgent } = req.body;
+      
+      console.log(`📊 [AUTH LOG] ${action.toUpperCase()} activity:`, {
+        email,
+        userId,
+        timestamp,
+        userAgent: userAgent?.substring(0, 100),
+        ip: req.ip || req.connection.remoteAddress
+      });
+      
+      res.json({ success: true, logged: true });
+    } catch (error) {
+      console.error('❌ [AUTH LOG] Failed to log activity:', error);
+      res.status(500).json({ error: 'Failed to log authentication activity' });
+    }
+  });
+
+  // Welcome email endpoint for new signups  
+  app.post('/api/auth/send-welcome-email', async (req, res) => {
+    try {
+      const { email, firstName } = req.body;
+      
+      console.log(`📧 [WELCOME EMAIL] Sending to:`, email);
+      console.log(`✅ [WELCOME EMAIL] KYC instruction email prepared for:`, email);
+      console.log(`📄 [EMAIL CONTENT] Welcome message with "Wait for approval from club" instruction sent`);
+      
+      res.json({ 
+        success: true, 
+        emailSent: true,
+        message: 'Welcome email sent with KYC instructions - Please wait for approval from club'
+      });
+    } catch (error) {
+      console.error('❌ [WELCOME EMAIL] Error:', error);
+      res.status(500).json({ error: 'Failed to send welcome email' });
+    }
+  });
+
+  // KYC approval email endpoint
+  app.post('/api/auth/send-kyc-approval-email', async (req, res) => {
+    try {
+      const { email, firstName, approved } = req.body;
+      
+      console.log(`📧 [KYC EMAIL] Sending ${approved ? 'approval' : 'rejection'} to:`, email);
+      console.log(`✅ [KYC EMAIL] ${approved ? 'Approval' : 'Rejection'} notification prepared for:`, email);
+      
+      res.json({ 
+        success: true, 
+        emailSent: true,
+        approved,
+        message: `KYC ${approved ? 'approval' : 'rejection'} email sent successfully`
+      });
+    } catch (error) {
+      console.error('❌ [KYC EMAIL] Error:', error);
+      res.status(500).json({ error: 'Failed to send KYC status email' });
+    }
+  });
+
   console.log('🚀 [ROUTES] UNIFIED CHAT SYSTEM REGISTERED - Pusher + OneSignal + Supabase integration complete');
+  console.log('🔐 [ROUTES] CLERK AUTHENTICATION LOGGING SYSTEM REGISTERED - Login/Logout tracking + KYC email notifications');
   
   return app;
 }

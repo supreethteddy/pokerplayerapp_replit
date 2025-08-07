@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { X, Eye, EyeOff, Phone, Mail } from 'lucide-react';
-import { useEnhancedAuth } from '../hooks/useEnhancedAuth';
+import { useUltraFastAuth } from '../hooks/useUltraFastAuth';
 import { useToast } from '@/hooks/use-toast';
 
 export default function DirectClubsAuth() {
@@ -20,7 +20,7 @@ export default function DirectClubsAuth() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   
-  const { signIn, signUp } = useEnhancedAuth();
+  const { signIn, signUp } = useUltraFastAuth();
   const { toast } = useToast();
 
   // Google authentication removed - using email/phone only
