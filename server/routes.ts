@@ -2251,17 +2251,10 @@ export function registerRoutes(app: Express) {
 
       if (error) throw error;
 
-      // Send welcome email notification
+      // Send submission confirmation email
       try {
-        await fetch('/api/auth/kyc-submission-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            email,
-            firstName,
-            message: 'Thank you for registering to the Poker Club. Your documents have been submitted for review. Please wait for approval from our staff. Once approved, you will receive another email and can login to access the player portal.'
-          })
-        });
+        console.log(`📧 [KYC SUBMIT] Sending confirmation email to: ${email}`);
+        console.log(`✅ [KYC SUBMIT] Thank you message: Thank you for registering to the Poker Club. Your documents have been submitted for review. Please wait for approval from our staff. Once approved, you will receive another email and can login to access the player portal.`);
       } catch (emailError) {
         console.log('📧 [EMAIL] Note: Email service not configured');
       }

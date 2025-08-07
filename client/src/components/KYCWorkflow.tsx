@@ -129,8 +129,13 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
       reader.onload = async (event) => {
         const dataUrl = event.target?.result as string;
         
+        const actualPlayerId = playerData?.id || localStorage.getItem('playerId');
+        if (!actualPlayerId) {
+          throw new Error('Player ID not found. Please log in again.');
+        }
+
         const response = await apiRequest('POST', '/api/documents/upload', {
-          playerId: playerData?.id || localStorage.getItem('playerId'),
+          playerId: actualPlayerId,
           documentType,
           fileName: file.name,
           fileData: dataUrl,
@@ -172,9 +177,14 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     try {
       setSubmitting(true);
       
+      const actualPlayerId = playerData?.id || localStorage.getItem('playerId');
+      if (!actualPlayerId) {
+        throw new Error('Player ID not found. Please log in again.');
+      }
+
       // Update player KYC status to submitted
       const response = await apiRequest('POST', '/api/kyc/submit', {
-        playerId: playerData?.id || localStorage.getItem('playerId'),
+        playerId: actualPlayerId,
         email: userDetails.email,
         firstName: userDetails.firstName,
         lastName: userDetails.lastName,
@@ -184,7 +194,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
       if (response.ok) {
         toast({
           title: "KYC Submitted Successfully!",
-          description: "Your documents have been submitted for review. You'll receive an email confirmation.",
+          description: "Your documents have been submitted for review. Check your email for confirmation.",
         });
         
         // Send Supabase email notification
@@ -245,7 +255,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
             {currentStep === 1 && "Step 1: Personal Details"}
             {currentStep === 2 && "Step 2: Document Upload"}
             {currentStep === 3 && "Step 3: Submit KYC"}
-            {currentStep === 4 && "Step 4: Awaiting Approval"}
+            {currentStep === 4 && "Step 4: Thank You - Awaiting Approval"}
           </CardTitle>
           <div className="space-y-2">
             <Progress value={getProgressPercentage()} className="w-full" />
@@ -421,11 +431,11 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
 
               <div className="mt-6">
                 <Button 
-                  onClick={() => setCurrentStep(3)}
-                  disabled={!isStep2Complete()}
+                  onClick={submitKYC}
+                  disabled={!isStep2Complete() || submitting}
                   className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white h-12 text-lg font-semibold"
                 >
-                  {isStep2Complete() ? "Submit Documents" : "Upload All Documents & Enter Valid PAN"}
+                  {submitting ? "Submitting..." : "Submit Documents"}
                 </Button>
                 {!isStep2Complete() && (
                   <p className="text-center text-sm text-gray-400 mt-2">
