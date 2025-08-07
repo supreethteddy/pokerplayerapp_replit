@@ -38,6 +38,7 @@ console.log('🚀 [SERVER] Pusher and OneSignal initialized successfully');
 
 // Import direct chat system (bypasses Supabase cache issues)
 import { directChat } from './direct-chat-system';
+import { directKycStorage } from './direct-kyc-storage';
 
 // Import Clerk integration
 import { ClerkPlayerSync } from './clerk-integration';
@@ -2392,100 +2393,84 @@ export function registerRoutes(app: Express) {
 
   // ========== KYC DOCUMENT UPLOAD AND MANAGEMENT SYSTEM ==========
   
-  // Document upload endpoint
+  // Document upload endpoint - Direct PostgreSQL (bypasses Supabase cache)
   app.post('/api/documents/upload', async (req, res) => {
     try {
       const { playerId, documentType, fileName, fileData, fileSize, mimeType } = req.body;
       
-      console.log(`📄 [KYC UPLOAD] Uploading ${documentType} for player:`, playerId);
-      console.log(`📄 [KYC UPLOAD] All request data:`, { playerId, documentType, fileName, fileDataLength: fileData?.length });
+      console.log(`🔧 [DIRECT KYC UPLOAD] Uploading ${documentType} for player:`, playerId);
+      console.log(`🔧 [DIRECT KYC UPLOAD] Request data:`, { playerId, documentType, fileName, fileDataLength: fileData?.length });
       
       if (!playerId || !documentType || !fileName || !fileData) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
-      // Use the existing working Supabase document storage
-      const { SupabaseDocumentStorage } = await import('./supabase-document-storage.js');
-      const documentStorage = new SupabaseDocumentStorage();
-      
-      // Upload to Supabase Storage and save metadata
-      const uploadedDoc = await documentStorage.uploadDocument(
+      // Use direct PostgreSQL to bypass Supabase cache issues
+      const uploadedDoc = await directKycStorage.uploadDocument(
         parseInt(playerId),
         documentType,
         fileName,
         fileData
       );
 
-      console.log(`✅ [KYC UPLOAD] Document uploaded successfully:`, uploadedDoc.id);
+      console.log(`✅ [DIRECT KYC UPLOAD] Document uploaded successfully:`, uploadedDoc.id);
       res.json({ success: true, document: uploadedDoc });
     } catch (error) {
-      console.error('❌ [KYC UPLOAD] Error:', error);
+      console.error('❌ [DIRECT KYC UPLOAD] Error:', error);
       res.status(500).json({ error: 'Failed to upload document' });
     }
   });
 
-  // Get player documents
+  // Get player documents - Direct PostgreSQL (bypasses Supabase cache)
   app.get('/api/documents/player/:playerId', async (req, res) => {
     try {
       const { playerId } = req.params;
       
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
+      console.log(`🔧 [DIRECT KYC DOCS] Getting documents for player:`, playerId);
       
-      const { data, error } = await supabase
-        .from('kyc_documents')
-        .select('*')
-        .eq('player_id', playerId)
-        .order('uploaded_at', { ascending: false });
+      // Use direct PostgreSQL to bypass Supabase cache issues
+      const documents = await directKycStorage.getPlayerDocuments(parseInt(playerId));
 
-      if (error) throw error;
-
-      res.json(data || []);
+      console.log(`✅ [DIRECT KYC DOCS] Found ${documents.length} documents`);
+      res.json(documents);
     } catch (error) {
-      console.error('❌ [KYC DOCS] Error:', error);
+      console.error('❌ [DIRECT KYC DOCS] Error:', error);
       res.status(500).json({ error: 'Failed to fetch documents' });
     }
   });
 
-  // KYC submission endpoint
+  // KYC submission endpoint - Direct PostgreSQL (bypasses Supabase cache) 
   app.post('/api/kyc/submit', async (req, res) => {
     try {
-      const { playerId, email, firstName, lastName, panCardNumber } = req.body;
+      const { playerId, email, firstName, lastName, panCardNumber, phone, address } = req.body;
       
-      console.log(`📋 [KYC SUBMIT] Submitting KYC for player:`, playerId);
+      console.log(`🔧 [DIRECT KYC SUBMIT] Submitting KYC for player:`, playerId);
       
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabaseClient = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-      
-      // Update player KYC status to submitted and add PAN card
-      const { error } = await supabaseClient
-        .from('players')
-        .update({ 
-          kyc_status: 'submitted',
-          pan_card_number: panCardNumber
-        })
-        .eq('id', playerId);
+      // Use direct PostgreSQL to bypass Supabase cache issues
+      const success = await directKycStorage.submitKyc(parseInt(playerId), {
+        firstName: firstName || '',
+        lastName: lastName || '',
+        phone: phone || '',
+        panCardNumber: panCardNumber || '',
+        address: address || ''
+      });
 
-      if (error) throw error;
+      if (!success) {
+        throw new Error('KYC submission failed');
+      }
 
       // Send submission confirmation email
       try {
-        console.log(`📧 [KYC SUBMIT] Sending confirmation email to: ${email}`);
-        console.log(`✅ [KYC SUBMIT] Thank you message: Thank you for registering to the Poker Club. Your documents have been submitted for review. Please wait for approval from our staff. Once approved, you will receive another email and can login to access the player portal.`);
+        console.log(`📧 [DIRECT KYC SUBMIT] Sending confirmation email to: ${email}`);
+        console.log(`✅ [DIRECT KYC SUBMIT] Thank you message: Thank you for registering to the Poker Club. Your documents have been submitted for review. Please wait for approval from our staff. Once approved, you will receive another email and can login to access the player portal.`);
       } catch (emailError) {
         console.log('📧 [EMAIL] Note: Email service not configured');
       }
 
-      console.log(`✅ [KYC SUBMIT] KYC submitted successfully for player:`, playerId);
+      console.log(`✅ [DIRECT KYC SUBMIT] KYC submitted successfully for player:`, playerId);
       res.json({ success: true, message: 'KYC documents submitted for review. Check your email for confirmation.' });
     } catch (error) {
-      console.error('❌ [KYC SUBMIT] Error:', error);
+      console.error('❌ [DIRECT KYC SUBMIT] Error:', error);
       res.status(500).json({ error: 'Failed to submit KYC' });
     }
   });
