@@ -2132,7 +2132,13 @@ export function registerRoutes(app: Express) {
       const { playerId } = req.params;
       console.log(`💰 [LEGACY BALANCE] Getting balance for player:`, playerId);
       
-      const { data: player, error } = await supabase
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabaseClient = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      
+      const { data: player, error } = await supabaseClient
         .from('players')
         .select('balance, current_credit, credit_limit, credit_approved')
         .eq('id', playerId)
@@ -2170,13 +2176,23 @@ export function registerRoutes(app: Express) {
       
       console.log(`📄 [KYC UPLOAD] Uploading ${documentType} for player:`, playerId);
       
-      // Save document to database (simulate file storage)
-      const { data, error } = await supabase
+      // Initialize Supabase client
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabaseClient = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      
+      // Save document to database with file URL simulation
+      const fileUrl = `/documents/${playerId}/${documentType}_${Date.now()}.${fileName.split('.').pop()}`;
+      
+      const { data, error } = await supabaseClient
         .from('kyc_documents')
         .insert({
           player_id: playerId,
           document_type: documentType,
           file_name: fileName,
+          file_url: fileUrl,
           file_size: fileSize,
           mime_type: mimeType,
           status: 'pending',
@@ -2188,7 +2204,7 @@ export function registerRoutes(app: Express) {
       if (error) throw error;
 
       console.log(`✅ [KYC UPLOAD] Document uploaded successfully:`, data.id);
-      res.json({ success: true, document: data });
+      res.json({ success: true, document: data, fileUrl: fileUrl });
     } catch (error) {
       console.error('❌ [KYC UPLOAD] Error:', error);
       res.status(500).json({ error: 'Failed to upload document' });
@@ -2224,21 +2240,22 @@ export function registerRoutes(app: Express) {
   // KYC submission endpoint
   app.post('/api/kyc/submit', async (req, res) => {
     try {
-      const { playerId, email, firstName, lastName } = req.body;
+      const { playerId, email, firstName, lastName, panCardNumber } = req.body;
       
       console.log(`📋 [KYC SUBMIT] Submitting KYC for player:`, playerId);
       
       const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
+      const supabaseClient = createClient(
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       
-      // Update player KYC status to submitted
-      const { error } = await supabase
+      // Update player KYC status to submitted and add PAN card
+      const { error } = await supabaseClient
         .from('players')
         .update({ 
           kyc_status: 'submitted',
+          pan_card: panCardNumber,
           updated_at: new Date().toISOString()
         })
         .eq('id', playerId);
