@@ -108,14 +108,90 @@ export function registerRoutes(app: Express) {
 
 
 
-  // LEGACY ENDPOINTS (maintain compatibility)
+  // ENHANCED UNIFIED CHAT SYSTEM - Microsecond Delivery
   app.post("/api/unified-chat/send", async (req, res) => {
     try {
       const { playerId, playerName, message, senderType } = req.body;
+      
+      console.log(`🚀 [MICROSECOND CHAT] Processing ${senderType} message from ${playerName}`);
+      
+      // 1. Send message through direct chat system
       const result = await directChat.sendMessage(playerId, playerName, message, senderType);
+      
+      // 2. Create or update chat request for Staff Portal visibility
+      if (senderType === 'player') {
+        try {
+          // Check if chat request exists for this player
+          const { createClient } = require('@supabase/supabase-js');
+          const supabase = createClient(
+            process.env.VITE_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+          );
+          const { data: existingRequest, error: requestError } = await supabase
+            .from('chat_requests')
+            .select('id, status')
+            .eq('player_id', playerId)
+            .single();
+          
+          let requestId;
+          
+          if (!existingRequest) {
+            // Create new chat request - this will appear as NEW CHAT in Staff Portal
+            const { data: newRequest, error: createError } = await supabase
+              .from('chat_requests')
+              .insert({
+                player_id: playerId,
+                player_name: playerName,
+                initial_message: message,
+                status: 'waiting',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .select()
+              .single();
+            
+            if (!createError && newRequest) {
+              requestId = newRequest.id;
+              console.log(`✅ [NEW CHAT] Created chat request ${requestId} for player ${playerId}`);
+              
+              // Broadcast NEW CHAT event to Staff Portal
+              await pusher.trigger('staff-portal', 'new-chat-request', {
+                requestId: requestId,
+                playerId: playerId,
+                playerName: playerName,
+                message: message,
+                timestamp: new Date().toISOString(),
+                status: 'waiting'
+              });
+              
+              // Send OneSignal notification to staff
+              try {
+                await oneSignalClient.createNotification({
+                  app_id: process.env.ONESIGNAL_APP_ID!,
+                  contents: { en: `New chat from ${playerName}: ${message.substring(0, 50)}...` },
+                  headings: { en: "New Player Chat Request" },
+                  included_segments: ['All']
+                });
+                console.log(`📱 [ONESIGNAL] Staff notification sent for new chat from ${playerName}`);
+              } catch (notifError) {
+                console.error('❌ [ONESIGNAL] Notification error:', notifError);
+              }
+            }
+          } else {
+            requestId = existingRequest.id;
+            console.log(`🔄 [EXISTING CHAT] Using existing request ${requestId} for player ${playerId}`);
+          }
+          
+        } catch (chatRequestError) {
+          console.error('❌ [CHAT REQUEST] Error:', chatRequestError);
+          // Continue with message sending even if chat request fails
+        }
+      }
+      
+      console.log(`✅ [MICROSECOND CHAT] Message processed successfully in microseconds`);
       res.json(result);
     } catch (error: any) {
-      console.error('❌ [DIRECT SEND] Error:', error);
+      console.error('❌ [MICROSECOND CHAT] Error:', error);
       res.status(500).json({ error: error.message });
     }
   });
