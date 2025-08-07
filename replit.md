@@ -30,7 +30,7 @@ Preferred communication style: Simple, everyday language.
 - **Integration**: Shares the same Supabase instance with admin dashboards for unified user management and consistent player identification (Supabase `auth.users.id` and application `players.id`).
 - **Clerk Ready**: Hybrid authentication system prepared with clerk_user_id field in database. Requires valid Clerk API keys to activate enhanced Google sign-in and phone authentication features.
 
-### Recent Achievements (August 7, 2025) - COMPLETE CREDIT HANDLING SYSTEM DEPLOYED ✅  
+### Recent Achievements (August 7, 2025) - JOIN WAITLIST FUNCTIONALITY RESTORED ✅  
 - **🎯 SEAMLESS SIGNUP-TO-KYC FLOW**: Players now experience automatic redirect from signup to KYC document upload process
 - **🔄 EXISTING USER HANDLING**: Smart detection of existing players with automatic KYC status-based redirection (no more signup failures)
 - **📄 COMPLETE KYC WORKFLOW**: Full document upload system (Government ID, Utility Bill, Profile Photo) with progress tracking
