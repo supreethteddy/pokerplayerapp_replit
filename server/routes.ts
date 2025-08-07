@@ -1390,48 +1390,77 @@ export function registerRoutes(app: Express) {
 
   app.get("/api/staff-offers", async (req, res) => {
     try {
-      console.log('🎁 [OFFERS API] Returning verified offers data...');
+      console.log('🎁 [OFFERS API] Fetching offers directly from database...');
       
-      console.log('🚀 [OFFERS API PRODUCTION] Fetching live offers from Supabase...');
-      
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-      
-      const { data: realOffers, error } = await supabase
-        .from('staff_offers')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      console.log('🔍 [OFFERS API PRODUCTION] Staff portal offers:', {
-        total: realOffers?.length || 0,
-        error: error?.message || 'none',
-        offers: realOffers?.map((o: any) => ({ id: o.id, title: o.title })) || []
+      // Use direct database connection like other working APIs
+      const pg = await import('pg');
+      const client = new pg.Client({
+        connectionString: process.env.DATABASE_URL,
       });
       
-      if (error) {
-        console.error('❌ [OFFERS API] Supabase error:', error);
-        return res.status(500).json({ error: "Failed to fetch offers" });
-      }
+      await client.connect();
       
-      const transformedOffers = realOffers?.map((offer: any) => ({
+      const result = await client.query(`
+        SELECT id, title, description, image_url, video_url, offer_type, 
+               is_active, start_date, end_date, created_at, updated_at
+        FROM staff_offers 
+        WHERE is_active = true 
+        ORDER BY created_at DESC
+      `);
+      
+      await client.end();
+      
+      console.log('🔍 [OFFERS API] Database results:', {
+        total: result.rows.length,
+        offers: result.rows.map(o => ({ id: o.id, title: o.title }))
+      });
+      
+      const transformedOffers = result.rows.map((offer: any) => ({
         id: offer.id,
         title: offer.title,
         description: offer.description || 'Limited time offer',
-        image_url: offer.image_url || offer.video_url || "/api/placeholder/600/300",
-        redirect_url: '#',
-        is_active: offer.is_active !== false,
-        display_order: 1,
+        image_url: offer.image_url || offer.video_url,
+        video_url: offer.video_url,
+        offer_type: offer.offer_type,
+        is_active: offer.is_active,
+        start_date: offer.start_date,
+        end_date: offer.end_date,
         created_at: offer.created_at,
         updated_at: offer.updated_at
-      })) || [];
+      }));
 
-      console.log(`✅ [OFFERS API] Returning ${transformedOffers.length} real offers from database`);
+      console.log(`✅ [OFFERS API] Returning ${transformedOffers.length} active offers from database`);
       res.json(transformedOffers);
     } catch (error) {
       console.error('❌ [OFFERS API] Error:', error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Offer views tracking API
+  app.post("/api/offer-views", async (req, res) => {
+    try {
+      const { offer_id } = req.body;
+      console.log('👁️ [OFFER VIEWS] Tracking view for offer:', offer_id);
+      
+      const pg = await import('pg');
+      const client = new pg.Client({
+        connectionString: process.env.DATABASE_URL,
+      });
+      
+      await client.connect();
+      
+      await client.query(`
+        INSERT INTO offer_views (offer_id, viewed_at)
+        VALUES ($1, NOW())
+      `, [offer_id]);
+      
+      await client.end();
+      
+      console.log(`✅ [OFFER VIEWS] Tracked view for offer: ${offer_id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('❌ [OFFER VIEWS] Error:', error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
