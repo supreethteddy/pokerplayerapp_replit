@@ -585,9 +585,9 @@ export class SupabaseOnlyStorage {
       phone: data.phone,
       kycStatus: data.kyc_status,
       balance: data.balance || '0.00', // Real cash balance
-      currentCredit: data.current_credit || '0.00', // Credit balance from cashier
-      creditLimit: data.credit_limit || '0.00', // Maximum credit allowed
-      creditApproved: data.credit_approved || false, // Credit approval status
+      currentCredit: data.current_credit ? String(data.current_credit) : '0.00', // Credit balance from cashier
+      creditLimit: data.credit_limit ? String(data.credit_limit) : '0.00', // Maximum credit allowed  
+      creditApproved: Boolean(data.credit_approved), // Credit approval status
       totalDeposits: data.total_deposits || '0.00',
       totalWithdrawals: data.total_withdrawals || '0.00',
       totalWinnings: data.total_winnings || '0.00',
