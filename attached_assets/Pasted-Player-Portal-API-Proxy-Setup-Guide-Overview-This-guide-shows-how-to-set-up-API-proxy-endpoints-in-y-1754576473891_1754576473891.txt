@@ -1,0 +1,339 @@
+Player Portal API Proxy Setup Guide
+Overview
+This guide shows how to set up API proxy endpoints in your Player Portal to connect with the Staff Portal's Three-Tier Balance Management System. This ensures seamless communication between portals while maintaining security.
+
+API Proxy Implementation
+1. Player Balance API Proxy
+// api/player-balance.ts (Player Portal Backend)
+import { supabase } from '../lib/supabase';
+export async function getPlayerBalance(playerId: string) {
+  try {
+    // Get player's cash balance from players table
+    const { data: player } = await supabase
+      .from('players')
+      .select('id, first_name, last_name, balance')
+      .eq('id', playerId)
+      .single();
+    if (!player) {
+      throw new Error(`Player ${playerId} not found`);
+    }
+    // Calculate table balance from transactions
+    const { data: tableTransactions } = await supabase
+      .from('transactions')
+      .select('type, amount')
+      .eq('player_id', playerId)
+      .in('type', ['table_buy_in', 'table_cash_out']);
+    let tableBalance = 0;
+    tableTransactions?.forEach(t => {
+      if (t.type === 'table_buy_in') {
+        tableBalance += parseFloat(t.amount);
+      } else if (t.type === 'table_cash_out') {
+        tableBalance -= parseFloat(t.amount);
+      }
+    });
+    const cashBalance = parseFloat(player.balance || '0');
+    const totalBalance = cashBalance + Math.max(0, tableBalance);
+    return {
+      playerId: player.id,
+      cashBalance,
+      tableBalance: Math.max(0, tableBalance),
+      totalBalance,
+      creditLimit: 0,
+      availableCredit: 0
+    };
+  } catch (error) {
+    console.error('Error fetching player balance:', error);
+    throw error;
+  }
+}
+// Express route
+app.get('/api/player/:playerId/balance', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const balance = await getPlayerBalance(playerId);
+    res.json(balance);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+2. Player Transaction History API
+// api/player-transactions.ts (Player Portal Backend)
+import { supabase } from '../lib/supabase';
+export async function getPlayerTransactions(playerId: string, limit: number = 10) {
+  try {
+    const { data: transactions, error } = await supabase
+      .from('transactions')
+      .select(`
+        id,
+        type,
+        amount,
+        description,
+        staff_id,
+        created_at
+      `)
+      .eq('player_id', playerId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return transactions || [];
+  } catch (error) {
+    console.error('Error fetching player transactions:', error);
+    throw error;
+  }
+}
+// Express route
+app.get('/api/player/:playerId/transactions', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const transactions = await getPlayerTransactions(playerId, limit);
+    res.json(transactions);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+3. Cash-Out Request API
+// api/cash-out-request.ts (Player Portal Backend)
+import { supabase } from '../lib/supabase';
+import Pusher from 'pusher';
+const pusher = new Pusher({
+  appId: process.env.PUSHER_APP_ID!,
+  key: process.env.PUSHER_KEY!,
+  secret: process.env.PUSHER_SECRET!,
+  cluster: process.env.PUSHER_CLUSTER!,
+  useTLS: true
+});
+export async function createCashOutRequest(data: {
+  playerId: string;
+  amount: number;
+  requestedAt: string;
+}) {
+  try {
+    // Get player info
+    const { data: player } = await supabase
+      .from('players')
+      .select('first_name, last_name, balance')
+      .eq('id', data.playerId)
+      .single();
+    if (!player) {
+      throw new Error('Player not found');
+    }
+    const availableBalance = parseFloat(player.balance || '0');
+    
+    if (data.amount > availableBalance) {
+      throw new Error(`Insufficient balance. Available: ₹${availableBalance}`);
+    }
+    // Create cash-out request record
+    const { data: request, error } = await supabase
+      .from('cash_out_requests')
+      .insert({
+        player_id: data.playerId,
+        amount: data.amount,
+        status: 'pending',
+        requested_at: data.requestedAt,
+        player_name: `${player.first_name} ${player.last_name}`
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    // Notify Staff Portal cashiers via Pusher
+    await pusher.trigger('cashier-notifications', 'new_cash_out_request', {
+      requestId: request.id,
+      playerId: data.playerId,
+      playerName: `${player.first_name} ${player.last_name}`,
+      amount: data.amount,
+      requestedAt: data.requestedAt
+    });
+    return request;
+  } catch (error) {
+    console.error('Error creating cash-out request:', error);
+    throw error;
+  }
+}
+// Express route
+app.post('/api/cash-out-request', async (req, res) => {
+  try {
+    const request = await createCashOutRequest(req.body);
+    res.json({ success: true, request });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+Required Database Tables
+Cash-Out Requests Table
+-- Create cash_out_requests table in Supabase
+CREATE TABLE cash_out_requests (
+    id SERIAL PRIMARY KEY,
+    player_id INTEGER REFERENCES players(id),
+    amount DECIMAL(12,2) NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'approved', 'completed', 'rejected'
+    requested_at TIMESTAMP NOT NULL,
+    processed_at TIMESTAMP,
+    processed_by VARCHAR(50), -- Staff member who processed
+    player_name VARCHAR(100),
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+-- Create index for faster queries
+CREATE INDEX idx_cash_out_requests_player_id ON cash_out_requests(player_id);
+CREATE INDEX idx_cash_out_requests_status ON cash_out_requests(status);
+Environment Variables for Player Portal
+# Supabase Configuration
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_KEY=your_supabase_service_role_key
+SUPABASE_ANON_KEY=your_supabase_anon_key
+# Pusher Configuration (same as Staff Portal)
+PUSHER_APP_ID=your_pusher_app_id
+PUSHER_KEY=your_pusher_key
+PUSHER_SECRET=your_pusher_secret
+PUSHER_CLUSTER=your_pusher_cluster
+# Frontend Environment Variables
+VITE_PUSHER_KEY=your_pusher_key
+VITE_PUSHER_CLUSTER=your_pusher_cluster
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+Complete Express Server Setup
+// server.ts (Player Portal Backend)
+import express from 'express';
+import cors from 'cors';
+import { supabase } from './lib/supabase';
+import Pusher from 'pusher';
+const app = express();
+const PORT = process.env.PORT || 3001;
+// Middleware
+app.use(cors());
+app.use(express.json());
+// Initialize Pusher
+const pusher = new Pusher({
+  appId: process.env.PUSHER_APP_ID!,
+  key: process.env.PUSHER_KEY!,
+  secret: process.env.PUSHER_SECRET!,
+  cluster: process.env.PUSHER_CLUSTER!,
+  useTLS: true
+});
+// Player Balance API
+app.get('/api/player/:playerId/balance', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    
+    // Get player's cash balance
+    const { data: player } = await supabase
+      .from('players')
+      .select('id, first_name, last_name, balance')
+      .eq('id', playerId)
+      .single();
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    // Calculate table balance
+    const { data: tableTransactions } = await supabase
+      .from('transactions')
+      .select('type, amount')
+      .eq('player_id', playerId)
+      .in('type', ['table_buy_in', 'table_cash_out']);
+    let tableBalance = 0;
+    tableTransactions?.forEach(t => {
+      if (t.type === 'table_buy_in') {
+        tableBalance += parseFloat(t.amount);
+      } else if (t.type === 'table_cash_out') {
+        tableBalance -= parseFloat(t.amount);
+      }
+    });
+    const cashBalance = parseFloat(player.balance || '0');
+    const totalBalance = cashBalance + Math.max(0, tableBalance);
+    res.json({
+      playerId: player.id,
+      cashBalance,
+      tableBalance: Math.max(0, tableBalance),
+      totalBalance,
+      creditLimit: 0,
+      availableCredit: 0
+    });
+  } catch (error: any) {
+    console.error('Error fetching player balance:', error);
+    res.status(500).json({ error: 'Failed to fetch player balance' });
+  }
+});
+// Player Transactions API
+app.get('/api/player/:playerId/transactions', async (req, res) => {
+  try {
+    const { playerId } = req.params;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const { data: transactions, error } = await supabase
+      .from('transactions')
+      .select('id, type, amount, description, staff_id, created_at')
+      .eq('player_id', playerId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    res.json(transactions || []);
+  } catch (error: any) {
+    console.error('Error fetching player transactions:', error);
+    res.status(500).json({ error: 'Failed to fetch transactions' });
+  }
+});
+// Cash-Out Request API
+app.post('/api/cash-out-request', async (req, res) => {
+  try {
+    const { playerId, amount, requestedAt } = req.body;
+    // Get player info
+    const { data: player } = await supabase
+      .from('players')
+      .select('first_name, last_name, balance')
+      .eq('id', playerId)
+      .single();
+    if (!player) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    const availableBalance = parseFloat(player.balance || '0');
+    
+    if (amount > availableBalance) {
+      return res.status(400).json({ 
+        error: `Insufficient balance. Available: ₹${availableBalance}` 
+      });
+    }
+    // Create cash-out request
+    const { data: request, error } = await supabase
+      .from('cash_out_requests')
+      .insert({
+        player_id: playerId,
+        amount,
+        status: 'pending',
+        requested_at: requestedAt,
+        player_name: `${player.first_name} ${player.last_name}`
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    // Notify Staff Portal
+    await pusher.trigger('cashier-notifications', 'new_cash_out_request', {
+      requestId: request.id,
+      playerId,
+      playerName: `${player.first_name} ${player.last_name}`,
+      amount,
+      requestedAt
+    });
+    res.json({ success: true, request });
+  } catch (error: any) {
+    console.error('Error creating cash-out request:', error);
+    res.status(500).json({ error: 'Failed to create cash-out request' });
+  }
+});
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+app.listen(PORT, () => {
+  console.log(`🚀 Player Portal API server running on port ${PORT}`);
+});
+Testing the Integration
+1. Test Balance API
+curl http://localhost:3001/api/player/29/balance
+2. Test Transactions API
+curl "http://localhost:3001/api/player/29/transactions?limit=5"
+3. Test Cash-Out Request
+curl -X POST http://localhost:3001/api/cash-out-request \
+  -H "Content-Type: application/json" \
+  -d '{"playerId": "29", "amount": 5000, "requestedAt": "2025-08-07T14:30:00Z"}'
+This setup ensures your Player Portal has complete integration with the Staff Portal's Three-Tier Balance Management System, providing real-time balance updates and seamless cross-portal communication.

@@ -47,6 +47,356 @@ import { SupabaseOnlyStorage } from './supabase-only-storage';
 import staffPortalRoutes from './routes/staff-portal-integration';
 
 export function registerRoutes(app: Express) {
+  // THREE-TIER BALANCE MANAGEMENT SYSTEM - PRODUCTION INTEGRATION
+  
+  // Player Balance API - Get complete balance breakdown
+  app.get("/api/player/:playerId/balance", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      console.log(`💰 [BALANCE API] Getting balance for player: ${playerId}`);
+
+      // Get player's cash balance from Supabase
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Get player data from Supabase
+      const { data: player, error: playerError } = await supabase
+        .from('players')
+        .select('id, first_name, last_name, balance')
+        .eq('id', playerId)
+        .single();
+
+      if (playerError || !player) {
+        console.error('❌ [BALANCE API] Player not found:', playerError);
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      // Get transactions to calculate table balance
+      const { data: transactions, error: transactionsError } = await supabase
+        .from('transactions')
+        .select('type, amount')
+        .eq('player_id', playerId);
+
+      let tableBalance = 0;
+      if (!transactionsError && transactions) {
+        transactions.forEach(t => {
+          if (t.type === 'table_buy_in') {
+            tableBalance += parseFloat(t.amount);
+          } else if (t.type === 'table_cash_out') {
+            tableBalance -= parseFloat(t.amount);
+          }
+        });
+      }
+
+      const cashBalance = parseFloat(player.balance || '0');
+      const totalBalance = cashBalance + Math.max(0, tableBalance);
+
+      const response = {
+        playerId: player.id,
+        cashBalance,
+        tableBalance: Math.max(0, tableBalance),
+        totalBalance,
+        creditLimit: 0,
+        availableCredit: 0
+      };
+
+      console.log(`✅ [BALANCE API] Balance retrieved:`, response);
+      res.json(response);
+
+    } catch (error: any) {
+      console.error('❌ [BALANCE API] Error:', error);
+      res.status(500).json({ error: 'Failed to fetch player balance' });
+    }
+  });
+
+  // Player Transactions API - Get transaction history
+  app.get("/api/player/:playerId/transactions", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const limit = parseInt(req.query.limit as string) || 10;
+      console.log(`📊 [TRANSACTIONS API] Getting transactions for player: ${playerId}, limit: ${limit}`);
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { data: transactions, error } = await supabase
+        .from('transactions')
+        .select('id, type, amount, description, staff_id, created_at')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        console.error('❌ [TRANSACTIONS API] Error:', error);
+        return res.status(500).json({ error: 'Failed to fetch transactions' });
+      }
+
+      console.log(`✅ [TRANSACTIONS API] Retrieved ${transactions?.length || 0} transactions`);
+      res.json(transactions || []);
+
+    } catch (error: any) {
+      console.error('❌ [TRANSACTIONS API] Error:', error);
+      res.status(500).json({ error: 'Failed to fetch transactions' });
+    }
+  });
+
+  // Cash-Out Request API - Submit withdrawal requests
+  app.post("/api/cash-out-request", async (req, res) => {
+    try {
+      const { playerId, amount, requestedAt } = req.body;
+      console.log(`💳 [CASH-OUT API] Processing request for player ${playerId}: ₹${amount}`);
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Get player info
+      const { data: player, error: playerError } = await supabase
+        .from('players')
+        .select('first_name, last_name, balance')
+        .eq('id', playerId)
+        .single();
+
+      if (playerError || !player) {
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      const availableBalance = parseFloat(player.balance || '0');
+      
+      if (amount > availableBalance) {
+        return res.status(400).json({ 
+          error: `Insufficient balance. Available: ₹${availableBalance.toLocaleString()}` 
+        });
+      }
+
+      // Create cash-out request
+      const { data: request, error } = await supabase
+        .from('cash_out_requests')
+        .insert({
+          player_id: playerId,
+          amount,
+          status: 'pending',
+          requested_at: requestedAt,
+          player_name: `${player.first_name} ${player.last_name}`
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ [CASH-OUT API] Database error:', error);
+        return res.status(500).json({ error: 'Failed to create cash-out request' });
+      }
+
+      // Notify Staff Portal via Pusher
+      await pusher.trigger('cashier-notifications', 'new_cash_out_request', {
+        requestId: request.id,
+        playerId,
+        playerName: `${player.first_name} ${player.last_name}`,
+        amount,
+        requestedAt,
+        timestamp: new Date().toISOString()
+      });
+
+      // Notify Player Portal of request submission
+      await pusher.trigger(`player-${playerId}`, 'cash_out_request_submitted', {
+        requestId: request.id,
+        amount,
+        status: 'pending'
+      });
+
+      console.log(`✅ [CASH-OUT API] Request created:`, request.id);
+      res.json({ success: true, request });
+
+    } catch (error: any) {
+      console.error('❌ [CASH-OUT API] Error:', error);
+      res.status(500).json({ error: 'Failed to create cash-out request' });
+    }
+  });
+
+  // Table Buy-in API - Deduct balance for table operations
+  app.post("/api/table/buy-in", async (req, res) => {
+    try {
+      const { playerId, tableId, amount, staffId } = req.body;
+      console.log(`🎯 [TABLE BUY-IN] Player ${playerId} buying in ₹${amount} at Table ${tableId}`);
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Get current player balance
+      const { data: player, error: playerError } = await supabase
+        .from('players')
+        .select('balance, first_name, last_name')
+        .eq('id', playerId)
+        .single();
+
+      if (playerError || !player) {
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      const currentBalance = parseFloat(player.balance || '0');
+      if (amount > currentBalance) {
+        return res.status(400).json({ 
+          error: `Insufficient balance. Available: ₹${currentBalance.toLocaleString()}` 
+        });
+      }
+
+      // Update player balance
+      const newBalance = currentBalance - amount;
+      const { error: updateError } = await supabase
+        .from('players')
+        .update({ balance: newBalance.toString() })
+        .eq('id', playerId);
+
+      if (updateError) {
+        console.error('❌ [TABLE BUY-IN] Balance update error:', updateError);
+        return res.status(500).json({ error: 'Failed to update balance' });
+      }
+
+      // Record transaction
+      const { data: transaction, error: transactionError } = await supabase
+        .from('transactions')
+        .insert({
+          player_id: playerId,
+          type: 'table_buy_in',
+          amount,
+          description: `Table buy-in at ${tableId}`,
+          staff_id: staffId || 'system',
+          table_id: tableId
+        })
+        .select()
+        .single();
+
+      if (transactionError) {
+        console.error('❌ [TABLE BUY-IN] Transaction error:', transactionError);
+      }
+
+      // Real-time balance update via Pusher
+      await pusher.trigger('cross-portal-sync', 'player_balance_update', {
+        playerId,
+        type: 'table_buy_in',
+        amount,
+        newBalance,
+        tableId,
+        timestamp: new Date().toISOString()
+      });
+
+      await pusher.trigger(`player-${playerId}`, 'balance_updated', {
+        cashBalance: newBalance,
+        operation: 'table_buy_in',
+        amount,
+        tableId
+      });
+
+      console.log(`✅ [TABLE BUY-IN] Successful: Player ${playerId} new balance: ₹${newBalance}`);
+      res.json({ 
+        success: true, 
+        newBalance,
+        transaction: transaction?.id,
+        message: `Buy-in successful. New balance: ₹${newBalance.toLocaleString()}`
+      });
+
+    } catch (error: any) {
+      console.error('❌ [TABLE BUY-IN] Error:', error);
+      res.status(500).json({ error: 'Failed to process table buy-in' });
+    }
+  });
+
+  // Table Cash-out API - Add balance from table operations  
+  app.post("/api/table/cash-out", async (req, res) => {
+    try {
+      const { playerId, tableId, amount, staffId } = req.body;
+      console.log(`🏆 [TABLE CASH-OUT] Player ${playerId} cashing out ₹${amount} from Table ${tableId}`);
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Get current player balance
+      const { data: player, error: playerError } = await supabase
+        .from('players')
+        .select('balance, first_name, last_name')
+        .eq('id', playerId)
+        .single();
+
+      if (playerError || !player) {
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      // Update player balance
+      const currentBalance = parseFloat(player.balance || '0');
+      const newBalance = currentBalance + amount;
+      const { error: updateError } = await supabase
+        .from('players')
+        .update({ balance: newBalance.toString() })
+        .eq('id', playerId);
+
+      if (updateError) {
+        console.error('❌ [TABLE CASH-OUT] Balance update error:', updateError);
+        return res.status(500).json({ error: 'Failed to update balance' });
+      }
+
+      // Record transaction
+      const { data: transaction, error: transactionError } = await supabase
+        .from('transactions')
+        .insert({
+          player_id: playerId,
+          type: 'table_cash_out',
+          amount,
+          description: `Table cash-out from ${tableId}`,
+          staff_id: staffId || 'system',
+          table_id: tableId
+        })
+        .select()
+        .single();
+
+      if (transactionError) {
+        console.error('❌ [TABLE CASH-OUT] Transaction error:', transactionError);
+      }
+
+      // Real-time balance update via Pusher
+      await pusher.trigger('cross-portal-sync', 'player_balance_update', {
+        playerId,
+        type: 'table_cash_out',
+        amount,
+        newBalance,
+        tableId,
+        timestamp: new Date().toISOString()
+      });
+
+      await pusher.trigger(`player-${playerId}`, 'balance_updated', {
+        cashBalance: newBalance,
+        operation: 'table_cash_out',
+        amount,
+        tableId
+      });
+
+      console.log(`✅ [TABLE CASH-OUT] Successful: Player ${playerId} new balance: ₹${newBalance}`);
+      res.json({ 
+        success: true, 
+        newBalance,
+        transaction: transaction?.id,
+        message: `Cash-out successful. New balance: ₹${newBalance.toLocaleString()}`
+      });
+
+    } catch (error: any) {
+      console.error('❌ [TABLE CASH-OUT] Error:', error);
+      res.status(500).json({ error: 'Failed to process table cash-out' });
+    }
+  });
+
   // UNIFIED CHAT SYSTEM - Single source of truth (NEW CORE)
   
   // STAFF PORTAL COMPATIBLE API ENDPOINTS

@@ -1,0 +1,432 @@
+Player Portal Three-Tier Balance Integration Guide
+Overview
+This guide provides complete integration instructions for the Player Portal to connect with the Staff Portal's Three-Tier Balance Management System. The system ensures real-time balance synchronization between cashiers, managers, and players across all portals.
+
+Business Logic Summary
+The Staff Portal implements a comprehensive three-tier balance workflow:
+
+TIER 1 - Cashiers: Add funds and process cash-outs from player accounts
+TIER 2 - Managers: Handle table buy-ins (deduct from balance) and cash-outs (add remaining chips back)
+TIER 3 - Player Portal: Display real-time balance updates with cash + table balance separation
+Database Tables Required
+Primary Tables (Supabase)
+-- Players table (existing - enhanced for balance tracking)
+CREATE TABLE players (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(50),
+    last_name VARCHAR(50),
+    balance DECIMAL(12,2) DEFAULT 0.00, -- Cash balance
+    email VARCHAR(100) UNIQUE,
+    phone VARCHAR(20),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+-- Transactions table for all balance operations
+CREATE TABLE transactions (
+    id SERIAL PRIMARY KEY,
+    player_id INTEGER REFERENCES players(id),
+    type VARCHAR(20) NOT NULL, -- 'cash_in', 'cash_out', 'table_buy_in', 'table_cash_out'
+    amount DECIMAL(12,2) NOT NULL,
+    description TEXT,
+    staff_id VARCHAR(50), -- ID of cashier or manager who processed
+    created_at TIMESTAMP DEFAULT NOW()
+);
+Player Portal Integration Components
+1. Real-Time Balance Hook
+// hooks/usePlayerBalance.ts
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import Pusher from 'pusher-js';
+interface PlayerBalance {
+  playerId: number;
+  cashBalance: number;
+  tableBalance: number;
+  totalBalance: number;
+  creditLimit?: number;
+  availableCredit?: number;
+}
+export function usePlayerBalance(playerId: string) {
+  const queryClient = useQueryClient();
+  // Fetch player balance from Staff Portal API
+  const { data: balance, isLoading, error } = useQuery<PlayerBalance>({
+    queryKey: [`/api/player/${playerId}/balance`],
+    refetchInterval: 10000, // Refetch every 10 seconds as fallback
+  });
+  // Real-time balance updates via Pusher
+  useEffect(() => {
+    if (!playerId) return;
+    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, {
+      cluster: import.meta.env.VITE_PUSHER_CLUSTER,
+    });
+    const channel = pusher.subscribe('cross-portal-sync');
+    
+    channel.bind('player_balance_update', (data: any) => {
+      if (data.playerId === playerId) {
+        console.log('💰 Real-time balance update received:', data);
+        
+        // Invalidate and refetch balance immediately
+        queryClient.invalidateQueries({ queryKey: [`/api/player/${playerId}/balance`] });
+      }
+    });
+    channel.bind('wallet_transaction', (data: any) => {
+      if (data.playerId?.toString() === playerId) {
+        console.log('💳 Wallet transaction update received:', data);
+        
+        // Invalidate balance and transaction queries
+        queryClient.invalidateQueries({ queryKey: [`/api/player/${playerId}/balance`] });
+        queryClient.invalidateQueries({ queryKey: ['/api/wallet-transactions'] });
+      }
+    });
+    return () => {
+      pusher.unsubscribe('cross-portal-sync');
+      pusher.disconnect();
+    };
+  }, [playerId, queryClient]);
+  return {
+    balance,
+    isLoading,
+    error,
+    cashBalance: balance?.cashBalance || 0,
+    tableBalance: balance?.tableBalance || 0,
+    totalBalance: balance?.totalBalance || 0,
+  };
+}
+2. Player Balance Display Component
+// components/PlayerBalanceDisplay.tsx
+import React from 'react';
+import { usePlayerBalance } from '../hooks/usePlayerBalance';
+interface PlayerBalanceDisplayProps {
+  playerId: string;
+  showBreakdown?: boolean;
+}
+export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerBalanceDisplayProps) {
+  const { balance, isLoading, cashBalance, tableBalance, totalBalance } = usePlayerBalance(playerId);
+  if (isLoading) {
+    return (
+      <div className="animate-pulse bg-gray-200 rounded-lg p-4">
+        <div className="h-6 bg-gray-300 rounded mb-2"></div>
+        <div className="h-4 bg-gray-300 rounded"></div>
+      </div>
+    );
+  }
+  return (
+    <div className="bg-gradient-to-r from-green-500 to-blue-600 rounded-lg p-6 text-white">
+      <div className="text-center">
+        <h2 className="text-lg font-medium opacity-90">Total Balance</h2>
+        <div className="text-4xl font-bold mb-4">₹{totalBalance.toLocaleString()}</div>
+        
+        {showBreakdown && (
+          <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-white/20">
+            <div className="text-center">
+              <div className="text-sm opacity-75">Available Cash</div>
+              <div className="text-xl font-semibold">₹{cashBalance.toLocaleString()}</div>
+              <div className="text-xs opacity-60 mt-1">Ready for withdrawal</div>
+            </div>
+            <div className="text-center">
+              <div className="text-sm opacity-75">At Tables</div>
+              <div className="text-xl font-semibold">₹{tableBalance.toLocaleString()}</div>
+              <div className="text-xs opacity-60 mt-1">Currently playing</div>
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* Real-time indicator */}
+      <div className="flex items-center justify-center mt-3 text-xs opacity-70">
+        <div className="w-2 h-2 bg-green-300 rounded-full animate-pulse mr-2"></div>
+        Live Balance Updates
+      </div>
+    </div>
+  );
+}
+3. Transaction History Component
+// components/PlayerTransactionHistory.tsx
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
+interface Transaction {
+  id: number;
+  type: string;
+  amount: string;
+  description: string;
+  created_at: string;
+  staff_id: string;
+}
+interface PlayerTransactionHistoryProps {
+  playerId: string;
+  limit?: number;
+}
+export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransactionHistoryProps) {
+  const { data: transactions = [], isLoading } = useQuery<Transaction[]>({
+    queryKey: [`/api/player/${playerId}/transactions`],
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
+  const getTransactionIcon = (type: string) => {
+    switch (type) {
+      case 'cash_in': return '💰';
+      case 'cash_out': return '💳';
+      case 'table_buy_in': return '🎯';
+      case 'table_cash_out': return '🏆';
+      default: return '💸';
+    }
+  };
+  const getTransactionLabel = (type: string) => {
+    switch (type) {
+      case 'cash_in': return 'Funds Added';
+      case 'cash_out': return 'Cash Withdrawal';
+      case 'table_buy_in': return 'Table Buy-in';
+      case 'table_cash_out': return 'Table Cash-out';
+      default: return type;
+    }
+  };
+  const getAmountColor = (type: string) => {
+    return ['cash_in', 'table_cash_out'].includes(type) 
+      ? 'text-green-600' 
+      : 'text-red-600';
+  };
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="animate-pulse bg-gray-100 rounded p-3">
+            <div className="h-4 bg-gray-300 rounded mb-2"></div>
+            <div className="h-3 bg-gray-300 rounded w-1/2"></div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="bg-white rounded-lg shadow-sm">
+      <div className="px-6 py-4 border-b">
+        <h3 className="text-lg font-medium">Recent Transactions</h3>
+      </div>
+      <div className="divide-y">
+        {transactions.slice(0, limit).map((transaction) => (
+          <div key={transaction.id} className="p-4 hover:bg-gray-50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <span className="text-2xl">{getTransactionIcon(transaction.type)}</span>
+                <div>
+                  <div className="font-medium text-gray-900">
+                    {getTransactionLabel(transaction.type)}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {new Date(transaction.created_at).toLocaleDateString()} at{' '}
+                    {new Date(transaction.created_at).toLocaleTimeString()}
+                  </div>
+                  {transaction.description && (
+                    <div className="text-xs text-gray-400 mt-1">
+                      {transaction.description}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className={`text-lg font-semibold ${getAmountColor(transaction.type)}`}>
+                {['cash_in', 'table_cash_out'].includes(transaction.type) ? '+' : '-'}
+                ₹{parseFloat(transaction.amount).toLocaleString()}
+              </div>
+            </div>
+          </div>
+        ))}
+        
+        {transactions.length === 0 && (
+          <div className="p-8 text-center text-gray-500">
+            No transactions found
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+4. Cash-Out Request Component
+// components/CashOutRequest.tsx
+import React, { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { usePlayerBalance } from '../hooks/usePlayerBalance';
+interface CashOutRequestProps {
+  playerId: string;
+}
+export function CashOutRequest({ playerId }: CashOutRequestProps) {
+  const [amount, setAmount] = useState('');
+  const [isRequesting, setIsRequesting] = useState(false);
+  const { cashBalance, totalBalance } = usePlayerBalance(playerId);
+  const queryClient = useQueryClient();
+  const requestCashOut = useMutation({
+    mutationFn: async (data: { amount: number; playerId: string }) => {
+      // This would typically create a cash-out request that cashiers process
+      const response = await fetch('/api/cash-out-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: data.playerId,
+          amount: data.amount,
+          requestedAt: new Date().toISOString(),
+        }),
+      });
+      if (!response.ok) throw new Error('Failed to submit cash-out request');
+      return response.json();
+    },
+    onSuccess: () => {
+      alert('Cash-out request submitted successfully! Please visit the cashier.');
+      setAmount('');
+      setIsRequesting(false);
+      queryClient.invalidateQueries({ queryKey: [`/api/player/${playerId}/balance`] });
+    },
+    onError: (error: any) => {
+      alert(`Error: ${error.message}`);
+    },
+  });
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const requestAmount = parseFloat(amount);
+    
+    if (requestAmount <= 0) {
+      alert('Please enter a valid amount');
+      return;
+    }
+    
+    if (requestAmount > cashBalance) {
+      alert(`Insufficient cash balance. Available: ₹${cashBalance.toLocaleString()}`);
+      return;
+    }
+    requestCashOut.mutate({ amount: requestAmount, playerId });
+  };
+  if (!isRequesting) {
+    return (
+      <button
+        onClick={() => setIsRequesting(true)}
+        className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors"
+      >
+        Request Cash-Out
+      </button>
+    );
+  }
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium mb-2">Cash-Out Amount</label>
+        <input
+          type="number"
+          min="1"
+          max={cashBalance}
+          step="1"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className="w-full border rounded px-3 py-2"
+          placeholder="Enter amount"
+          required
+        />
+        <div className="text-sm text-gray-500 mt-1">
+          Available: ₹{cashBalance.toLocaleString()}
+        </div>
+      </div>
+      
+      <div className="flex space-x-2">
+        <button
+          type="submit"
+          disabled={requestCashOut.isPending}
+          className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition-colors disabled:opacity-50"
+        >
+          {requestCashOut.isPending ? 'Submitting...' : 'Submit Request'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsRequesting(false)}
+          className="flex-1 bg-gray-600 text-white py-2 rounded hover:bg-gray-700 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+API Endpoints Integration
+Required API Endpoints in Player Portal
+// API endpoints that should be available in your Player Portal
+// 1. Get player balance (connects to Staff Portal)
+GET /api/player/:playerId/balance
+Response: {
+  playerId: number;
+  cashBalance: number;
+  tableBalance: number;
+  totalBalance: number;
+  creditLimit?: number;
+  availableCredit?: number;
+}
+// 2. Get player transaction history
+GET /api/player/:playerId/transactions?limit=10
+Response: Transaction[]
+// 3. Submit cash-out request (for cashier processing)
+POST /api/cash-out-request
+Body: {
+  playerId: string;
+  amount: number;
+  requestedAt: string;
+}
+Environment Variables Required
+# Pusher Configuration (same as Staff Portal)
+VITE_PUSHER_KEY=your_pusher_key
+VITE_PUSHER_CLUSTER=your_pusher_cluster
+# Supabase Configuration
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+Complete Player Portal Implementation
+Main Player Dashboard
+// pages/PlayerDashboard.tsx
+import React from 'react';
+import { PlayerBalanceDisplay } from '../components/PlayerBalanceDisplay';
+import { PlayerTransactionHistory } from '../components/PlayerTransactionHistory';
+import { CashOutRequest } from '../components/CashOutRequest';
+interface PlayerDashboardProps {
+  playerId: string; // Get from authentication context
+}
+export function PlayerDashboard({ playerId }: PlayerDashboardProps) {
+  return (
+    <div className="max-w-4xl mx-auto p-6 space-y-6">
+      {/* Hero Section */}
+      <div className="text-center mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Player Portal</h1>
+        <p className="text-gray-600">Real-time balance updates from cashier and table operations</p>
+      </div>
+      {/* Balance Display */}
+      <PlayerBalanceDisplay playerId={playerId} showBreakdown={true} />
+      {/* Action Buttons */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <h3 className="text-lg font-medium mb-4">Quick Actions</h3>
+          <CashOutRequest playerId={playerId} />
+        </div>
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <h3 className="text-lg font-medium mb-4">Balance Breakdown</h3>
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Cash Available:</span>
+              <span className="font-medium">Ready for withdrawal</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">At Tables:</span>
+              <span className="font-medium">Currently playing</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Total Balance:</span>
+              <span className="font-medium">Combined amount</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* Transaction History */}
+      <PlayerTransactionHistory playerId={playerId} limit={15} />
+    </div>
+  );
+}
+Testing the Integration
+After implementing the above components, test the integration:
+
+Cashier adds funds → Player sees cash balance increase immediately
+Manager processes table buy-in → Player sees cash decrease, table balance increase
+Manager processes table cash-out → Player sees cash increase, table balance decrease
+Player requests cash-out → Cashier receives notification to process
+Key Features Implemented
+✅ Real-time Balance Updates - Pusher Channels deliver instant updates ✅ Comprehensive Balance View - Cash + Table + Total balance breakdown ✅ Transaction History - Complete audit trail of all balance changes ✅ Cash-Out Requests - Players can request withdrawals for cashier processing ✅ Cross-Portal Sync - Perfect synchronization with Staff Portal operations ✅ Production Ready - Error handling, loading states, and responsive design
+
+This integration ensures your Player Portal maintains perfect synchronization with the Staff Portal's Three-Tier Balance Management System, providing players with real-time visibility into all balance operations performed by cashiers and managers.

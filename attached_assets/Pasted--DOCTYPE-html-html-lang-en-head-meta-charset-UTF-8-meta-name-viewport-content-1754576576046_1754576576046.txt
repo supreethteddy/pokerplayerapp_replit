@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Portal - Balance Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Player Portal Header -->
+    <header class="bg-white shadow-sm border-b">
+        <div class="max-w-4xl mx-auto px-6 py-4">
+            <h1 class="text-2xl font-bold text-gray-900">Player Portal</h1>
+            <p class="text-gray-600">Real-time balance updates from poker room operations</p>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-4xl mx-auto px-6 py-8">
+        <!-- Balance Display Card -->
+        <div id="balanceCard" class="bg-gradient-to-r from-green-500 to-blue-600 rounded-lg p-6 text-white mb-8">
+            <div class="text-center">
+                <h2 class="text-lg font-medium opacity-90">Total Balance</h2>
+                <div id="totalBalance" class="text-4xl font-bold mb-4">₹0</div>
+                
+                <div class="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-white/20">
+                    <div class="text-center">
+                        <div class="text-sm opacity-75">Available Cash</div>
+                        <div id="cashBalance" class="text-xl font-semibold">₹0</div>
+                        <div class="text-xs opacity-60 mt-1">Ready for withdrawal</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-sm opacity-75">At Tables</div>
+                        <div id="tableBalance" class="text-xl font-semibold">₹0</div>
+                        <div class="text-xs opacity-60 mt-1">Currently playing</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Real-time indicator -->
+            <div class="flex items-center justify-center mt-3 text-xs opacity-70">
+                <div id="liveIndicator" class="w-2 h-2 bg-green-300 rounded-full animate-pulse mr-2"></div>
+                <span id="connectionStatus">Connecting...</span>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <h3 class="text-lg font-medium mb-4">Quick Actions</h3>
+                <button id="cashOutBtn" class="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors">
+                    Request Cash-Out
+                </button>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <h3 class="text-lg font-medium mb-4">Balance Breakdown</h3>
+                <div class="space-y-3 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Cash Available:</span>
+                        <span class="font-medium">Ready for withdrawal</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">At Tables:</span>
+                        <span class="font-medium">Currently playing</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Total Balance:</span>
+                        <span class="font-medium">Combined amount</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transaction History -->
+        <div class="bg-white rounded-lg shadow-sm">
+            <div class="px-6 py-4 border-b">
+                <h3 class="text-lg font-medium">Recent Transactions</h3>
+            </div>
+            <div id="transactionsList" class="divide-y">
+                <!-- Transactions will be populated here -->
+                <div class="p-8 text-center text-gray-500">
+                    Loading transactions...
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Cash-Out Modal -->
+    <div id="cashOutModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 class="text-lg font-medium mb-4">Request Cash-Out</h3>
+            <form id="cashOutForm">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">Amount (₹)</label>
+                    <input 
+                        type="number" 
+                        id="cashOutAmount" 
+                        class="w-full border rounded px-3 py-2" 
+                        placeholder="Enter amount"
+                        min="1"
+                        required
+                    />
+                    <div id="availableAmount" class="text-sm text-gray-500 mt-1">Available: ₹0</div>
+                </div>
+                
+                <div class="flex space-x-2">
+                    <button type="submit" class="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition-colors">
+                        Submit Request
+                    </button>
+                    <button type="button" id="cancelCashOut" class="flex-1 bg-gray-600 text-white py-2 rounded hover:bg-gray-700 transition-colors">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- JavaScript Implementation -->
+    <script>
+        // Configuration - Replace with your actual values
+        const CONFIG = {
+            PLAYER_ID: '29', // Replace with actual player ID from authentication
+            API_BASE_URL: 'http://localhost:5000', // Your Staff Portal API URL
+            PUSHER_KEY: 'your_pusher_key', // Replace with your Pusher key
+            PUSHER_CLUSTER: 'your_pusher_cluster' // Replace with your Pusher cluster
+        };
+
+        // Current balance data
+        let currentBalance = {
+            cashBalance: 0,
+            tableBalance: 0,
+            totalBalance: 0
+        };
+
+        // Initialize Pusher for real-time updates
+        const pusher = new Pusher(CONFIG.PUSHER_KEY, {
+            cluster: CONFIG.PUSHER_CLUSTER
+        });
+
+        const channel = pusher.subscribe('cross-portal-sync');
+
+        // DOM Elements
+        const totalBalanceEl = document.getElementById('totalBalance');
+        const cashBalanceEl = document.getElementById('cashBalance');
+        const tableBalanceEl = document.getElementById('tableBalance');
+        const connectionStatusEl = document.getElementById('connectionStatus');
+        const liveIndicatorEl = document.getElementById('liveIndicator');
+        const transactionsListEl = document.getElementById('transactionsList');
+        const cashOutBtn = document.getElementById('cashOutBtn');
+        const cashOutModal = document.getElementById('cashOutModal');
+        const cashOutForm = document.getElementById('cashOutForm');
+        const cancelCashOut = document.getElementById('cancelCashOut');
+        const availableAmountEl = document.getElementById('availableAmount');
+
+        // Update balance display
+        function updateBalanceDisplay(balance) {
+            currentBalance = balance;
+            totalBalanceEl.textContent = `₹${balance.totalBalance.toLocaleString()}`;
+            cashBalanceEl.textContent = `₹${balance.cashBalance.toLocaleString()}`;
+            tableBalanceEl.textContent = `₹${balance.tableBalance.toLocaleString()}`;
+            availableAmountEl.textContent = `Available: ₹${balance.cashBalance.toLocaleString()}`;
+        }
+
+        // Fetch player balance
+        async function fetchBalance() {
+            try {
+                const response = await fetch(`${CONFIG.API_BASE_URL}/api/player/${CONFIG.PLAYER_ID}/balance`);
+                if (!response.ok) throw new Error('Failed to fetch balance');
+                const balance = await response.json();
+                updateBalanceDisplay(balance);
+                
+                // Update connection status
+                connectionStatusEl.textContent = 'Live Balance Updates';
+                liveIndicatorEl.className = 'w-2 h-2 bg-green-300 rounded-full animate-pulse mr-2';
+            } catch (error) {
+                console.error('Error fetching balance:', error);
+                connectionStatusEl.textContent = 'Connection Error';
+                liveIndicatorEl.className = 'w-2 h-2 bg-red-300 rounded-full mr-2';
+            }
+        }
+
+        // Fetch transactions
+        async function fetchTransactions() {
+            try {
+                const response = await fetch(`${CONFIG.API_BASE_URL}/api/player/${CONFIG.PLAYER_ID}/transactions?limit=10`);
+                if (!response.ok) throw new Error('Failed to fetch transactions');
+                const transactions = await response.json();
+                displayTransactions(transactions);
+            } catch (error) {
+                console.error('Error fetching transactions:', error);
+                transactionsListEl.innerHTML = '<div class="p-8 text-center text-red-500">Failed to load transactions</div>';
+            }
+        }
+
+        // Display transactions
+        function displayTransactions(transactions) {
+            if (transactions.length === 0) {
+                transactionsListEl.innerHTML = '<div class="p-8 text-center text-gray-500">No transactions found</div>';
+                return;
+            }
+
+            const transactionTypes = {
+                'cash_in': { icon: '💰', label: 'Funds Added', color: 'text-green-600' },
+                'cash_out': { icon: '💳', label: 'Cash Withdrawal', color: 'text-red-600' },
+                'table_buy_in': { icon: '🎯', label: 'Table Buy-in', color: 'text-red-600' },
+                'table_cash_out': { icon: '🏆', label: 'Table Cash-out', color: 'text-green-600' }
+            };
+
+            const html = transactions.map(transaction => {
+                const type = transactionTypes[transaction.type] || { icon: '💸', label: transaction.type, color: 'text-gray-600' };
+                const amount = parseFloat(transaction.amount);
+                const isPositive = ['cash_in', 'table_cash_out'].includes(transaction.type);
+                const amountPrefix = isPositive ? '+' : '-';
+                const date = new Date(transaction.created_at);
+
+                return `
+                    <div class="p-4 hover:bg-gray-50">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <span class="text-2xl">${type.icon}</span>
+                                <div>
+                                    <div class="font-medium text-gray-900">${type.label}</div>
+                                    <div class="text-sm text-gray-500">
+                                        ${date.toLocaleDateString()} at ${date.toLocaleTimeString()}
+                                    </div>
+                                    ${transaction.description ? `<div class="text-xs text-gray-400 mt-1">${transaction.description}</div>` : ''}
+                                </div>
+                            </div>
+                            <div class="text-lg font-semibold ${type.color}">
+                                ${amountPrefix}₹${amount.toLocaleString()}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            transactionsListEl.innerHTML = html;
+        }
+
+        // Handle real-time updates
+        channel.bind('player_balance_update', (data) => {
+            if (data.playerId === CONFIG.PLAYER_ID) {
+                console.log('💰 Real-time balance update received:', data);
+                fetchBalance(); // Refresh balance immediately
+                fetchTransactions(); // Refresh transactions
+                
+                // Visual feedback
+                liveIndicatorEl.className = 'w-2 h-2 bg-yellow-300 rounded-full animate-ping mr-2';
+                setTimeout(() => {
+                    liveIndicatorEl.className = 'w-2 h-2 bg-green-300 rounded-full animate-pulse mr-2';
+                }, 1000);
+            }
+        });
+
+        channel.bind('wallet_transaction', (data) => {
+            if (data.playerId?.toString() === CONFIG.PLAYER_ID) {
+                console.log('💳 Wallet transaction update received:', data);
+                fetchBalance();
+                fetchTransactions();
+            }
+        });
+
+        // Cash-out modal handlers
+        cashOutBtn.addEventListener('click', () => {
+            cashOutModal.classList.remove('hidden');
+            cashOutModal.classList.add('flex');
+            document.getElementById('cashOutAmount').max = currentBalance.cashBalance;
+        });
+
+        cancelCashOut.addEventListener('click', () => {
+            cashOutModal.classList.add('hidden');
+            cashOutModal.classList.remove('flex');
+            cashOutForm.reset();
+        });
+
+        // Handle cash-out form submission
+        cashOutForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const amount = parseFloat(document.getElementById('cashOutAmount').value);
+            
+            if (amount <= 0) {
+                alert('Please enter a valid amount');
+                return;
+            }
+            
+            if (amount > currentBalance.cashBalance) {
+                alert(`Insufficient cash balance. Available: ₹${currentBalance.cashBalance.toLocaleString()}`);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${CONFIG.API_BASE_URL}/api/cash-out-request`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        playerId: CONFIG.PLAYER_ID,
+                        amount: amount,
+                        requestedAt: new Date().toISOString()
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to submit cash-out request');
+                }
+
+                alert('Cash-out request submitted successfully! Please visit the cashier to collect your funds.');
+                cashOutModal.classList.add('hidden');
+                cashOutModal.classList.remove('flex');
+                cashOutForm.reset();
+                
+            } catch (error) {
+                console.error('Cash-out request error:', error);
+                alert(`Error: ${error.message}`);
+            }
+        });
+
+        // Connection status monitoring
+        pusher.connection.bind('connected', () => {
+            connectionStatusEl.textContent = 'Live Balance Updates';
+            liveIndicatorEl.className = 'w-2 h-2 bg-green-300 rounded-full animate-pulse mr-2';
+        });
+
+        pusher.connection.bind('disconnected', () => {
+            connectionStatusEl.textContent = 'Connection Lost';
+            liveIndicatorEl.className = 'w-2 h-2 bg-red-300 rounded-full mr-2';
+        });
+
+        pusher.connection.bind('error', () => {
+            connectionStatusEl.textContent = 'Connection Error';
+            liveIndicatorEl.className = 'w-2 h-2 bg-red-300 rounded-full mr-2';
+        });
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchBalance();
+            fetchTransactions();
+            
+            // Refresh data every 30 seconds as fallback
+            setInterval(() => {
+                fetchBalance();
+                fetchTransactions();
+            }, 30000);
+        });
+
+        // Handle click outside modal to close
+        cashOutModal.addEventListener('click', (e) => {
+            if (e.target === cashOutModal) {
+                cashOutModal.classList.add('hidden');
+                cashOutModal.classList.remove('flex');
+                cashOutForm.reset();
+            }
+        });
+    </script>
+</body>
+</html>
