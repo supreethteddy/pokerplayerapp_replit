@@ -44,6 +44,51 @@ export default function ClerkSignUpPage() {
 
     setLoading(true);
     try {
+      // First, check if player exists in our database
+      console.log('🔍 [SIGNUP] Checking for existing player:', formData.email);
+      
+      try {
+        const checkResponse = await fetch('/api/players', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            phone: formData.phone,
+          }),
+        });
+
+        const playerData = await checkResponse.json();
+        
+        // If existing player detected, handle KYC redirect
+        if (playerData.existing) {
+          console.log('🔄 [SIGNUP] Existing player - redirecting to KYC:', playerData.kycStatus);
+          
+          // Store KYC redirect data for App.tsx to handle
+          sessionStorage.setItem('kyc_redirect', JSON.stringify(playerData));
+          
+          toast({
+            title: "Account Found",
+            description: "Redirecting you to KYC process...",
+          });
+          
+          // Trigger a page reload to let App.tsx handle the redirect
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+          
+          setLoading(false);
+          return;
+        }
+      } catch (existingCheckError) {
+        console.log('📝 [SIGNUP] No existing player found, proceeding with Clerk signup');
+      }
+
+      // Proceed with normal Clerk signup if no existing player
       await signUp.create({
         emailAddress: formData.email,
         password: formData.password,
