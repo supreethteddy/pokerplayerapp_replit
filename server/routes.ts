@@ -2995,6 +2995,167 @@ export function registerRoutes(app: Express) {
   console.log('🔐 [ROUTES] CLERK INTEGRATION REGISTERED - Webhook + Sync endpoints active');
   console.log('🔐 [ROUTES] CLERK AUTHENTICATION LOGGING SYSTEM REGISTERED - Login/Logout tracking + KYC email notifications');
   console.log('💰 [ROUTES] CREDIT DEDUCTION CASH-OUT SYSTEM REGISTERED - Automatic credit balance deduction with real-time staff portal sync');
+
+  // ========== WAITLIST MANAGEMENT ENDPOINTS ==========
+  
+  // Join waitlist endpoint - connects player portal to staff portal
+  app.post('/api/waitlist/join', async (req, res) => {
+    try {
+      const { playerId, tableId, tableName, preferredSeat } = req.body;
+      
+      console.log(`🎯 [WAITLIST JOIN] Player ${playerId} joining waitlist for table ${tableId} (${tableName}), preferred seat: ${preferredSeat}`);
+
+      if (!playerId || !tableId) {
+        return res.status(400).json({ error: 'Player ID and Table ID are required' });
+      }
+
+      // Use direct PostgreSQL connection for immediate consistency with staff portal
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        connectionTimeoutMillis: 10000,
+      });
+
+      // Check if player is already in waitlist for this table
+      const checkQuery = `
+        SELECT id FROM waitlist 
+        WHERE player_id = $1 AND table_id = $2 AND status = 'waiting'
+        LIMIT 1
+      `;
+      
+      const existingResult = await pool.query(checkQuery, [playerId, tableId]);
+      
+      if (existingResult.rows.length > 0) {
+        await pool.end();
+        return res.status(400).json({ 
+          error: 'Already on waitlist for this table',
+          waitlistId: existingResult.rows[0].id 
+        });
+      }
+
+      // Get next position in waitlist
+      const positionQuery = `
+        SELECT COALESCE(MAX(position), 0) + 1 as next_position
+        FROM waitlist 
+        WHERE table_id = $1
+      `;
+      
+      const positionResult = await pool.query(positionQuery, [tableId]);
+      const nextPosition = positionResult.rows[0].next_position;
+
+      // Insert into waitlist table (main staff portal table)
+      const insertQuery = `
+        INSERT INTO waitlist (
+          player_id, 
+          table_id, 
+          game_type, 
+          min_buy_in, 
+          max_buy_in, 
+          position, 
+          status, 
+          seat_number,
+          requested_at,
+          created_at,
+          updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW(), NOW())
+        RETURNING id, player_id, table_id, position, status, seat_number, requested_at
+      `;
+      
+      const waitlistResult = await pool.query(insertQuery, [
+        playerId,
+        tableId,
+        'Texas Hold\'em', // Default game type
+        1000, // Default min buy-in
+        10000, // Default max buy-in  
+        nextPosition,
+        'waiting',
+        preferredSeat
+      ]);
+
+      // Also create seat request for backwards compatibility
+      const seatRequestQuery = `
+        INSERT INTO seat_requests (player_id, table_id, seat_number, status, created_at)
+        VALUES ($1, $2, $3, $4, NOW())
+        RETURNING id
+      `;
+      
+      const seatRequestResult = await pool.query(seatRequestQuery, [
+        playerId, tableId, preferredSeat, 'waiting'
+      ]);
+
+      await pool.end();
+
+      const waitlistEntry = waitlistResult.rows[0];
+
+      // Send real-time notification to staff portal
+      if ((global as any).pusher) {
+        (global as any).pusher.trigger('staff-portal', 'waitlist_update', {
+          type: 'player_joined',
+          playerId: playerId,
+          tableId: tableId,
+          tableName: tableName,
+          preferredSeat: preferredSeat,
+          position: nextPosition,
+          waitlistId: waitlistEntry.id,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      console.log(`✅ [WAITLIST JOIN] Success - Player ${playerId} added to position ${nextPosition} for table ${tableId}`);
+      
+      res.json({
+        success: true,
+        message: "Added to waitlist",
+        waitlist: {
+          id: waitlistEntry.id,
+          playerId: waitlistEntry.player_id,
+          tableId: waitlistEntry.table_id,
+          position: waitlistEntry.position,
+          status: waitlistEntry.status,
+          seatNumber: waitlistEntry.seat_number,
+          requestedAt: waitlistEntry.requested_at
+        },
+        seatRequestId: seatRequestResult.rows[0].id
+      });
+
+    } catch (error) {
+      console.error('❌ [WAITLIST JOIN] Error:', error);
+      res.status(500).json({ error: 'Failed to join waitlist' });
+    }
+  });
+
+  // Get waitlist status for a player
+  app.get('/api/waitlist/player/:playerId', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        connectionTimeoutMillis: 10000,
+      });
+
+      const query = `
+        SELECT w.*, t.name as table_name
+        FROM waitlist w
+        LEFT JOIN tables t ON w.table_id = t.id
+        WHERE w.player_id = $1 AND w.status IN ('waiting', 'called')
+        ORDER BY w.requested_at DESC
+      `;
+      
+      const result = await pool.query(query, [playerId]);
+      await pool.end();
+
+      res.json(result.rows);
+
+    } catch (error) {
+      console.error('❌ [WAITLIST STATUS] Error:', error);
+      res.status(500).json({ error: 'Failed to get waitlist status' });
+    }
+  });
+
+  console.log('🎯 [ROUTES] WAITLIST MANAGEMENT ENDPOINTS REGISTERED - Player-to-Staff portal integration active');
   
   return app;
 }
