@@ -2290,7 +2290,7 @@ export function registerRoutes(app: Express) {
 
   // ========== DUAL BALANCE MANAGEMENT SYSTEM ==========
   
-  // Enhanced balance API with dual balance support
+  // Enhanced balance API with dual balance support + comprehensive monitoring
   app.get('/api/balance/:playerId', async (req, res) => {
     try {
       const { playerId } = req.params;
@@ -2304,7 +2304,8 @@ export function registerRoutes(app: Express) {
       });
 
       const query = `
-        SELECT balance, current_credit, credit_limit, credit_approved 
+        SELECT balance, current_credit, credit_limit, credit_approved, total_deposits, total_withdrawals,
+               first_name, last_name, email, last_login_at
         FROM players 
         WHERE id = $1
       `;
@@ -2313,23 +2314,115 @@ export function registerRoutes(app: Express) {
       await pool.end();
 
       if (result.rows.length === 0) {
+        console.error(`❌ [BALANCE MONITORING] Player ${playerId} not found in database`);
         throw new Error('Player not found');
       }
 
       const player = result.rows[0];
+      const cashBalance = parseFloat(player.balance || '0');
+      const creditBalance = parseFloat(player.current_credit || '0');
+      const totalBalance = cashBalance + creditBalance;
+      
       const balanceData = {
-        cashBalance: parseFloat(player.balance || '0'),
-        creditBalance: parseFloat(player.current_credit || '0'),
+        cashBalance,
+        creditBalance,
         creditLimit: parseFloat(player.credit_limit || '0'),
         creditApproved: player.credit_approved || false,
-        totalBalance: parseFloat(player.balance || '0') + parseFloat(player.current_credit || '0')
+        totalBalance
       };
 
-      console.log(`✅ [DUAL BALANCE] Retrieved:`, balanceData);
+      // COMPREHENSIVE BALANCE MONITORING SYSTEM
+      console.log(`✅ [BALANCE MONITORING] Player ${playerId} (${player.first_name} ${player.last_name}):`, {
+        cashBalance: `₹${cashBalance}`,
+        creditBalance: `₹${creditBalance}`,
+        totalBalance: `₹${totalBalance}`,
+        email: player.email,
+        lastLogin: player.last_login_at
+      });
+
+      // Data integrity verification
+      const totalDeposits = parseFloat(player.total_deposits || '0');
+      const totalWithdrawals = parseFloat(player.total_withdrawals || '0');
+      const expectedBalance = totalDeposits - totalWithdrawals;
+      
+      if (Math.abs(cashBalance - expectedBalance) > 0.01 && totalDeposits > 0) {
+        console.warn(`⚠️ [BALANCE INTEGRITY] Potential discrepancy for Player ${playerId}:`, {
+          currentBalance: cashBalance,
+          expectedBalance,
+          deposits: totalDeposits,
+          withdrawals: totalWithdrawals,
+          difference: Math.abs(cashBalance - expectedBalance)
+        });
+      }
+
       res.json(balanceData);
     } catch (error) {
       console.error('❌ [DUAL BALANCE] Error:', error);
       res.status(500).json({ error: 'Failed to fetch balance' });
+    }
+  });
+
+  // ========== BALANCE INTEGRITY MONITORING SYSTEM ==========
+  
+  // Balance audit endpoint for staff portal monitoring
+  app.get('/api/admin/balance-audit', async (req, res) => {
+    try {
+      console.log('🔍 [BALANCE AUDIT] Running comprehensive balance integrity check...');
+      
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      const auditQuery = `
+        SELECT 
+          id, email, first_name, last_name, 
+          COALESCE(balance, 0) as balance, 
+          COALESCE(current_credit, 0) as current_credit,
+          COALESCE(total_deposits, 0) as total_deposits, 
+          COALESCE(total_withdrawals, 0) as total_withdrawals, 
+          last_login_at,
+          (COALESCE(total_deposits, 0)::decimal - COALESCE(total_withdrawals, 0)::decimal) as expected_balance,
+          ABS(COALESCE(balance, 0)::decimal - (COALESCE(total_deposits, 0)::decimal - COALESCE(total_withdrawals, 0)::decimal)) as discrepancy
+        FROM players 
+        WHERE COALESCE(is_active, true) = true 
+        AND (COALESCE(total_deposits, 0) > 0 OR COALESCE(balance, 0) > 0)
+        ORDER BY discrepancy DESC, last_login_at DESC NULLS LAST
+        LIMIT 50
+      `;
+      
+      const result = await pool.query(auditQuery);
+      await pool.end();
+
+      const auditResults = result.rows.map(player => ({
+        playerId: player.id,
+        name: `${player.first_name} ${player.last_name}`,
+        email: player.email,
+        currentBalance: parseFloat(player.balance || '0'),
+        expectedBalance: parseFloat(player.expected_balance || '0'),
+        discrepancy: parseFloat(player.discrepancy || '0'),
+        creditBalance: parseFloat(player.current_credit || '0'),
+        lastLogin: player.last_login_at,
+        status: parseFloat(player.discrepancy || '0') > 0.01 ? 'REVIEW_REQUIRED' : 'OK'
+      }));
+
+      const discrepancyCount = auditResults.filter(p => p.status === 'REVIEW_REQUIRED').length;
+
+      console.log(`✅ [BALANCE AUDIT] Completed: ${result.rows.length} players checked, ${discrepancyCount} discrepancies found`);
+
+      res.json({
+        summary: {
+          totalPlayersChecked: result.rows.length,
+          discrepanciesFound: discrepancyCount,
+          systemStatus: discrepancyCount === 0 ? 'HEALTHY' : 'ATTENTION_REQUIRED',
+          auditTimestamp: new Date().toISOString()
+        },
+        players: auditResults
+      });
+    } catch (error) {
+      console.error('❌ [BALANCE AUDIT] Error:', error);
+      res.status(500).json({ error: 'Balance audit failed' });
     }
   });
 
