@@ -154,7 +154,6 @@ function App() {
       <TooltipProvider>
         <SafeAuthWrapper>
           <AppContent />
-          <NotificationBubbleManager />
         </SafeAuthWrapper>
         <Toaster />
       </TooltipProvider>

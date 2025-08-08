@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import { useUltraFastAuth } from '@/hooks/useUltraFastAuth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { X, Bell, AlertCircle, Info, Zap } from 'lucide-react';
@@ -149,7 +149,7 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onD
 };
 
 export const PushNotificationManager: React.FC = () => {
-  const { user } = useAuth();
+  const { user } = useUltraFastAuth();
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [permission, setPermission] = useState<NotificationPermission>('default');
 

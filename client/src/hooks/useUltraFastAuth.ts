@@ -31,9 +31,6 @@ export function useUltraFastAuth() {
   // Invisible Clerk integration - runs silently in background
   useInvisibleClerk(user);
 
-  // Invisible Clerk integration - runs silently in background
-  useInvisibleClerk(user);
-
   useEffect(() => {
     console.log('🚀 [ULTRA-FAST AUTH] Initializing...');
     
