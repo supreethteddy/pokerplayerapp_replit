@@ -232,7 +232,7 @@ export class SupabaseOnlyStorage {
     console.log('🔍 [UNIFIED] Getting player by Supabase ID:', supabaseId);
     
     try {
-      // First try direct lookup by supabase_id
+      // First try direct lookup by supabase_id (handles both real UUIDs and custom auth_ IDs)
       const { data: directData, error: directError } = await supabase
         .from('players')
         .select('*')
@@ -244,9 +244,17 @@ export class SupabaseOnlyStorage {
         return this.transformPlayerFromSupabase(directData);
       }
       
-      console.log('🔄 [UNIFIED] Direct lookup failed, trying auth email lookup');
+      // Only try auth lookup if the supabaseId looks like a proper UUID (not custom auth_ IDs)
+      const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(supabaseId);
       
-      // Fallback: Get email from Supabase auth and lookup by email
+      if (!isValidUUID) {
+        console.log('🚫 [UNIFIED] Custom auth ID detected (not UUID), skipping auth lookup:', supabaseId);
+        return undefined;
+      }
+      
+      console.log('🔄 [UNIFIED] Valid UUID detected, trying auth email lookup');
+      
+      // Fallback: Get email from Supabase auth and lookup by email (only for real UUIDs)
       const { data: { user }, error: authError } = await supabase.auth.admin.getUserById(supabaseId);
       
       if (authError || !user?.email) {
