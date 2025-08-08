@@ -2873,7 +2873,7 @@ export function registerRoutes(app: Express) {
       // Update player KYC status
       const playerUpdateQuery = `
         UPDATE players 
-        SET kyc_status = 'approved', updated_at = NOW()
+        SET kyc_status = 'approved'
         WHERE id = $1
         RETURNING id, email, first_name, last_name, kyc_status
       `;
@@ -2890,7 +2890,7 @@ export function registerRoutes(app: Express) {
       // Update all documents for this player to approved
       const docsUpdateQuery = `
         UPDATE kyc_documents 
-        SET status = 'approved', updated_at = NOW()
+        SET status = 'approved'
         WHERE player_id = $1
       `;
       
