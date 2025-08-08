@@ -309,3 +309,79 @@ export type PlayerFeedback = typeof playerFeedback.$inferSelect;
 export const insertPushNotificationSchema = createInsertSchema(pushNotifications).omit({ id: true, createdAt: true });
 export type InsertPushNotification = z.infer<typeof insertPushNotificationSchema>;
 export type PushNotification = typeof pushNotifications.$inferSelect;
+
+// Table sessions for tracking player time spent at tables
+export const tableSessions = pgTable("table_sessions", {
+  id: serial("id").primaryKey(),
+  universalId: text("universal_id").unique(), // Enterprise-grade universal ID
+  playerId: integer("player_id").references(() => players.id),
+  tableId: text("table_id").notNull(), // Table UUID from staff portal
+  tableName: text("table_name").notNull(), // Table name for reference
+  sessionStatus: text("session_status").notNull().default("active"), // active, ended
+  seatNumber: integer("seat_number"), // Actual seat number at table
+  joinedAt: timestamp("joined_at").defaultNow(), // When player joined table
+  leftAt: timestamp("left_at"), // When player left table
+  duration: integer("duration"), // Session duration in minutes
+  totalBuyIns: text("total_buy_ins").notNull().default("0.00"), // Total amount bought in
+  totalCashOuts: text("total_cash_outs").notNull().default("0.00"), // Total amount cashed out
+  netResult: text("net_result").notNull().default("0.00"), // Final profit/loss
+  createdBy: text("created_by"), // Staff member who seated the player
+  endedBy: text("ended_by"), // Staff member who ended the session
+  notes: text("notes"), // Additional session notes
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Buy-in transactions for tracking multiple buy-ins during table sessions
+export const buyInTransactions = pgTable("buy_in_transactions", {
+  id: serial("id").primaryKey(),
+  universalId: text("universal_id").unique(), // Enterprise-grade universal ID
+  sessionId: integer("session_id").references(() => tableSessions.id),
+  playerId: integer("player_id").references(() => players.id),
+  tableId: text("table_id").notNull(), // Table UUID
+  transactionType: text("transaction_type").notNull(), // buy_in, cash_out, rebuy
+  amount: text("amount").notNull(), // Transaction amount
+  balanceBefore: text("balance_before").notNull(), // Player balance before transaction
+  balanceAfter: text("balance_after").notNull(), // Player balance after transaction
+  paymentMethod: text("payment_method").notNull().default("cash"), // cash, credit, transfer
+  processedBy: text("processed_by").notNull(), // Staff member who processed
+  staffPortalReference: text("staff_portal_reference"), // Reference ID from staff portal
+  notes: text("notes"), // Transaction notes
+  timestamp: timestamp("timestamp").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Account ledger for comprehensive financial tracking
+export const accountLedger = pgTable("account_ledger", {
+  id: serial("id").primaryKey(),
+  universalId: text("universal_id").unique(), // Enterprise-grade universal ID
+  playerId: integer("player_id").references(() => players.id),
+  sessionId: integer("session_id").references(() => tableSessions.id), // Optional: link to table session
+  entryType: text("entry_type").notNull(), // table_entry, table_exit, buy_in, cash_out, deposit, withdrawal
+  description: text("description").notNull(), // Human-readable description
+  amount: text("amount").notNull(), // Transaction amount (positive or negative)
+  balanceBefore: text("balance_before").notNull(), // Balance before transaction
+  balanceAfter: text("balance_after").notNull(), // Balance after transaction
+  creditBefore: text("credit_before").notNull().default("0.00"), // Credit before transaction
+  creditAfter: text("credit_after").notNull().default("0.00"), // Credit after transaction
+  relatedTableId: text("related_table_id"), // Table ID if related to table activity
+  relatedTableName: text("related_table_name"), // Table name for reference
+  processedBy: text("processed_by"), // Staff member who processed the transaction
+  staffPortalSync: boolean("staff_portal_sync").default(false), // Synced with staff portal
+  managerNotes: text("manager_notes"), // Manager notes for oversight
+  timestamp: timestamp("timestamp").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Insert schemas for new tables
+export const insertTableSessionSchema = createInsertSchema(tableSessions).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertTableSession = z.infer<typeof insertTableSessionSchema>;
+export type TableSession = typeof tableSessions.$inferSelect;
+
+export const insertBuyInTransactionSchema = createInsertSchema(buyInTransactions).omit({ id: true, createdAt: true });
+export type InsertBuyInTransaction = z.infer<typeof insertBuyInTransactionSchema>;
+export type BuyInTransaction = typeof buyInTransactions.$inferSelect;
+
+export const insertAccountLedgerSchema = createInsertSchema(accountLedger).omit({ id: true, createdAt: true });
+export type InsertAccountLedger = z.infer<typeof insertAccountLedgerSchema>;
+export type AccountLedger = typeof accountLedger.$inferSelect;
