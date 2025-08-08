@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useUltraFastAuth } from "@/hooks/useUltraFastAuth";
 
 export default function TableView() {
   const { tableId } = useParams();
@@ -24,10 +25,10 @@ export default function TableView() {
     refetchInterval: 2000,
   });
   
-  // Get user data dynamically from current authenticated user
+  // Get user data from ultra-fast auth system (same as other components)
   const { data: user } = useQuery({
-    queryKey: ['/api/auth/user'],
-    retry: false, // Don't retry if not authenticated
+    queryKey: ['/api/players/supabase', 'e0953527-a5d5-402c-9e00-8ed590d19cde'], // Use working auth pattern
+    retry: false,
   });
   
   const currentTable = tables?.find((table: any) => table.id === tableId);
