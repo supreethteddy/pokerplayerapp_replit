@@ -112,7 +112,7 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-slate-900 dark">
       {/* Global Push Notification Manager - Active when user is logged in */}
-      {user && <NotificationBubbleManager userId={Number(user.id)} />}
+      {user && <NotificationBubbleManager />}
       
       <Switch>
         <Route path="/">

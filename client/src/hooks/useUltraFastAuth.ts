@@ -311,7 +311,8 @@ export function useUltraFastAuth() {
         success: true, 
         existing: existing || false,
         redirectToKYC: redirectToKYC || false,
-        player 
+        player,
+        playerData: player // Add alias for compatibility
       };
       
     } catch (error: any) {

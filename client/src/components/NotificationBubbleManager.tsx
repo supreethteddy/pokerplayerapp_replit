@@ -255,7 +255,7 @@ export const NotificationBubbleManager: React.FC = () => {
                     badge: '/favicon.ico',
                     tag: `notification-${notif.id}`,
                     requireInteraction: notif.priority === 'urgent',
-                    vibrate: notif.priority === 'urgent' ? [200, 100, 200, 100, 200] : [200],
+                    // vibrate: notif.priority === 'urgent' ? [200, 100, 200, 100, 200] : [200], // Removed - not supported in all browsers
                     data: {
                       notificationId: notif.id,
                       url: '/'

@@ -58,7 +58,7 @@ export default function DirectClubsAuth() {
         if (result.success) {
           // Check if we need to redirect to KYC process
           if (result.redirectToKYC) {
-            console.log('🎯 [AUTH] Redirecting to KYC process for player:', result.playerData?.id);
+            console.log('🎯 [AUTH] Redirecting to KYC process for player:', result.player?.id);
             // KYC redirect will be handled by the parent component
           }
         } else {
