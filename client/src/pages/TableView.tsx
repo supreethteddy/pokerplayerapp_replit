@@ -44,6 +44,7 @@ export default function TableView() {
   });
   
   const isOnWaitlist = userWaitlist?.some((req: any) => req.tableId === tableId);
+  const waitlistEntry = userWaitlist?.find((req: any) => req.tableId === tableId);
   
   // Join waitlist with seat reservation
   const joinWaitlistMutation = useMutation({
@@ -76,11 +77,23 @@ export default function TableView() {
     },
     onError: (error: any) => {
       console.error('❌ [TABLE VIEW JOIN] Waitlist join failed:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to join waitlist",
-        variant: "destructive",
-      });
+      
+      // Handle "already on waitlist" scenario specifically
+      if (error.message && error.message.includes('Already on waitlist')) {
+        toast({
+          title: "Already on Waitlist",
+          description: "You're already waiting for this table. Check your dashboard for status.",
+          className: "bg-amber-500 text-white border-amber-600",
+        });
+        // Navigate back to dashboard to see existing waitlist entry
+        setTimeout(() => setLocation('/'), 1500);
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to join waitlist",
+          variant: "destructive",
+        });
+      }
     },
   });
   
@@ -115,6 +128,23 @@ export default function TableView() {
         
         <div className="w-16"></div> {/* Spacer for centering */}
       </div>
+
+      {/* Waitlist Status Banner */}
+      {isOnWaitlist && waitlistEntry && (
+        <div className="mx-4 mb-4 p-4 bg-gradient-to-r from-amber-600/20 to-amber-500/20 border border-amber-500/50 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-amber-200 font-semibold">You're on the waitlist!</h3>
+              <p className="text-amber-100 text-sm">
+                Waiting for seat {waitlistEntry.seatNumber || waitlistEntry.preferredSeat} • Position in queue: {waitlistEntry.position || 'TBD'}
+              </p>
+            </div>
+            <div className="text-amber-300">
+              <Clock className="w-5 h-5" />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Table Area - Staff Portal Style */}
       <div className="flex-1 flex flex-col items-center px-4 py-8">
