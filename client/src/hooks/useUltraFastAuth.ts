@@ -201,30 +201,56 @@ export function useUltraFastAuth() {
       setLoading(true);
       console.log('🔐 [ULTRA-FAST AUTH] Signing in:', email);
       
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      // PRODUCTION-GRADE INTEGRATED AUTHENTICATION
+      // Use our custom backend endpoint that handles both Clerk + Supabase integration
+      const response = await fetch('/api/auth/signin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
       });
       
-      if (error) throw error;
-      
-      if (data.user) {
-        // Log login activity
-        logAuthActivity('login', email, data.user.id);
-        
-        // Set session storage flag for loading screen
-        sessionStorage.setItem('just_signed_in', 'true');
-        
-        toast({
-          title: "Welcome back!",
-          description: "Successfully signed in to your account.",
-        });
-        
-        // User data will be fetched by onAuthStateChange
-        return { success: true };
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Authentication failed' }));
+        throw new Error(errorData.error || 'Authentication failed');
       }
       
-      throw new Error('Sign in failed');
+      const { success, user, message } = await response.json();
+      
+      if (!success || !user) {
+        throw new Error('Authentication failed');
+      }
+      
+      console.log('✅ [ULTRA-FAST AUTH] Integrated auth successful:', user.email);
+      
+      // Set user data directly from our integrated backend
+      const enhancedUserData: AuthUser = {
+        ...user,
+        realBalance: user.balance || '0.00',
+        creditBalance: user.creditBalance || '0.00',
+        creditLimit: user.creditLimit || '0.00',
+        creditApproved: user.creditApproved || false,
+        totalBalance: user.totalBalance || '0.00',
+        isClerkSynced: user.isClerkSynced || true
+      };
+      
+      setUser(enhancedUserData);
+      setLoading(false);
+      
+      // Log authentication activity
+      logAuthActivity('login', email, user.supabaseId || user.id);
+      
+      // Set session storage flag for loading screen
+      sessionStorage.setItem('just_signed_in', 'true');
+      
+      toast({
+        title: "Welcome back!",
+        description: message || "Successfully signed in to your account.",
+      });
+      
+      return { success: true };
+      
     } catch (error: any) {
       console.error('❌ [ULTRA-FAST AUTH] Sign in error:', error);
       setLoading(false);
@@ -244,108 +270,57 @@ export function useUltraFastAuth() {
       setLoading(true);
       console.log('📝 [ULTRA-FAST AUTH] Signing up:', email);
       
-      // First create the Supabase auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-      
-      if (authError) throw authError;
-      
-      if (!authData.user) {
-        throw new Error('Failed to create account');
-      }
-      
-      // Create player record with timeout handling
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-      
-      const response = await fetch('/api/players', {
+      // PRODUCTION-GRADE INTEGRATED SIGNUP
+      // Use our custom backend endpoint that handles both Clerk + Supabase integration
+      const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           email,
+          password,
           firstName,
           lastName,
           phone,
-          supabaseUserId: authData.user.id,
-          password, // This will be hashed on the server
         }),
-        signal: controller.signal,
       });
-      
-      clearTimeout(timeoutId);
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to create player profile');
+        const errorData = await response.json().catch(() => ({ error: 'Signup failed' }));
+        throw new Error(errorData.error || 'Signup failed');
       }
       
-      const playerData = await response.json();
+      const { success, player, existing, redirectToKYC, message } = await response.json();
       
-      // Check if this is an existing player redirect (existing players OR new players both go to KYC)
-      if (playerData.id) {
-        console.log('🔄 [SIGNUP] Player found/created - redirecting to KYC:', playerData.kycStatus);
-        
-        // Set session flag for KYC redirect with consistent data structure
-        sessionStorage.setItem('kyc_redirect', JSON.stringify({
-          id: playerData.id, // Use 'id' consistently
-          playerId: playerData.id, // Also include playerId for compatibility
-          email: playerData.email,
-          firstName: playerData.firstName,
-          lastName: playerData.lastName,
-          kycStatus: playerData.kycStatus || 'pending'
-        }));
-        
-        const message = playerData.existing 
-          ? "Account Found! Redirecting to KYC document upload process..." 
-          : "Account Created! Now redirecting to KYC document upload...";
-        
-        toast({
-          title: playerData.existing ? "Account Found!" : "Account Created!",
-          description: message,
-        });
-        
-        // Redirect to KYC process - will be handled by App.tsx
-        return { success: true, redirectToKYC: true, playerData };
+      if (!success) {
+        throw new Error('Signup failed');
       }
       
-      // Log signup activity for new user
-      logAuthActivity('signup', email, authData.user.id);
-      
-      // Background Clerk sync for new user
-      backgroundClerkSync({
-        ...playerData,
-        isClerkSynced: false
-      });
-      
-      // Send welcome email (fire-and-forget)
-      sendWelcomeEmail(email, firstName).catch(console.warn);
-      
-      // Set session flag for KYC redirect
-      sessionStorage.setItem('kyc_redirect', JSON.stringify({
-        id: playerData.id,
-        email: playerData.email,
-        firstName: playerData.firstName,
-        lastName: playerData.lastName,
-        kycStatus: 'pending'
-      }));
+      console.log('✅ [ULTRA-FAST AUTH] Integrated signup successful:', player?.email);
       
       toast({
-        title: "Account Created!",
-        description: "Now redirecting to KYC document upload...",
+        title: existing ? "Account Found" : "Account Created",
+        description: message || "Welcome to the platform!",
       });
       
-      return { success: true, redirectToKYC: true, playerData };
+      // Set loading flag for redirect
+      setLoading(false);
+      
+      return { 
+        success: true, 
+        existing: existing || false,
+        redirectToKYC: redirectToKYC || false,
+        player 
+      };
+      
     } catch (error: any) {
       console.error('❌ [ULTRA-FAST AUTH] Sign up error:', error);
       setLoading(false);
       
       toast({
         title: "Sign Up Failed",
-        description: error.message || "Failed to create account. Please try again.",
+        description: error.message || "Please try again.",
         variant: "destructive",
       });
       

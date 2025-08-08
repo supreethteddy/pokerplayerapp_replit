@@ -2490,29 +2490,41 @@ export function registerRoutes(app: Express) {
       
       console.log(`🔐 [AUTH SIGNIN] Attempting login for: ${email}`);
       
-      // Step 1: Check if player exists in our database
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabaseAdmin = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false
-          }
-        }
-      );
+      // Step 1: Check if player exists in our database using direct PostgreSQL query
+      // This bypasses any Supabase RLS issues that might block the query
+      const { Client } = require('pg');
+      const pgClient = new Client({
+        connectionString: process.env.DATABASE_URL
+      });
       
-      const { data: player, error: playerError } = await supabaseAdmin
-        .from('players')
-        .select('*')
-        .eq('email', email)
-        .single();
+      try {
+        await pgClient.connect();
+      } catch (connectionError) {
+        console.error(`❌ [AUTH SIGNIN] Database connection failed:`, connectionError);
+        return res.status(500).json({ error: 'Database connection failed' });
+      }
       
-      if (playerError || !player) {
+      console.log(`🔍 [AUTH SIGNIN] Querying database for player: ${email}`);
+      
+      const playerQuery = `
+        SELECT id, email, password, first_name, last_name, phone, kyc_status, balance, 
+               current_credit, credit_limit, credit_approved, total_deposits, total_withdrawals,
+               total_winnings, total_losses, games_played, hours_played, clerk_user_id, 
+               supabase_id, is_active, last_login_at
+        FROM players 
+        WHERE email = $1 AND is_active = true
+      `;
+      
+      const playerResult = await pgClient.query(playerQuery, [email]);
+      
+      if (playerResult.rows.length === 0) {
+        await pgClient.end();
         console.log(`❌ [AUTH SIGNIN] Player not found: ${email}`);
         return res.status(401).json({ error: 'Invalid credentials' });
       }
+      
+      const player = playerResult.rows[0];
+      await pgClient.end();
       
       console.log(`🔍 [AUTH SIGNIN] Found player: ${player.email} (ID: ${player.id})`);
       
@@ -2530,55 +2542,71 @@ export function registerRoutes(app: Express) {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
       
-      // Step 3: Create or authenticate Supabase Auth user
+      // Step 3: Ensure Clerk + Supabase integration is complete
       let authUser = null;
-      let supabaseSession = null;
       
-      // Try to get existing auth user first
-      const { data: { user: existingUser }, error: getUserError } = await supabaseAdmin.auth.admin.getUserById(player.supabase_id || '');
-      
-      if (existingUser && !getUserError) {
-        console.log(`🔍 [AUTH SIGNIN] Found existing Supabase auth user: ${existingUser.email}`);
-        
-        // Generate admin session for the user
-        const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.admin.generateLink({
-          type: 'magiclink',
-          email: existingUser.email!
-        });
-        
-        if (!sessionError && sessionData) {
-          authUser = existingUser;
-          // Note: For production, you'd want to create a proper session token here
-          console.log(`✅ [AUTH SIGNIN] Generated session for existing user: ${existingUser.email}`);
-        }
-      } else {
-        // Create new Supabase auth user
-        console.log(`🆕 [AUTH SIGNIN] Creating new Supabase auth user: ${email}`);
-        
-        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-          email,
-          password,
-          email_confirm: true,
-          user_metadata: {
-            first_name: player.first_name,
-            last_name: player.last_name,
-            player_id: player.id
+      // Initialize Supabase admin client for auth operations
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabaseAdmin = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
           }
-        });
-        
-        if (authError) {
-          console.error(`❌ [AUTH SIGNIN] Failed to create Supabase auth user:`, authError);
-          // Continue with our own session - don't fail the login
-        } else {
-          authUser = authData.user;
+        }
+      );
+      
+      // Check if we have a Supabase auth user for this player
+      if (player.supabase_id) {
+        try {
+          const { data: { user: existingUser }, error: getUserError } = await supabaseAdmin.auth.admin.getUserById(player.supabase_id);
           
-          // Update player with Supabase ID
-          await supabaseAdmin
-            .from('players')
-            .update({ supabase_id: authUser.id })
-            .eq('id', player.id);
+          if (existingUser && !getUserError) {
+            authUser = existingUser;
+            console.log(`✅ [AUTH SIGNIN] Found existing Supabase auth user: ${existingUser.email}`);
+          }
+        } catch (authCheckError) {
+          console.warn(`⚠️ [AUTH SIGNIN] Could not verify existing Supabase auth user:`, authCheckError);
+        }
+      }
+      
+      // If no valid Supabase auth user exists, create one
+      if (!authUser) {
+        try {
+          console.log(`🆕 [AUTH SIGNIN] Creating new Supabase auth user for: ${email}`);
           
-          console.log(`✅ [AUTH SIGNIN] Created and linked Supabase auth user: ${authUser.email}`);
+          const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true,
+            user_metadata: {
+              first_name: player.first_name,
+              last_name: player.last_name,
+              player_id: player.id
+            }
+          });
+          
+          if (!authError && authData.user) {
+            authUser = authData.user;
+            
+            // Update player record with new Supabase ID using the existing connection
+            try {
+              const updateClient = new Client({ connectionString: process.env.DATABASE_URL });
+              await updateClient.connect();
+              await updateClient.query('UPDATE players SET supabase_id = $1 WHERE id = $2', [authUser.id, player.id]);
+              await updateClient.end();
+            } catch (updateError) {
+              console.warn(`⚠️ [AUTH SIGNIN] Failed to update Supabase ID:`, updateError);
+            }
+            
+            console.log(`✅ [AUTH SIGNIN] Created and linked new Supabase auth user: ${authUser.email}`);
+          } else {
+            console.warn(`⚠️ [AUTH SIGNIN] Failed to create Supabase auth user, continuing with database auth:`, authError);
+          }
+        } catch (createAuthError) {
+          console.warn(`⚠️ [AUTH SIGNIN] Auth user creation failed, continuing with database auth:`, createAuthError);
         }
       }
       
@@ -2610,12 +2638,13 @@ export function registerRoutes(app: Express) {
       
       console.log(`✅ [AUTH SIGNIN] Login successful: ${email} (Player ID: ${player.id})`);
       
-      // Log authentication activity
+      // Log authentication activity using the existing connection
       try {
-        await supabaseAdmin
-          .from('players')
-          .update({ last_login_at: new Date().toISOString() })
-          .eq('id', player.id);
+        const logClient = new Client({ connectionString: process.env.DATABASE_URL });
+        await logClient.connect();
+        await logClient.query('UPDATE players SET last_login_at = NOW() WHERE id = $1', [player.id]);
+        await logClient.end();
+        console.log(`📊 [AUTH SIGNIN] Updated last login time for player: ${player.id}`);
       } catch (logError) {
         console.warn('⚠️ [AUTH SIGNIN] Failed to update last login:', logError);
       }

@@ -229,28 +229,71 @@ export class SupabaseOnlyStorage {
   }
 
   async getPlayerBySupabaseId(supabaseId: string): Promise<Player | undefined> {
-    console.log('🔍 [UNIFIED] Getting player by Supabase ID:', supabaseId);
+    console.log('🔍 [PLAYER API] Getting player by Supabase ID:', supabaseId);
     
     try {
-      // First try direct lookup by supabase_id (handles both real UUIDs and custom auth_ IDs)
-      const { data: directData, error: directError } = await supabase
-        .from('players')
-        .select('*')
-        .eq('supabase_id', supabaseId)
-        .single();
+      // PRODUCTION-GRADE: Use direct PostgreSQL connection to bypass RLS issues
+      console.log('🔧 [PLAYER API] Direct database lookup for:', supabaseId);
       
-      console.log('🔍 [UNIFIED] Direct lookup result:', { 
-        supabaseId, 
-        hasData: !!directData, 
-        errorCode: directError?.code, 
-        errorMessage: directError?.message,
-        foundEmail: directData?.email 
+      const { Client } = require('pg');
+      const pgClient = new Client({
+        connectionString: process.env.DATABASE_URL
       });
       
-      if (!directError && directData) {
-        console.log('✅ [UNIFIED] Direct Supabase ID lookup successful:', directData.email);
-        return this.transformPlayerFromSupabase(directData);
+      await pgClient.connect();
+      
+      const playerQuery = `
+        SELECT id, email, password, first_name, last_name, phone, kyc_status, balance, 
+               current_credit, credit_limit, credit_approved, total_deposits, total_withdrawals,
+               total_winnings, total_losses, games_played, hours_played, clerk_user_id, 
+               supabase_id, is_active, pan_card_number, pan_card_verified, address,
+               total_rs_played, current_vip_points, lifetime_vip_points, universal_id
+        FROM players 
+        WHERE supabase_id = $1 AND is_active = true
+      `;
+      
+      const result = await pgClient.query(playerQuery, [supabaseId]);
+      await pgClient.end();
+      
+      if (result.rows.length === 0) {
+        console.log('❌ [PLAYER API] No player found for Supabase ID:', supabaseId);
+        return undefined;
       }
+      
+      const playerData = result.rows[0];
+      console.log('✅ [PLAYER API] Direct database lookup successful:', playerData.email);
+      
+      // Transform to match expected Player interface
+      const player: Player = {
+        id: playerData.id,
+        email: playerData.email,
+        firstName: playerData.first_name,
+        lastName: playerData.last_name,
+        phone: playerData.phone || '',
+        kycStatus: playerData.kyc_status as 'pending' | 'verified' | 'rejected' | 'approved',
+        balance: playerData.balance || '0.00',
+        currentCredit: playerData.current_credit ? String(playerData.current_credit) : '0.00',
+        creditLimit: playerData.credit_limit ? String(playerData.credit_limit) : '0.00',
+        creditApproved: Boolean(playerData.credit_approved),
+        totalDeposits: playerData.total_deposits || '0.00',
+        totalWithdrawals: playerData.total_withdrawals || '0.00',
+        totalWinnings: playerData.total_winnings || '0.00',
+        totalLosses: playerData.total_losses || '0.00',
+        gamesPlayed: playerData.games_played || 0,
+        hoursPlayed: playerData.hours_played || '0.00',
+        clerkUserId: playerData.clerk_user_id,
+        supabaseId: playerData.supabase_id,
+        isActive: Boolean(playerData.is_active),
+        panCardNumber: playerData.pan_card_number,
+        panCardVerified: Boolean(playerData.pan_card_verified),
+        address: playerData.address,
+        totalRsPlayed: playerData.total_rs_played ? String(playerData.total_rs_played) : '0.00',
+        currentVipPoints: playerData.current_vip_points ? String(playerData.current_vip_points) : '0.00',
+        lifetimeVipPoints: playerData.lifetime_vip_points ? String(playerData.lifetime_vip_points) : '0.00',
+        universalId: playerData.universal_id
+      };
+      
+      return player;
       
       // Only try auth lookup if the supabaseId looks like a proper UUID (not custom auth_ IDs)
       const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(supabaseId);
