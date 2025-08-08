@@ -57,6 +57,7 @@ import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
 import UnifiedChatDialog from "./UnifiedChatDialog";
+import NotificationHistoryTab from "./NotificationHistoryTab";
 
 
 // Scrollable Offers Display Component
@@ -2603,6 +2604,12 @@ function PlayerDashboard() {
                 </Card>
               </div>
             </TabsContent>
+
+            {/* Notifications Tab */}
+            <TabsContent value="notifications" className="space-y-3 sm:space-y-4 w-full max-w-full">
+              <NotificationHistoryTab userId={Number(user.id)} />
+            </TabsContent>
+
           </div>
         </Tabs>
         </div>

@@ -13,7 +13,7 @@ import VipShop from "./pages/VipShop";
 import TableView from "./pages/TableView";
 import OfferDetail from "./pages/OfferDetail";
 import LoadingScreen from "./components/LoadingScreen";
-import PushNotificationManager from "./components/PushNotificationManager";
+import NotificationBubbleManager from "./components/NotificationBubbleManager";
 import { useState, useEffect } from "react";
 
 import NotFound from "@/pages/not-found";
@@ -154,6 +154,7 @@ function App() {
       <TooltipProvider>
         <SafeAuthWrapper>
           <AppContent />
+          <NotificationBubbleManager />
         </SafeAuthWrapper>
         <Toaster />
       </TooltipProvider>

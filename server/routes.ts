@@ -3157,5 +3157,146 @@ export function registerRoutes(app: Express) {
 
   console.log('🎯 [ROUTES] WAITLIST MANAGEMENT ENDPOINTS REGISTERED - Player-to-Staff portal integration active');
   
+  // ========== NOTIFICATION HISTORY ENDPOINTS ==========
+  
+  // Get 24-hour notification history for a player
+  app.get('/api/notification-history/:playerId', async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      console.log(`📱 [NOTIFICATION HISTORY] Getting 24h history for player: ${playerId}`);
+
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        connectionTimeoutMillis: 10000,
+      });
+
+      // Get all notifications from last 24 hours for this player
+      const query = `
+        SELECT 
+          pn.id,
+          pn.title,
+          pn.message,
+          pn.message_type,
+          pn.priority,
+          pn.sender_name,
+          pn.sender_role,
+          pn.media_url,
+          pn.created_at,
+          nh.read_at
+        FROM push_notifications pn
+        LEFT JOIN notification_history nh ON (pn.id = nh.notification_id AND nh.player_id = $1)
+        WHERE (pn.target_player_id = $1 OR pn.broadcast_to_all = true)
+          AND pn.created_at >= NOW() - INTERVAL '24 hours'
+          AND nh.cleared_at IS NULL
+        ORDER BY pn.created_at DESC
+      `;
+
+      const result = await pool.query(query, [playerId]);
+      await pool.end();
+
+      console.log(`📱 [NOTIFICATION HISTORY] Found ${result.rows.length} notifications for player ${playerId}`);
+      res.json(result.rows);
+
+    } catch (error) {
+      console.error('❌ [NOTIFICATION HISTORY] Error fetching history:', error);
+      res.status(500).json({ error: 'Failed to fetch notification history' });
+    }
+  });
+
+  // Save notification to history when dismissed from bubble
+  app.post('/api/notification-history', async (req, res) => {
+    try {
+      const { notificationId, playerId, action } = req.body;
+      console.log(`📱 [NOTIFICATION HISTORY] Saving to history: notification ${notificationId}, player ${playerId}`);
+
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        connectionTimeoutMillis: 10000,
+      });
+
+      const query = `
+        INSERT INTO notification_history (player_id, notification_id, action, created_at)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (player_id, notification_id) 
+        DO UPDATE SET action = $3, created_at = NOW()
+        RETURNING id
+      `;
+
+      await pool.query(query, [playerId, notificationId, action]);
+      await pool.end();
+
+      console.log(`✅ [NOTIFICATION HISTORY] Saved notification ${notificationId} to history for player ${playerId}`);
+      res.json({ success: true, message: 'Notification saved to history' });
+
+    } catch (error) {
+      console.error('❌ [NOTIFICATION HISTORY] Error saving to history:', error);
+      res.status(500).json({ error: 'Failed to save notification to history' });
+    }
+  });
+
+  // Mark notification as read
+  app.post('/api/notification-history/mark-read', async (req, res) => {
+    try {
+      const { notificationId, playerId } = req.body;
+      console.log(`📱 [NOTIFICATION HISTORY] Marking as read: notification ${notificationId}, player ${playerId}`);
+
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        connectionTimeoutMillis: 10000,
+      });
+
+      const query = `
+        UPDATE notification_history 
+        SET read_at = NOW() 
+        WHERE player_id = $1 AND notification_id = $2
+      `;
+
+      await pool.query(query, [playerId, notificationId]);
+      await pool.end();
+
+      console.log(`✅ [NOTIFICATION HISTORY] Marked notification ${notificationId} as read for player ${playerId}`);
+      res.json({ success: true, message: 'Notification marked as read' });
+
+    } catch (error) {
+      console.error('❌ [NOTIFICATION HISTORY] Error marking as read:', error);
+      res.status(500).json({ error: 'Failed to mark notification as read' });
+    }
+  });
+
+  // Clear notification from history (remove from bell icon)
+  app.delete('/api/notification-history/clear', async (req, res) => {
+    try {
+      const { notificationId, playerId } = req.body;
+      console.log(`📱 [NOTIFICATION HISTORY] Clearing from history: notification ${notificationId}, player ${playerId}`);
+
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        connectionTimeoutMillis: 10000,
+      });
+
+      const query = `
+        UPDATE notification_history 
+        SET cleared_at = NOW() 
+        WHERE player_id = $1 AND notification_id = $2
+      `;
+
+      await pool.query(query, [playerId, notificationId]);
+      await pool.end();
+
+      console.log(`✅ [NOTIFICATION HISTORY] Cleared notification ${notificationId} from history for player ${playerId}`);
+      res.json({ success: true, message: 'Notification cleared from history' });
+
+    } catch (error) {
+      console.error('❌ [NOTIFICATION HISTORY] Error clearing from history:', error);
+      res.status(500).json({ error: 'Failed to clear notification from history' });
+    }
+  });
+
+  console.log('📱 [ROUTES] NOTIFICATION HISTORY SYSTEM REGISTERED - Bubble dismissal → Bell icon storage with 24h retention');
+
   return app;
 }
