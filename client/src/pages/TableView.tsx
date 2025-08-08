@@ -61,6 +61,12 @@ export default function TableView() {
         tableName: currentTable.name,
         preferredSeat: seatNumber
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
+      }
+      
       return response.json();
     },
     onSuccess: (data) => {
