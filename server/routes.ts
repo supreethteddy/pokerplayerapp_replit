@@ -50,57 +50,8 @@ import staffPortalRoutes from './routes/staff-portal-integration';
 export function registerRoutes(app: Express) {
   // SIMPLE CASH BALANCE SYSTEM - MANAGER HANDLES TABLE OPERATIONS
   
-  // Player Balance API - Simple cash balance only (no table balance display)
-  app.get("/api/player/:playerId/balance", async (req, res) => {
-    try {
-      const playerId = parseInt(req.params.playerId);
-      console.log(`💰 [BALANCE API] Getting balance for player: ${playerId}`);
-
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      // Force fresh query - bypass any caching
-      console.log(`🔍 [BALANCE API] Querying fresh data for player: ${playerId}`);
-      const { data: player, error: playerError } = await supabase
-        .from('players')
-        .select('id, first_name, last_name, balance, credit_limit, current_credit, credit_approved')
-        .eq('id', playerId)
-        .single();
-
-      console.log(`📊 [BALANCE API] Raw data from Supabase:`, player);
-      console.log(`💰 [BALANCE API] Player balance field:`, player?.balance, typeof player?.balance);
-
-      if (playerError || !player) {
-        console.error('❌ [BALANCE API] Player not found:', playerError);
-        return res.status(404).json({ error: 'Player not found' });
-      }
-
-      // Use actual balance from database - no more hardcoded fixes
-      let cashBalance = parseFloat(player.balance || '0');
-
-      const creditLimit = parseFloat(player.credit_limit || '0');
-      const availableCredit = parseFloat(player.current_credit || '0');
-
-      const response = {
-        playerId: player.id,
-        cashBalance,
-        tableBalance: 0, // Hidden from player - managed by manager only
-        totalBalance: cashBalance,
-        creditLimit,
-        availableCredit
-      };
-
-      console.log(`✅ [BALANCE API] Balance retrieved:`, response);
-      res.json(response);
-
-    } catch (error: any) {
-      console.error('❌ [BALANCE API] Error:', error);
-      res.status(500).json({ error: 'Failed to fetch player balance' });
-    }
-  });
+  // ========== LEGACY ENDPOINT REMOVED - USE /api/balance/:playerId INSTEAD ==========
+  // REMOVED: Duplicate /api/player/:playerId/balance endpoint - redirecting to main endpoint
 
   // Player Balance Update API - Force update balance (for fixing data sync issues)
   app.post("/api/player/:playerId/update-balance", async (req, res) => {
@@ -1986,59 +1937,8 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  app.get("/api/account-balance/:playerId", async (req, res) => {
-    try {
-      const { playerId } = req.params;
-      console.log(`💰 [DUAL BALANCE API] Getting balance for player:`, playerId);
-      
-      // Use direct PostgreSQL query to get balance data
-      const { Pool } = await import('pg');
-      const pool = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false }
-      });
-
-      const query = `
-        SELECT balance, current_credit, credit_limit, credit_approved 
-        FROM players 
-        WHERE id = $1
-      `;
-      
-      const result = await pool.query(query, [playerId]);
-      await pool.end();
-
-      if (result.rows.length === 0) {
-        throw new Error('Player not found');
-      }
-
-      const player = result.rows[0];
-      const response = {
-        currentBalance: (parseFloat(player.balance || '0')).toString(),
-        availableBalance: (parseFloat(player.balance || '0')).toString(),
-        creditBalance: (parseFloat(player.current_credit || '0')).toString(),
-        creditLimit: (parseFloat(player.credit_limit || '0')).toString(),
-        creditApproved: player.credit_approved || false,
-        totalBalance: (parseFloat(player.balance || '0') + parseFloat(player.current_credit || '0')).toString(),
-        pendingWithdrawals: "₹0.00"
-      };
-
-      console.log(`✅ [DUAL BALANCE API] Retrieved dual balance:`, response);
-      
-      // Trigger real-time update for any connected staff portals
-      if ((global as any).pusher) {
-        (global as any).pusher.trigger('cross-portal-sync', 'balance_query', {
-          playerId: parseInt(playerId),
-          timestamp: new Date().toISOString(),
-          balance: response
-        });
-      }
-      
-      res.json(response);
-    } catch (error) {
-      console.error('❌ [DUAL BALANCE API] Error:', error);
-      res.status(404).json({ error: 'Player not found' });
-    }
-  });
+  // ========== DUPLICATE ENDPOINT REMOVED - USE MAIN: /api/balance/:playerId ==========
+  // REMOVED: First duplicate /api/account-balance/:playerId endpoint - redirecting to main
 
   // POST endpoint for joining waitlist with seat limit enforcement
   app.post("/api/seat-requests", async (req, res) => {
@@ -2315,46 +2215,8 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Legacy account balance endpoint (backwards compatibility)
-  app.get('/api/account-balance/:playerId', async (req, res) => {
-    try {
-      const { playerId } = req.params;
-      console.log(`💰 [LEGACY BALANCE] Getting balance for player:`, playerId);
-      
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabaseClient = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-      
-      const { data: player, error } = await supabaseClient
-        .from('players')
-        .select('balance, current_credit, credit_limit, credit_approved')
-        .eq('id', playerId)
-        .single();
-
-      if (error) throw error;
-      if (!player) throw new Error('Player not found');
-
-      const balanceData = {
-        currentBalance: player.balance || '0.00',
-        availableBalance: player.balance || '0.00',
-        pendingWithdrawals: '₹0.00',
-        // Added for dual balance support
-        cashBalance: parseFloat(player.balance || '0'),
-        creditBalance: parseFloat(player.current_credit || '0'),
-        creditLimit: parseFloat(player.credit_limit || '0'),
-        creditApproved: player.credit_approved || false,
-        totalBalance: parseFloat(player.balance || '0') + parseFloat(player.current_credit || '0')
-      };
-
-      console.log(`✅ [LEGACY BALANCE] Balance retrieved:`, balanceData);
-      res.json(balanceData);
-    } catch (error) {
-      console.error('❌ [LEGACY BALANCE] Error:', error);
-      res.status(500).json({ error: 'Failed to fetch balance' });
-    }
-  });
+  // ========== DUPLICATE ENDPOINT REMOVED - MAIN ENDPOINT: /api/balance/:playerId ==========
+  // REMOVED: Duplicate /api/account-balance/:playerId endpoint - use main endpoint instead
 
   // ========== KYC DOCUMENT UPLOAD AND MANAGEMENT SYSTEM ==========
   
