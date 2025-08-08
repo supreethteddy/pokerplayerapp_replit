@@ -3121,66 +3121,22 @@ export function registerRoutes(app: Express) {
 
   console.log('🚀 [ROUTES] UNIFIED CHAT SYSTEM REGISTERED - Pusher + OneSignal + Supabase integration complete');
 
-  // ========== STAFF PORTAL GRE CHAT ENDPOINTS ==========
+  // ========== STAFF PORTAL GRE ENDPOINTS - Using Existing Chat System ==========
   
-  // GET /api/gre-chat/requests - CRITICAL ENDPOINT for Staff Portal GRE system
+  // Staff Portal endpoint that reuses existing chat infrastructure
   app.get('/api/gre-chat/requests', async (req, res) => {
     try {
-      console.log('🚀 [STAFF PORTAL GRE] Fetching all chat requests for Staff Portal...');
+      console.log('🚀 [STAFF PORTAL GRE] Using existing chat infrastructure...');
       
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      // Fetch all chat requests with message counts for Staff Portal visibility
-      const { data: chatRequests, error } = await supabase
-        .from('chat_requests')
-        .select(`
-          id,
-          player_id,
-          player_name,
-          player_email,
-          subject,
-          status,
-          priority,
-          source,
-          category,
-          initial_message,
-          assigned_to,
-          created_at,
-          updated_at
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('❌ [STAFF PORTAL GRE] Error fetching requests:', error);
-        return res.status(500).json({ error: 'Failed to fetch chat requests' });
-      }
-
-      // Get message counts for each request
-      const requestsWithMessageCounts = await Promise.all(
-        (chatRequests || []).map(async (request) => {
-          const { count: messageCount } = await supabase
-            .from('chat_messages')
-            .select('id', { count: 'exact' })
-            .eq('request_id', request.id);
-
-          return {
-            ...request,
-            messageCount: messageCount || 0,
-            lastActivity: request.updated_at || request.created_at
-          };
-        })
-      );
-
-      console.log(`✅ [STAFF PORTAL GRE] Returning ${requestsWithMessageCounts.length} chat requests`);
+      // Get all chat requests using the same method as existing chat-history endpoint
+      const result = await directChat.getAllChatRequests();
+      
+      console.log(`✅ [STAFF PORTAL GRE] Found ${result.requests?.length || 0} chat requests`);
       
       res.json({
         success: true,
-        requests: requestsWithMessageCounts,
-        total: requestsWithMessageCounts.length
+        requests: result.requests || [],
+        total: result.requests?.length || 0
       });
 
     } catch (error) {
@@ -3189,202 +3145,62 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // GET /api/gre-chat/requests/:requestId - Get specific chat request with messages
+  // Staff Portal conversation details using existing chat system
   app.get('/api/gre-chat/requests/:requestId', async (req, res) => {
     try {
       const { requestId } = req.params;
-      console.log(`🚀 [STAFF PORTAL GRE] Fetching chat request: ${requestId}`);
+      console.log(`🚀 [STAFF PORTAL GRE] Getting conversation: ${requestId}`);
       
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      // Get chat request details
-      const { data: request, error: requestError } = await supabase
-        .from('chat_requests')
-        .select('*')
-        .eq('id', requestId)
-        .single();
-
-      if (requestError || !request) {
-        console.error('❌ [STAFF PORTAL GRE] Request not found:', requestId);
+      // Find the request and get messages using existing infrastructure
+      const result = await directChat.getConversationByRequestId(requestId);
+      
+      if (!result.request) {
         return res.status(404).json({ error: 'Chat request not found' });
       }
-
-      // Get all messages for this request
-      const { data: messages, error: messagesError } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('request_id', requestId)
-        .order('timestamp', { ascending: true });
-
-      if (messagesError) {
-        console.error('❌ [STAFF PORTAL GRE] Error fetching messages:', messagesError);
-        return res.status(500).json({ error: 'Failed to fetch messages' });
-      }
-
-      console.log(`✅ [STAFF PORTAL GRE] Request ${requestId}: ${messages?.length || 0} messages`);
+      
+      console.log(`✅ [STAFF PORTAL GRE] Request ${requestId}: ${result.messages?.length || 0} messages`);
       
       res.json({
         success: true,
         request: {
-          ...request,
-          messages: messages || []
+          ...result.request,
+          messages: result.messages || []
         }
       });
 
     } catch (error) {
       console.error('❌ [STAFF PORTAL GRE] Error:', error);
-      res.status(500).json({ error: 'Failed to fetch chat request details' });
+      res.status(500).json({ error: 'Failed to fetch conversation details' });
     }
   });
 
-  // POST /api/gre-chat/requests/:requestId/reply - Staff reply to chat request
+  // Staff Portal reply using existing chat send infrastructure
   app.post('/api/gre-chat/requests/:requestId/reply', async (req, res) => {
     try {
       const { requestId } = req.params;
       const { message, staffId, staffName } = req.body;
       
-      console.log(`💬 [STAFF PORTAL GRE] Staff reply to request ${requestId} from ${staffName}`);
+      console.log(`💬 [STAFF PORTAL GRE] Staff reply to ${requestId} from ${staffName}`);
       
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      // Get the chat request to find player_id
-      const { data: request, error: requestError } = await supabase
-        .from('chat_requests')
-        .select('player_id, player_name')
-        .eq('id', requestId)
-        .single();
-
-      if (requestError || !request) {
-        return res.status(404).json({ error: 'Chat request not found' });
-      }
-
-      // Save the staff reply message
-      const messageId = crypto.randomUUID();
-      const { data: savedMessage, error: messageError } = await supabase
-        .from('chat_messages')
-        .insert({
-          id: messageId,
-          request_id: requestId,
-          player_id: request.player_id,
-          sender: 'staff',
-          sender_name: staffName || `Staff ${staffId}`,
-          message_text: message,
-          timestamp: new Date().toISOString(),
-          status: 'sent'
-        })
-        .select()
-        .single();
-
-      if (messageError) {
-        console.error('❌ [STAFF PORTAL GRE] Error saving message:', messageError);
-        return res.status(500).json({ error: 'Failed to save message' });
-      }
-
-      // Update request status and timestamp
-      await supabase
-        .from('chat_requests')
-        .update({ 
-          status: 'in_progress',
-          assigned_to: staffId,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', requestId);
-
-      // Send real-time notification to player
-      if ((global as any).pusher) {
-        (global as any).pusher.trigger(`player-${request.player_id}`, 'new-message', {
-          id: messageId,
-          message: message,
-          sender: 'staff',
-          sender_name: staffName || `Staff ${staffId}`,
-          player_id: request.player_id,
-          timestamp: new Date().toISOString(),
-          status: 'sent',
-          type: 'staff-reply'
-        });
-
-        // Notify all staff portals
-        (global as any).pusher.trigger('staff-portal', 'chat-request-updated', {
-          requestId: requestId,
-          status: 'in_progress',
-          lastMessage: message,
-          assignedTo: staffId
-        });
-      }
-
-      console.log(`✅ [STAFF PORTAL GRE] Staff reply sent: ${messageId}`);
+      // Send staff reply using existing chat infrastructure
+      const result = await directChat.sendStaffReply({
+        requestId,
+        message,
+        staffId,
+        staffName: staffName || `Staff ${staffId}`
+      });
+      
+      console.log(`✅ [STAFF PORTAL GRE] Staff reply sent: ${result.messageId}`);
       
       res.json({
         success: true,
-        message: savedMessage,
+        message: result,
         requestStatus: 'in_progress'
       });
 
     } catch (error) {
       console.error('❌ [STAFF PORTAL GRE] Error:', error);
       res.status(500).json({ error: 'Failed to send staff reply' });
-    }
-  });
-
-  // PUT /api/gre-chat/requests/:requestId/status - Update chat request status
-  app.put('/api/gre-chat/requests/:requestId/status', async (req, res) => {
-    try {
-      const { requestId } = req.params;
-      const { status, staffId, staffName } = req.body;
-      
-      console.log(`🔄 [STAFF PORTAL GRE] Updating request ${requestId} status to: ${status}`);
-      
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      // Update request status
-      const { data: updatedRequest, error } = await supabase
-        .from('chat_requests')
-        .update({ 
-          status: status,
-          assigned_to: status === 'assigned' ? staffId : null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', requestId)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('❌ [STAFF PORTAL GRE] Error updating status:', error);
-        return res.status(500).json({ error: 'Failed to update request status' });
-      }
-
-      // Send real-time updates
-      if ((global as any).pusher) {
-        (global as any).pusher.trigger('staff-portal', 'chat-request-status-updated', {
-          requestId: requestId,
-          status: status,
-          assignedTo: staffId,
-          updatedAt: new Date().toISOString()
-        });
-      }
-
-      console.log(`✅ [STAFF PORTAL GRE] Request ${requestId} status updated to: ${status}`);
-      
-      res.json({
-        success: true,
-        request: updatedRequest
-      });
-
-    } catch (error) {
-      console.error('❌ [STAFF PORTAL GRE] Error:', error);
-      res.status(500).json({ error: 'Failed to update request status' });
     }
   });
 

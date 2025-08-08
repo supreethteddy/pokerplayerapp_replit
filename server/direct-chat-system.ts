@@ -132,7 +132,7 @@ export class DirectChatSystem {
   }
 
   // REAL-TIME NOTIFICATIONS
-  private async sendNotifications(playerId: number, playerName: string, message: string, messageId: string, timestamp: string, senderType: 'player' | 'gre') {
+  private async sendNotifications(playerId: number, playerName: string, message: string, messageId: string, timestamp: string, senderType: 'player' | 'staff' | 'gre') {
     try {
       const payload = {
         id: messageId,
@@ -225,6 +225,196 @@ export class DirectChatSystem {
 
     } catch (error) {
       console.error('❌ [DIRECT CHAT] Notification error (non-critical):', error);
+      // Don't throw - message was saved successfully
+    }
+  }
+
+  // STAFF PORTAL INTEGRATION METHODS
+  
+  // Get all chat requests for Staff Portal visibility
+  async getAllChatRequests() {
+    const client = await this.pool.connect();
+    
+    try {
+      console.log('🚀 [STAFF PORTAL] Getting all chat requests...');
+
+      const query = `
+        SELECT 
+          cr.id,
+          cr.player_id,
+          cr.player_name,
+          cr.player_email,
+          cr.subject,
+          cr.status,
+          cr.priority,
+          cr.source,
+          cr.category,
+          cr.initial_message,
+          cr.assigned_to,
+          cr.created_at,
+          cr.updated_at,
+          COUNT(cm.id) as message_count,
+          MAX(cm.timestamp) as last_message_time
+        FROM chat_requests cr
+        LEFT JOIN chat_messages cm ON cr.id = cm.request_id
+        GROUP BY cr.id, cr.player_id, cr.player_name, cr.player_email, 
+                 cr.subject, cr.status, cr.priority, cr.source, cr.category,
+                 cr.initial_message, cr.assigned_to, cr.created_at, cr.updated_at
+        ORDER BY cr.created_at DESC
+      `;
+      
+      const result = await client.query(query);
+      const requests = result.rows.map(request => ({
+        ...request,
+        messageCount: parseInt(request.message_count) || 0,
+        lastActivity: request.last_message_time || request.updated_at || request.created_at
+      }));
+      
+      console.log(`✅ [STAFF PORTAL] Found ${requests.length} chat requests`);
+      
+      return { 
+        success: true, 
+        requests: requests 
+      };
+
+    } catch (error) {
+      console.error('❌ [STAFF PORTAL] Error getting all requests:', error);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  // Get conversation by request ID for Staff Portal
+  async getConversationByRequestId(requestId: string) {
+    const client = await this.pool.connect();
+    
+    try {
+      console.log(`🚀 [STAFF PORTAL] Getting conversation: ${requestId}`);
+
+      // Get request details
+      const requestQuery = `
+        SELECT * FROM chat_requests WHERE id = $1
+      `;
+      const requestResult = await client.query(requestQuery, [requestId]);
+      
+      if (requestResult.rows.length === 0) {
+        return { success: false, request: null, messages: [] };
+      }
+      
+      // Get all messages for this request
+      const messagesQuery = `
+        SELECT * FROM chat_messages 
+        WHERE request_id = $1 
+        ORDER BY timestamp ASC
+      `;
+      const messagesResult = await client.query(messagesQuery, [requestId]);
+      
+      console.log(`✅ [STAFF PORTAL] Request ${requestId}: ${messagesResult.rows.length} messages`);
+      
+      return {
+        success: true,
+        request: requestResult.rows[0],
+        messages: messagesResult.rows
+      };
+
+    } catch (error) {
+      console.error('❌ [STAFF PORTAL] Error getting conversation:', error);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  // Send staff reply to existing chat request
+  async sendStaffReply(data: { requestId: string, message: string, staffId: string, staffName: string }) {
+    const client = await this.pool.connect();
+    
+    try {
+      const { requestId, message, staffId, staffName } = data;
+      console.log(`💬 [STAFF PORTAL] Staff reply from ${staffName} to request ${requestId}`);
+
+      // Get the chat request to find player_id
+      const requestQuery = `SELECT player_id, player_name FROM chat_requests WHERE id = $1`;
+      const requestResult = await client.query(requestQuery, [requestId]);
+      
+      if (requestResult.rows.length === 0) {
+        throw new Error('Chat request not found');
+      }
+      
+      const { player_id, player_name } = requestResult.rows[0];
+      const { v4: uuidv4 } = await import('uuid');
+      const messageId = uuidv4();
+      const timestamp = new Date().toISOString();
+
+      // Save the staff reply message
+      const messageQuery = `
+        INSERT INTO chat_messages (id, request_id, player_id, sender, sender_name, message_text, timestamp, status)
+        VALUES ($1, $2, $3, 'staff', $4, $5, $6, 'sent')
+        RETURNING *
+      `;
+
+      const messageResult = await client.query(messageQuery, [
+        messageId, requestId, player_id, staffName, message, timestamp
+      ]);
+
+      // Update request status and timestamp
+      const updateQuery = `
+        UPDATE chat_requests 
+        SET status = 'in_progress', assigned_to = $1, updated_at = $2
+        WHERE id = $3
+      `;
+      await client.query(updateQuery, [staffId, timestamp, requestId]);
+
+      // Send real-time notifications
+      await this.sendStaffReplyNotifications(player_id, player_name, message, messageId, timestamp, staffName, requestId);
+
+      console.log(`✅ [STAFF PORTAL] Staff reply sent: ${messageId}`);
+      
+      return {
+        success: true,
+        messageId: messageId,
+        data: messageResult.rows[0]
+      };
+
+    } catch (error) {
+      console.error('❌ [STAFF PORTAL] Error sending staff reply:', error);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  // Send notifications for staff replies
+  private async sendStaffReplyNotifications(playerId: number, playerName: string, message: string, messageId: string, timestamp: string, staffName: string, requestId: string) {
+    try {
+      const payload = {
+        id: messageId,
+        message: message,
+        sender: 'staff',
+        sender_name: staffName,
+        player_id: playerId,
+        timestamp: timestamp,
+        status: 'sent',
+        type: 'staff-reply',
+        request_id: requestId
+      };
+
+      // Send to player
+      await this.pusher.trigger(`player-${playerId}`, 'new-message', payload);
+      
+      // Send to all staff portals
+      await this.pusher.trigger('staff-portal', 'chat-request-updated', {
+        requestId: requestId,
+        status: 'in_progress',
+        lastMessage: message,
+        assignedTo: staffName
+      });
+
+      console.log('✅ [STAFF PORTAL] Staff reply notifications sent');
+
+    } catch (error) {
+      console.error('❌ [STAFF PORTAL] Notification error:', error);
       // Don't throw - message was saved successfully
     }
   }
