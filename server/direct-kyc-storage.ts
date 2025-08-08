@@ -24,7 +24,10 @@ export class DirectKycStorage {
   // Get PostgreSQL client
   private async getPgClient(): Promise<Client> {
     const client = new Client({
-      connectionString: process.env.DATABASE_URL
+      connectionString: process.env.DATABASE_URL,
+      connectionTimeoutMillis: 10000,
+      query_timeout: 10000,
+      statement_timeout: 10000,
     });
     await client.connect();
     return client;
@@ -50,20 +53,37 @@ export class DirectKycStorage {
       
       const buffer = Buffer.from(base64Data, 'base64');
       const fileSize = buffer.length;
-      const uniqueFileName = `${playerId}/${documentType}/${Date.now()}_${fileName}`;
+      
+      // Use safe filename without special characters
+      const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const uniqueFileName = `player_${playerId}_${documentType}_${Date.now()}_${safeFileName}`;
 
       console.log(`🔧 [DIRECT KYC] Uploading to storage: ${uniqueFileName} (${fileSize} bytes)`);
 
-      // Upload to Supabase storage
+      // First ensure bucket exists
+      const { data: buckets } = await supabase.storage.listBuckets();
+      const bucketExists = buckets?.some(bucket => bucket.name === this.bucketName);
+      
+      if (!bucketExists) {
+        console.log('🔧 [DIRECT KYC] Creating kyc-documents bucket');
+        await supabase.storage.createBucket(this.bucketName, {
+          public: false,
+          allowedMimeTypes: ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'],
+          fileSizeLimit: 10485760 // 10MB
+        });
+      }
+
+      // Upload to Supabase storage with safe filename
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from(this.bucketName)
         .upload(uniqueFileName, buffer, {
           contentType: this.getMimeType(fileName),
           cacheControl: '3600',
-          upsert: false
+          upsert: true // Allow overwrite
         });
 
       if (uploadError) {
+        console.error('🔧 [DIRECT KYC] Storage upload error:', uploadError);
         throw new Error(`Storage upload failed: ${uploadError.message}`);
       }
 
@@ -75,10 +95,16 @@ export class DirectKycStorage {
       console.log('🔧 [DIRECT KYC] Storage upload successful, inserting to database');
 
       // Insert to database using direct PostgreSQL - bypasses Supabase cache
+      // First delete any existing document of the same type
+      await pgClient.query(
+        'DELETE FROM kyc_documents WHERE player_id = $1 AND document_type = $2',
+        [playerId, documentType]
+      );
+      
       const insertQuery = `
         INSERT INTO kyc_documents (
-          player_id, document_type, file_name, file_url, file_size, status, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+          player_id, document_type, file_name, file_url, file_size, status, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
         RETURNING id, player_id, document_type, file_name, file_url, file_size, status, created_at
       `;
 

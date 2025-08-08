@@ -2769,6 +2769,221 @@ export function registerRoutes(app: Express) {
 
   console.log('🚀 [ROUTES] UNIFIED CHAT SYSTEM REGISTERED - Pusher + OneSignal + Supabase integration complete');
 
+  // ========== STAFF PORTAL KYC ENDPOINTS ==========
+  
+  // Get all players with KYC status for staff portal
+  app.get("/api/staff/players", async (req, res) => {
+    try {
+      console.log('🏢 [STAFF PORTAL] Getting all players for KYC review');
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { data: players, error } = await supabase
+        .from('players')
+        .select('id, email, first_name, last_name, kyc_status, balance, phone, created_at')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ [STAFF PORTAL] Error fetching players:', error);
+        return res.status(500).json({ error: 'Failed to fetch players' });
+      }
+
+      console.log(`✅ [STAFF PORTAL] Retrieved ${players.length} players`);
+      res.json(players);
+
+    } catch (error) {
+      console.error('❌ [STAFF PORTAL] Error:', error);
+      res.status(500).json({ error: 'Failed to fetch players' });
+    }
+  });
+
+  // Get KYC documents for a specific player
+  app.get("/api/staff/kyc-documents/player/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      console.log(`🏢 [STAFF PORTAL] Getting KYC documents for player: ${playerId}`);
+      
+      // Use direct PostgreSQL to bypass any Supabase caching
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        connectionTimeoutMillis: 10000,
+      });
+
+      const query = `
+        SELECT 
+          id,
+          player_id,
+          document_type,
+          file_name,
+          file_url,
+          file_size,
+          status,
+          created_at,
+          updated_at
+        FROM kyc_documents 
+        WHERE player_id = $1 
+        ORDER BY created_at DESC
+      `;
+
+      const result = await pool.query(query, [playerId]);
+      await pool.end();
+
+      const documents = result.rows.map(row => ({
+        id: row.id,
+        playerId: row.player_id,
+        documentType: row.document_type,
+        fileName: row.file_name,
+        fileUrl: row.file_url,
+        fileSize: row.file_size,
+        status: row.status,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      }));
+
+      console.log(`✅ [STAFF PORTAL] Retrieved ${documents.length} documents for player ${playerId}`);
+      console.log(`🔍 [STAFF PORTAL] Documents:`, documents.map(d => `ID: ${d.id}, Type: ${d.documentType}, Status: ${d.status}`));
+      
+      res.json(documents);
+
+    } catch (error) {
+      console.error('❌ [STAFF PORTAL] Error fetching documents:', error);
+      console.error('❌ [STAFF PORTAL] Full error details:', error.message);
+      res.status(500).json({ error: 'Failed to fetch documents' });
+    }
+  });
+
+  // Approve player KYC
+  app.post("/api/staff/kyc/approve", async (req, res) => {
+    try {
+      const { playerId, approvedBy } = req.body;
+      console.log(`🏢 [STAFF PORTAL] Approving KYC for player: ${playerId}`);
+      
+      // Use direct PostgreSQL for both operations
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        connectionTimeoutMillis: 10000,
+      });
+
+      // Update player KYC status
+      const playerUpdateQuery = `
+        UPDATE players 
+        SET kyc_status = 'approved', updated_at = NOW()
+        WHERE id = $1
+        RETURNING id, email, first_name, last_name, kyc_status
+      `;
+      
+      const playerResult = await pool.query(playerUpdateQuery, [playerId]);
+      
+      if (playerResult.rows.length === 0) {
+        await pool.end();
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      const player = playerResult.rows[0];
+
+      // Update all documents for this player to approved
+      const docsUpdateQuery = `
+        UPDATE kyc_documents 
+        SET status = 'approved', updated_at = NOW()
+        WHERE player_id = $1
+      `;
+      
+      await pool.query(docsUpdateQuery, [playerId]);
+      await pool.end();
+
+      // Send approval email (fire-and-forget)
+      fetch('/api/auth/kyc-approval-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: player.email,
+          firstName: player.first_name
+        }),
+      }).catch(console.warn);
+
+      console.log(`✅ [STAFF PORTAL] KYC approved for player ${playerId}`);
+      res.json({ 
+        success: true, 
+        message: 'KYC approved successfully',
+        player: {
+          id: player.id,
+          email: player.email,
+          firstName: player.first_name,
+          lastName: player.last_name,
+          kycStatus: player.kyc_status
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ [STAFF PORTAL] Error:', error);
+      res.status(500).json({ error: 'Failed to approve KYC' });
+    }
+  });
+
+  // Reject player KYC
+  app.post("/api/staff/kyc/reject", async (req, res) => {
+    try {
+      const { playerId, rejectedBy, reason } = req.body;
+      console.log(`🏢 [STAFF PORTAL] Rejecting KYC for player: ${playerId}`);
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Update player KYC status
+      const { data: player, error: playerError } = await supabase
+        .from('players')
+        .update({ 
+          kyc_status: 'rejected',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', playerId)
+        .select()
+        .single();
+
+      if (playerError) {
+        console.error('❌ [STAFF PORTAL] Error updating player:', playerError);
+        return res.status(500).json({ error: 'Failed to reject KYC' });
+      }
+
+      // Update all documents for this player to rejected
+      const { error: docsError } = await supabase
+        .from('kyc_documents')
+        .update({ 
+          status: 'rejected',
+          updated_at: new Date().toISOString()
+        })
+        .eq('player_id', playerId);
+
+      if (docsError) {
+        console.error('❌ [STAFF PORTAL] Error updating documents:', docsError);
+      }
+
+      console.log(`✅ [STAFF PORTAL] KYC rejected for player ${playerId}`);
+      res.json({ 
+        success: true, 
+        message: 'KYC rejected successfully',
+        player 
+      });
+
+    } catch (error) {
+      console.error('❌ [STAFF PORTAL] Error:', error);
+      res.status(500).json({ error: 'Failed to reject KYC' });
+    }
+  });
+
+  console.log('🏢 [ROUTES] STAFF PORTAL KYC ENDPOINTS REGISTERED - Player management and KYC approval workflow active');
+
   // ========== CLERK INTEGRATION ENDPOINTS ==========
   
   // Production-ready Clerk webhook endpoint
