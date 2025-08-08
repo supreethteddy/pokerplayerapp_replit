@@ -239,6 +239,14 @@ export class SupabaseOnlyStorage {
         .eq('supabase_id', supabaseId)
         .single();
       
+      console.log('🔍 [UNIFIED] Direct lookup result:', { 
+        supabaseId, 
+        hasData: !!directData, 
+        errorCode: directError?.code, 
+        errorMessage: directError?.message,
+        foundEmail: directData?.email 
+      });
+      
       if (!directError && directData) {
         console.log('✅ [UNIFIED] Direct Supabase ID lookup successful:', directData.email);
         return this.transformPlayerFromSupabase(directData);

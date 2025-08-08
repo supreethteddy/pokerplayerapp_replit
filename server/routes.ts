@@ -1718,18 +1718,67 @@ export function registerRoutes(app: Express) {
       const { supabaseId } = req.params;
       console.log(`🔍 [PLAYER API] Getting player by Supabase ID: ${supabaseId}`);
       
-      const player = await unifiedPlayerSystem.getPlayerBySupabaseId(supabaseId);
+      // CRITICAL FIX: Direct Supabase query to bypass storage layer issues
+      const { createClient } = require('@supabase/supabase-js');
+      const directSupabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        }
+      );
       
-      if (!player) {
-        console.log(`❌ [PLAYER API] Player not found for Supabase ID: ${supabaseId}`);
+      console.log(`🔧 [PLAYER API] Direct database lookup for: ${supabaseId}`);
+      
+      const { data, error } = await directSupabase
+        .from('players')
+        .select('*')
+        .eq('supabase_id', supabaseId)
+        .single();
+      
+      if (error) {
+        console.error('❌ [PLAYER API] Direct database error:', error);
+        if (error.code === 'PGRST116') {
+          return res.status(404).json({ error: "Player not found" });
+        }
+        return res.status(500).json({ error: "Database query failed", details: error.message });
+      }
+      
+      if (!data) {
+        console.log(`❌ [PLAYER API] No player data found for Supabase ID: ${supabaseId}`);
         return res.status(404).json({ error: "Player not found" });
       }
       
-      // PLAYER ID MAPPING: Use actual player ID from database (Player ID 29 for Vignesh Ghana)
-      console.log(`✅ [PLAYER API] Using authentic player ID: ${player.id} for: ${player.email}`);
+      // Transform the data to match expected AuthUser format
+      const player = {
+        id: data.id.toString(),
+        email: data.email,
+        firstName: data.first_name,
+        lastName: data.last_name,
+        phone: data.phone || '',
+        kycStatus: data.kyc_status,
+        balance: data.balance || '0.00',
+        realBalance: data.balance || '0.00',
+        creditBalance: data.current_credit ? String(data.current_credit) : '0.00',
+        creditLimit: data.credit_limit ? String(data.credit_limit) : '0.00',
+        creditApproved: Boolean(data.credit_approved),
+        totalBalance: (parseFloat(data.balance || '0.00') + parseFloat(data.current_credit || '0.00')).toFixed(2),
+        totalDeposits: data.total_deposits || '0.00',
+        totalWithdrawals: data.total_withdrawals || '0.00',
+        totalWinnings: data.total_winnings || '0.00',
+        totalLosses: data.total_losses || '0.00',
+        gamesPlayed: data.games_played || 0,
+        hoursPlayed: data.hours_played || '0.00',
+        clerkUserId: data.clerk_user_id,
+        isClerkSynced: !!data.clerk_user_id
+      };
       
-      console.log(`✅ [PLAYER API] Player found: ${player.email} (ID: ${player.id})`);
+      console.log(`✅ [PLAYER API] Direct lookup successful: ${player.email} (ID: ${player.id}, KYC: ${player.kycStatus})`);
       res.json(player);
+      
     } catch (error) {
       console.error('❌ [PLAYER API] Error fetching player:', error);
       res.status(500).json({ error: "Internal server error" });
