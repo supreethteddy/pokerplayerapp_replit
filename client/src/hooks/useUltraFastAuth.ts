@@ -259,7 +259,10 @@ export function useUltraFastAuth() {
         throw new Error('Failed to create account');
       }
       
-      // Create player record
+      // Create player record with timeout handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      
       const response = await fetch('/api/players', {
         method: 'POST',
         headers: {
@@ -273,30 +276,39 @@ export function useUltraFastAuth() {
           supabaseUserId: authData.user.id,
           password, // This will be hashed on the server
         }),
+        signal: controller.signal,
       });
       
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        throw new Error('Failed to create player profile');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to create player profile');
       }
       
       const playerData = await response.json();
       
-      // Check if this is an existing player redirect
-      if (playerData.existing) {
-        console.log('🔄 [SIGNUP] Existing player - redirecting to KYC:', playerData.kycStatus);
+      // Check if this is an existing player redirect (existing players OR new players both go to KYC)
+      if (playerData.id) {
+        console.log('🔄 [SIGNUP] Player found/created - redirecting to KYC:', playerData.kycStatus);
         
-        // Set session flag for KYC redirect
+        // Set session flag for KYC redirect with consistent data structure
         sessionStorage.setItem('kyc_redirect', JSON.stringify({
-          playerId: playerData.id,
+          id: playerData.id, // Use 'id' consistently
+          playerId: playerData.id, // Also include playerId for compatibility
           email: playerData.email,
           firstName: playerData.firstName,
           lastName: playerData.lastName,
-          kycStatus: playerData.kycStatus
+          kycStatus: playerData.kycStatus || 'pending'
         }));
         
+        const message = playerData.existing 
+          ? "Account Found! Redirecting to KYC document upload process..." 
+          : "Account Created! Now redirecting to KYC document upload...";
+        
         toast({
-          title: "Account Found!",
-          description: "Redirecting to KYC document upload process...",
+          title: playerData.existing ? "Account Found!" : "Account Created!",
+          description: message,
         });
         
         // Redirect to KYC process - will be handled by App.tsx

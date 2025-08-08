@@ -38,9 +38,9 @@ export class EnterprisePlayerSystem {
   private async getPgClient(): Promise<Client> {
     const client = new Client({
       connectionString: process.env.DATABASE_URL,
-      max: 20, // Connection pool size
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      connectionTimeoutMillis: 10000, // 10 seconds instead of 2
+      query_timeout: 10000, // 10 seconds query timeout
+      statement_timeout: 10000, // 10 seconds statement timeout
     });
     await client.connect();
     return client;
