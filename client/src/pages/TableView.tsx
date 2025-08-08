@@ -25,18 +25,15 @@ export default function TableView() {
     refetchInterval: 2000,
   });
   
-  // Get user data from ultra-fast auth system (same as other components)
-  const { data: user } = useQuery({
-    queryKey: ['/api/players/supabase', 'e0953527-a5d5-402c-9e00-8ed590d19cde'], // Use working auth pattern
-    retry: false,
-  });
+  // Use the working ultra-fast auth system (same as PlayerDashboard)
+  const { user, loading: authLoading } = useUltraFastAuth();
   
   const currentTable = tables?.find((table: any) => table.id === tableId);
   
-  // Check if user is already on waitlist for this table
+  // Check if user is already on waitlist for this table (optimized to only run when user is loaded)
   const { data: userWaitlist } = useQuery({
     queryKey: ['/api/seat-requests', user?.id],
-    enabled: !!user?.id,
+    enabled: !!user?.id && !authLoading,
   });
   
   // Get seated players for this table
@@ -161,7 +158,7 @@ export default function TableView() {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          console.log(`🎯 SEAT ${seatNumber} CLICKED!!! User available:`, !!user);
+                          console.log(`🎯 SEAT ${seatNumber} CLICKED!!! User available:`, !!user, 'User ID:', user?.id);
                           // Always open dialog regardless of user loading state
                           console.log(`🎯 Opening dialog for seat ${seatNumber}`);
                           setSelectedSeat(seatNumber);
@@ -360,7 +357,7 @@ export default function TableView() {
                     setShowJoinDialog(false);
                   }
                 }}
-                disabled={joinWaitlistMutation.isPending || !user?.id}
+                disabled={joinWaitlistMutation.isPending || !user?.id || authLoading}
                 className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white"
               >
                 {joinWaitlistMutation.isPending ? (
