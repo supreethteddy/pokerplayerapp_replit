@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
 // Storage interface removed - using direct implementation
 import type { 
   Player, 
@@ -235,8 +236,7 @@ export class SupabaseOnlyStorage {
       // PRODUCTION-GRADE: Use direct PostgreSQL connection to bypass RLS issues
       console.log('🔧 [PLAYER API] Direct database lookup for:', supabaseId);
       
-      const { Client } = require('pg');
-      const pgClient = new Client({
+      const pgClient = new pg.Client({
         connectionString: process.env.DATABASE_URL
       });
       
@@ -248,7 +248,7 @@ export class SupabaseOnlyStorage {
                total_winnings, total_losses, games_played, hours_played, clerk_user_id, 
                supabase_id, is_active, pan_card_number, pan_card_verified, address,
                total_rs_played, current_vip_points, lifetime_vip_points, universal_id
-        FROM players 
+        FROM public.players 
         WHERE supabase_id = $1 AND (is_active IS NULL OR is_active = true)
       `;
       

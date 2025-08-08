@@ -5,6 +5,8 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import Pusher from 'pusher';
+import pg from 'pg';
+import { createClient } from '@supabase/supabase-js';
 import OneSignal from 'onesignal-node';
 import { setupProductionAPIs } from './production-apis';
 import { setupDeepFixAPIs } from './deep-fix-apis';
@@ -680,7 +682,7 @@ export function registerRoutes(app: Express) {
       if (senderType === 'player') {
         try {
           // Check if chat request exists for this player
-          const { createClient } = require('@supabase/supabase-js');
+          // Using imported createClient from top of file
           const supabase = createClient(
             process.env.VITE_SUPABASE_URL!,
             process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -2492,8 +2494,7 @@ export function registerRoutes(app: Express) {
       
       // Step 1: Check if player exists in our database using direct PostgreSQL query
       // This bypasses any Supabase RLS issues that might block the query
-      const { Client } = require('pg');
-      const pgClient = new Client({
+      const pgClient = new pg.Client({
         connectionString: process.env.DATABASE_URL
       });
       
@@ -2511,8 +2512,8 @@ export function registerRoutes(app: Express) {
                current_credit, credit_limit, credit_approved, total_deposits, total_withdrawals,
                total_winnings, total_losses, games_played, hours_played, clerk_user_id, 
                supabase_id, is_active, last_login_at
-        FROM players 
-        WHERE email = $1 AND is_active = true
+        FROM public.players 
+        WHERE email = $1 AND (is_active IS NULL OR is_active = true)
       `;
       
       const playerResult = await pgClient.query(playerQuery, [email]);
