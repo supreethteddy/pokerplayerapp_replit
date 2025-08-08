@@ -927,7 +927,7 @@ function PlayerDashboard() {
             });
             
             // Analyze each message for filtering compatibility
-            data.messages?.forEach((msg, index) => {
+            data.messages?.forEach((msg: any, index: number) => {
               console.log(`MESSAGE ${index + 1} ANALYSIS:`, {
                 messageKeys: Object.keys(msg),
                 playerId: msg.player_id,
