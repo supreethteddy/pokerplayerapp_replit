@@ -567,7 +567,8 @@ function PlayerDashboard() {
               playerId: user?.id,
               documentType,
               fileName: file.name,
-              fileUrl: dataUrl,
+              fileData: dataUrl,
+              fileSize: file.size,
             });
             resolve(response.json());
           } catch (error) {
