@@ -43,14 +43,10 @@ export function useUltraFastAuth() {
         console.log('🔄 [ULTRA-FAST AUTH] State change:', event, session?.user?.email || 'No user');
         
         if (event === 'SIGNED_IN' && session?.user) {
-          console.log('✅ [ULTRA-FAST AUTH] User signed in');
-          await fetchUserDataUltraFast(session.user.id);
-          // Show blue welcome notification
-          toast({
-            title: "Welcome Back!",
-            description: "You have successfully logged into the Poker Club portal.",
-            className: "bg-blue-500 text-white border-blue-600",
-          });
+          console.log('✅ [ULTRA-FAST AUTH] Supabase session established:', session.user.email);
+          if (!user) {
+            await fetchUserDataUltraFast(session.user.id);
+          }
         } else if (event === 'SIGNED_OUT') {
           console.log('🚪 [ULTRA-FAST AUTH] User signed out');
           handleSignOut();
@@ -234,6 +230,24 @@ export function useUltraFastAuth() {
         totalBalance: user.totalBalance || '0.00',
         isClerkSynced: user.isClerkSynced || true
       };
+      
+      // CRITICAL FIX: Create Supabase session to prevent logout loop
+      try {
+        const { data: supabaseAuth, error } = await supabase.auth.signInWithPassword({
+          email: user.email,
+          password: password
+        });
+        
+        if (error) {
+          console.warn('⚠️ [ULTRA-FAST AUTH] Supabase session creation warning:', error.message);
+          // Continue anyway as our backend authentication was successful
+        } else {
+          console.log('✅ [ULTRA-FAST AUTH] Supabase session established successfully');
+        }
+      } catch (sessionError) {
+        console.warn('⚠️ [ULTRA-FAST AUTH] Supabase session creation failed, continuing with backend auth:', sessionError);
+        // Continue anyway as our backend authentication was successful
+      }
       
       setUser(enhancedUserData);
       setLoading(false);
