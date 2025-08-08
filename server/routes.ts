@@ -1715,14 +1715,16 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Enterprise Player Data Endpoint - PRODUCTION GRADE
   app.get("/api/players/supabase/:supabaseId", async (req, res) => {
     try {
       const { supabaseId } = req.params;
-      console.log(`🔍 [PLAYER API] Getting player by Supabase ID: ${supabaseId}`);
+      console.log(`🏢 [ENTERPRISE PLAYER] Getting player by Supabase ID: ${supabaseId}`);
       
-      // CRITICAL FIX: Direct Supabase query to bypass storage layer issues
+      // PRODUCTION APPROACH: First try to get the player by email from the working authentication flow
+      // Step 1: Get email from Supabase auth service (proven to work)
       const { createClient } = await import('@supabase/supabase-js');
-      const directSupabase = createClient(
+      const supabaseAdmin = createClient(
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
         {
@@ -1733,57 +1735,100 @@ export function registerRoutes(app: Express) {
         }
       );
       
-      console.log(`🔧 [PLAYER API] Direct database lookup for: ${supabaseId}`);
-      
-      const { data, error } = await directSupabase
-        .from('players')
-        .select('*')
-        .eq('supabase_id', supabaseId)
-        .single();
-      
-      if (error) {
-        console.error('❌ [PLAYER API] Direct database error:', error);
-        if (error.code === 'PGRST116') {
-          return res.status(404).json({ error: "Player not found" });
+      let userEmail = null;
+      try {
+        const { data: { user }, error: authError } = await supabaseAdmin.auth.admin.getUserById(supabaseId);
+        if (!authError && user?.email) {
+          userEmail = user.email;
+          console.log(`✅ [ENTERPRISE PLAYER] Found auth email: ${userEmail}`);
         }
-        return res.status(500).json({ error: "Database query failed", details: error.message });
+      } catch (authError) {
+        console.log(`⚠️ [ENTERPRISE PLAYER] Auth lookup failed, trying direct database:`, authError);
       }
       
-      if (!data) {
-        console.log(`❌ [PLAYER API] No player data found for Supabase ID: ${supabaseId}`);
-        return res.status(404).json({ error: "Player not found" });
+      // Step 2: Use proven authentication endpoint pattern with email lookup
+      const pgClient = new pg.Client({
+        connectionString: process.env.DATABASE_URL
+      });
+      
+      try {
+        await pgClient.connect();
+      } catch (connectionError) {
+        console.error(`❌ [ENTERPRISE PLAYER] Database connection failed:`, connectionError);
+        return res.status(500).json({ error: 'Database connection failed' });
       }
       
-      // Transform the data to match expected AuthUser format
+      let playerQuery, queryParams;
+      
+      if (userEmail) {
+        // Use email lookup (proven to work in authentication endpoint)
+        console.log(`🔧 [ENTERPRISE PLAYER] Using proven email lookup for: ${userEmail}`);
+        playerQuery = `
+          SELECT id, email, password, first_name, last_name, phone, kyc_status, balance, 
+                 current_credit, credit_limit, credit_approved, total_deposits, total_withdrawals,
+                 total_winnings, total_losses, games_played, hours_played, clerk_user_id, 
+                 supabase_id, is_active
+          FROM players 
+          WHERE email = $1 AND (is_active IS NULL OR is_active = true)
+        `;
+        queryParams = [userEmail];
+      } else {
+        // Fallback: Direct Supabase ID lookup
+        console.log(`🔧 [ENTERPRISE PLAYER] Using direct Supabase ID lookup for: ${supabaseId}`);
+        playerQuery = `
+          SELECT id, email, password, first_name, last_name, phone, kyc_status, balance, 
+                 current_credit, credit_limit, credit_approved, total_deposits, total_withdrawals,
+                 total_winnings, total_losses, games_played, hours_played, clerk_user_id, 
+                 supabase_id, is_active
+          FROM players 
+          WHERE supabase_id = $1 AND (is_active IS NULL OR is_active = true)
+        `;
+        queryParams = [supabaseId];
+      }
+      
+      const playerResult = await pgClient.query(playerQuery, queryParams);
+      await pgClient.end();
+      
+      if (playerResult.rows.length === 0) {
+        console.log(`❌ [ENTERPRISE PLAYER] Player not found for: ${userEmail || supabaseId}`);
+        return res.status(404).json({ error: 'Player not found' });
+      }
+      
+      const playerData = playerResult.rows[0];
+      console.log(`✅ [ENTERPRISE PLAYER] Found player: ${playerData.email} (ID: ${playerData.id})`);
+      
+      // Transform data to match frontend expectations (EXACT same format as authentication endpoint)
       const player = {
-        id: data.id.toString(),
-        email: data.email,
-        firstName: data.first_name,
-        lastName: data.last_name,
-        phone: data.phone || '',
-        kycStatus: data.kyc_status,
-        balance: data.balance || '0.00',
-        realBalance: data.balance || '0.00',
-        creditBalance: data.current_credit ? String(data.current_credit) : '0.00',
-        creditLimit: data.credit_limit ? String(data.credit_limit) : '0.00',
-        creditApproved: Boolean(data.credit_approved),
-        totalBalance: (parseFloat(data.balance || '0.00') + parseFloat(data.current_credit || '0.00')).toFixed(2),
-        totalDeposits: data.total_deposits || '0.00',
-        totalWithdrawals: data.total_withdrawals || '0.00',
-        totalWinnings: data.total_winnings || '0.00',
-        totalLosses: data.total_losses || '0.00',
-        gamesPlayed: data.games_played || 0,
-        hoursPlayed: data.hours_played || '0.00',
-        clerkUserId: data.clerk_user_id,
-        isClerkSynced: !!data.clerk_user_id
+        id: playerData.id.toString(),
+        email: playerData.email,
+        firstName: playerData.first_name,
+        lastName: playerData.last_name,
+        phone: playerData.phone || '',
+        kycStatus: playerData.kyc_status,
+        balance: playerData.balance || '0.00',
+        realBalance: playerData.balance || '0.00',
+        creditBalance: playerData.current_credit ? String(playerData.current_credit) : '0.00',
+        creditLimit: playerData.credit_limit ? String(playerData.credit_limit) : '0.00',
+        creditApproved: Boolean(playerData.credit_approved),
+        totalBalance: (parseFloat(playerData.balance || '0.00') + parseFloat(playerData.current_credit || '0.00')).toFixed(2),
+        totalDeposits: playerData.total_deposits || '0.00',
+        totalWithdrawals: playerData.total_withdrawals || '0.00',
+        totalWinnings: playerData.total_winnings || '0.00',
+        totalLosses: playerData.total_losses || '0.00',
+        gamesPlayed: playerData.games_played || 0,
+        hoursPlayed: playerData.hours_played || '0.00',
+        clerkUserId: playerData.clerk_user_id,
+        isClerkSynced: !!playerData.clerk_user_id,
+        supabaseId: playerData.supabase_id,
+        authToken: playerData.supabase_id
       };
       
-      console.log(`✅ [PLAYER API] Direct lookup successful: ${player.email} (ID: ${player.id}, KYC: ${player.kycStatus})`);
+      console.log(`🎯 [ENTERPRISE PLAYER] Enterprise lookup successful: ${player.email} (ID: ${player.id}, KYC: ${player.kycStatus})`);
       res.json(player);
       
-    } catch (error) {
-      console.error('❌ [PLAYER API] Error fetching player:', error);
-      res.status(500).json({ error: "Internal server error" });
+    } catch (error: any) {
+      console.error('❌ [ENTERPRISE PLAYER] Critical error:', error);
+      res.status(500).json({ error: "Enterprise player lookup failed", details: error.message });
     }
   });
 
@@ -2512,7 +2557,7 @@ export function registerRoutes(app: Express) {
                current_credit, credit_limit, credit_approved, total_deposits, total_withdrawals,
                total_winnings, total_losses, games_played, hours_played, clerk_user_id, 
                supabase_id, is_active, last_login_at
-        FROM public.players 
+        FROM players 
         WHERE email = $1 AND (is_active IS NULL OR is_active = true)
       `;
       
@@ -2594,7 +2639,7 @@ export function registerRoutes(app: Express) {
             
             // Update player record with new Supabase ID using the existing connection
             try {
-              const updateClient = new Client({ connectionString: process.env.DATABASE_URL });
+              const updateClient = new pg.Client({ connectionString: process.env.DATABASE_URL });
               await updateClient.connect();
               await updateClient.query('UPDATE players SET supabase_id = $1 WHERE id = $2', [authUser.id, player.id]);
               await updateClient.end();
@@ -2641,7 +2686,7 @@ export function registerRoutes(app: Express) {
       
       // Log authentication activity using the existing connection
       try {
-        const logClient = new Client({ connectionString: process.env.DATABASE_URL });
+        const logClient = new pg.Client({ connectionString: process.env.DATABASE_URL });
         await logClient.connect();
         await logClient.query('UPDATE players SET last_login_at = NOW() WHERE id = $1', [player.id]);
         await logClient.end();

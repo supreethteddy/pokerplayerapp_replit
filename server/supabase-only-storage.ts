@@ -233,27 +233,28 @@ export class SupabaseOnlyStorage {
     console.log('🔍 [PLAYER API] Getting player by Supabase ID:', supabaseId);
     
     try {
-      // PRODUCTION-GRADE: Use direct PostgreSQL connection to bypass RLS issues
-      console.log('🔧 [PLAYER API] Direct database lookup for:', supabaseId);
-      
-      const pgClient = new pg.Client({
-        connectionString: process.env.DATABASE_URL
+      // Use EXACT same approach as working authentication endpoint
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
       });
       
-      await pgClient.connect();
+      console.log('🔧 [PLAYER API] Direct database lookup for:', supabaseId);
       
+      // Use EXACT same query structure as working authentication endpoint
       const playerQuery = `
         SELECT id, email, password, first_name, last_name, phone, kyc_status, balance, 
                current_credit, credit_limit, credit_approved, total_deposits, total_withdrawals,
                total_winnings, total_losses, games_played, hours_played, clerk_user_id, 
                supabase_id, is_active, pan_card_number, pan_card_verified, address,
                total_rs_played, current_vip_points, lifetime_vip_points, universal_id
-        FROM public.players 
+        FROM players 
         WHERE supabase_id = $1 AND (is_active IS NULL OR is_active = true)
       `;
       
-      const result = await pgClient.query(playerQuery, [supabaseId]);
-      await pgClient.end();
+      const result = await pool.query(playerQuery, [supabaseId]);
+      await pool.end();
       
       if (result.rows.length === 0) {
         console.log('❌ [PLAYER API] No player found for Supabase ID:', supabaseId);
