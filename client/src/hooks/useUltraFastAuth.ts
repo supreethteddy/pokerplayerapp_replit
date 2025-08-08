@@ -121,14 +121,14 @@ export function useUltraFastAuth() {
       
       const userData = await response.json();
       
-      // Ultra-fast user data preparation
+      // PRODUCTION FIX: Use exact field names from backend response
       const enhancedUserData: AuthUser = {
         ...userData,
         realBalance: userData.balance || '0.00',
-        creditBalance: userData.currentCredit || '0.00',
+        creditBalance: userData.creditBalance || '0.00', // FIXED: Use correct field name
         creditLimit: userData.creditLimit || '0.00',
         creditApproved: userData.creditApproved || false,
-        totalBalance: (parseFloat(userData.balance || '0.00') + parseFloat(userData.currentCredit || '0.00')).toFixed(2),
+        totalBalance: userData.totalBalance || (parseFloat(userData.balance || '0.00') + parseFloat(userData.creditBalance || '0.00')).toFixed(2),
         isClerkSynced: !!userData.clerkUserId
       };
       
