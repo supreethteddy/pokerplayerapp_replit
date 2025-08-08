@@ -1273,27 +1273,35 @@ export function registerRoutes(app: Express) {
       // ENHANCED PERSISTENCE: Store message in database for permanent history
       const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       
-      // First, ensure chat request exists
-      let { data: existingRequest } = await supabase
+      // First, ensure chat request exists - CRITICAL FIX: Don't use .single() for new players
+      let { data: existingRequests } = await supabase
         .from('chat_requests')
         .select('id')
         .eq('player_id', playerId)
-        .single();
+        .limit(1);
 
-      let requestId = existingRequest?.id;
+      let requestId = existingRequests?.[0]?.id;
 
       if (!requestId) {
-        // Create new chat request using correct column names
+        // Create new chat request - CRITICAL FIX: Add player info for Staff Portal visibility
+        const { data: player } = await supabase
+          .from('players')
+          .select('first_name, last_name, email')
+          .eq('id', playerId)
+          .single();
+
         const { data: newRequest, error: requestError } = await supabase
           .from('chat_requests')
           .insert({
-            id: `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             player_id: playerId,
-            subject: `Chat with ${playerName || `Player ${playerId}`}`,
+            player_name: player ? `${player.first_name} ${player.last_name}` : (playerName || `Player ${playerId}`),
+            player_email: player?.email || '',
+            subject: 'GRE Support Request',
             initial_message: message,
-            status: 'pending',
+            status: 'waiting',
             priority: 'medium',
-            created_at: new Date().toISOString()
+            source: 'player_chat',
+            category: 'general_inquiry'
           })
           .select('id')
           .single();
@@ -1302,7 +1310,7 @@ export function registerRoutes(app: Express) {
           console.error('❌ [CHAT PERSISTENCE] Error creating request:', requestError);
         } else {
           requestId = newRequest?.id;
-          console.log('🚀 [CHAT PERSISTENCE] Created new chat request:', requestId);
+          console.log('🚀 [CHAT PERSISTENCE] ✅ Created new chat request for Staff Portal:', requestId);
         }
       }
 
