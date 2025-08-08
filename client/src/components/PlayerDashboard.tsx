@@ -204,8 +204,8 @@ const ScrollableOffersDisplay = () => {
                   onClick={(e) => {
                     e.stopPropagation();
                     trackOfferView.mutate(offer.id);
-                    // Navigate to offer detail page
-                    window.location.href = `/offer/${offer.id}`;
+                    // Navigate to offer detail page using Wouter
+                    setLocation(`/offer/${offer.id}`);
                   }}
                 >
                   <Star className="w-4 h-4 mr-2" />
@@ -1474,26 +1474,9 @@ function PlayerDashboard() {
             <TabsContent value="game" className="space-y-3 sm:space-y-4 w-full max-w-full">
               {/* Staff-Managed Offer Carousel */}
               <OfferCarousel onOfferClick={(offerId) => {
-                console.log('🎯 [OFFER CLICK] Switching to offers tab for offer:', offerId);
-                // Switch to offers tab where offers are actually displayed
-                setActiveTab('offers');
-                // Update URL to reflect tab change
-                window.history.pushState({}, '', '?tab=offers');
-                // Small delay to ensure tab content is rendered before scrolling
-                setTimeout(() => {
-                  const targetOffer = document.getElementById(`offer-${offerId}`);
-                  if (targetOffer) {
-                    console.log('🎯 [OFFER SCROLL] Found offer element, scrolling to:', offerId);
-                    targetOffer.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    // Add highlight effect
-                    targetOffer.classList.add('ring-2', 'ring-emerald-500', 'ring-opacity-50');
-                    setTimeout(() => {
-                      targetOffer.classList.remove('ring-2', 'ring-emerald-500', 'ring-opacity-50');
-                    }, 3000);
-                  } else {
-                    console.log('❌ [OFFER SCROLL] Could not find offer element:', `offer-${offerId}`);
-                  }
-                }, 300);
+                console.log('🎯 [OFFER CLICK] Navigating to offer detail:', offerId);
+                // Navigate directly to offer detail page
+                setLocation(`/offer/${offerId}`);
               }} />
               
               <div className="w-full max-w-full space-y-3 sm:space-y-4">

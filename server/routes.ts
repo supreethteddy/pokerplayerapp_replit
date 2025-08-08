@@ -3182,5 +3182,46 @@ export function registerRoutes(app: Express) {
 
   console.log('📱 [ROUTES] NOTIFICATION HISTORY SYSTEM REGISTERED - Bubble dismissal → Bell icon storage with 24h retention');
 
+  // ========== OFFERS SYSTEM - Individual Offer Details ==========
+  
+  // Get individual offer by ID - for offer detail page
+  app.get('/api/staff-offers/:offerId', async (req, res) => {
+    try {
+      const { offerId } = req.params;
+      console.log(`🎁 [SINGLE OFFER] Fetching offer:`, offerId);
+
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      const query = `
+        SELECT id, title, description, image_url, video_url, offer_type, 
+               is_active, start_date, end_date, created_by, created_at, updated_at
+        FROM staff_offers 
+        WHERE id = $1 AND is_active = true
+      `;
+      
+      const result = await pool.query(query, [offerId]);
+      await pool.end();
+
+      if (result.rows.length === 0) {
+        console.log(`❌ [SINGLE OFFER] Offer not found:`, offerId);
+        return res.status(404).json({ error: 'Offer not found' });
+      }
+
+      const offer = result.rows[0];
+      console.log(`✅ [SINGLE OFFER] Found offer:`, offer.title);
+      res.json(offer);
+
+    } catch (error) {
+      console.error('❌ [SINGLE OFFER] Error:', error);
+      res.status(500).json({ error: 'Failed to fetch offer' });
+    }
+  });
+
+  console.log('🎁 [ROUTES] OFFERS SYSTEM REGISTERED - Individual offer details with production data');
+
   return app;
 }
