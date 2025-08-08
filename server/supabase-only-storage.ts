@@ -249,7 +249,7 @@ export class SupabaseOnlyStorage {
                supabase_id, is_active, pan_card_number, pan_card_verified, address,
                total_rs_played, current_vip_points, lifetime_vip_points, universal_id
         FROM players 
-        WHERE supabase_id = $1 AND is_active = true
+        WHERE supabase_id = $1 AND (is_active IS NULL OR is_active = true)
       `;
       
       const result = await pgClient.query(playerQuery, [supabaseId]);
