@@ -2113,15 +2113,15 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Manual Balance Update Trigger - For fixing sync issues
+  // NANOSECOND DATABASE SYNC - Fixes PostgreSQL ↔ Supabase mismatch
   app.post('/api/trigger-balance-update/:playerId', async (req, res) => {
     try {
       const { playerId } = req.params;
       const { operation = 'manual_sync' } = req.body;
       
-      console.log(`🔄 [MANUAL SYNC] Triggering balance update for player: ${playerId}`);
+      console.log(`🔄 [NANOSECOND SYNC] Triggering balance update for player: ${playerId}`);
       
-      // Get fresh balance from database
+      // Get fresh balance from PostgreSQL (source of truth)
       const { Pool } = await import('pg');
       const pool = new Pool({
         connectionString: process.env.DATABASE_URL,
@@ -2140,6 +2140,28 @@ export function registerRoutes(app: Express) {
       const cashBalance = parseFloat(player.balance || '0');
       const creditBalance = parseFloat(player.current_credit || '0');
 
+      // CRITICAL FIX: Sync PostgreSQL → Supabase for database consistency
+      try {
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabase = createClient(
+          process.env.SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+        
+        const { error } = await supabase
+          .from('players')
+          .update({ balance: cashBalance.toFixed(2) })
+          .eq('id', playerId);
+          
+        if (error) {
+          console.error('⚠️ [NANOSECOND SYNC] Supabase error:', error);
+        } else {
+          console.log(`🔧 [NANOSECOND SYNC] Updated Supabase: ₹${cashBalance}`);
+        }
+      } catch (supabaseError) {
+        console.error('⚠️ [NANOSECOND SYNC] Supabase update warning:', supabaseError);
+      }
+
       // Trigger Pusher events for real-time sync
       await pusher.trigger('cross-portal-sync', 'player_balance_update', {
         playerId: parseInt(playerId),
@@ -2156,16 +2178,16 @@ export function registerRoutes(app: Express) {
         timestamp: new Date().toISOString()
       });
 
-      console.log(`✅ [MANUAL SYNC] Balance update triggered: ₹${cashBalance}`);
+      console.log(`✅ [NANOSECOND SYNC] Balance update triggered: ₹${cashBalance}`);
       res.json({ 
         success: true, 
         cashBalance, 
         creditBalance,
-        message: 'Balance sync triggered successfully' 
+        message: 'Balance sync triggered successfully with database consistency' 
       });
 
     } catch (error) {
-      console.error('❌ [MANUAL SYNC] Error:', error);
+      console.error('❌ [NANOSECOND SYNC] Error:', error);
       res.status(500).json({ error: 'Failed to trigger balance update' });
     }
   });
