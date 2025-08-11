@@ -3900,8 +3900,16 @@ export function registerRoutes(app: Express) {
   
   // 1. Send Player Message to Staff (PRIMARY ENDPOINT)
   app.post("/api/staff-chat-integration/send", async (req, res) => {
+    console.log('🚀 [STAFF CHAT INTEGRATION] Send endpoint called');
+    console.log('📝 [STAFF CHAT INTEGRATION] Request body:', JSON.stringify(req.body, null, 2));
+    
     try {
       const { requestId, playerId, playerName, message, staffId, staffName } = req.body;
+      
+      if (!requestId || !playerId || !playerName || !message) {
+        console.error('❌ [STAFF CHAT INTEGRATION] Missing required fields');
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
       
       console.log(`💬 [STAFF CHAT INTEGRATION] Send from player ${playerId}: ${message}`);
       
@@ -4000,7 +4008,8 @@ export function registerRoutes(app: Express) {
       
     } catch (error: any) {
       console.error('❌ [STAFF CHAT INTEGRATION] Send error:', error);
-      res.status(500).json({ error: error.message });
+      console.error('❌ [STAFF CHAT INTEGRATION] Stack trace:', error.stack);
+      res.status(500).json({ error: error.message, details: 'Check server logs for full error' });
     }
   });
   
