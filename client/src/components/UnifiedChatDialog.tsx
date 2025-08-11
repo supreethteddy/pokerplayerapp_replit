@@ -185,29 +185,36 @@ const UnifiedChatDialog: React.FC<UnifiedChatDialogProps> = ({
     
     setIsSending(true);
     try {
-      console.log('📤 [UNIFIED CHAT] Sending message to Staff Portal:', newMessage);
-      const response = await fetch('/api/unified-chat/send', {
+      console.log('📤 [STAFF CHAT INTEGRATION] Sending message using exact endpoint:', newMessage);
+      
+      // Generate session ID for this conversation
+      const currentSessionId = `player-session-${Date.now()}-${Math.random().toString(36).substr(2, 11)}`;
+      
+      // Use EXACT endpoint from integration document
+      const response = await fetch('/api/staff-chat-integration/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          requestId: currentSessionId,
           playerId: playerId,
           playerName: playerName,
           message: newMessage,
-          senderType: 'player'
+          staffId: 151,  // Default staff ID as per integration doc
+          staffName: "Guest Relation Executive"
         })
       });
 
       if (response.ok) {
         const result = await response.json();
-        console.log('✅ [UNIFIED CHAT] Message sent successfully:', result);
+        console.log('✅ [STAFF CHAT INTEGRATION] Message sent successfully to Pusher channels:', result.pusherChannels);
         
         // Add message to local state immediately with unique ID from response
         const newMsg: ChatMessage = {
-          id: result.data?.id || `player-msg-${Date.now()}`,
+          id: result.message?.id || `player-msg-${Date.now()}`,
           message: newMessage,
           sender: 'player',
           sender_name: playerName,
-          timestamp: result.data?.timestamp || new Date().toISOString(),
+          timestamp: result.timestamp || new Date().toISOString(),
           isFromStaff: false
         };
         
@@ -223,10 +230,10 @@ const UnifiedChatDialog: React.FC<UnifiedChatDialogProps> = ({
         
         toast({
           title: "Message Sent",
-          description: "Your message has been sent to our support team"
+          description: "Your message has been sent to our support team via production channels"
         });
       } else {
-        console.error('❌ [UNIFIED CHAT] Failed to send message:', response.statusText);
+        console.error('❌ [STAFF CHAT INTEGRATION] Failed to send message:', response.statusText);
         toast({
           title: "Error",
           description: "Failed to send message. Please try again.",
@@ -234,7 +241,7 @@ const UnifiedChatDialog: React.FC<UnifiedChatDialogProps> = ({
         });
       }
     } catch (error) {
-      console.error('❌ [UNIFIED CHAT] Send error:', error);
+      console.error('❌ [STAFF CHAT INTEGRATION] Send error:', error);
       toast({
         title: "Error",
         description: "Failed to send message. Please try again.",

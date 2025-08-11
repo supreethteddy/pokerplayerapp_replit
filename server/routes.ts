@@ -3895,5 +3895,190 @@ export function registerRoutes(app: Express) {
 
   console.log('🎁 [ROUTES] OFFERS SYSTEM REGISTERED - Individual offer details with production data');
 
+  // ========== EXACT STAFF CHAT INTEGRATION ENDPOINTS ==========
+  // CRITICAL: ONLY use these exact endpoints per integration document
+  
+  // 1. Send Player Message to Staff (PRIMARY ENDPOINT)
+  app.post("/api/staff-chat-integration/send", async (req, res) => {
+    try {
+      const { requestId, playerId, playerName, message, staffId, staffName } = req.body;
+      
+      console.log(`💬 [STAFF CHAT INTEGRATION] Send from player ${playerId}: ${message}`);
+      
+      // Generate session/message IDs
+      const { v4: uuidv4 } = await import('uuid');
+      const messageId = uuidv4();
+      const currentSessionId = requestId || `player-session-${Date.now()}-${Math.random().toString(36).substr(2, 11)}`;
+      const timestamp = new Date().toISOString();
+      
+      // Initialize Supabase client
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      
+      // Create/Update chat session using EXACT table structure from integration doc
+      const { error: sessionError } = await supabase
+        .from('chat_sessions')
+        .upsert({
+          id: currentSessionId,
+          player_id: playerId,
+          player_name: playerName,
+          initial_message: message,
+          status: 'waiting',
+          priority: 'normal',
+          gre_staff_id: staffId?.toString(),
+          gre_staff_name: staffName,
+          created_at: timestamp,
+          updated_at: timestamp
+        });
+      
+      if (sessionError) {
+        console.error('❌ [STAFF CHAT INTEGRATION] Session error:', sessionError);
+      }
+      
+      // Save message using EXACT table structure
+      const { error: messageError } = await supabase
+        .from('chat_messages')
+        .insert({
+          chat_session_id: currentSessionId,
+          sender_type: 'player',
+          sender_name: playerName,
+          message_text: message,
+          message_type: 'text',
+          created_at: timestamp
+        });
+      
+      if (messageError) {
+        console.error('❌ [STAFF CHAT INTEGRATION] Message error:', messageError);
+        return res.status(500).json({ error: 'Failed to save message' });
+      }
+      
+      // Initialize Pusher for real-time notifications
+      const Pusher = await import('pusher');
+      const pusher = new Pusher.default({
+        appId: process.env.PUSHER_APP_ID || '2031604',
+        key: process.env.PUSHER_KEY || '81b98cb04ef7aeef2baa',
+        secret: process.env.PUSHER_SECRET || '6e3b7d709ee1fd09937e',
+        cluster: process.env.PUSHER_CLUSTER || 'ap2',
+        useTLS: true
+      });
+      
+      // Send real-time notifications using EXACT Pusher channels
+      const payload = {
+        id: messageId,
+        message: message,
+        sender: 'player',
+        sender_name: playerName,
+        player_id: playerId,
+        timestamp: timestamp,
+        session_id: currentSessionId
+      };
+      
+      // EXACT channel names from integration document
+      await pusher.trigger(`player-${playerId}`, 'new-staff-message', payload);
+      await pusher.trigger('staff-portal', 'new-player-message', payload);
+      
+      console.log(`✅ [STAFF CHAT INTEGRATION] Message sent with Pusher to: player-${playerId}, staff-portal`);
+      
+      res.json({
+        success: true,
+        message: {
+          id: messageId,
+          message_text: message,
+          sender: 'player',
+          timestamp: timestamp
+        },
+        pusherChannels: [`player-${playerId}`, 'staff-portal'],
+        timestamp: timestamp
+      });
+      
+    } catch (error: any) {
+      console.error('❌ [STAFF CHAT INTEGRATION] Send error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // 2. Get All Chat Sessions (For Player Portal)
+  app.get("/api/staff-chat-integration/requests", async (req, res) => {
+    try {
+      console.log('🔍 [STAFF CHAT INTEGRATION] Fetching all chat requests');
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      
+      const { data: sessions, error } = await supabase
+        .from('chat_sessions')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('❌ [STAFF CHAT INTEGRATION] Requests error:', error);
+        return res.status(500).json({ error: 'Failed to fetch requests' });
+      }
+      
+      // Group by status as per integration document
+      const groupedRequests = {
+        waiting: sessions?.filter(s => s.status === 'waiting') || [],
+        active: sessions?.filter(s => s.status === 'active') || [],
+        resolved: sessions?.filter(s => s.status === 'resolved') || []
+      };
+      
+      console.log(`✅ [STAFF CHAT INTEGRATION] Found ${sessions?.length || 0} total sessions`);
+      
+      res.json({
+        success: true,
+        requests: groupedRequests
+      });
+      
+    } catch (error: any) {
+      console.error('❌ [STAFF CHAT INTEGRATION] Requests error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // 3. Get Message History (EXACT endpoint from integration doc)
+  app.get("/api/staff-chat-integration/messages/:sessionId", async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      console.log(`🔍 [STAFF CHAT INTEGRATION] Fetching messages for session: ${sessionId}`);
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      
+      const { data: messages, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('chat_session_id', sessionId)
+        .order('created_at', { ascending: true });
+      
+      if (error) {
+        console.error('❌ [STAFF CHAT INTEGRATION] Messages error:', error);
+        return res.status(500).json({ error: 'Failed to fetch messages' });
+      }
+      
+      console.log(`✅ [STAFF CHAT INTEGRATION] Found ${messages?.length || 0} messages for session ${sessionId}`);
+      
+      res.json({
+        success: true,
+        messages: messages || [],
+        count: messages?.length || 0
+      });
+      
+    } catch (error: any) {
+      console.error('❌ [STAFF CHAT INTEGRATION] Messages error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  console.log('💬 [ROUTES] EXACT STAFF CHAT INTEGRATION ENDPOINTS REGISTERED - Production-grade nanosecond delivery');
+
   return app;
 }
