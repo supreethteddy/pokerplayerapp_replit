@@ -2853,7 +2853,30 @@ export function registerRoutes(app: Express) {
         authToken: authUser?.id || player.supabase_id // Use as session identifier
       };
       
-      console.log(`✅ [AUTH SIGNIN] Login successful: ${email} (Player ID: ${player.id})`);
+      // CRITICAL SECURITY CHECK: KYC Verification Gate
+      // Players cannot access portal until staff approves their KYC documents
+      if (player.kyc_status !== 'approved') {
+        console.log(`🚫 [AUTH SIGNIN] KYC verification failed for: ${email} (Status: ${player.kyc_status})`);
+        
+        const kycBlockMessages = {
+          'pending': 'Your KYC documents are under review. Please wait for staff approval before accessing the portal.',
+          'submitted': 'Your KYC documents are being reviewed by our team. Access will be granted once approved.',
+          'rejected': 'Your KYC documents have been rejected. Please contact support for assistance.',
+          'incomplete': 'Please complete your KYC document submission before accessing the portal.'
+        };
+        
+        const blockMessage = kycBlockMessages[player.kyc_status] || 'KYC verification required. Please complete document submission.';
+        
+        return res.status(403).json({ 
+          error: 'KYC_VERIFICATION_REQUIRED',
+          message: blockMessage,
+          kycStatus: player.kyc_status,
+          playerEmail: player.email,
+          playerId: player.id
+        });
+      }
+
+      console.log(`✅ [AUTH SIGNIN] KYC verified - Login successful: ${email} (Player ID: ${player.id})`);
       
       // Log authentication activity using the existing connection
       try {
@@ -2869,7 +2892,7 @@ export function registerRoutes(app: Express) {
       res.json({
         success: true,
         user: playerData,
-        message: 'Login successful'
+        message: 'Login successful - KYC approved'
       });
       
     } catch (error: any) {
