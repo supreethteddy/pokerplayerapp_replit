@@ -3926,7 +3926,27 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       
-      // Use EXACT working V1 schema - chat_messages table only
+      // First, create or update chat session using ACTUAL database structure
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('chat_sessions')
+        .upsert({
+          id: currentSessionId,
+          player_id: playerId,
+          player_name: playerName,
+          initial_message: message,
+          status: 'waiting',
+          priority: 'normal',
+          gre_staff_id: staffId?.toString(),
+          gre_staff_name: staffName,
+          created_at: timestamp,
+          updated_at: timestamp
+        });
+
+      if (sessionError) {
+        console.error('❌ [STAFF CHAT INTEGRATION] Session error:', sessionError);
+      }
+
+      // Insert message using ACTUAL database structure
       const { data: messageData, error: messageError } = await supabase
         .from('chat_messages')
         .insert({
@@ -3959,31 +3979,35 @@ export function registerRoutes(app: Express) {
         useTLS: true
       });
       
-      // Send real-time notifications using EXACT integration document format
+      // Send real-time notifications using CORRECT payload format for staff portal
       const payload = {
         id: messageData?.id || messageId,
         message_text: message,
-        sender_type: 'player',
+        sender: 'player',
         sender_name: playerName,
         player_id: playerId,
         timestamp: timestamp,
-        chat_session_id: currentSessionId
+        request_id: currentSessionId,
+        status: 'sent'
       };
       
-      // EXACT channel names from integration document
-      await pusher.trigger(`player-${playerId}`, 'new-staff-message', payload);
-      await pusher.trigger('staff-portal', 'new-player-message', payload);
+      // Use correct channel names that match working V1 system
+      await pusher.trigger(`player-${playerId}`, 'chat-message-received', payload);
+      await pusher.trigger('staff-portal', 'chat-message-received', payload);
       
       console.log(`✅ [STAFF CHAT INTEGRATION] Message sent with Pusher to: player-${playerId}, staff-portal`);
       
-      // EXACT response format from integration document
+      // Response format matching integration document but with correct field names
       res.json({
         success: true,
         message: {
           id: messageData?.id || messageId,
           message_text: message,
           sender: 'player',
-          timestamp: timestamp
+          sender_name: playerName,
+          player_id: playerId,
+          timestamp: timestamp,
+          request_id: currentSessionId
         },
         pusherChannels: [`player-${playerId}`, 'staff-portal'],
         timestamp: timestamp
