@@ -65,40 +65,52 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
     
     console.log('📡 [PLAYER CHAT] Subscribed to channels:', `player-${playerId}`, 'staff-portal');
     
-    // UNIFIED event handler for all message types
+    // UNIFIED event handler for all message types - PREVENT DUPLICATION
     const handleIncomingMessage = (data: any) => {
       console.log('📨 [PLAYER CHAT] Message received:', data);
+      
+      // CRITICAL: Prevent duplicate messages from player confirmation
+      if (data.type === 'player-confirmation' && data.player_id === playerId) {
+        console.log('⚠️ [PLAYER CHAT] Skipping duplicate player confirmation message');
+        return; // Don't add player's own messages back to chat
+      }
       
       // Handle different data formats from staff portal
       const messageData = {
         id: data.id || data.messageId || `msg-${Date.now()}`,
         message: data.message || data.messageText || data.text || '',
-        sender: data.sender || (data.isFromPlayer ? 'player' : 'staff'),
+        sender: data.sender || (data.isFromStaff ? 'staff' : 'player'),
         sender_name: data.sender_name || data.senderName || data.staffName || 'Staff Member',
         timestamp: data.timestamp || new Date().toISOString(),
-        isFromStaff: data.sender === 'staff' || data.senderType === 'staff' || !data.isFromPlayer
+        isFromStaff: data.sender === 'staff' || data.senderType === 'staff' || data.sender_name !== playerName
       };
       
-      if (messageData.message && messageData.sender) {
+      // ONLY add messages from staff - prevent player message echoing
+      if (messageData.message && messageData.isFromStaff) {
         setMessages(prev => {
           // Prevent duplicate messages
-          if (prev.find(msg => msg.id === messageData.id)) {
+          const isDuplicate = prev.some(msg => 
+            msg.id === messageData.id || 
+            (msg.message === messageData.message && 
+             Math.abs(new Date(msg.timestamp).getTime() - new Date(messageData.timestamp).getTime()) < 5000)
+          );
+          
+          if (isDuplicate) {
+            console.log('⚠️ [PLAYER CHAT] Duplicate staff message detected, ignoring');
             return prev;
           }
+          
           return [...prev, messageData].sort((a, b) => 
             new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
           );
         });
         
-        // Mark as unread if chat is closed and message is from staff
-        if (!isOpen && messageData.isFromStaff) {
+        // Mark as unread if chat is closed
+        if (!isInDialog) {
           setHasUnread(true);
         }
         
-        // Update session status based on message activity
-        if (messageData.isFromStaff) {
-          setSessionStatus('active');
-        }
+        setSessionStatus('active');
       }
     };
     
@@ -159,15 +171,15 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
     if (!newMessage.trim() || !isConnected) return;
     
     try {
-      console.log('📤 [PLAYER CHAT] Sending message:', newMessage);
-      const response = await fetch('/api/player-chat-integration/send', {
+      console.log('📤 [PLAYER CHAT] Sending message to staff portal:', newMessage);
+      const response = await fetch('/api/staff-chat-integration/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           playerId: parseInt(playerId.toString()),
           playerName: playerName,
           message: newMessage,
-          isFromPlayer: true
+          requestId: `player-${playerId}-${Date.now()}`
         })
       });
 
@@ -251,8 +263,8 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
               >
                 <div className={`max-w-[75%] p-3 rounded-lg ${
                   msg.isFromStaff
-                    ? 'bg-slate-600 text-white'
-                    : 'bg-emerald-600 text-white'
+                    ? 'bg-gray-600 text-white'
+                    : 'bg-blue-600 text-white'
                 }`}>
                   <div className="text-xs opacity-75 mb-1 font-medium">
                     {msg.sender_name}

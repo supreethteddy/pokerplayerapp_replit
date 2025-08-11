@@ -4033,9 +4033,9 @@ export function registerRoutes(app: Express) {
 
       const query = `
         INSERT INTO notification_history (player_id, notification_id, action, created_at)
-        VALUES ($1, $2, $3, NOW())
+        VALUES ($1, $2::text, $3, NOW())
         ON CONFLICT (player_id, notification_id) 
-        DO UPDATE SET action = $3, created_at = NOW()
+        DO UPDATE SET action = $3, updated_at = NOW()
         RETURNING id
       `;
 
