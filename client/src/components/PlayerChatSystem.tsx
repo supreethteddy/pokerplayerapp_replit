@@ -170,41 +170,50 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
   const sendMessage = async () => {
     if (!newMessage.trim() || !isConnected) return;
     
+    const messageText = newMessage.trim();
+    const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const timestamp = new Date().toISOString();
+    
+    // Immediate UI update (optimistic) - ZERO delay for user
+    const optimisticMsg: ChatMessage = {
+      id: messageId,
+      message: messageText,
+      sender: 'player',
+      sender_name: playerName,
+      timestamp: timestamp,
+      isFromStaff: false
+    };
+    
+    setMessages(prev => [...prev, optimisticMsg]);
+    setNewMessage('');
+    setSessionStatus('pending');
+    
     try {
-      console.log('📤 [PLAYER CHAT] Sending message to staff portal:', newMessage);
-      const response = await fetch('/api/staff-chat-integration/send', {
+      console.log('⚡ [OPTIMIZED V1.2] Sending message to staff portal:', messageText);
+      
+      // Fire and forget - don't wait for response
+      fetch('/api/staff-chat-integration/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           playerId: parseInt(playerId.toString()),
           playerName: playerName,
-          message: newMessage,
+          message: messageText,
           requestId: `player-${playerId}-${Date.now()}`
         })
+      }).then(async (response) => {
+        if (response.ok) {
+          const result = await response.json();
+          console.log('✅ [OPTIMIZED V1.2] Background confirmation:', result);
+        } else {
+          console.error('❌ [OPTIMIZED V1.2] Server error (non-critical):', response.statusText);
+        }
+      }).catch((error) => {
+        console.error('❌ [OPTIMIZED V1.2] Network error (non-critical):', error);
       });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ [PLAYER CHAT] Message sent successfully:', result);
-        
-        // Add message to local state immediately
-        const newMsg: ChatMessage = {
-          id: result.id || `msg-${Date.now()}`,
-          message: newMessage,
-          sender: 'player',
-          sender_name: playerName,
-          timestamp: new Date().toISOString(),
-          isFromStaff: false
-        };
-        
-        setMessages(prev => [...prev, newMsg]);
-        setNewMessage('');
-        setSessionStatus('pending');
-      } else {
-        console.error('❌ [PLAYER CHAT] Failed to send message:', response.statusText);
-      }
+      
     } catch (error) {
-      console.error('❌ [PLAYER CHAT] Send error:', error);
+      console.error('❌ [OPTIMIZED V1.2] Send error:', error);
     }
   };
 
