@@ -631,9 +631,23 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      // Generate proper UUID session ID if not provided
-      const { randomUUID } = require('crypto');
-      const sessionId = requestId || randomUUID();
+      // Check for existing active session for this player first
+      let sessionId = requestId;
+      let { data: existingActiveSession } = await supabase
+        .from('chat_sessions')
+        .select('id, status')
+        .eq('player_id', playerId)
+        .in('status', ['waiting', 'active'])
+        .limit(1);
+      
+      if (existingActiveSession && existingActiveSession.length > 0) {
+        sessionId = existingActiveSession[0].id;
+        console.log(`✅ [STAFF CHAT] Using existing session: ${sessionId}`);
+      } else {
+        // Generate new session ID - use TEXT format as per schema
+        sessionId = requestId || `session-${playerId}-${Date.now()}`;
+        console.log(`🆕 [STAFF CHAT] Creating new session: ${sessionId}`);
+      }
       
       // Ensure chat session exists
       let { data: existingSession } = await supabase
@@ -676,11 +690,10 @@ export function registerRoutes(app: Express) {
       // Generate message ID for response and Pusher notifications
       const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       
-      // Store message in chat_messages table - FIXED COLUMN NAMES AND UUID FORMAT
+      // Store message WITHOUT request_id foreign key (causes UUID/TEXT mismatch)
       const { data: savedMessage, error: messageError } = await supabase
         .from('chat_messages')
         .insert({
-          request_id: sessionId,        // Use proper UUID format 
           player_id: playerId,          // Include player_id column
           sender: 'player',             // Use sender instead of sender_type  
           sender_name: playerName || `Player ${playerId}`,
