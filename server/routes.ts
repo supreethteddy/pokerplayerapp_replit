@@ -3918,38 +3918,22 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       
-      // Use existing working chat tables - SURGICAL FIX for compatibility
-      const { error: sessionError } = await supabase
-        .from('gre_chat_sessions')
-        .upsert({
-          id: currentSessionId,
+      // Use EXACT existing chat_messages table structure that works with staff portal
+      const { data: messageData, error: messageError } = await supabase
+        .from('chat_messages')
+        .insert({
+          request_id: currentSessionId,
           player_id: playerId,
-          player_name: playerName,
-          initial_message: message,
-          status: 'waiting',
-          priority: 'normal',
-          gre_staff_id: staffId?.toString(),
-          gre_staff_name: staffName,
+          message_text: message,
+          sender: 'player',
+          sender_name: playerName,
+          timestamp: timestamp,
+          status: 'sent',
           created_at: timestamp,
           updated_at: timestamp
-        });
-      
-      if (sessionError) {
-        console.error('❌ [STAFF CHAT INTEGRATION] Session error:', sessionError);
-        console.error('❌ [STAFF CHAT INTEGRATION] Session error details:', JSON.stringify(sessionError, null, 2));
-      }
-      
-      // Save message using existing working chat message table
-      const { error: messageError } = await supabase
-        .from('gre_chat_messages')
-        .insert({
-          chat_session_id: currentSessionId,
-          sender_type: 'player',
-          sender_name: playerName,
-          message_text: message,
-          message_type: 'text',
-          created_at: timestamp
-        });
+        })
+        .select()
+        .single();
       
       if (messageError) {
         console.error('❌ [STAFF CHAT INTEGRATION] Message error:', messageError);
@@ -3969,13 +3953,13 @@ export function registerRoutes(app: Express) {
       
       // Send real-time notifications using EXACT Pusher channels
       const payload = {
-        id: messageId,
+        id: messageData?.id || messageId,
         message: message,
         sender: 'player',
         sender_name: playerName,
         player_id: playerId,
         timestamp: timestamp,
-        session_id: currentSessionId
+        request_id: currentSessionId
       };
       
       // EXACT channel names from integration document
