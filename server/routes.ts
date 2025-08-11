@@ -611,6 +611,39 @@ export function registerRoutes(app: Express) {
   
   // STAFF PORTAL COMPATIBLE API ENDPOINTS
   
+  // PLAYER-TO-STAFF MESSAGING - Using exact same directChat system that works
+  app.post("/api/player-chat-integration/send", async (req, res) => {
+    try {
+      const { playerId, playerName, message, isFromPlayer } = req.body;
+      
+      if (!playerId || !message) {
+        return res.status(400).json({ success: false, error: 'Player ID and message are required' });
+      }
+      
+      console.log(`💬 [PLAYER CHAT] Player ${playerId} sending: "${message}"`);
+      
+      // Use the exact same directChat system that staff portal uses
+      const result = await directChat.sendMessage(
+        parseInt(playerId.toString()),
+        playerName || `Player ${playerId}`,
+        message,
+        'player'
+      );
+      
+      console.log(`✅ [PLAYER CHAT] Message sent successfully via directChat`);
+      
+      res.json({
+        success: true,
+        id: result.data.id,
+        timestamp: result.data.timestamp
+      });
+      
+    } catch (error: any) {
+      console.error('❌ [PLAYER CHAT] Error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   // STAFF PORTAL INTEGRATION ENDPOINTS - EXACT PRODUCTION SPECIFICATION
   // From: Player Portal Production Integration Document (August 11, 2025)
   

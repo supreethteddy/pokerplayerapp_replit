@@ -1,6 +1,6 @@
 import { useUltraFastAuth } from "@/hooks/useUltraFastAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useRouter } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,7 +56,7 @@ import { PlayerTransactionHistory } from "./PlayerTransactionHistory";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
-import UnifiedChatDialog from "./UnifiedChatDialog";
+// Removed UnifiedChatDialog - using PlayerChatSystem instead
 import NotificationHistoryTab from "./NotificationHistoryTab";
 
 
@@ -205,7 +205,7 @@ const ScrollableOffersDisplay = () => {
                     e.stopPropagation();
                     trackOfferView.mutate(offer.id);
                     // Navigate to offer detail page using Wouter
-                    setLocation(`/offer/${offer.id}`);
+                    window.location.href = `/offer/${offer.id}`;
                   }}
                 >
                   <Star className="w-4 h-4 mr-2" />
@@ -1458,7 +1458,7 @@ function PlayerDashboard() {
               className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 relative"
             >
               <Bell className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
-              {notifications && notifications.length > 0 && (
+              {notifications && Array.isArray(notifications) && notifications.length > 0 && (
                 <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full text-xs flex items-center justify-center text-white" style={{ fontSize: '0.5rem' }}>
                   {notifications.length > 9 ? '9+' : notifications.length}
                 </span>
@@ -1476,7 +1476,7 @@ function PlayerDashboard() {
               <OfferCarousel onOfferClick={(offerId) => {
                 console.log('🎯 [OFFER CLICK] Navigating to offer detail:', offerId);
                 // Navigate directly to offer detail page
-                setLocation(`/offer/${offerId}`);
+                window.location.href = `/offer/${offerId}`;
               }} />
               
               <div className="w-full max-w-full space-y-3 sm:space-y-4">
@@ -2599,7 +2599,7 @@ function PlayerDashboard() {
 
             {/* Notifications Tab */}
             <TabsContent value="notifications" className="space-y-3 sm:space-y-4 w-full max-w-full">
-              <NotificationHistoryTab userId={Number(user.id)} />
+              <NotificationHistoryTab />
             </TabsContent>
 
           </div>
@@ -2608,13 +2608,7 @@ function PlayerDashboard() {
 
 
 
-        {/* Unified Chat Dialog - Original Open Chat restored with bidirectional logic */}
-        <UnifiedChatDialog 
-          isOpen={unifiedChatOpen}
-          onOpenChange={setUnifiedChatOpen}
-          playerId={user?.id || 0}
-          playerName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim()}
-        />
+        {/* PlayerChatSystem is already integrated in the dashboard */}
 
       </div>
     );
