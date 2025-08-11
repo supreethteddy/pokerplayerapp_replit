@@ -1965,10 +1965,17 @@ function PlayerDashboard() {
                                 const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0] : null;
                                 if (doc && doc.fileUrl) {
                                   try {
-                                    // Use the API endpoint to serve the document properly
-                                    const documentUrl = `/api/documents/view/${doc.id}`;
+                                    // Clear browser cache for this specific document and open in new tab
+                                    const documentUrl = `/api/documents/view/${doc.id}?v=${Date.now()}`;
                                     console.log('Opening document:', documentUrl);
-                                    window.open(documentUrl, '_blank', 'noopener,noreferrer');
+                                    
+                                    const newTab = window.open('about:blank', '_blank');
+                                    if (newTab) {
+                                      newTab.location.href = documentUrl;
+                                    } else {
+                                      // Fallback if popup blocked
+                                      window.location.href = documentUrl;
+                                    }
                                   } catch (error) {
                                     console.error('Error opening document:', error);
                                     toast({
@@ -2063,10 +2070,17 @@ function PlayerDashboard() {
                                 const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl)[0] : null;
                                 if (doc && doc.fileUrl) {
                                   try {
-                                    // Use the API endpoint to serve the document properly
-                                    const documentUrl = `/api/documents/view/${doc.id}`;
+                                    // Clear browser cache for this specific document and open in new tab
+                                    const documentUrl = `/api/documents/view/${doc.id}?v=${Date.now()}`;
                                     console.log('Opening document:', documentUrl);
-                                    window.open(documentUrl, '_blank', 'noopener,noreferrer');
+                                    
+                                    const newTab = window.open('about:blank', '_blank');
+                                    if (newTab) {
+                                      newTab.location.href = documentUrl;
+                                    } else {
+                                      // Fallback if popup blocked
+                                      window.location.href = documentUrl;
+                                    }
                                   } catch (error) {
                                     console.error('Error opening document:', error);
                                     toast({
@@ -2161,10 +2175,17 @@ function PlayerDashboard() {
                                 const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0] : null;
                                 if (doc && doc.fileUrl) {
                                   try {
-                                    // Use the API endpoint to serve the document properly
-                                    const documentUrl = `/api/documents/view/${doc.id}`;
+                                    // Clear browser cache for this specific document and open in new tab
+                                    const documentUrl = `/api/documents/view/${doc.id}?v=${Date.now()}`;
                                     console.log('Opening document:', documentUrl);
-                                    window.open(documentUrl, '_blank', 'noopener,noreferrer');
+                                    
+                                    const newTab = window.open('about:blank', '_blank');
+                                    if (newTab) {
+                                      newTab.location.href = documentUrl;
+                                    } else {
+                                      // Fallback if popup blocked
+                                      window.location.href = documentUrl;
+                                    }
                                   } catch (error) {
                                     console.error('Error opening document:', error);
                                     toast({
