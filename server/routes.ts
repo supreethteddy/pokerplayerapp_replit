@@ -3918,19 +3918,36 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       
-      // Use EXACT existing chat_messages table structure that works with staff portal
+      // Create session first using EXACT integration document structure
+      const { error: sessionError } = await supabase
+        .from('chat_sessions')
+        .upsert({
+          id: currentSessionId,
+          player_id: playerId,
+          player_name: playerName,
+          initial_message: message,
+          status: 'waiting',
+          priority: 'normal',
+          gre_staff_id: staffId?.toString(),
+          gre_staff_name: staffName,
+          created_at: timestamp,
+          updated_at: timestamp
+        });
+
+      if (sessionError) {
+        console.error('❌ [STAFF CHAT INTEGRATION] Session error:', sessionError);
+      }
+
+      // Insert message using EXACT integration document structure
       const { data: messageData, error: messageError } = await supabase
         .from('chat_messages')
         .insert({
-          request_id: currentSessionId,
-          player_id: playerId,
-          message_text: message,
-          sender: 'player',
+          chat_session_id: currentSessionId,
+          sender_type: 'player',
           sender_name: playerName,
-          timestamp: timestamp,
-          status: 'sent',
-          created_at: timestamp,
-          updated_at: timestamp
+          message_text: message,
+          message_type: 'text',
+          created_at: timestamp
         })
         .select()
         .single();
@@ -3951,15 +3968,15 @@ export function registerRoutes(app: Express) {
         useTLS: true
       });
       
-      // Send real-time notifications using EXACT Pusher channels
+      // Send real-time notifications using EXACT integration document format
       const payload = {
         id: messageData?.id || messageId,
-        message: message,
-        sender: 'player',
+        message_text: message,
+        sender_type: 'player',
         sender_name: playerName,
         player_id: playerId,
         timestamp: timestamp,
-        request_id: currentSessionId
+        chat_session_id: currentSessionId
       };
       
       // EXACT channel names from integration document
@@ -3968,10 +3985,11 @@ export function registerRoutes(app: Express) {
       
       console.log(`✅ [STAFF CHAT INTEGRATION] Message sent with Pusher to: player-${playerId}, staff-portal`);
       
+      // EXACT response format from integration document
       res.json({
         success: true,
         message: {
-          id: messageId,
+          id: messageData?.id || messageId,
           message_text: message,
           sender: 'player',
           timestamp: timestamp
