@@ -3918,9 +3918,9 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       
-      // Create/Update chat session using EXACT table structure from integration doc
+      // Use existing working chat tables - SURGICAL FIX for compatibility
       const { error: sessionError } = await supabase
-        .from('chat_sessions')
+        .from('gre_chat_sessions')
         .upsert({
           id: currentSessionId,
           player_id: playerId,
@@ -3936,11 +3936,12 @@ export function registerRoutes(app: Express) {
       
       if (sessionError) {
         console.error('❌ [STAFF CHAT INTEGRATION] Session error:', sessionError);
+        console.error('❌ [STAFF CHAT INTEGRATION] Session error details:', JSON.stringify(sessionError, null, 2));
       }
       
-      // Save message using EXACT table structure
+      // Save message using existing working chat message table
       const { error: messageError } = await supabase
-        .from('chat_messages')
+        .from('gre_chat_messages')
         .insert({
           chat_session_id: currentSessionId,
           sender_type: 'player',
@@ -3952,7 +3953,8 @@ export function registerRoutes(app: Express) {
       
       if (messageError) {
         console.error('❌ [STAFF CHAT INTEGRATION] Message error:', messageError);
-        return res.status(500).json({ error: 'Failed to save message' });
+        console.error('❌ [STAFF CHAT INTEGRATION] Message error details:', JSON.stringify(messageError, null, 2));
+        return res.status(500).json({ error: 'Failed to save message', details: messageError.message });
       }
       
       // Initialize Pusher for real-time notifications
