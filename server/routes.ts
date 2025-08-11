@@ -631,8 +631,9 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      // Generate session ID if not provided
-      const sessionId = requestId || `player-session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      // Generate proper UUID session ID if not provided
+      const { randomUUID } = require('crypto');
+      const sessionId = requestId || randomUUID();
       
       // Ensure chat session exists
       let { data: existingSession } = await supabase
@@ -672,13 +673,11 @@ export function registerRoutes(app: Express) {
         }
       }
 
-      // Store message in chat_messages table - FIXED COLUMN NAMES
-      const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      // Store message in chat_messages table - FIXED COLUMN NAMES AND UUID FORMAT
       const { data: savedMessage, error: messageError } = await supabase
         .from('chat_messages')
         .insert({
-          id: messageId,
-          request_id: sessionId,        // Use request_id instead of chat_session_id
+          request_id: sessionId,        // Use proper UUID format 
           player_id: playerId,          // Include player_id column
           sender: 'player',             // Use sender instead of sender_type  
           sender_name: playerName || `Player ${playerId}`,
