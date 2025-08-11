@@ -313,21 +313,60 @@ export function useUltraFastAuth() {
       
       console.log('✅ [ULTRA-FAST AUTH] Integrated signup successful:', player?.email);
       
-      toast({
-        title: existing ? "Account Found" : "Account Created",
-        description: message || "Welcome to the platform!",
-      });
-      
-      // Set loading flag for redirect
-      setLoading(false);
-      
-      return { 
-        success: true, 
-        existing: existing || false,
-        redirectToKYC: redirectToKYC || false,
-        player,
-        playerData: player // Add alias for compatibility
-      };
+      // Check if KYC redirect is needed
+      if (redirectToKYC && player) {
+        console.log('🎯 [ULTRA-FAST AUTH] KYC redirect required for player:', player.id);
+        
+        // Store KYC redirect data for App.tsx to handle
+        const kycData = {
+          id: player.id,
+          playerId: player.id,
+          email: player.email,
+          firstName: player.firstName,
+          lastName: player.lastName,
+          kycStatus: player.kycStatus || 'pending',
+          existing: existing || false,
+          message: existing ? 'Existing account found - proceeding to KYC' : 'New account created - proceeding to KYC'
+        };
+        
+        sessionStorage.setItem('kyc_redirect', JSON.stringify(kycData));
+        
+        toast({
+          title: existing ? "Account Found" : "Account Created Successfully!",
+          description: "Redirecting to document upload process...",
+        });
+        
+        setLoading(false);
+        
+        // Trigger page reload to start KYC workflow
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+        
+        return { 
+          success: true, 
+          existing: existing || false,
+          redirectToKYC: true,
+          player,
+          playerData: player // Add alias for compatibility
+        };
+      } else {
+        toast({
+          title: existing ? "Account Found" : "Account Created",
+          description: message || "Welcome to the platform!",
+        });
+        
+        // Set loading flag for redirect
+        setLoading(false);
+        
+        return { 
+          success: true, 
+          existing: existing || false,
+          redirectToKYC: redirectToKYC || false,
+          player,
+          playerData: player // Add alias for compatibility
+        };
+      }
       
     } catch (error: any) {
       console.error('❌ [ULTRA-FAST AUTH] Sign up error:', error);
