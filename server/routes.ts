@@ -2928,37 +2928,65 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ error: authError.message });
       }
       
-      // Create player record
-      const { data: newPlayer, error: playerError } = await supabaseAdmin
-        .from('players')
-        .insert({
+      // Create player record using direct PostgreSQL to bypass cache issues
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+      
+      try {
+        const insertQuery = `
+          INSERT INTO players (
+            email, password, first_name, last_name, phone, supabase_id, 
+            kyc_status, balance, is_active, universal_id, 
+            credit_approved, credit_limit, current_credit, total_deposits,
+            total_withdrawals, total_winnings, total_losses, games_played,
+            hours_played, total_rs_played, current_vip_points, lifetime_vip_points
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, 
+            'pending', '0.00', true, $7,
+            false, 0, 0, '0.00',
+            '0.00', '0.00', '0.00', 0,
+            '0', 0, 0, 0
+          ) RETURNING *
+        `;
+        
+        const universalId = `unified_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const result = await pgClient.query(insertQuery, [
           email,
           password, // Store plaintext for backward compatibility
-          first_name: firstName,
-          last_name: lastName,
-          phone: phone || '',
-          supabase_id: authData.user.id,
-          kyc_status: 'pending',
-          balance: '0.00',
-          is_active: true,
-          universal_id: `unified_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-        })
-        .select()
-        .single();
-      
-      if (playerError) {
-        console.error('❌ [AUTH SIGNUP] Player creation failed:', playerError);
+          firstName,
+          lastName,
+          phone || '',
+          authData.user.id, // supabase_id
+          universalId
+        ]);
+        
+        const newPlayer = result.rows[0];
+        console.log(`✅ [AUTH SIGNUP] Player created via PostgreSQL: ${newPlayer.email} (ID: ${newPlayer.id})`);
+        
+        // Success response with properly formatted data
+        await pgClient.end();
+        return res.json({
+          success: true,
+          player: {
+            id: newPlayer.id,
+            email: newPlayer.email,
+            firstName: newPlayer.first_name,
+            lastName: newPlayer.last_name,
+            phone: newPlayer.phone,
+            kycStatus: newPlayer.kyc_status,
+            balance: newPlayer.balance,
+            supabaseId: newPlayer.supabase_id
+          },
+          redirectToKYC: true,
+          message: 'Account created successfully'
+        });
+        
+      } catch (insertError: any) {
+        console.error('❌ [AUTH SIGNUP] PostgreSQL player creation failed:', insertError);
+        await pgClient.end();
         return res.status(500).json({ error: 'Failed to create player profile' });
       }
-      
-      console.log(`✅ [AUTH SIGNUP] New player created: ${newPlayer.email} (ID: ${newPlayer.id})`);
-      
-      res.json({
-        success: true,
-        player: newPlayer,
-        redirectToKYC: true,
-        message: 'Account created successfully'
-      });
       
     } catch (error: any) {
       console.error('❌ [AUTH SIGNUP] Server error:', error);
