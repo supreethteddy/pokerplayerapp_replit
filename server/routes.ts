@@ -673,6 +673,9 @@ export function registerRoutes(app: Express) {
         }
       }
 
+      // Generate message ID for response and Pusher notifications
+      const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
       // Store message in chat_messages table - FIXED COLUMN NAMES AND UUID FORMAT
       const { data: savedMessage, error: messageError } = await supabase
         .from('chat_messages')
