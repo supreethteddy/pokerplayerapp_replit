@@ -62,12 +62,22 @@ export default function FreshGreChatBubble({ isOpen, onClose }: FreshGreChatBubb
       
       console.log('📝 [FRESH CHAT] Sending payload:', payload);
       
-      const response = await fetch('/api/unified-chat/send', {
+      // USE STAFF PORTAL INTEGRATION ENDPOINT - EXACT SPECIFICATION
+      const sessionId = `player-session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      const response = await fetch('/api/staff-chat-integration/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          requestId: sessionId,
+          playerId: parseInt(playerId),
+          playerName: playerName,
+          message: messageText,
+          staffId: 151,
+          staffName: "Guest Relation Executive"
+        }),
       });
 
       const result = await response.json();

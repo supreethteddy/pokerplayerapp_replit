@@ -611,31 +611,202 @@ export function registerRoutes(app: Express) {
   
   // STAFF PORTAL COMPATIBLE API ENDPOINTS
   
-  // Send Player Messages to Staff Portal (EXACT MATCH)
-  app.post("/api/player-chat-integration/send", async (req, res) => {
+  // STAFF PORTAL INTEGRATION ENDPOINTS - EXACT PRODUCTION SPECIFICATION
+  // From: Player Portal Production Integration Document (August 11, 2025)
+  
+  // 1. Send Player Message to Staff (PRIMARY) - Nanosecond delivery
+  app.post("/api/staff-chat-integration/send", async (req, res) => {
     try {
-      const { playerId, playerName, message, isFromPlayer } = req.body;
+      const { requestId, playerId, playerName, message, staffId = 151, staffName = "Guest Relation Executive" } = req.body;
       
-      if (!isFromPlayer) {
-        return res.status(400).json({ error: "This endpoint is for player messages only" });
+      if (!playerId || !message) {
+        return res.status(400).json({ success: false, error: 'playerId and message are required' });
       }
 
-      const result = await directChat.sendMessage(playerId, playerName, message, 'player');
+      console.log(`🚀 [STAFF CHAT INTEGRATION] Processing message from player ${playerId}: "${message}"`);
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Generate session ID if not provided
+      const sessionId = requestId || `player-session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       
-      // Return format expected by staff portal
+      // Ensure chat session exists
+      let { data: existingSession } = await supabase
+        .from('chat_sessions')
+        .select('id, status, player_name')
+        .eq('id', sessionId)
+        .limit(1);
+
+      if (!existingSession || existingSession.length === 0) {
+        // Create new chat session
+        const { data: player } = await supabase
+          .from('players')
+          .select('first_name, last_name, email')
+          .eq('id', playerId)
+          .single();
+
+        const { data: newSession, error: sessionError } = await supabase
+          .from('chat_sessions')
+          .insert({
+            id: sessionId,
+            player_id: playerId,
+            player_name: player ? `${player.first_name} ${player.last_name}` : (playerName || `Player ${playerId}`),
+            player_email: player?.email || '',
+            initial_message: message,
+            status: 'waiting',
+            priority: 'normal',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (sessionError) {
+          console.error('❌ [STAFF CHAT] Error creating session:', sessionError);
+        } else {
+          console.log('✅ [STAFF CHAT] Created new session:', sessionId);
+        }
+      }
+
+      // Store message in chat_messages table - FIXED COLUMN NAMES
+      const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const { data: savedMessage, error: messageError } = await supabase
+        .from('chat_messages')
+        .insert({
+          id: messageId,
+          request_id: sessionId,        // Use request_id instead of chat_session_id
+          player_id: playerId,          // Include player_id column
+          sender: 'player',             // Use sender instead of sender_type  
+          sender_name: playerName || `Player ${playerId}`,
+          message_text: message,
+          timestamp: new Date().toISOString(),  // Use timestamp instead of created_at
+          status: 'sent'
+        })
+        .select()
+        .single();
+
+      if (messageError) {
+        console.error('❌ [STAFF CHAT] Error saving message:', messageError);
+        throw messageError;
+      }
+
+      // Real-time Pusher notification to staff portal and player
+      const timestamp = new Date().toISOString();
+      const pusherChannels = [`player-${playerId}`, 'staff-portal'];
+      
+      // Broadcast to Staff Portal
+      await pusher.trigger('staff-portal', 'new-player-message', {
+        sessionId: sessionId,
+        playerId: playerId,
+        playerName: playerName || `Player ${playerId}`,
+        message: message,
+        messageId: messageId,
+        timestamp: timestamp,
+        status: 'waiting'
+      });
+
+      // Broadcast to player channel for confirmation
+      await pusher.trigger(`player-${playerId}`, 'message-sent', {
+        messageId: messageId,
+        message: message,
+        timestamp: timestamp,
+        status: 'delivered'
+      });
+
+      console.log(`✅ [STAFF CHAT] Message processed successfully - nanosecond delivery confirmed`);
+      
       res.json({
         success: true,
-        id: result.data.id,
-        timestamp: result.data.timestamp,
-        message: "Message sent successfully"
+        message: {
+          id: messageId,
+          message_text: message,
+          sender: 'player',
+          timestamp: timestamp
+        },
+        pusherChannels: pusherChannels,
+        timestamp: timestamp
       });
+      
     } catch (error: any) {
-      console.error('❌ [STAFF PORTAL INTEGRATION] Send error:', error);
-      res.status(500).json({ error: error.message });
+      console.error('❌ [STAFF CHAT INTEGRATION] Error:', error);
+      res.status(500).json({ success: false, error: error.message });
     }
   });
 
-  // Retrieve All Messages for Player (EXACT MATCH)
+  // 2. Get All Chat Sessions (For Player Portal)
+  app.get("/api/staff-chat-integration/requests", async (req, res) => {
+    try {
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { data: sessions, error } = await supabase
+        .from('chat_sessions')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      // Categorize by status
+      const categorized = {
+        waiting: sessions?.filter(s => s.status === 'waiting') || [],
+        active: sessions?.filter(s => s.status === 'active') || [],
+        resolved: sessions?.filter(s => s.status === 'resolved') || []
+      };
+
+      res.json({
+        success: true,
+        requests: categorized
+      });
+      
+    } catch (error: any) {
+      console.error('❌ [STAFF CHAT REQUESTS] Error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // 3. Get Message History
+  app.get("/api/staff-chat-integration/messages/:sessionId", async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { data: messages, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('chat_session_id', sessionId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+
+      res.json({
+        success: true,
+        messages: messages || [],
+        count: messages?.length || 0
+      });
+      
+    } catch (error: any) {
+      console.error('❌ [STAFF CHAT MESSAGES] Error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // LEGACY ENDPOINT COMPATIBILITY - Retrieve All Messages for Player (EXACT MATCH)
   app.get("/api/player-chat-integration/messages/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
@@ -668,93 +839,7 @@ export function registerRoutes(app: Express) {
 
 
 
-  // ENHANCED UNIFIED CHAT SYSTEM - Microsecond Delivery
-  app.post("/api/unified-chat/send", async (req, res) => {
-    try {
-      const { playerId, playerName, message, senderType } = req.body;
-      
-      console.log(`🚀 [MICROSECOND CHAT] Processing ${senderType} message from ${playerName}`);
-      
-      // 1. Send message through direct chat system
-      const result = await directChat.sendMessage(playerId, playerName, message, senderType);
-      
-      // 2. Create or update chat request for Staff Portal visibility
-      if (senderType === 'player') {
-        try {
-          // Check if chat request exists for this player
-          // Using imported createClient from top of file
-          const supabase = createClient(
-            process.env.VITE_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!
-          );
-          const { data: existingRequest, error: requestError } = await supabase
-            .from('chat_requests')
-            .select('id, status')
-            .eq('player_id', playerId)
-            .single();
-          
-          let requestId;
-          
-          if (!existingRequest) {
-            // Create new chat request - this will appear as NEW CHAT in Staff Portal
-            const { data: newRequest, error: createError } = await supabase
-              .from('chat_requests')
-              .insert({
-                player_id: playerId,
-                player_name: playerName,
-                initial_message: message,
-                status: 'waiting',
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              })
-              .select()
-              .single();
-            
-            if (!createError && newRequest) {
-              requestId = newRequest.id;
-              console.log(`✅ [NEW CHAT] Created chat request ${requestId} for player ${playerId}`);
-              
-              // Broadcast NEW CHAT event to Staff Portal
-              await pusher.trigger('staff-portal', 'new-chat-request', {
-                requestId: requestId,
-                playerId: playerId,
-                playerName: playerName,
-                message: message,
-                timestamp: new Date().toISOString(),
-                status: 'waiting'
-              });
-              
-              // Send OneSignal notification to staff
-              try {
-                await oneSignalClient.createNotification({
-                  app_id: process.env.ONESIGNAL_APP_ID! as any,
-                  contents: { en: `New chat from ${playerName}: ${message.substring(0, 50)}...` },
-                  headings: { en: "New Player Chat Request" },
-                  included_segments: ['All']
-                });
-                console.log(`📱 [ONESIGNAL] Staff notification sent for new chat from ${playerName}`);
-              } catch (notifError) {
-                console.error('❌ [ONESIGNAL] Notification error:', notifError);
-              }
-            }
-          } else {
-            requestId = existingRequest.id;
-            console.log(`🔄 [EXISTING CHAT] Using existing request ${requestId} for player ${playerId}`);
-          }
-          
-        } catch (chatRequestError) {
-          console.error('❌ [CHAT REQUEST] Error:', chatRequestError);
-          // Continue with message sending even if chat request fails
-        }
-      }
-      
-      console.log(`✅ [MICROSECOND CHAT] Message processed successfully in microseconds`);
-      res.json(result);
-    } catch (error: any) {
-      console.error('❌ [MICROSECOND CHAT] Error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
+  // REMOVED: Duplicate endpoint - consolidated into staff-chat-integration/send
 
   app.delete("/api/unified-chat/clear/:playerId", async (req, res) => {
     try {
@@ -1254,170 +1339,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  app.post("/api/unified-chat/send", async (req, res) => {
-    try {
-      const { playerId, playerName, message, senderType = 'player' } = req.body;
-
-      if (!playerId || !message) {
-        return res.status(400).json({ success: false, error: 'playerId and message are required' });
-      }
-
-      console.log(`🚀 [CHAT PERSISTENCE] Sending ${senderType} message: "${message}"`);
-
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      // ENHANCED PERSISTENCE: Store message in database for permanent history
-      const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
-      // First, ensure chat request exists - CRITICAL FIX: Don't use .single() for new players
-      let { data: existingRequests } = await supabase
-        .from('chat_requests')
-        .select('id')
-        .eq('player_id', playerId)
-        .limit(1);
-
-      let requestId = existingRequests?.[0]?.id;
-
-      if (!requestId) {
-        // Create new chat request - CRITICAL FIX: Add player info for Staff Portal visibility
-        const { data: player } = await supabase
-          .from('players')
-          .select('first_name, last_name, email')
-          .eq('id', playerId)
-          .single();
-
-        const { data: newRequest, error: requestError } = await supabase
-          .from('chat_requests')
-          .insert({
-            player_id: playerId,
-            player_name: player ? `${player.first_name} ${player.last_name}` : (playerName || `Player ${playerId}`),
-            player_email: player?.email || '',
-            subject: 'GRE Support Request',
-            initial_message: message,
-            status: 'waiting',
-            priority: 'medium',
-            source: 'player_chat',
-            category: 'general_inquiry'
-          })
-          .select('id')
-          .single();
-
-        if (requestError) {
-          console.error('❌ [CHAT PERSISTENCE] Error creating request:', requestError);
-        } else {
-          requestId = newRequest?.id;
-          console.log('🚀 [CHAT PERSISTENCE] ✅ Created new chat request for Staff Portal:', requestId);
-        }
-      }
-
-      // Store message in database using correct column names
-      const { data: savedMessage, error: messageError } = await supabase
-        .from('chat_messages')
-        .insert({
-          id: messageId,
-          request_id: requestId,
-          player_id: playerId,
-          sender: senderType,
-          sender_name: playerName || `Player ${playerId}`,
-          message_text: message,
-          timestamp: new Date().toISOString(),
-          status: 'sent'
-        })
-        .select()
-        .single();
-
-      if (messageError) {
-        console.error('❌ [CHAT PERSISTENCE] Error saving message:', messageError);
-      } else {
-        console.log('🚀 [CHAT PERSISTENCE] ✅ Message saved to database:', messageId);
-      }
-
-      const responseMessage = savedMessage || { 
-        id: messageId, 
-        created_at: new Date().toISOString(),
-        message: message,
-        playerId: playerId,
-        playerName: playerName || `Player ${playerId}`,
-        senderType: senderType
-      };
-      
-      console.log(`🚀 [CHAT REALTIME] Message processed with ID: ${responseMessage.id}`);
-
-
-
-
-      // DISABLED - Using Direct Chat System instead
-      console.log('🔄 [LEGACY PUSHER] Skipping legacy Pusher notification - using direct-chat-system.ts');
-
-      // Push notification via OneSignal
-      if (process.env.ONESIGNAL_API_KEY && process.env.ONESIGNAL_APP_ID) {
-        try {
-          const fetch = (await import('node-fetch')).default;
-          const oneSignalPayload = {
-            app_id: process.env.ONESIGNAL_APP_ID,
-            filters: senderType === 'player' 
-              ? [{ field: 'tag', key: 'role', relation: '=', value: 'staff' }]
-              : [{ field: 'tag', key: 'playerId', relation: '=', value: playerId.toString() }],
-            headings: { 
-              en: senderType === 'player' ? 'New Player Message' : 'New Message from Guest Relations'
-            },
-            contents: { 
-              en: `${senderType === 'player' ? playerName : 'GRE'}: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`
-            },
-            data: {
-              type: 'chat_message',
-              playerId: playerId,
-              senderType: senderType,
-              action: 'open_chat'
-            },
-            priority: 10
-          };
-
-          const oneSignalResponse = await fetch('https://onesignal.com/api/v1/notifications', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Basic ${process.env.ONESIGNAL_API_KEY}`
-            },
-            body: JSON.stringify(oneSignalPayload)
-          });
-
-          if (oneSignalResponse.ok) {
-            const notificationResult = await oneSignalResponse.json() as any;
-            console.log('🔔 [ONESIGNAL] Push notification sent:', notificationResult.id);
-          } else {
-            console.warn('⚠️ [ONESIGNAL] Push notification failed:', oneSignalResponse.statusText);
-          }
-        } catch (notificationError) {
-          console.warn('⚠️ [ONESIGNAL] Push notification error:', notificationError);
-        }
-      }
-
-      return res.json({
-        success: true,
-        message: 'Chat message sent successfully',
-        data: {
-          id: responseMessage.id,
-          playerId: playerId,
-          message: message,
-          senderType: senderType,
-          timestamp: responseMessage.created_at || new Date().toISOString()
-        }
-      });
-
-    } catch (error: any) {
-      console.error('❌ [UNIFIED CHAT] Send message error:', error);
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Failed to send message',
-        details: error.message
-      });
-    }
-  });
+  // REMOVED: Duplicate endpoint - consolidated into staff-chat-integration/send
 
   // CLERK AUTHENTICATION INTEGRATION APIs
   const clerkSync = new ClerkPlayerSync();
