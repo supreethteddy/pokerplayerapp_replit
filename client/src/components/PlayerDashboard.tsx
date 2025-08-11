@@ -2047,10 +2047,10 @@ function PlayerDashboard() {
                           <div className="flex-1">
                             <p className="text-sm font-medium text-white">Address Proof</p>
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('utility')}</p>
-                            {(kycDocuments as any)?.filter((d: any) => d.documentType === 'utility_bill' && d.fileUrl).length > 0 && (
+                            {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl).length > 0 && (
                               <div className="flex items-center space-x-2 mt-1">
                                 <p className="text-xs text-emerald-500">
-                                  {(kycDocuments as any)?.filter((d: any) => d.documentType === 'utility_bill' && d.fileUrl)[0].fileName}
+                                  {Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl)[0]?.fileName : ''}
                                 </p>
                               </div>
                             )}
@@ -2058,13 +2058,13 @@ function PlayerDashboard() {
                         </div>
                         <div className="flex flex-col items-stretch space-y-2">
                           {/* View button positioned above other buttons */}
-                          {kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 && (
+                          {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl).length > 0 && (
                             <Button 
                               size="sm" 
                               variant="outline" 
                               className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
                               onClick={() => {
-                                const doc = kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0];
+                                const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl)[0] : null;
                                 if (doc && doc.fileUrl) {
                                   try {
                                     const documentUrl = doc.fileUrl.startsWith('http') 
@@ -2093,21 +2093,21 @@ function PlayerDashboard() {
                           
                           <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
                             {/* Only show upload/reupload if not approved or if no documents */}
-                            {(getKycDocumentStatus('photo') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length === 0) && (
+                            {(getKycDocumentStatus('utility') !== 'approved' || (kycDocuments as any)?.filter((d: any) => d.documentType === 'utility_bill' && d.fileUrl).length === 0) && (
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => document.getElementById('photo-document-upload')?.click()}
+                                onClick={() => document.getElementById('utility-document-upload')?.click()}
                                 disabled={uploadKycDocumentMutation.isPending}
                                 className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
                               >
                                 <Upload className="w-4 h-4 mr-1" />
-                                {kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
+                                {(kycDocuments as any)?.filter((d: any) => d.documentType === 'utility_bill' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
                               </Button>
                             )}
                             
                             {/* Show request change button if approved */}
-                            {getKycDocumentStatus('photo') === 'approved' && (
+                            {getKycDocumentStatus('utility') === 'approved' && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -2126,13 +2126,13 @@ function PlayerDashboard() {
                           </div>
                         </div>
                         <input
-                          id="address-document-upload"
+                          id="utility-document-upload"
                           type="file"
                           accept=".jpg,.jpeg,.png,.pdf"
                           className="hidden"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
-                            console.log('File input changed for Address:', { file: file?.name, hasFile: !!file });
+                            console.log('File input changed for Utility Bill:', { file: file?.name, hasFile: !!file });
                             if (file) {
                               handleKycDocumentUpload('utility_bill', file);
                               // Reset the input value to allow re-uploading same file
@@ -2149,10 +2149,10 @@ function PlayerDashboard() {
                           <div className="flex-1">
                             <p className="text-sm font-medium text-white">Photo</p>
                             <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('photo')}</p>
-                            {kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 && (
+                            {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 && (
                               <div className="flex items-center space-x-2 mt-1">
                                 <p className="text-xs text-emerald-500">
-                                  {kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0].fileName}
+                                  {Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0]?.fileName : ''}
                                 </p>
                               </div>
                             )}
@@ -2160,13 +2160,13 @@ function PlayerDashboard() {
                         </div>
                         <div className="flex flex-col items-stretch space-y-2">
                           {/* View button positioned above other buttons */}
-                          {kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 && (
+                          {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 && (
                             <Button 
                               size="sm" 
                               variant="outline" 
                               className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
                               onClick={() => {
-                                const doc = kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0];
+                                const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0] : null;
                                 if (doc && doc.fileUrl) {
                                   try {
                                     const documentUrl = doc.fileUrl.startsWith('http') 
@@ -2195,7 +2195,7 @@ function PlayerDashboard() {
                           
                           <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
                             {/* Only show upload/reupload if not approved or if no documents */}
-                            {(getKycDocumentStatus('photo') !== 'approved' || kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length === 0) && (
+                            {(getKycDocumentStatus('photo') !== 'approved' || (Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length === 0)) && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -2204,7 +2204,7 @@ function PlayerDashboard() {
                                 className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
                               >
                                 <Upload className="w-4 h-4 mr-1" />
-                                {kycDocuments?.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
+                                {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
                               </Button>
                             )}
                             
