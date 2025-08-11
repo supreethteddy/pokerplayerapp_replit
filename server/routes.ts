@@ -3926,36 +3926,19 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       
-      // Create session first using EXACT integration document structure
-      const { error: sessionError } = await supabase
-        .from('chat_sessions')
-        .upsert({
-          id: currentSessionId,
-          player_id: playerId,
-          player_name: playerName,
-          initial_message: message,
-          status: 'waiting',
-          priority: 'normal',
-          gre_staff_id: staffId?.toString(),
-          gre_staff_name: staffName,
-          created_at: timestamp,
-          updated_at: timestamp
-        });
-
-      if (sessionError) {
-        console.error('❌ [STAFF CHAT INTEGRATION] Session error:', sessionError);
-      }
-
-      // Insert message using EXACT integration document structure
+      // Use EXACT working V1 schema - chat_messages table only
       const { data: messageData, error: messageError } = await supabase
         .from('chat_messages')
         .insert({
-          chat_session_id: currentSessionId,
-          sender_type: 'player',
-          sender_name: playerName,
+          player_id: playerId,
           message_text: message,
-          message_type: 'text',
-          created_at: timestamp
+          sender: 'player',
+          sender_name: playerName,
+          timestamp: timestamp,
+          status: 'sent',
+          request_id: currentSessionId,
+          created_at: timestamp,
+          updated_at: timestamp
         })
         .select()
         .single();
