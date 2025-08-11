@@ -3900,7 +3900,8 @@ export function registerRoutes(app: Express) {
   
   // 1. Send Player Message to Staff (PRIMARY ENDPOINT)
   app.post("/api/staff-chat-integration/send", async (req, res) => {
-    console.log('🚀 [STAFF CHAT INTEGRATION] Send endpoint called');
+    console.log('🚀 [STAFF CHAT INTEGRATION] Send endpoint called - REQUEST RECEIVED');
+    console.log('📝 [STAFF CHAT INTEGRATION] Headers:', req.headers);
     console.log('📝 [STAFF CHAT INTEGRATION] Request body:', JSON.stringify(req.body, null, 2));
     
     try {
