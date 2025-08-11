@@ -2,6 +2,7 @@ import { useUltraFastAuth } from "@/hooks/useUltraFastAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useRouter } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 // Switch removed - preferences section eliminated
@@ -56,7 +57,7 @@ import { PlayerTransactionHistory } from "./PlayerTransactionHistory";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
-// Removed UnifiedChatDialog - using PlayerChatSystem instead
+import PlayerChatSystem from "./PlayerChatSystem";
 import NotificationHistoryTab from "./NotificationHistoryTab";
 
 
@@ -370,8 +371,8 @@ function PlayerDashboard() {
   const [tournamentActionLoading, setTournamentActionLoading] = useState(false);
   const [showTournaments, setShowTournaments] = useState(false);
   
-  // Unified Chat Dialog state
-  const [unifiedChatOpen, setUnifiedChatOpen] = useState(false);
+  // Chat Dialog state
+  const [chatDialogOpen, setChatDialogOpen] = useState(false);
   
   // Unified Chat messages state (CRITICAL FIX)
   const [unifiedChatMessages, setUnifiedChatMessages] = useState<any[]>([]);
@@ -2569,7 +2570,7 @@ function PlayerDashboard() {
                         </div>
                       </div>
                       <Button
-                        onClick={() => setUnifiedChatOpen(true)}
+                        onClick={() => setChatDialogOpen(true)}
                         className="bg-emerald-600 hover:bg-emerald-700"
                         size="sm"
                       >
@@ -2608,7 +2609,34 @@ function PlayerDashboard() {
 
 
 
-        {/* PlayerChatSystem is already integrated in the dashboard */}
+        {/* Player Chat System */}
+        <PlayerChatSystem 
+          playerId={user?.id || 0}
+          playerName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim()}
+        />
+
+        {/* Chat Dialog that opens from "Open Chat" button */}
+        <Dialog open={chatDialogOpen} onOpenChange={setChatDialogOpen}>
+          <DialogContent className="sm:max-w-md bg-slate-800 border-slate-700">
+            <DialogHeader>
+              <DialogTitle className="text-white flex items-center">
+                <MessageCircle className="w-5 h-5 mr-2 text-emerald-400" />
+                Chat with Guest Relations
+              </DialogTitle>
+            </DialogHeader>
+            <div className="p-4">
+              <p className="text-slate-300 mb-4">
+                Use the blue chat bubble in the bottom right corner to start chatting with our staff.
+              </p>
+              <Button 
+                onClick={() => setChatDialogOpen(false)}
+                className="w-full bg-emerald-600 hover:bg-emerald-700"
+              >
+                Close
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
       </div>
     );
