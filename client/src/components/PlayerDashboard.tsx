@@ -2610,32 +2610,25 @@ function PlayerDashboard() {
 
 
 
-        {/* Original Blue Chat Bubble - PlayerChatSystem */}
-        <PlayerChatSystem 
-          playerId={user?.id || 0}
-          playerName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim()}
-        />
-
-        {/* Chat Dialog that opens from "Open Chat" button */}
+        {/* Full Chat Dialog that opens from "Open Chat" button */}
         <Dialog open={chatDialogOpen} onOpenChange={setChatDialogOpen}>
-          <DialogContent className="sm:max-w-md bg-slate-800 border-slate-700">
+          <DialogContent className="sm:max-w-2xl max-h-[80vh] bg-slate-800 border-slate-700">
             <DialogHeader>
               <DialogTitle className="text-white flex items-center">
                 <MessageCircle className="w-5 h-5 mr-2 text-emerald-400" />
-                Chat with Guest Relations
+                Guest Relations Support
               </DialogTitle>
             </DialogHeader>
-            <div className="p-4">
-              <p className="text-slate-300 mb-4">
-                Use the blue chat bubble in the bottom right corner to send messages to our staff team.
-              </p>
-              <Button 
-                onClick={() => setChatDialogOpen(false)}
-                className="w-full bg-emerald-600 hover:bg-emerald-700"
-              >
-                Close
-              </Button>
-            </div>
+            
+            {/* Chat System Integration */}
+            {chatDialogOpen && (
+              <PlayerChatSystem 
+                playerId={user?.id || 0}
+                playerName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim()}
+                isInDialog={true}
+                onClose={() => setChatDialogOpen(false)}
+              />
+            )}
           </DialogContent>
         </Dialog>
 

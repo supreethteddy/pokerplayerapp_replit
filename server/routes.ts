@@ -3540,6 +3540,277 @@ export function registerRoutes(app: Express) {
   console.log('🔐 [ROUTES] CLERK AUTHENTICATION LOGGING SYSTEM REGISTERED - Login/Logout tracking + KYC email notifications');
   console.log('💰 [ROUTES] CREDIT DEDUCTION CASH-OUT SYSTEM REGISTERED - Automatic credit balance deduction with real-time staff portal sync');
 
+  // ========== ENTERPRISE FEEDBACK SYSTEM ==========
+  
+  app.post('/api/feedback', async (req, res) => {
+    try {
+      const { message, playerId, playerName, playerEmail } = req.body;
+      
+      console.log(`📝 [FEEDBACK] Received feedback from player ${playerId} (${playerName})`);
+      
+      if (!message || !playerId) {
+        return res.status(400).json({ error: 'Message and player ID required' });
+      }
+
+      // Save to database
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        connectionTimeoutMillis: 10000,
+      });
+
+      const insertQuery = `
+        INSERT INTO feedback_submissions (
+          player_id, 
+          player_name, 
+          player_email,
+          message,
+          status,
+          priority,
+          created_at,
+          updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+        RETURNING id, created_at
+      `;
+      
+      const result = await pool.query(insertQuery, [
+        playerId,
+        playerName || 'Unknown Player',
+        playerEmail || 'unknown@example.com',
+        message,
+        'pending',
+        'normal'
+      ]);
+
+      await pool.end();
+
+      // Email notification to admin/super admin
+      try {
+        const sgMail = await import('@sendgrid/mail');
+        if (process.env.SENDGRID_API_KEY) {
+          sgMail.default.setApiKey(process.env.SENDGRID_API_KEY);
+          
+          const emailData = {
+            to: 'admin@pokerroom.com', // Admin email
+            from: 'noreply@pokerroom.com',
+            subject: `New Player Feedback - ${playerName}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #2563eb;">New Player Feedback Received</h2>
+                <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                  <p><strong>Player:</strong> ${playerName} (ID: ${playerId})</p>
+                  <p><strong>Email:</strong> ${playerEmail}</p>
+                  <p><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
+                  <div style="margin-top: 20px; padding: 15px; background: white; border-radius: 4px;">
+                    <strong>Message:</strong><br>
+                    ${message}
+                  </div>
+                </div>
+                <p style="color: #6b7280; font-size: 14px;">
+                  This feedback was submitted through the Player Portal feedback system.
+                </p>
+              </div>
+            `
+          };
+          
+          await sgMail.default.send(emailData);
+          console.log(`✅ [FEEDBACK] Email sent to admin for feedback ID: ${result.rows[0].id}`);
+        }
+      } catch (emailError) {
+        console.warn('⚠️ [FEEDBACK] Email notification failed:', emailError);
+      }
+
+      console.log(`✅ [FEEDBACK] Saved feedback ID: ${result.rows[0].id}`);
+      res.json({ 
+        success: true, 
+        feedbackId: result.rows[0].id,
+        message: 'Thank you for your feedback! Our team will review it shortly.' 
+      });
+
+    } catch (error) {
+      console.error('❌ [FEEDBACK] Error:', error);
+      res.status(500).json({ error: 'Failed to submit feedback' });
+    }
+  });
+
+  // ========== COMPREHENSIVE WALLET SYSTEM ==========
+  
+  // Cash In endpoint for staff portal integration
+  app.post('/api/wallet/cash-in', async (req, res) => {
+    try {
+      const { playerId, amount, processedBy, notes } = req.body;
+      
+      console.log(`💰 [WALLET] Processing cash-in: ₹${amount} for player ${playerId}`);
+      
+      if (!playerId || !amount || amount <= 0) {
+        return res.status(400).json({ error: 'Valid player ID and amount required' });
+      }
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Get current balance
+      const { data: player, error: fetchError } = await supabase
+        .from('players')
+        .select('cash_balance, credit_balance')
+        .eq('id', playerId)
+        .single();
+
+      if (fetchError || !player) {
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      const newCashBalance = (player.cash_balance || 0) + amount;
+
+      // Update balance
+      const { error: updateError } = await supabase
+        .from('players')
+        .update({ 
+          cash_balance: newCashBalance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', playerId);
+
+      if (updateError) {
+        console.error('❌ [WALLET] Update error:', updateError);
+        return res.status(500).json({ error: 'Failed to update balance' });
+      }
+
+      // Record transaction
+      const { error: txError } = await supabase
+        .from('balance_transactions')
+        .insert([{
+          player_id: playerId,
+          type: 'cash_in',
+          amount: amount,
+          balance_before: player.cash_balance || 0,
+          balance_after: newCashBalance,
+          processed_by: processedBy || 'system',
+          notes: notes || `Cash deposit of ₹${amount}`,
+          created_at: new Date().toISOString()
+        }]);
+
+      if (txError) {
+        console.warn('⚠️ [WALLET] Transaction logging failed:', txError);
+      }
+
+      // Pusher notification for real-time updates
+      try {
+        const pusher = await import('pusher');
+        const pusherClient = new pusher.default({
+          appId: process.env.PUSHER_APP_ID!,
+          key: process.env.PUSHER_KEY!,
+          secret: process.env.PUSHER_SECRET!,
+          cluster: process.env.PUSHER_CLUSTER!,
+          useTLS: true
+        });
+
+        await pusherClient.trigger(`player-balance-${playerId}`, 'balance_updated', {
+          playerId,
+          cashBalance: newCashBalance,
+          creditBalance: player.credit_balance || 0,
+          transaction: 'cash_in',
+          amount: amount
+        });
+      } catch (pusherError) {
+        console.warn('⚠️ [WALLET] Pusher notification failed:', pusherError);
+      }
+
+      console.log(`✅ [WALLET] Cash-in complete: Player ${playerId} new balance ₹${newCashBalance}`);
+      res.json({ 
+        success: true, 
+        newBalance: newCashBalance,
+        message: `Successfully added ₹${amount} to account`
+      });
+
+    } catch (error) {
+      console.error('❌ [WALLET] Cash-in error:', error);
+      res.status(500).json({ error: 'Failed to process cash-in' });
+    }
+  });
+
+  // Credit In endpoint
+  app.post('/api/wallet/credit-in', async (req, res) => {
+    try {
+      const { playerId, amount, processedBy, notes } = req.body;
+      
+      console.log(`🎯 [WALLET] Processing credit-in: ₹${amount} for player ${playerId}`);
+      
+      if (!playerId || !amount || amount <= 0) {
+        return res.status(400).json({ error: 'Valid player ID and amount required' });
+      }
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Get current balance
+      const { data: player, error: fetchError } = await supabase
+        .from('players')
+        .select('cash_balance, credit_balance')
+        .eq('id', playerId)
+        .single();
+
+      if (fetchError || !player) {
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      const newCreditBalance = (player.credit_balance || 0) + amount;
+
+      // Update balance
+      const { error: updateError } = await supabase
+        .from('players')
+        .update({ 
+          credit_balance: newCreditBalance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', playerId);
+
+      if (updateError) {
+        console.error('❌ [WALLET] Update error:', updateError);
+        return res.status(500).json({ error: 'Failed to update balance' });
+      }
+
+      // Record transaction
+      const { error: txError } = await supabase
+        .from('balance_transactions')
+        .insert([{
+          player_id: playerId,
+          type: 'credit_in',
+          amount: amount,
+          balance_before: player.credit_balance || 0,
+          balance_after: newCreditBalance,
+          processed_by: processedBy || 'system',
+          notes: notes || `Credit advance of ₹${amount}`,
+          created_at: new Date().toISOString()
+        }]);
+
+      if (txError) {
+        console.warn('⚠️ [WALLET] Transaction logging failed:', txError);
+      }
+
+      console.log(`✅ [WALLET] Credit-in complete: Player ${playerId} new credit ₹${newCreditBalance}`);
+      res.json({ 
+        success: true, 
+        newCreditBalance: newCreditBalance,
+        message: `Successfully added ₹${amount} credit to account`
+      });
+
+    } catch (error) {
+      console.error('❌ [WALLET] Credit-in error:', error);
+      res.status(500).json({ error: 'Failed to process credit-in' });
+    }
+  });
+
+  console.log('📝 [ROUTES] ENTERPRISE FEEDBACK SYSTEM REGISTERED - Admin email notifications enabled');
+  console.log('💰 [ROUTES] COMPREHENSIVE WALLET SYSTEM REGISTERED - Cash-in/Credit-in with real-time updates');
+
   // ========== WAITLIST MANAGEMENT ENDPOINTS ==========
   
   // Join waitlist endpoint - connects player portal to staff portal

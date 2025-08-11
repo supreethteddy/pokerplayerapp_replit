@@ -5,6 +5,8 @@ import { MessageCircle, X, Send } from 'lucide-react';
 interface PlayerChatSystemProps {
   playerId: number;
   playerName: string;
+  isInDialog?: boolean;
+  onClose?: () => void;
 }
 
 interface ChatMessage {
@@ -16,7 +18,7 @@ interface ChatMessage {
   isFromStaff: boolean;
 }
 
-const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerName }) => {
+const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerName, isInDialog = false, onClose }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isConnected, setIsConnected] = useState(false);
@@ -215,123 +217,87 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
     }
   };
 
-  return (
-    <div className="fixed bottom-4 right-4 z-50">
-      {/* Chat Toggle Button */}
-      {!isOpen && (
-        <button
-          onClick={toggleChat}
-          className={`relative bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-colors ${
-            !isConnected ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
-          disabled={!isConnected}
-        >
-          <MessageCircle size={24} />
-          
-          {/* Unread indicator */}
-          {hasUnread && (
-            <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
-              !
-            </div>
-          )}
-          
-          {/* Status indicator */}
-          <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full ${
+  // If in dialog mode, render chat content directly without the blue bubble
+  if (isInDialog) {
+    return (
+      <div className="flex flex-col h-[500px]">
+        {/* Status Bar */}
+        <div className={`px-3 py-2 text-sm ${getStatusColor()} bg-slate-900 border-b border-slate-600 flex items-center justify-between`}>
+          <span>
+            Status: {sessionStatus === 'none' ? 'Ready to chat' : sessionStatus.charAt(0).toUpperCase() + sessionStatus.slice(1)}
+            {!isConnected && ' • Connecting...'}
+          </span>
+          <div className={`w-3 h-3 rounded-full ${
             sessionStatus === 'pending' ? 'bg-yellow-500' :
             sessionStatus === 'active' ? 'bg-green-500' :
             sessionStatus === 'recent' ? 'bg-blue-500' :
             'bg-gray-500'
           }`} />
-        </button>
-      )}
+        </div>
 
-      {/* Chat Window */}
-      {isOpen && (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl w-80 h-96 flex flex-col">
-          {/* Header */}
-          <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center space-x-2">
-              <MessageCircle size={20} className="text-blue-600" />
-              <span className="font-semibold text-gray-900 dark:text-white">Guest Relations</span>
-              <div className={`w-2 h-2 rounded-full ${
-                sessionStatus === 'pending' ? 'bg-yellow-500' :
-                sessionStatus === 'active' ? 'bg-green-500' :
-                sessionStatus === 'recent' ? 'bg-blue-500' :
-                'bg-gray-500'
-              }`} />
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-750">
+          {messages.length === 0 ? (
+            <div className="text-center text-slate-400 py-12">
+              <MessageCircle size={48} className="mx-auto mb-4 opacity-50" />
+              <p className="text-lg mb-2">No messages yet</p>
+              <p className="text-sm opacity-75">Start a conversation with our Guest Relations team</p>
             </div>
-            <button
-              onClick={closeChat}
-              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-            >
-              <X size={20} />
-            </button>
-          </div>
-
-          {/* Status Bar */}
-          <div className={`px-3 py-1 text-xs ${getStatusColor()} bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700`}>
-            Status: {sessionStatus === 'none' ? 'Ready to chat' : sessionStatus.charAt(0).toUpperCase() + sessionStatus.slice(1)}
-            {!isConnected && ' • Disconnected'}
-          </div>
-
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
-            {messages.length === 0 ? (
-              <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                <MessageCircle size={32} className="mx-auto mb-2 opacity-50" />
-                <p>No messages yet</p>
-                <p className="text-xs">Start a conversation with our team</p>
-              </div>
-            ) : (
-              messages.map((msg, index) => (
-                <div
-                  key={`${msg.id}-${index}`}
-                  className={`flex ${msg.isFromStaff ? 'justify-start' : 'justify-end'}`}
-                >
-                  <div className={`max-w-[80%] p-2 rounded-lg ${
-                    msg.isFromStaff
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-                      : 'bg-blue-600 text-white'
-                  }`}>
-                    <div className="text-xs opacity-75 mb-1">
-                      {msg.sender_name}
-                    </div>
-                    <div className="text-sm">{msg.message}</div>
-                    <div className="text-xs opacity-75 mt-1">
-                      {new Date(msg.timestamp).toLocaleTimeString()}
-                    </div>
+          ) : (
+            messages.map((msg, index) => (
+              <div
+                key={`${msg.id}-${index}`}
+                className={`flex ${msg.isFromStaff ? 'justify-start' : 'justify-end'}`}
+              >
+                <div className={`max-w-[75%] p-3 rounded-lg ${
+                  msg.isFromStaff
+                    ? 'bg-slate-600 text-white'
+                    : 'bg-emerald-600 text-white'
+                }`}>
+                  <div className="text-xs opacity-75 mb-1 font-medium">
+                    {msg.sender_name}
+                  </div>
+                  <div className="text-sm leading-relaxed">{msg.message}</div>
+                  <div className="text-xs opacity-75 mt-2">
+                    {new Date(msg.timestamp).toLocaleTimeString()}
                   </div>
                 </div>
-              ))
-            )}
-            <div ref={messagesEndRef} />
-          </div>
+              </div>
+            ))
+          )}
+          <div ref={messagesEndRef} />
+        </div>
 
-          {/* Input */}
-          <div className="p-3 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex space-x-2">
-              <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                placeholder={isConnected ? "Type your message..." : "Connecting..."}
-                disabled={!isConnected}
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
-              />
-              <button
-                onClick={sendMessage}
-                disabled={!newMessage.trim() || !isConnected}
-                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white p-2 rounded-lg transition-colors"
-              >
-                <Send size={16} />
-              </button>
-            </div>
+        {/* Input */}
+        <div className="p-4 border-t border-slate-600 bg-slate-800">
+          <div className="flex space-x-3">
+            <input
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+              placeholder={isConnected ? "Type your message..." : "Connecting..."}
+              disabled={!isConnected}
+              className="flex-1 px-4 py-3 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-700 text-white placeholder-slate-400 disabled:opacity-50"
+            />
+            <button
+              onClick={sendMessage}
+              disabled={!newMessage.trim() || !isConnected}
+              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg transition-colors font-medium"
+            >
+              <Send size={18} />
+            </button>
+          </div>
+          <div className="mt-2 text-xs text-slate-400">
+            {isConnected ? 'Connected to Guest Relations' : 'Connecting...'}
           </div>
         </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  }
+
+  // Original blue bubble functionality is removed - only dialog mode is supported
+  return null;
 };
 
 export default PlayerChatSystem;
