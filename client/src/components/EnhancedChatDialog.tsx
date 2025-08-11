@@ -169,17 +169,20 @@ export function EnhancedChatDialog({
       setMessages(prev => [...prev, newMessage]);
       setInputMessage('');
 
-      // Send to backend
-      const response = await fetch('/api/unified-chat/send', {
+      // Send to backend using EXACT Staff Portal Integration endpoint
+      const sessionId = `player-session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const response = await fetch('/api/staff-chat-integration/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          requestId: sessionId,
           playerId,
           playerName,
           message: inputMessage,
-          senderType: 'player'
+          staffId: 151,
+          staffName: "Guest Relation Executive"
         })
       });
 
