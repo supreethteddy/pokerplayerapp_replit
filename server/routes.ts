@@ -2485,6 +2485,51 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // View document endpoint - serves documents directly
+  app.get('/api/documents/view/:documentId', async (req, res) => {
+    try {
+      const { documentId } = req.params;
+      
+      console.log(`🔧 [DIRECT KYC VIEW] Getting document:`, documentId);
+      
+      // Get document details from database
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        connectionTimeoutMillis: 10000,
+      });
+
+      const query = `
+        SELECT id, player_id, document_type, file_name, file_url, file_size, status, created_at
+        FROM kyc_documents 
+        WHERE id = $1
+      `;
+
+      const result = await pool.query(query, [parseInt(documentId)]);
+      await pool.end();
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Document not found' });
+      }
+
+      const document = result.rows[0];
+      console.log(`✅ [DIRECT KYC VIEW] Document found:`, document.file_name);
+      
+      // If it's a Supabase URL, redirect directly to it
+      if (document.file_url.startsWith('https://') && document.file_url.includes('supabase.co')) {
+        console.log(`🔗 [DIRECT KYC VIEW] Redirecting to Supabase URL:`, document.file_url);
+        return res.redirect(document.file_url);
+      }
+
+      // Otherwise serve the file directly
+      res.json({ error: 'Direct file serving not implemented for this storage type' });
+      
+    } catch (error) {
+      console.error('❌ [DIRECT KYC VIEW] Error:', error);
+      res.status(500).json({ error: 'Failed to fetch document' });
+    }
+  });
+
   // KYC submission endpoint - Direct PostgreSQL (bypasses Supabase cache) 
   app.post('/api/kyc/submit', async (req, res) => {
     try {

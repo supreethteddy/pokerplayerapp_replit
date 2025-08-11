@@ -1965,14 +1965,10 @@ function PlayerDashboard() {
                                 const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0] : null;
                                 if (doc && doc.fileUrl) {
                                   try {
-                                    const documentUrl = doc.fileUrl.startsWith('http') 
-                                      ? doc.fileUrl 
-                                      : `/api/documents/view/${doc.id}`;
+                                    // Always use the direct Supabase URL for better reliability
+                                    const documentUrl = doc.fileUrl;
                                     console.log('Opening document:', documentUrl);
-                                    const newTab = window.open(documentUrl, '_blank', 'noopener,noreferrer');
-                                    if (!newTab) {
-                                      window.location.href = documentUrl;
-                                    }
+                                    window.open(documentUrl, '_blank', 'noopener,noreferrer');
                                   } catch (error) {
                                     console.error('Error opening document:', error);
                                     toast({
@@ -2067,14 +2063,10 @@ function PlayerDashboard() {
                                 const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl)[0] : null;
                                 if (doc && doc.fileUrl) {
                                   try {
-                                    const documentUrl = doc.fileUrl.startsWith('http') 
-                                      ? doc.fileUrl 
-                                      : `/api/documents/view/${doc.id}`;
+                                    // Always use the direct Supabase URL for better reliability
+                                    const documentUrl = doc.fileUrl;
                                     console.log('Opening document:', documentUrl);
-                                    const newTab = window.open(documentUrl, '_blank', 'noopener,noreferrer');
-                                    if (!newTab) {
-                                      window.location.href = documentUrl;
-                                    }
+                                    window.open(documentUrl, '_blank', 'noopener,noreferrer');
                                   } catch (error) {
                                     console.error('Error opening document:', error);
                                     toast({
@@ -2169,14 +2161,10 @@ function PlayerDashboard() {
                                 const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0] : null;
                                 if (doc && doc.fileUrl) {
                                   try {
-                                    const documentUrl = doc.fileUrl.startsWith('http') 
-                                      ? doc.fileUrl 
-                                      : `/api/documents/view/${doc.id}`;
+                                    // Always use the direct Supabase URL for better reliability
+                                    const documentUrl = doc.fileUrl;
                                     console.log('Opening document:', documentUrl);
-                                    const newTab = window.open(documentUrl, '_blank', 'noopener,noreferrer');
-                                    if (!newTab) {
-                                      window.location.href = documentUrl;
-                                    }
+                                    window.open(documentUrl, '_blank', 'noopener,noreferrer');
                                   } catch (error) {
                                     console.error('Error opening document:', error);
                                     toast({
