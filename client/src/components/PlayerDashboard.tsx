@@ -57,6 +57,7 @@ import { PlayerTransactionHistory } from "./PlayerTransactionHistory";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
+
 import PlayerChatSystem from "./PlayerChatSystem";
 import NotificationHistoryTab from "./NotificationHistoryTab";
 
@@ -2609,7 +2610,7 @@ function PlayerDashboard() {
 
 
 
-        {/* Player Chat System */}
+        {/* Original Blue Chat Bubble - PlayerChatSystem */}
         <PlayerChatSystem 
           playerId={user?.id || 0}
           playerName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim()}
@@ -2626,7 +2627,7 @@ function PlayerDashboard() {
             </DialogHeader>
             <div className="p-4">
               <p className="text-slate-300 mb-4">
-                Use the blue chat bubble in the bottom right corner to start chatting with our staff.
+                Use the blue chat bubble in the bottom right corner to send messages to our staff team.
               </p>
               <Button 
                 onClick={() => setChatDialogOpen(false)}
