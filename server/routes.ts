@@ -2515,10 +2515,35 @@ export function registerRoutes(app: Express) {
       const document = result.rows[0];
       console.log(`✅ [DIRECT KYC VIEW] Document found:`, document.file_name);
       
-      // If it's a Supabase URL, redirect directly to it
+      // For Supabase URLs, fetch and serve the content directly to avoid CORS issues
       if (document.file_url.startsWith('https://') && document.file_url.includes('supabase.co')) {
-        console.log(`🔗 [DIRECT KYC VIEW] Redirecting to Supabase URL:`, document.file_url);
-        return res.redirect(document.file_url);
+        console.log(`🔗 [DIRECT KYC VIEW] Fetching and serving Supabase document:`, document.file_url);
+        
+        try {
+          const response = await fetch(document.file_url);
+          if (!response.ok) {
+            console.error(`❌ [DIRECT KYC VIEW] Failed to fetch document: ${response.status}`);
+            return res.status(404).json({ error: 'Document not accessible' });
+          }
+          
+          const contentType = response.headers.get('content-type') || 'application/octet-stream';
+          const buffer = await response.arrayBuffer();
+          
+          console.log(`✅ [DIRECT KYC VIEW] Serving document: ${document.file_name} (${contentType})`);
+          
+          res.set({
+            'Content-Type': contentType,
+            'Content-Length': buffer.byteLength.toString(),
+            'Content-Disposition': `inline; filename="${document.file_name}"`,
+            'Cache-Control': 'public, max-age=86400'
+          });
+          
+          res.send(Buffer.from(buffer));
+          return;
+        } catch (fetchError) {
+          console.error(`❌ [DIRECT KYC VIEW] Error fetching document:`, fetchError);
+          return res.status(500).json({ error: 'Failed to fetch document' });
+        }
       }
 
       // Otherwise serve the file directly

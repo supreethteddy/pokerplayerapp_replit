@@ -1965,8 +1965,8 @@ function PlayerDashboard() {
                                 const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0] : null;
                                 if (doc && doc.fileUrl) {
                                   try {
-                                    // Always use the direct Supabase URL for better reliability
-                                    const documentUrl = doc.fileUrl;
+                                    // Use the API endpoint to serve the document properly
+                                    const documentUrl = `/api/documents/view/${doc.id}`;
                                     console.log('Opening document:', documentUrl);
                                     window.open(documentUrl, '_blank', 'noopener,noreferrer');
                                   } catch (error) {
@@ -2063,8 +2063,8 @@ function PlayerDashboard() {
                                 const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl)[0] : null;
                                 if (doc && doc.fileUrl) {
                                   try {
-                                    // Always use the direct Supabase URL for better reliability
-                                    const documentUrl = doc.fileUrl;
+                                    // Use the API endpoint to serve the document properly
+                                    const documentUrl = `/api/documents/view/${doc.id}`;
                                     console.log('Opening document:', documentUrl);
                                     window.open(documentUrl, '_blank', 'noopener,noreferrer');
                                   } catch (error) {
@@ -2161,8 +2161,8 @@ function PlayerDashboard() {
                                 const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0] : null;
                                 if (doc && doc.fileUrl) {
                                   try {
-                                    // Always use the direct Supabase URL for better reliability
-                                    const documentUrl = doc.fileUrl;
+                                    // Use the API endpoint to serve the document properly
+                                    const documentUrl = `/api/documents/view/${doc.id}`;
                                     console.log('Opening document:', documentUrl);
                                     window.open(documentUrl, '_blank', 'noopener,noreferrer');
                                   } catch (error) {
