@@ -3626,44 +3626,37 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ error: authError.message });
       }
       
-      // Create player record using direct PostgreSQL to bypass cache issues
-      const { Client } = await import('pg');
-      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
-      await pgClient.connect();
+      // Create player record using unified Supabase (matching staff portal)
+      console.log(`🔧 [AUTH SIGNUP] Creating player via unified Supabase for: ${email}`);
+      
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
       
       try {
-        const insertQuery = `
-          INSERT INTO players (
-            email, password, first_name, last_name, phone, supabase_id, 
-            kyc_status, balance, is_active, universal_id, 
-            credit_approved, credit_limit, current_credit, total_deposits,
-            total_withdrawals, total_winnings, total_losses, games_played,
-            hours_played, total_rs_played, current_vip_points, lifetime_vip_points
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, 
-            'pending', '0.00', true, $7,
-            false, 0, 0, '0.00',
-            '0.00', '0.00', '0.00', 0,
-            '0', 0, 0, 0
-          ) RETURNING *
-        `;
-        
         const universalId = `unified_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const result = await pgClient.query(insertQuery, [
-          email,
-          password, // Store plaintext for backward compatibility
-          firstName,
-          lastName,
-          phone || '',
-          authData.user.id, // supabase_id
-          universalId
-        ]);
         
-        const newPlayer = result.rows[0];
-        console.log(`✅ [AUTH SIGNUP] Player created via PostgreSQL: ${newPlayer.email} (ID: ${newPlayer.id})`);
+        const { data: newPlayer, error: insertError } = await supabase
+          .from('players')
+          .insert({
+            email,
+            password,
+            first_name: firstName,
+            last_name: lastName,
+            phone: phone || '',
+            kyc_status: 'pending',
+            balance: '0.00',
+            is_active: true
+          })
+          .select()
+          .single();
         
-        // Success response with properly formatted data AND authentication gates
-        await pgClient.end();
+        if (insertError) {
+          throw insertError;
+        }
+        
+        console.log(`✅ [AUTH SIGNUP] Player created via unified Supabase: ${newPlayer.email} (ID: ${newPlayer.id})`);
         
         // CRITICAL: Check authentication gates for new users
         const needsEmailVerification = !newPlayer.email_verified;
@@ -3694,81 +3687,74 @@ export function registerRoutes(app: Express) {
         });
         
       } catch (insertError: any) {
-        console.error('❌ [AUTH SIGNUP] PostgreSQL player creation failed:', insertError);
+        console.error('❌ [AUTH SIGNUP] Supabase player creation failed:', insertError);
         
         // CRITICAL: Handle existing player gracefully - don't lose customers!
-        if (insertError.code === '23505' && insertError.constraint === 'players_email_unique') {
+        if (insertError.code === '23505' || insertError.message?.includes('duplicate key')) {
           console.log('🔄 [AUTH SIGNUP] Player exists - seamlessly continuing from where they left off');
           
-          // Find existing player and update with new auth data
-          const findQuery = 'SELECT * FROM players WHERE email = $1';
-          const findResult = await pgClient.query(findQuery, [email]);
+          // Find existing player and update with new auth data using Supabase
+          const { data: existingPlayer, error: findError } = await supabase
+            .from('players')
+            .select('*')
+            .eq('email', email)
+            .single();
           
-          if (findResult.rows.length > 0) {
-            const existingPlayer = findResult.rows[0];
-            
+          if (!findError && existingPlayer) {
             // Update existing player with Supabase ID to continue journey
-            const updateQuery = `
-              UPDATE players 
-              SET supabase_id = $1, 
-                  first_name = COALESCE($2, first_name),
-                  last_name = COALESCE($3, last_name),
-                  phone = COALESCE($4, phone),
-                  password = COALESCE($5, password)
-              WHERE id = $6 
-              RETURNING *
-            `;
+            const { data: updatedPlayer, error: updateError } = await supabase
+              .from('players')
+              .update({
+                supabase_id: authData.user.id,
+                first_name: firstName || existingPlayer.first_name,
+                last_name: lastName || existingPlayer.last_name,
+                phone: phone || existingPlayer.phone,
+                password: password || existingPlayer.password,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', existingPlayer.id)
+              .select()
+              .single();
             
-            const updateResult = await pgClient.query(updateQuery, [
-              authData.user.id,
-              firstName,
-              lastName,
-              phone || existingPlayer.phone,
-              password,
-              existingPlayer.id
-            ]);
-            
-            const updatedPlayer = updateResult.rows[0];
-            console.log(`✅ [AUTH SIGNUP] Existing player seamlessly updated: ${updatedPlayer.email} - continuing KYC journey`);
-            
-            await pgClient.end();
-            
-            // CRITICAL: Check authentication gates for existing players too
-            const needsEmailVerification = !updatedPlayer.email_verified;
-            const needsKYCUpload = updatedPlayer.kyc_status === 'pending' || !updatedPlayer.kyc_status;
-            const needsKYCApproval = updatedPlayer.kyc_status === 'submitted' || updatedPlayer.kyc_status === 'rejected';
-            
-            return res.json({
-              success: true,
-              player: {
-                id: updatedPlayer.id,
-                email: updatedPlayer.email,
-                firstName: updatedPlayer.first_name,
-                lastName: updatedPlayer.last_name,
-                phone: updatedPlayer.phone,
-                kycStatus: updatedPlayer.kyc_status,
-                balance: updatedPlayer.balance,
-                supabaseId: updatedPlayer.supabase_id,
-                emailVerified: updatedPlayer.email_verified
-              },
-              // Enforce all authentication gates for existing players
-              redirectToKYC: needsEmailVerification || needsKYCUpload || needsKYCApproval,
-              needsEmailVerification,
-              needsKYCUpload,
-              needsKYCApproval,
-              message: needsEmailVerification 
-                ? 'Welcome back! Please verify your email to continue.'
-                : needsKYCUpload
-                  ? 'Welcome back! Please complete your KYC documents.'
-                  : needsKYCApproval
-                    ? 'Welcome back! Your documents are being reviewed.'
-                    : 'Welcome back! All verification complete.',
-              existingPlayer: true
-            });
+            if (!updateError && updatedPlayer) {
+              console.log(`✅ [AUTH SIGNUP] Existing player seamlessly updated via Supabase: ${updatedPlayer.email} - continuing KYC journey`);
+              
+              // CRITICAL: Check authentication gates for existing players too
+              const needsEmailVerification = !updatedPlayer.email_verified;
+              const needsKYCUpload = updatedPlayer.kyc_status === 'pending' || !updatedPlayer.kyc_status;
+              const needsKYCApproval = updatedPlayer.kyc_status === 'submitted' || updatedPlayer.kyc_status === 'rejected';
+              
+              return res.json({
+                success: true,
+                player: {
+                  id: updatedPlayer.id,
+                  email: updatedPlayer.email,
+                  firstName: updatedPlayer.first_name,
+                  lastName: updatedPlayer.last_name,
+                  phone: updatedPlayer.phone,
+                  kycStatus: updatedPlayer.kyc_status,
+                  balance: updatedPlayer.balance,
+                  supabaseId: updatedPlayer.supabase_id,
+                  emailVerified: updatedPlayer.email_verified
+                },
+                // Enforce all authentication gates for existing players
+                redirectToKYC: needsEmailVerification || needsKYCUpload || needsKYCApproval,
+                needsEmailVerification,
+                needsKYCUpload,
+                needsKYCApproval,
+                message: needsEmailVerification 
+                  ? 'Welcome back! Please verify your email to continue.'
+                  : needsKYCUpload
+                    ? 'Welcome back! Please complete your KYC documents.'
+                    : needsKYCApproval
+                      ? 'Welcome back! Your documents are being reviewed.'
+                      : 'Welcome back! All verification complete.',
+                existingPlayer: true
+              });
+            }
           }
         }
         
-        await pgClient.end();
         return res.status(500).json({ error: 'Failed to create player profile' });
       }
       
@@ -4752,57 +4738,49 @@ export function registerRoutes(app: Express) {
 
   // ========== STAFF PORTAL KYC ENDPOINTS ==========
   
-  // Get all players with KYC status for staff portal - DIRECT POSTGRESQL (matches player portal)
+  // Get all players with KYC status for staff portal - UNIFIED SUPABASE CONNECTION
   app.get("/api/staff/players", async (req, res) => {
     try {
-      console.log('🏢 [STAFF PORTAL] Getting all players for KYC review via DIRECT PostgreSQL');
+      console.log('🏢 [STAFF PORTAL] Getting all players for KYC review via unified Supabase');
+      console.log('🔍 [STAFF PORTAL] Using Supabase URL:', process.env.VITE_SUPABASE_URL);
+      console.log('🔍 [STAFF PORTAL] Service role key exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
       
-      // Use DIRECT PostgreSQL to match player portal signup connection
-      const { Pool } = await import('pg');
-      const pool = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        connectionTimeoutMillis: 10000,
-      });
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
 
-      const query = `
-        SELECT 
-          id, 
-          email, 
-          first_name, 
-          last_name, 
-          kyc_status, 
-          balance, 
-          phone, 
-          created_at,
-          email_verified,
-          supabase_id
-        FROM players 
-        ORDER BY created_at DESC
-      `;
+      // Test basic connection first
+      const { data: testData, error: testError } = await supabase
+        .from('players')
+        .select('id, email')
+        .limit(1);
 
-      const result = await pool.query(query);
-      await pool.end();
+      if (testError) {
+        console.error('❌ [STAFF PORTAL] Basic connection test failed:', testError);
+        return res.status(500).json({ error: 'Database connection failed' });
+      }
 
-      const players = result.rows.map(row => ({
-        id: row.id,
-        email: row.email,
-        first_name: row.first_name,
-        last_name: row.last_name,
-        kyc_status: row.kyc_status,
-        balance: row.balance,
-        phone: row.phone,
-        created_at: row.created_at,
-        email_verified: row.email_verified,
-        supabase_id: row.supabase_id
-      }));
+      console.log('✅ [STAFF PORTAL] Basic connection successful, fetching full data');
 
-      console.log(`✅ [STAFF PORTAL] Retrieved ${players.length} players via DIRECT PostgreSQL`);
-      console.log(`🔍 [STAFF PORTAL] Recent players:`, players.slice(0, 5).map(p => `ID: ${p.id}, Email: ${p.email}, KYC: ${p.kyc_status}`));
+      const { data: players, error } = await supabase
+        .from('players')
+        .select('id, email, first_name, last_name, kyc_status, balance, phone, created_at')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ [STAFF PORTAL] Supabase error fetching players:', error);
+        return res.status(500).json({ error: 'Failed to fetch players' });
+      }
+
+      console.log(`✅ [STAFF PORTAL] Retrieved ${players?.length || 0} players via unified Supabase`);
+      console.log(`🔍 [STAFF PORTAL] Recent players:`, players?.slice(0, 5).map(p => `ID: ${p.id}, Email: ${p.email}, KYC: ${p.kyc_status}`) || []);
       
-      return res.json(players);
+      return res.json(players || []);
 
     } catch (error) {
-      console.error('❌ [STAFF PORTAL] Direct PostgreSQL error:', error);
+      console.error('❌ [STAFF PORTAL] Unified Supabase error:', error);
       return res.status(500).json({ error: 'Failed to fetch players' });
     }
   });
