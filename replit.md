@@ -28,6 +28,7 @@ Preferred communication style: Simple, everyday language.
 ### Authentication Strategy
 - **Primary**: Supabase Auth for user authentication and session management, integrated with admin dashboards for unified user management.
 - **Enterprise Security**: Clerk integration provides an invisible enterprise-grade security layer with audit logging, webhooks, and cross-portal synchronization for comprehensive player tracking.
+- **Multi-Layer Security**: Email verification (Supabase) + KYC staff approval required before portal access. Users receive clear messages: "Please verify your email" and "Staff has not approved your account yet."
 - **Crisis Resolution (Jan 2025)**: Implemented bulletproof cross-functionality system with deletion protection, automatic data repair, and zero-data-loss architecture preventing Clerk-Supabase cascade failures.
 
 ### Key Features

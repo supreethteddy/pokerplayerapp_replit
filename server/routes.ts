@@ -3231,7 +3231,7 @@ export function registerRoutes(app: Express) {
         SELECT id, email, password, first_name, last_name, phone, kyc_status, balance, 
                current_credit, credit_limit, credit_approved, total_deposits, total_withdrawals,
                total_winnings, total_losses, games_played, hours_played, clerk_user_id, 
-               supabase_id, is_active, last_login_at
+               supabase_id, is_active, last_login_at, email_verified
         FROM players 
         WHERE email = $1 AND (is_active IS NULL OR is_active = true)
       `;
@@ -3357,15 +3357,27 @@ export function registerRoutes(app: Express) {
         authToken: authUser?.id || player.supabase_id // Use as session identifier
       };
       
-      // CRITICAL SECURITY CHECK: KYC Verification Gate
-      // Allow submitted KYC for seamless workflow - staff can approve from portal
-      if (player.kyc_status !== 'approved' && player.kyc_status !== 'submitted') {
+      // CRITICAL SECURITY CHECK: Email + KYC Verification Gate
+      // First check email verification
+      if (!player.email_verified) {
+        console.log(`🚫 [AUTH SIGNIN] Email not verified for: ${email}`);
+        return res.status(403).json({
+          error: 'EMAIL_VERIFICATION_REQUIRED',
+          message: 'Please verify your email address before logging in. Check your inbox for verification link.',
+          playerEmail: player.email,
+          playerId: player.id,
+          needsEmailVerification: true
+        });
+      }
+
+      // Then check KYC approval - ONLY approved users can login
+      if (player.kyc_status !== 'approved') {
         console.log(`🚫 [AUTH SIGNIN] KYC verification failed for: ${email} (Status: ${player.kyc_status})`);
         
         const kycBlockMessages = {
-          'pending': 'Your KYC documents are under review. Please wait for staff approval before accessing the portal.',
-          'submitted': 'Your KYC documents are being reviewed by our team. Access will be granted once approved.',
-          'rejected': 'Your KYC documents have been rejected. Please contact support for assistance.',
+          'pending': 'Your account is pending KYC review. Please wait for staff approval before accessing the portal.',
+          'submitted': 'Your KYC documents are being reviewed by our team. Staff has not approved your account yet. Please wait for approval.',
+          'rejected': 'Your KYC documents have been rejected by our staff. Please contact support for assistance.',
           'incomplete': 'Please complete your KYC document submission before accessing the portal.'
         };
         
