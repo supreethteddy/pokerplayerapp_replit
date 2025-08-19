@@ -45,7 +45,8 @@ import { directChat } from './direct-chat-system';
 import { directKycStorage } from './direct-kyc-storage';
 import { enterprisePlayerSystem } from './enterprise-player-system';
 
-// Clerk integration temporarily disabled to prevent database errors
+// Import Clerk integration
+import { ClerkPlayerSync } from './clerk-integration';
 
 // Import staff portal integration
 import staffPortalRoutes from './routes/staff-portal-integration';
@@ -1406,7 +1407,8 @@ export function registerRoutes(app: Express) {
 
   // REMOVED: Duplicate endpoint - consolidated into staff-chat-integration/send
 
-  // CLERK AUTHENTICATION INTEGRATION APIs - TEMPORARILY DISABLED
+  // CLERK AUTHENTICATION INTEGRATION APIs
+  const clerkSync = new ClerkPlayerSync();
 
   // Create new player (Enterprise-optimized Signup endpoint)
   app.post("/api/players", async (req, res) => {
@@ -3290,20 +3292,24 @@ export function registerRoutes(app: Express) {
       
       console.log(`🔐 [AUTH SIGNIN] Attempting login for: ${email}`);
       
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
+      // Use direct PostgreSQL since we know the players exist there
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+      
+      console.log(`🔍 [AUTH SIGNIN] Querying database for: ${email}`);
+      const result = await pgClient.query('SELECT * FROM players WHERE email = $1', [email]);
+      await pgClient.end();
+      
+      let player = null;
+      if (result.rows.length > 0) {
+        player = result.rows[0];
+        console.log(`✅ [AUTH SIGNIN] Player found:`, player.id, player.email);
+      } else {
+        console.log(`❌ [AUTH SIGNIN] No player found in database for: ${email}`);
+      }
 
-      // Check if player exists in Supabase
-      const { data: player, error: playerError } = await supabase
-        .from('players')
-        .select('*')
-        .eq('email', email)
-        .single();
-
-      if (playerError || !player) {
+      if (!player) {
         console.log(`❌ [AUTH SIGNIN] Player not found: ${email}`);
         return res.status(401).json({ error: 'Invalid credentials' });
       }
@@ -3344,7 +3350,105 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // CLERK-SUPABASE INTEGRATED SIGNUP ENDPOINT
+  app.post('/api/auth/signup', async (req, res) => {
+    try {
+      const { email, password, firstName, lastName, phone } = req.body;
+      
+      if (!email || !password || !firstName || !lastName) {
+        return res.status(400).json({ error: 'All required fields must be provided' });
+      }
+      
+      console.log(`🔐 [INTEGRATED SIGNUP] Creating account for: ${email}`);
+      
+      // Use the enterprise player system for consistent player creation
+      const result = await enterprisePlayerSystem.createSinglePlayer({
+        email,
+        firstName,
+        lastName,
+        phone: phone || '',
+        password,
+        metadata: { signupSource: 'player_portal_auth' }
+      });
 
+      // Transform to expected frontend format
+      const player = {
+        id: result.playerId,
+        email,
+        firstName,
+        lastName,
+        phone: phone || '',
+        kycStatus: 'pending',
+        balance: '0.00',
+        emailVerified: false,
+        createdAt: new Date().toISOString(),
+        universalId: `integrated_${result.playerId}_${Date.now()}`
+      };
+
+      console.log(`✅ [INTEGRATED SIGNUP] Player ${result.status}:`, result.playerId);
+      
+      res.json({
+        success: true,
+        player,
+        redirectToKYC: true,
+        needsEmailVerification: false, // Using Clerk for email verification
+        needsKYCUpload: true,
+        needsKYCApproval: false,
+        message: 'Account created successfully! Please complete KYC verification.'
+      });
+      
+    } catch (error: any) {
+      console.error('❌ [INTEGRATED SIGNUP] Server error:', error);
+      
+      // Handle duplicate email - redirect to KYC if player exists
+      if ((error as any).code === '23505' && (error as any).constraint === 'players_email_unique') {
+        console.log('🔄 [INTEGRATED SIGNUP] Player exists - checking status for:', req.body.email);
+        
+        try {
+          const { Client } = await import('pg');
+          const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+          await pgClient.connect();
+          
+          const existingPlayerQuery = `
+            SELECT id, first_name, last_name, email, kyc_status, balance, email_verified 
+            FROM players 
+            WHERE email = $1
+          `;
+          const existingResult = await pgClient.query(existingPlayerQuery, [req.body.email]);
+          await pgClient.end();
+          
+          if (existingResult.rows.length > 0) {
+            const existingPlayer = existingResult.rows[0];
+            console.log('✅ [INTEGRATED SIGNUP] Existing player found - redirecting:', existingPlayer.kyc_status);
+            
+            res.json({
+              success: true,
+              existing: true,
+              player: {
+                id: existingPlayer.id,
+                email: existingPlayer.email,
+                firstName: existingPlayer.first_name,
+                lastName: existingPlayer.last_name,
+                kycStatus: existingPlayer.kyc_status,
+                balance: existingPlayer.balance,
+                emailVerified: existingPlayer.email_verified
+              },
+              redirectToKYC: existingPlayer.kyc_status === 'pending',
+              needsEmailVerification: !existingPlayer.email_verified,
+              needsKYCUpload: existingPlayer.kyc_status === 'pending',
+              needsKYCApproval: existingPlayer.kyc_status === 'submitted',
+              message: 'Welcome back! Continue with verification process.'
+            });
+            return;
+          }
+        } catch (lookupError) {
+          console.error('❌ [INTEGRATED SIGNUP] Lookup error:', lookupError);
+        }
+      }
+      
+      res.status(500).json({ error: error.message || 'Signup failed' });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

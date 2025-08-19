@@ -30,6 +30,9 @@ export const players = pgTable("players", {
   panCardVerified: boolean("pan_card_verified").default(false), // PAN card verification status
   panCardUploadedAt: timestamp("pan_card_uploaded_at"), // PAN card upload timestamp
   isActive: boolean("is_active").default(true), // Player active status
+  emailVerified: boolean("email_verified").default(false), // Email verification status
+  lastLoginAt: timestamp("last_login_at"), // Last login timestamp
+  clerkSyncedAt: timestamp("clerk_synced_at"), // Last Clerk sync timestamp
   createdAt: timestamp("created_at").defaultNow(),
 });
 

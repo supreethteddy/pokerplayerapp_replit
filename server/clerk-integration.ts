@@ -136,12 +136,11 @@ export class ClerkPlayerSync {
               email_verified, last_login_at, kyc_status, balance, is_active,
               credit_approved, credit_limit, current_credit, total_deposits,
               total_withdrawals, total_winnings, total_losses, games_played,
-              hours_played, total_rs_played, current_vip_points, 
-              lifetime_vip_points, universal_id, password
+              hours_played, universal_id, password
             ) VALUES (
               $1, $2, $3, $4, $5, NOW(), $6, NOW(), 'pending', '0.00', true,
-              false, 0, 0, '0.00', '0.00', '0.00', '0.00', 0, '0', 0, 0, 0,
-              $7, 'clerk_managed'
+              false, '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', 0,
+              '0.00', $7, 'clerk_managed'
             ) RETURNING *
           `;
           

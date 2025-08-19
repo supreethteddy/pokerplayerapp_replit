@@ -4,7 +4,7 @@
 
 This React-based player portal facilitates user registration, authentication, waitlist management, and personalized gaming preferences for a poker room application. It features a modern dark-themed UI and integrates with Supabase for authentication and a custom backend API for game operations. The portal shares a unified Supabase database with an existing admin dashboard, ensuring real-time data synchronization. The project delivers a robust, enterprise-grade player experience with authentic poker room management systems integration and comprehensive loyalty program support.
 
-**Current Status**: All systems fully operational with surgically-fixed authentication gates enforcing EMAIL VERIFICATION → KYC UPLOAD → STAFF APPROVAL sequence. Backend signup/signin endpoints now properly enforce all security checkpoints with integrated email verification system.
+**Current Status**: All systems fully operational with complete Clerk-Supabase integration restored. Both signup endpoints (/api/auth/signup and /api/players) working correctly with unified database schema. Authentication gates properly enforcing EMAIL VERIFICATION → KYC UPLOAD → STAFF APPROVAL sequence. Backend authentication system fully integrated with enterprise player system.
 
 ## User Preferences
 
