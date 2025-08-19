@@ -3073,41 +3073,41 @@ export function registerRoutes(app: Express) {
       const { playerId } = req.params;
       console.log(`🎯 [LIVE SESSION] Getting active sessions for player: ${playerId}`);
       
+      // Use local PostgreSQL for session data
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+
+      // Check for active table sessions in local PostgreSQL
+      const sessionQuery = `
+        SELECT * FROM table_sessions 
+        WHERE player_id = $1 AND status = 'active' 
+        ORDER BY started_at DESC 
+        LIMIT 1
+      `;
+      
+      const sessionResult = await pgClient.query(sessionQuery, [playerId]);
+      
+      if (sessionResult.rows.length === 0) {
+        await pgClient.end();
+        console.log(`📭 [LIVE SESSION] No active session found for player ${playerId}`);
+        return res.json({ hasActiveSession: false, session: null });
+      }
+
+      const tableSession = sessionResult.rows[0];
+
+      // Get table information from Supabase
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      // Check for active table sessions
-      const { data: tableSession, error: sessionError } = await supabase
-        .from('table_sessions')
-        .select(`
-          *,
-          staff_tables:table_id (
-            id,
-            name,
-            game_type,
-            stakes,
-            max_players,
-            current_players
-          )
-        `)
-        .eq('player_id', playerId)
-        .eq('status', 'active')
-        .order('started_at', { ascending: false })
-        .limit(1)
+      const { data: tableInfo, error: tableError } = await supabase
+        .from('staff_tables')
+        .select('id, name, game_type, stakes, max_players, current_players')
+        .eq('id', tableSession.table_id)
         .single();
-
-      if (sessionError && sessionError.code !== 'PGRST116') {
-        console.error('❌ [LIVE SESSION] Query error:', sessionError);
-        return res.status(500).json({ error: 'Database query failed' });
-      }
-
-      if (!tableSession) {
-        console.log(`📭 [LIVE SESSION] No active session found for player ${playerId}`);
-        return res.json({ hasActiveSession: false, session: null });
-      }
 
       // Calculate session metrics
       const sessionStart = new Date(tableSession.started_at);

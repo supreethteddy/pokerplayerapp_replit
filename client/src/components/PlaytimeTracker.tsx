@@ -36,7 +36,7 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
 
   // Fetch live session data
   const { data: session, isLoading, error } = useQuery<LiveSession>({
-    queryKey: ['/api/live-session', playerId],
+    queryKey: ['/api/live-sessions', playerId],
     refetchInterval: 1000, // Update every second for real-time tracking
     enabled: !!playerId,
   });
@@ -44,7 +44,7 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
   // Call Time mutation
   const callTimeMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest(`/api/live-session/${playerId}/call-time`, {
+      const response = await apiRequest(`/api/live-sessions/${playerId}/call-time`, {
         method: 'POST',
       });
       return response;
@@ -54,7 +54,7 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
         title: "Call Time Activated",
         description: "You have initiated call time. Complete your current hand within the time limit.",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/live-session', playerId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/live-sessions', playerId] });
     },
     onError: (error: any) => {
       toast({
@@ -68,7 +68,7 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
   // Cash Out mutation
   const cashOutMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest(`/api/live-session/${playerId}/cash-out`, {
+      const response = await apiRequest(`/api/live-sessions/${playerId}/cash-out`, {
         method: 'POST',
       });
       return response;
@@ -78,7 +78,7 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
         title: "Cash Out Initiated",
         description: "Your cash out request has been sent to staff for processing.",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/live-session', playerId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/live-sessions', playerId] });
       setIsDialogOpen(false);
     },
     onError: (error: any) => {
