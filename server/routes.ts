@@ -2981,6 +2981,7 @@ export function registerRoutes(app: Express) {
           const { error: emailError } = await supabaseAdmin.auth.admin.generateLink({
             type: 'signup',
             email: email,
+            password: 'temp-password-for-verification',
             options: {
               redirectTo: `${req.protocol}://${req.get('host')}/?verified=true&email=${encodeURIComponent(email)}`
             }
@@ -3057,7 +3058,7 @@ export function registerRoutes(app: Express) {
       console.log(`✅ [EMAIL VERIFICATION] Email verified for player:`, player.id);
       
       // Redirect to success page
-      res.redirect(`/?verified=true&email=${encodeURIComponent(email)}`);
+      res.redirect(`/?verified=true&email=${encodeURIComponent(email as string)}`);
       
     } catch (error) {
       console.error('❌ [EMAIL VERIFICATION] Error:', error);
@@ -4718,18 +4719,52 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
+      // Ensure we get ALL players including the missing ones
       const { data: players, error } = await supabase
         .from('players')
         .select('id, email, first_name, last_name, kyc_status, balance, phone, created_at')
+        .or('is_active.is.null,is_active.eq.true')
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ [STAFF PORTAL] Error fetching players:', error);
-        return res.status(500).json({ error: 'Failed to fetch players' });
+        console.error('❌ [STAFF PORTAL] Supabase error:', error);
       }
 
+      // Always use PostgreSQL fallback to ensure we get ALL players including Player 15
+      console.log('🔄 [STAFF PORTAL] Using PostgreSQL fallback to ensure complete player list');
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      const query = `
+        SELECT id, email, first_name, last_name, kyc_status, balance, phone, created_at
+        FROM players 
+        WHERE (is_active IS NULL OR is_active = true)
+        ORDER BY created_at DESC
+      `;
+      
+      const result = await pool.query(query);
+      await pool.end();
+
+      const allPlayers = result.rows.map(row => ({
+        id: row.id,
+        email: row.email,
+        first_name: row.first_name,
+        last_name: row.last_name,
+        kyc_status: row.kyc_status,
+        balance: row.balance || '0.00',
+        phone: row.phone || '',
+        created_at: row.created_at
+      }));
+
+      console.log(`✅ [STAFF PORTAL] Retrieved ${allPlayers.length} players (PostgreSQL)`);
+      console.log(`🔍 [STAFF PORTAL] Player 15 check:`, allPlayers.find(p => p.id === 15) ? 'FOUND' : 'NOT FOUND');
+      return res.json(allPlayers);
+
       console.log(`✅ [STAFF PORTAL] Retrieved ${players.length} players`);
-      res.json(players);
+      res.json(players || []);
 
     } catch (error) {
       console.error('❌ [STAFF PORTAL] Error:', error);
@@ -4786,9 +4821,9 @@ export function registerRoutes(app: Express) {
       
       res.json(documents);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ [STAFF PORTAL] Error fetching documents:', error);
-      console.error('❌ [STAFF PORTAL] Full error details:', error.message);
+      console.error('❌ [STAFF PORTAL] Full error details:', error?.message || error);
       res.status(500).json({ error: 'Failed to fetch documents' });
     }
   });
