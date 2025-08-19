@@ -44,48 +44,33 @@ export default function ClerkSignUpPage() {
 
     setLoading(true);
     try {
-      // First, check if player exists in our database
-      console.log('🔍 [SIGNUP] Checking for existing player:', formData.email);
+      // CRITICAL: Check for existing player BEFORE Clerk signup to prevent duplicates
+      console.log('🔍 [BULLETPROOF SIGNUP] Checking for existing player:', formData.email);
       
       try {
-        const checkResponse = await fetch('/api/players', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: formData.email,
-            password: formData.password,
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-            phone: formData.phone,
-          }),
-        });
-
-        const playerData = await checkResponse.json();
+        // Use GET request to check existing player without creating
+        const checkResponse = await fetch(`/api/players/check?email=${encodeURIComponent(formData.email)}`);
         
-        // If existing player detected, handle KYC redirect
-        if (playerData.existing) {
-          console.log('🔄 [SIGNUP] Existing player - redirecting to KYC:', playerData.kycStatus);
-          
-          // Store KYC redirect data for App.tsx to handle
-          sessionStorage.setItem('kyc_redirect', JSON.stringify(playerData));
+        if (checkResponse.ok) {
+          const existingPlayerData = await checkResponse.json();
+          console.log('🔄 [BULLETPROOF SIGNUP] Player already exists - redirecting to login/KYC:', existingPlayerData.kycStatus);
           
           toast({
-            title: "Account Found",
-            description: "Redirecting you to KYC process...",
+            title: "Account Already Exists",
+            description: "Please sign in with your existing account or complete KYC.",
+            variant: "destructive"
           });
           
-          // Trigger a page reload to let App.tsx handle the redirect
+          // Redirect to login instead of creating duplicate
           setTimeout(() => {
-            window.location.reload();
-          }, 1000);
+            window.location.href = '/login';
+          }, 2000);
           
           setLoading(false);
           return;
         }
       } catch (existingCheckError) {
-        console.log('📝 [SIGNUP] No existing player found, proceeding with Clerk signup');
+        console.log('📝 [BULLETPROOF SIGNUP] No existing player found, safe to proceed with Clerk signup');
       }
 
       // Proceed with normal Clerk signup if no existing player
