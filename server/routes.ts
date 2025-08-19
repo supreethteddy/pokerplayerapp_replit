@@ -3281,7 +3281,7 @@ export function registerRoutes(app: Express) {
 
   // ========== PRODUCTION-GRADE AUTHENTICATION SYSTEM ==========
   
-  // CLEAN SIGNIN ENDPOINT - SUPABASE ONLY
+  // HYBRID SUPABASE-CLERK SIGNIN ENDPOINT
   app.post('/api/auth/signin', async (req, res) => {
     try {
       const { email, password } = req.body;
@@ -3290,67 +3290,35 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ error: 'Email and password are required' });
       }
       
-      console.log(`🔐 [AUTH SIGNIN] Attempting login for: ${email}`);
+      console.log(`🔐 [HYBRID SIGNIN] Attempting login for: ${email}`);
       
-      // Use direct PostgreSQL since we know the players exist there
-      const { Client } = await import('pg');
-      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
-      await pgClient.connect();
+      // Import hybrid auth system
+      const { hybridAuthSystem } = await import('./hybrid-auth-system');
       
-      console.log(`🔍 [AUTH SIGNIN] Querying database for: ${email}`);
-      const result = await pgClient.query('SELECT * FROM players WHERE email = $1', [email]);
-      await pgClient.end();
-      
-      let player = null;
-      if (result.rows.length > 0) {
-        player = result.rows[0];
-        console.log(`✅ [AUTH SIGNIN] Player found:`, player.id, player.email);
-      } else {
-        console.log(`❌ [AUTH SIGNIN] No player found in database for: ${email}`);
-      }
+      // Use hybrid auth system for complete integration
+      const result = await hybridAuthSystem.authenticateUser(email, password);
 
-      if (!player) {
-        console.log(`❌ [AUTH SIGNIN] Player not found: ${email}`);
+      if (!result.success) {
+        console.log(`❌ [HYBRID SIGNIN] Authentication failed: ${result.error}`);
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
-      // Verify password
-      if (player.password !== password) {
-        console.log(`❌ [AUTH SIGNIN] Invalid password for: ${email}`);
-        return res.status(401).json({ error: 'Invalid credentials' });
-      }
-
-      console.log(`✅ [AUTH SIGNIN] Login successful: ${email}`);
-
-      // Return player data
-      const playerData = {
-        id: player.id,
-        email: player.email,
-        firstName: player.first_name,
-        lastName: player.last_name,
-        phone: player.phone,
-        kycStatus: player.kyc_status,
-        balance: player.balance,
-        emailVerified: player.email_verified,
-        creditBalance: '0.00',
-        creditLimit: '0.00',
-        creditApproved: false,
-        totalBalance: (parseFloat(player.balance || '0') + parseFloat(player.current_credit || '0')).toFixed(2)
-      };
+      console.log(`✅ [HYBRID SIGNIN] Login successful: ${email}`);
 
       res.json({
         success: true,
-        user: playerData,
+        user: result.playerData,
+        supabaseUser: result.supabaseUser,
         message: "Login successful"
       });
 
     } catch (error: any) {
-      console.error('❌ [AUTH SIGNIN] Server error:', error);
+      console.error('❌ [HYBRID SIGNIN] Server error:', error);
       res.status(500).json({ error: 'Authentication server error' });
     }
   });
 
-  // CLERK-SUPABASE INTEGRATED SIGNUP ENDPOINT
+  // HYBRID SUPABASE-CLERK SIGNUP ENDPOINT
   app.post('/api/auth/signup', async (req, res) => {
     try {
       const { email, password, firstName, lastName, phone } = req.body;
@@ -3359,93 +3327,40 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ error: 'All required fields must be provided' });
       }
       
-      console.log(`🔐 [INTEGRATED SIGNUP] Creating account for: ${email}`);
+      console.log(`🔐 [HYBRID SIGNUP] Creating account for: ${email}`);
       
-      // Use the enterprise player system for consistent player creation
-      const result = await enterprisePlayerSystem.createSinglePlayer({
+      // Import hybrid auth system
+      const { hybridAuthSystem } = await import('./hybrid-auth-system');
+      
+      // Use hybrid auth system for complete integration
+      const result = await hybridAuthSystem.createUser({
         email,
+        password,
         firstName,
         lastName,
-        phone: phone || '',
-        password,
-        metadata: { signupSource: 'player_portal_auth' }
+        phone
       });
 
-      // Transform to expected frontend format
-      const player = {
-        id: result.playerId,
-        email,
-        firstName,
-        lastName,
-        phone: phone || '',
-        kycStatus: 'pending',
-        balance: '0.00',
-        emailVerified: false,
-        createdAt: new Date().toISOString(),
-        universalId: `integrated_${result.playerId}_${Date.now()}`
-      };
+      if (!result.success) {
+        console.error(`❌ [HYBRID SIGNUP] Failed: ${result.error}`);
+        return res.status(400).json({ error: result.error });
+      }
 
-      console.log(`✅ [INTEGRATED SIGNUP] Player ${result.status}:`, result.playerId);
+      console.log(`✅ [HYBRID SIGNUP] User created successfully`);
       
       res.json({
         success: true,
-        player,
-        redirectToKYC: true,
-        needsEmailVerification: false, // Using Clerk for email verification
+        player: result.playerData,
+        supabaseUser: result.supabaseUser,
+        redirectToKYC: result.redirectToKYC,
+        needsEmailVerification: result.needsEmailVerification,
         needsKYCUpload: true,
         needsKYCApproval: false,
-        message: 'Account created successfully! Please complete KYC verification.'
+        message: 'Account created successfully! Please verify your email and complete KYC verification.'
       });
       
     } catch (error: any) {
-      console.error('❌ [INTEGRATED SIGNUP] Server error:', error);
-      
-      // Handle duplicate email - redirect to KYC if player exists
-      if ((error as any).code === '23505' && (error as any).constraint === 'players_email_unique') {
-        console.log('🔄 [INTEGRATED SIGNUP] Player exists - checking status for:', req.body.email);
-        
-        try {
-          const { Client } = await import('pg');
-          const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
-          await pgClient.connect();
-          
-          const existingPlayerQuery = `
-            SELECT id, first_name, last_name, email, kyc_status, balance, email_verified 
-            FROM players 
-            WHERE email = $1
-          `;
-          const existingResult = await pgClient.query(existingPlayerQuery, [req.body.email]);
-          await pgClient.end();
-          
-          if (existingResult.rows.length > 0) {
-            const existingPlayer = existingResult.rows[0];
-            console.log('✅ [INTEGRATED SIGNUP] Existing player found - redirecting:', existingPlayer.kyc_status);
-            
-            res.json({
-              success: true,
-              existing: true,
-              player: {
-                id: existingPlayer.id,
-                email: existingPlayer.email,
-                firstName: existingPlayer.first_name,
-                lastName: existingPlayer.last_name,
-                kycStatus: existingPlayer.kyc_status,
-                balance: existingPlayer.balance,
-                emailVerified: existingPlayer.email_verified
-              },
-              redirectToKYC: existingPlayer.kyc_status === 'pending',
-              needsEmailVerification: !existingPlayer.email_verified,
-              needsKYCUpload: existingPlayer.kyc_status === 'pending',
-              needsKYCApproval: existingPlayer.kyc_status === 'submitted',
-              message: 'Welcome back! Continue with verification process.'
-            });
-            return;
-          }
-        } catch (lookupError) {
-          console.error('❌ [INTEGRATED SIGNUP] Lookup error:', lookupError);
-        }
-      }
-      
+      console.error('❌ [HYBRID SIGNUP] Server error:', error);
       res.status(500).json({ error: error.message || 'Signup failed' });
     }
   });
