@@ -8,21 +8,27 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 interface LiveSession {
-  id: string;
-  playerId: string;
+  id: number;
+  playerId: number;
   tableId: string;
   tableName: string;
+  gameType: string;
+  stakes: string;
   buyInAmount: number;
-  currentBalance: number;
-  sessionStartTime: string;
-  isActive: boolean;
-  canCallTime: boolean;
-  canCashOut: boolean;
+  currentChips: number;
+  sessionDuration: number;
+  startedAt: string;
+  status: string;
+  profitLoss: number;
   minPlayTimeMinutes: number;
   callTimeWindowMinutes: number;
   callTimePlayPeriodMinutes: number;
-  callTimeEndTime?: string;
-  isInCallTime: boolean;
+  cashoutWindowMinutes: number;
+  minPlayTimeCompleted: boolean;
+  callTimeEligible: boolean;
+  canCashOut: boolean;
+  isLive: boolean;
+  sessionStartTime: string;
 }
 
 interface PlaytimeTrackerProps {
@@ -34,12 +40,14 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch live session data
-  const { data: session, isLoading, error } = useQuery<LiveSession>({
+  // Fetch live session data with proper response structure
+  const { data: sessionResponse, isLoading, error } = useQuery<{hasActiveSession: boolean, session: LiveSession | null}>({
     queryKey: ['/api/live-sessions', playerId],
     refetchInterval: 1000, // Update every second for real-time tracking
     enabled: !!playerId,
   });
+
+  const session = sessionResponse?.hasActiveSession ? sessionResponse.session : null;
 
   // Call Time mutation
   const callTimeMutation = useMutation({
@@ -92,10 +100,10 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
 
   // Auto-open dialog when session becomes active
   useEffect(() => {
-    if (session?.isActive && !isDialogOpen) {
+    if (session?.isLive && !isDialogOpen) {
       setIsDialogOpen(true);
     }
-  }, [session?.isActive, isDialogOpen]);
+  }, [session?.isLive, isDialogOpen]);
 
   // Calculate session duration
   const getSessionDuration = () => {
@@ -114,7 +122,7 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
 
   // Calculate time until call time available
   const getTimeUntilCallTime = () => {
-    if (!session?.sessionStartTime || session.canCallTime) return 0;
+    if (!session?.sessionStartTime || session.callTimeEligible) return 0;
     
     const start = new Date(session.sessionStartTime);
     const now = new Date();
@@ -136,28 +144,16 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
     return Math.max(0, Math.ceil(timeUntilCashOut));
   };
 
-  // Calculate call time remaining
-  const getCallTimeRemaining = () => {
-    if (!session?.isInCallTime || !session.callTimeEndTime) return 0;
-    
-    const end = new Date(session.callTimeEndTime);
-    const now = new Date();
-    const remaining = (end.getTime() - now.getTime()) / (1000 * 60);
-    
-    return Math.max(0, Math.ceil(remaining));
-  };
-
   const sessionDuration = getSessionDuration();
   const timeUntilCallTime = getTimeUntilCallTime();
   const timeUntilMinPlay = getTimeUntilCashOut();
-  const callTimeRemaining = getCallTimeRemaining();
 
   // Don't render if no session or not loading
   if (isLoading) {
     return null;
   }
 
-  if (error || !session?.isActive) {
+  if (error || !session?.isLive) {
     return null;
   }
 
@@ -203,44 +199,41 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
             </div>
 
             {/* Balance Info */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-3">
               <div className="bg-slate-800/50 p-3 rounded text-center">
                 <div className="text-lg font-semibold text-white">₹{session.buyInAmount.toLocaleString()}</div>
                 <div className="text-xs text-slate-400">Buy-in</div>
               </div>
               <div className="bg-slate-800/50 p-3 rounded text-center">
-                <div className="text-lg font-semibold text-emerald-500">₹{session.currentBalance.toLocaleString()}</div>
+                <div className="text-lg font-semibold text-emerald-500">₹{session.currentChips.toLocaleString()}</div>
                 <div className="text-xs text-slate-400">Current</div>
+              </div>
+              <div className="bg-slate-800/50 p-3 rounded text-center">
+                <div className={`text-lg font-semibold ${session.profitLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  {session.profitLoss >= 0 ? '+' : ''}₹{session.profitLoss.toLocaleString()}
+                </div>
+                <div className="text-xs text-slate-400">P&L</div>
               </div>
             </div>
 
-            {/* Call Time Status */}
-            {session.isInCallTime && (
-              <div className="bg-orange-500/20 border border-orange-500/50 p-3 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <Phone className="h-4 w-4 text-orange-500 mr-2" />
-                    <span className="text-orange-300 font-medium">Call Time Active</span>
-                  </div>
-                  <Badge className="bg-orange-500/30 text-orange-200">
-                    {callTimeRemaining}m remaining
-                  </Badge>
-                </div>
+            {/* Table Information */}
+            <div className="bg-slate-800/50 p-3 rounded">
+              <div className="text-center">
+                <div className="text-sm text-slate-400">Table: {session.tableName}</div>
+                <div className="text-sm text-slate-300">{session.gameType} • {session.stakes}</div>
               </div>
-            )}
+            </div>
 
             {/* Action Buttons */}
             <div className="flex space-x-3">
               {/* Call Time Button */}
               <Button
                 onClick={() => callTimeMutation.mutate()}
-                disabled={!session.canCallTime || callTimeMutation.isPending || session.isInCallTime}
+                disabled={!session.callTimeEligible || callTimeMutation.isPending}
                 className="flex-1 bg-orange-600 hover:bg-orange-700 disabled:opacity-50"
               >
                 <Phone className="h-4 w-4 mr-2" />
-                {session.isInCallTime ? 'Call Time Active' : 
-                 session.canCallTime ? 'Call Time' : 
-                 `Call Time in ${timeUntilCallTime}m`}
+                {session.callTimeEligible ? 'Call Time' : `Call Time in ${timeUntilCallTime}m`}
               </Button>
 
               {/* Cash Out Button */}
@@ -254,13 +247,38 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
               </Button>
             </div>
 
+            {/* Status Indicators */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className={`p-2 rounded ${session.minPlayTimeCompleted ? 'bg-green-900/50 border border-green-500/50' : 'bg-red-900/50 border border-red-500/50'}`}>
+                <div className="flex items-center justify-between">
+                  <span className={session.minPlayTimeCompleted ? 'text-green-400' : 'text-red-400'}>
+                    Min Play Time
+                  </span>
+                  <span className={session.minPlayTimeCompleted ? 'text-green-300' : 'text-red-300'}>
+                    {session.minPlayTimeCompleted ? '✓' : `${timeUntilMinPlay}m left`}
+                  </span>
+                </div>
+              </div>
+              <div className={`p-2 rounded ${session.callTimeEligible ? 'bg-green-900/50 border border-green-500/50' : 'bg-yellow-900/50 border border-yellow-500/50'}`}>
+                <div className="flex items-center justify-between">
+                  <span className={session.callTimeEligible ? 'text-green-400' : 'text-yellow-400'}>
+                    Call Time
+                  </span>
+                  <span className={session.callTimeEligible ? 'text-green-300' : 'text-yellow-300'}>
+                    {session.callTimeEligible ? 'Available' : `${timeUntilCallTime}m`}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             {/* Session Rules */}
             <div className="bg-gray-800/50 p-3 rounded text-xs text-gray-400">
-              <div className="font-medium mb-2">Session Rules:</div>
+              <div className="font-medium mb-2">Timing Rules:</div>
               <ul className="space-y-1">
                 <li>• Minimum play time: {session.minPlayTimeMinutes} minutes</li>
                 <li>• Call time available after: {session.callTimeWindowMinutes} minutes</li>
                 <li>• Call time duration: {session.callTimePlayPeriodMinutes} minutes</li>
+                <li>• Cash out window: {session.cashoutWindowMinutes} minutes</li>
               </ul>
             </div>
           </div>

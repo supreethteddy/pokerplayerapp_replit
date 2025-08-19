@@ -3074,39 +3074,52 @@ export function registerRoutes(app: Express) {
       const { playerId } = req.params;
       console.log(`🎯 [LIVE SESSION] Getting active sessions for player: ${playerId}`);
       
-      // For now, return test data to show the PlaytimeTracker UI works
-      // The table_sessions data exists but there might be connection issues
-      const testSession = {
-        id: 1,
-        playerId: parseInt(playerId),
-        tableId: '56551992-75ac-4248-b5e1-65417d2e4047',
-        tableName: 'hello123',
-        gameType: 'Omaha',
-        stakes: '₹10/₹20',
-        buyInAmount: 5000,
-        currentChips: 7500,
-        sessionDuration: 25, // minutes
-        startedAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
-        status: 'active',
-        profitLoss: 2500,
+      // Use direct PostgreSQL connection for table_sessions (REAL DATA)
+      console.log(`🔍 [LIVE SESSION] Querying for player ${playerId} with status 'active'`);
+      
+      const sessionQuery = `
+        SELECT * FROM table_sessions 
+        WHERE player_id = $1 AND status = 'active' 
+        ORDER BY started_at DESC 
+        LIMIT 1
+      `;
+      
+      const sessionResult = await db.query(sessionQuery, [parseInt(playerId)]);
+      
+      if (sessionResult.rows.length === 0) {
+        console.log(`📭 [LIVE SESSION] No active session found for player ${playerId}`);
+        return res.json({ hasActiveSession: false, session: null });
+      }
+      
+      const tableSession = sessionResult.rows[0];
+      console.log(`✅ [LIVE SESSION] Found active session for player ${playerId}:`, {
+        sessionId: tableSession.id,
+        tableId: tableSession.table_id,
+        status: tableSession.status,
+        buyIn: tableSession.buy_in_amount,
+        currentChips: tableSession.current_chips,
+        startedAt: tableSession.started_at
+      });
+      
+      // Get table information from Supabase - EXACT SAME AS TABLES API
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      
+      const { data: tableData, error: tableError } = await supabase
+        .from('poker_tables')
+        .select('id, name, game_type, min_buy_in, max_buy_in, max_players, current_players')
+        .eq('id', tableSession.table_id)
+        .single();
         
-        // Timing calculations
-        minPlayTimeMinutes: 30,
-        callTimeWindowMinutes: 45,
-        callTimePlayPeriodMinutes: 15,
-        cashoutWindowMinutes: 10,
+      console.log(`🏓 [LIVE SESSION] Table query for ${tableSession.table_id}:`, {
+        error: tableError?.message || 'none',
+        data: tableData || 'null'
+      });
         
-        // Status flags
-        minPlayTimeCompleted: false, // 25 < 30 
-        callTimeEligible: false, // 25 < 45
-        canCashOut: false, // 25 < 30
-        isLive: true,
-        
-        sessionStartTime: new Date(Date.now() - 25 * 60 * 1000).toISOString()
-      };
-
-      console.log(`✅ [LIVE SESSION] Returning test active session for player ${playerId}`);
-      res.json({ hasActiveSession: true, session: testSession });
+      const tableInfo = tableData || null;
 
       // Calculate session metrics
       const sessionStart = new Date(tableSession.started_at);
@@ -3129,7 +3142,7 @@ export function registerRoutes(app: Express) {
         tableId: tableSession.table_id,
         tableName: tableInfo?.name || 'Unknown Table',
         gameType: tableInfo?.game_type || 'Unknown',
-        stakes: tableInfo?.stakes || 'Unknown',
+        stakes: tableInfo ? `₹${tableInfo.min_buy_in || 1000}/${tableInfo.max_buy_in || 10000}` : 'Unknown',
         buyInAmount: buyInAmount,
         currentChips: currentChips,
         sessionDuration: sessionDurationMinutes,
