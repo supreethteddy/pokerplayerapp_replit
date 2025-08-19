@@ -165,6 +165,8 @@ export function useAuth() {
   };
 
   const signUp = async (email: string, password: string, firstName: string, lastName: string, phone: string) => {
+    console.log('📝 [ULTRA-FAST AUTH] Signing up:', email);
+    
     if (signupCooldown) {
       toast({
         title: "Rate Limited",
@@ -178,49 +180,78 @@ export function useAuth() {
       setSignupCooldown(true);
       setTimeout(() => setSignupCooldown(false), 60000);
 
-      // Create Supabase auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
+      // Use our backend signup endpoint that enforces proper workflow
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          email,
+          password,
+          firstName,
+          lastName,
+          phone
+        })
       });
 
-      if (authError) {
-        // Handle specific Supabase auth errors
-        if (authError.message.includes('already registered')) {
-          throw new Error('This email is already registered. Please sign in instead.');
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error('❌ [ULTRA-FAST AUTH] Backend signup error:', data);
+        throw new Error(data.error || data.message || 'Failed to create account');
+      }
+
+      console.log('✅ [ULTRA-FAST AUTH] Integrated signup successful:', email);
+
+      // Handle the response based on authentication gates
+      if (data.needsEmailVerification) {
+        // Send verification email automatically
+        try {
+          await fetch('/api/auth/send-verification-email', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: data.player.email,
+              playerId: data.player.id
+            })
+          });
+
+          toast({
+            title: "Account Created!",
+            description: "Please check your email and verify your address before continuing.",
+          });
+        } catch (emailError) {
+          console.error('❌ [ULTRA-FAST AUTH] Email verification send failed:', emailError);
+          toast({
+            title: "Account Created!",
+            description: "Please contact support to verify your email address.",
+          });
         }
-        throw authError;
+      } else if (data.needsKYCUpload) {
+        toast({
+          title: "Account Ready!",
+          description: "Please upload your KYC documents to complete registration.",
+        });
+        
+        // Redirect to KYC workflow
+        sessionStorage.setItem('kyc_redirect', JSON.stringify({
+          id: data.player.id,
+          playerId: data.player.id,
+          email: data.player.email,
+          firstName: data.player.firstName,
+          lastName: data.player.lastName,
+          kycStatus: data.player.kycStatus
+        }));
+      } else {
+        toast({
+          title: "Welcome Back!",
+          description: "Your account is ready to use.",
+        });
       }
-
-      // Create player record with Supabase ID
-      const playerData = {
-        email,
-        password, // In production, this should be hashed
-        firstName,
-        lastName,
-        phone,
-        supabaseId: authData.user?.id, // Link to Supabase auth user
-        clerkUserId: '', // Will be set when Clerk integration is activated
-      };
-
-      const playerResponse = await apiRequest('POST', '/api/players', playerData);
-      
-      if (!playerResponse.ok) {
-        const errorData = await playerResponse.json();
-        throw new Error(errorData.error || 'Failed to create player account');
-      }
-      
-      const createdPlayer = await playerResponse.json();
-
-      // Player preferences are now created automatically during player creation
-      // No need to create them separately
-
-      toast({
-        title: "Account Created Successfully",
-        description: "Please complete KYC verification to access your account.",
-      });
-
-      // Keep existing flow - don't redirect automatically
 
       return { success: true };
     } catch (error: any) {

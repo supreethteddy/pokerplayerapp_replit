@@ -3581,6 +3581,11 @@ export function registerRoutes(app: Express) {
               const updatedPlayer = updateResult.rows[0];
               await pgClient.end();
               
+              // CRITICAL: Enforce authentication gates even for existing players
+              const needsEmailVerification = !updatedPlayer.email_verified;
+              const needsKYCUpload = updatedPlayer.kyc_status === 'pending' || !updatedPlayer.kyc_status;
+              const needsKYCApproval = updatedPlayer.kyc_status === 'submitted' || updatedPlayer.kyc_status === 'rejected';
+              
               return res.json({
                 success: true,
                 player: {
@@ -3591,12 +3596,21 @@ export function registerRoutes(app: Express) {
                   phone: updatedPlayer.phone,
                   kycStatus: updatedPlayer.kyc_status,
                   balance: updatedPlayer.balance,
-                  supabaseId: updatedPlayer.supabase_id
+                  supabaseId: updatedPlayer.supabase_id,
+                  emailVerified: updatedPlayer.email_verified
                 },
-                redirectToKYC: updatedPlayer.kyc_status !== 'approved',
-                message: updatedPlayer.kyc_status === 'approved' 
-                  ? 'Welcome back! Redirecting to dashboard...' 
-                  : 'Welcome back! Continuing your KYC process...',
+                // Force KYC workflow unless ALL gates are passed
+                redirectToKYC: needsEmailVerification || needsKYCUpload || needsKYCApproval,
+                needsEmailVerification,
+                needsKYCUpload,
+                needsKYCApproval,
+                message: needsEmailVerification 
+                  ? 'Please verify your email address to continue...'
+                  : needsKYCUpload
+                    ? 'Please upload your KYC documents to continue...'
+                    : needsKYCApproval
+                      ? 'Your KYC documents are being reviewed by staff...'
+                      : 'Welcome back! All verification complete.',
                 existingPlayer: true
               });
             }
