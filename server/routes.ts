@@ -2840,6 +2840,89 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // KYC Status endpoint - Direct PostgreSQL 
+  app.get('/api/kyc/status/:playerId', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      console.log(`🔧 [DIRECT KYC STATUS] Getting KYC status for player:`, playerId);
+      
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      const playerQuery = `
+        SELECT id, email, kyc_status, pan_card_status, first_name, last_name
+        FROM players 
+        WHERE id = $1
+      `;
+      
+      const playerResult = await pool.query(playerQuery, [parseInt(playerId)]);
+      
+      if (playerResult.rows.length === 0) {
+        await pool.end();
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      const player = playerResult.rows[0];
+
+      // Get document counts
+      const docQuery = `
+        SELECT 
+          document_type,
+          status,
+          COUNT(*) as count
+        FROM kyc_documents 
+        WHERE player_id = $1
+        GROUP BY document_type, status
+      `;
+      
+      const docResult = await pool.query(docQuery, [parseInt(playerId)]);
+      await pool.end();
+
+      const documentStatus = {};
+      docResult.rows.forEach(row => {
+        if (!documentStatus[row.document_type]) {
+          documentStatus[row.document_type] = { pending: 0, approved: 0, rejected: 0 };
+        }
+        documentStatus[row.document_type][row.status] = parseInt(row.count);
+      });
+
+      const kycData = {
+        playerId: player.id,
+        email: player.email,
+        firstName: player.first_name,
+        lastName: player.last_name,
+        kycStatus: player.kyc_status,
+        panCardStatus: player.pan_card_status,
+        documentStatus
+      };
+
+      console.log(`✅ [DIRECT KYC STATUS] KYC status retrieved for player:`, playerId);
+      res.json(kycData);
+    } catch (error) {
+      console.error('❌ [DIRECT KYC STATUS] Error:', error);
+      res.status(500).json({ error: 'Failed to fetch KYC status' });
+    }
+  });
+
+  // KYC Documents endpoint for player portal
+  app.get('/api/kyc/documents/:playerId', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      console.log(`🔧 [DIRECT KYC DOCS] Getting KYC documents for player:`, playerId);
+      
+      const documents = await directKycStorage.getPlayerDocuments(parseInt(playerId));
+      console.log(`✅ [DIRECT KYC DOCS] Found ${documents.length} documents for player:`, playerId);
+      
+      res.json(documents);
+    } catch (error) {
+      console.error('❌ [DIRECT KYC DOCS] Error:', error);
+      res.status(500).json({ error: 'Failed to fetch documents' });
+    }
+  });
+
   // ========== ENTERPRISE-GRADE PLAYER CREATION SYSTEM ==========
   
   // Enterprise single player creation (optimized for scalability)

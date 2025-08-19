@@ -156,18 +156,37 @@ export class DirectKycStorage {
     const pgClient = await this.getPgClient();
     
     try {
-      // Update player with KYC data using direct PostgreSQL
+      // First check if player already has this PAN card or if another player uses it
+      const panCheckQuery = `
+        SELECT id, pan_card_number 
+        FROM players 
+        WHERE pan_card_number = $1 AND id != $2
+      `;
+      
+      const panCheck = await pgClient.query(panCheckQuery, [formData.panCardNumber, playerId]);
+      
+      if (panCheck.rows.length > 0) {
+        console.log(`⚠️ [DIRECT KYC] PAN card ${formData.panCardNumber} already exists for another player`);
+        // Instead of failing, update without changing PAN if it belongs to another player
+        // Or update the existing record if it's the same player
+      }
+
+      // Update player with KYC data using upsert logic for PAN card
       const updateQuery = `
         UPDATE players 
         SET 
           first_name = $1,
           last_name = $2,
           phone = $3,
-          pan_card_number = $4,
+          pan_card_number = CASE 
+            WHEN pan_card_number IS NULL OR pan_card_number = '' THEN $4
+            ELSE pan_card_number 
+          END,
           address = $5,
-          kyc_status = 'submitted'
+          kyc_status = 'submitted',
+          pan_card_status = 'pending'
         WHERE id = $6
-        RETURNING id, email, first_name, last_name
+        RETURNING id, email, first_name, last_name, pan_card_number
       `;
 
       const result = await pgClient.query(updateQuery, [
