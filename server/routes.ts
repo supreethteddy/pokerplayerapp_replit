@@ -3662,8 +3662,14 @@ export function registerRoutes(app: Express) {
         const newPlayer = result.rows[0];
         console.log(`✅ [AUTH SIGNUP] Player created via PostgreSQL: ${newPlayer.email} (ID: ${newPlayer.id})`);
         
-        // Success response with properly formatted data
+        // Success response with properly formatted data AND authentication gates
         await pgClient.end();
+        
+        // CRITICAL: Check authentication gates for new users
+        const needsEmailVerification = !newPlayer.email_verified;
+        const needsKYCUpload = newPlayer.kyc_status === 'pending' || !newPlayer.kyc_status;
+        const needsKYCApproval = newPlayer.kyc_status === 'submitted' || newPlayer.kyc_status === 'rejected';
+        
         return res.json({
           success: true,
           player: {
@@ -3674,10 +3680,17 @@ export function registerRoutes(app: Express) {
             phone: newPlayer.phone,
             kycStatus: newPlayer.kyc_status,
             balance: newPlayer.balance,
-            supabaseId: newPlayer.supabase_id
+            supabaseId: newPlayer.supabase_id,
+            emailVerified: newPlayer.email_verified
           },
-          redirectToKYC: true,
-          message: 'Account created successfully'
+          // Force email verification for new users
+          redirectToKYC: needsEmailVerification || needsKYCUpload || needsKYCApproval,
+          needsEmailVerification,
+          needsKYCUpload,
+          needsKYCApproval,
+          message: needsEmailVerification 
+            ? 'Account created! Please verify your email to continue.'
+            : 'Account created successfully'
         });
         
       } catch (insertError: any) {
@@ -3719,6 +3732,12 @@ export function registerRoutes(app: Express) {
             console.log(`✅ [AUTH SIGNUP] Existing player seamlessly updated: ${updatedPlayer.email} - continuing KYC journey`);
             
             await pgClient.end();
+            
+            // CRITICAL: Check authentication gates for existing players too
+            const needsEmailVerification = !updatedPlayer.email_verified;
+            const needsKYCUpload = updatedPlayer.kyc_status === 'pending' || !updatedPlayer.kyc_status;
+            const needsKYCApproval = updatedPlayer.kyc_status === 'submitted' || updatedPlayer.kyc_status === 'rejected';
+            
             return res.json({
               success: true,
               player: {
@@ -3729,10 +3748,21 @@ export function registerRoutes(app: Express) {
                 phone: updatedPlayer.phone,
                 kycStatus: updatedPlayer.kyc_status,
                 balance: updatedPlayer.balance,
-                supabaseId: updatedPlayer.supabase_id
+                supabaseId: updatedPlayer.supabase_id,
+                emailVerified: updatedPlayer.email_verified
               },
-              redirectToKYC: true,
-              message: 'Welcome back! Continuing from where you left off...',
+              // Enforce all authentication gates for existing players
+              redirectToKYC: needsEmailVerification || needsKYCUpload || needsKYCApproval,
+              needsEmailVerification,
+              needsKYCUpload,
+              needsKYCApproval,
+              message: needsEmailVerification 
+                ? 'Welcome back! Please verify your email to continue.'
+                : needsKYCUpload
+                  ? 'Welcome back! Please complete your KYC documents.'
+                  : needsKYCApproval
+                    ? 'Welcome back! Your documents are being reviewed.'
+                    : 'Welcome back! All verification complete.',
               existingPlayer: true
             });
           }
