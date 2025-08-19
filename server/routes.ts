@@ -3289,6 +3289,257 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // ========== SESSION PLAYTIME MANAGEMENT SYSTEM ==========
+  
+  // Start call time for active session
+  app.post('/api/session/start-call-time', async (req, res) => {
+    try {
+      const { sessionId, playerId } = req.body;
+      
+      console.log(`⏰ [SESSION CALL TIME] Starting call time for session ${sessionId}, player ${playerId}`);
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Get current session
+      const { data: session, error: sessionError } = await supabase
+        .from('seat_requests')
+        .select('*')
+        .eq('id', sessionId)
+        .eq('player_id', playerId)
+        .eq('status', 'active')
+        .single();
+
+      if (sessionError || !session) {
+        return res.status(404).json({ error: 'Active session not found' });
+      }
+
+      // Check if minimum play time is completed
+      const sessionStart = new Date(session.session_start_time);
+      const now = new Date();
+      const sessionDurationMinutes = Math.floor((now.getTime() - sessionStart.getTime()) / 1000 / 60);
+
+      if (sessionDurationMinutes < (session.min_play_time_minutes || 30)) {
+        return res.status(400).json({ 
+          error: `Minimum play time not completed. ${(session.min_play_time_minutes || 30) - sessionDurationMinutes} minutes remaining.` 
+        });
+      }
+
+      // Calculate call time end and cashout window
+      const callTimeEnd = new Date(now.getTime() + (session.call_time_window_minutes || 10) * 60 * 1000);
+      const cashoutEnd = new Date(callTimeEnd.getTime() + (session.cashout_window_minutes || 3) * 60 * 1000);
+
+      // Update session with call time
+      const { data: updatedSession, error: updateError } = await supabase
+        .from('seat_requests')
+        .update({
+          call_time_started: now.toISOString(),
+          call_time_ends: callTimeEnd.toISOString(),
+          cashout_window_active: true,
+          cashout_window_ends: cashoutEnd.toISOString()
+        })
+        .eq('id', sessionId)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('❌ [SESSION CALL TIME] Update failed:', updateError);
+        return res.status(500).json({ error: 'Failed to start call time' });
+      }
+
+      // Log call time start event
+      await supabase.from('transactions').insert({
+        player_id: playerId,
+        session_id: sessionId,
+        table_id: session.table_id,
+        type: 'call_time',
+        amount: '0.00',
+        description: 'Call time started',
+        session_event_type: 'call_time_start',
+        status: 'completed'
+      });
+
+      // Send push notification
+      await pusher.trigger(`player-${playerId}`, 'call-time-started', {
+        sessionId,
+        callTimeWindow: session.call_time_window_minutes || 10,
+        message: `Call time started. You have ${session.call_time_window_minutes || 10} minutes.`
+      });
+
+      console.log(`✅ [SESSION CALL TIME] Call time started for session ${sessionId}`);
+      res.json({ 
+        message: 'Call time started successfully',
+        callTimeEnds: callTimeEnd.toISOString(),
+        cashoutWindowEnds: cashoutEnd.toISOString(),
+        session: updatedSession
+      });
+
+    } catch (error: any) {
+      console.error('❌ [SESSION CALL TIME] Error:', error);
+      res.status(500).json({ error: 'Failed to start call time' });
+    }
+  });
+
+  // Cash out from session
+  app.post('/api/session/cash-out', async (req, res) => {
+    try {
+      const { sessionId, playerId } = req.body;
+      
+      console.log(`💰 [SESSION CASH OUT] Processing cash out for session ${sessionId}, player ${playerId}`);
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Get current session
+      const { data: session, error: sessionError } = await supabase
+        .from('seat_requests')
+        .select('*')
+        .eq('id', sessionId)
+        .eq('player_id', playerId)
+        .single();
+
+      if (sessionError || !session) {
+        return res.status(404).json({ error: 'Session not found' });
+      }
+
+      // Check if cashout window is active
+      if (!session.cashout_window_active) {
+        return res.status(400).json({ error: 'Cashout window is not active' });
+      }
+
+      const now = new Date();
+      const cashoutWindowEnd = new Date(session.cashout_window_ends);
+
+      if (now > cashoutWindowEnd) {
+        return res.status(400).json({ error: 'Cashout window has expired' });
+      }
+
+      // Calculate session duration
+      const sessionStart = new Date(session.session_start_time);
+      const sessionDurationMinutes = Math.floor((now.getTime() - sessionStart.getTime()) / 1000 / 60);
+
+      // Calculate net session amount (buy-in minus rake and tips)
+      const buyInAmount = parseFloat(session.session_buy_in_amount || '0');
+      const rakeAmount = parseFloat(session.session_rake_amount || '0');
+      const tipAmount = parseFloat(session.session_tip_amount || '0');
+      const netCashOut = Math.max(0, buyInAmount - rakeAmount - tipAmount);
+
+      // End the session
+      const { data: updatedSession, error: updateError } = await supabase
+        .from('seat_requests')
+        .update({
+          status: 'completed',
+          session_cash_out_amount: netCashOut.toFixed(2),
+          cashout_window_active: false,
+          last_cashout_attempt: now.toISOString()
+        })
+        .eq('id', sessionId)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('❌ [SESSION CASH OUT] Update failed:', updateError);
+        return res.status(500).json({ error: 'Failed to process cash out' });
+      }
+
+      // Log session end event
+      await supabase.from('transactions').insert({
+        player_id: playerId,
+        session_id: sessionId,
+        table_id: session.table_id,
+        type: 'cash_out',
+        amount: netCashOut.toFixed(2),
+        description: `Session ended - Cash out ₹${netCashOut.toFixed(2)}`,
+        session_event_type: 'session_end',
+        session_duration: sessionDurationMinutes,
+        status: 'completed'
+      });
+
+      // Update player balance (add cash out amount)
+      const { data: player } = await supabase
+        .from('players')
+        .select('balance')
+        .eq('id', playerId)
+        .single();
+
+      if (player) {
+        const currentBalance = parseFloat(player.balance || '0');
+        const newBalance = currentBalance + netCashOut;
+
+        await supabase
+          .from('players')
+          .update({ balance: newBalance.toFixed(2) })
+          .eq('id', playerId);
+      }
+
+      // Send push notification
+      await pusher.trigger(`player-${playerId}`, 'session-ended', {
+        sessionId,
+        cashOutAmount: netCashOut.toFixed(2),
+        sessionDuration: sessionDurationMinutes,
+        message: `Session ended. Cash out: ₹${netCashOut.toFixed(2)}`
+      });
+
+      console.log(`✅ [SESSION CASH OUT] Session ${sessionId} ended with ₹${netCashOut.toFixed(2)} cash out`);
+      res.json({ 
+        message: 'Cash out successful',
+        cashOutAmount: netCashOut.toFixed(2),
+        sessionDuration: sessionDurationMinutes,
+        session: updatedSession
+      });
+
+    } catch (error: any) {
+      console.error('❌ [SESSION CASH OUT] Error:', error);
+      res.status(500).json({ error: 'Failed to process cash out' });
+    }
+  });
+
+  // Get session ledger/activity log
+  app.get('/api/session-ledger/:playerId/:sessionId?', async (req, res) => {
+    try {
+      const { playerId, sessionId } = req.params;
+      
+      console.log(`📊 [SESSION LEDGER] Fetching ledger for player ${playerId}, session ${sessionId || 'all'}`);
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      let query = supabase
+        .from('transactions')
+        .select('*')
+        .eq('player_id', playerId)
+        .in('type', ['buy_in', 'cash_out', 'rake', 'tip', 'call_time', 'session_start', 'session_end'])
+        .order('created_at', { ascending: false });
+
+      if (sessionId && sessionId !== 'undefined') {
+        query = query.eq('session_id', sessionId);
+      }
+
+      const { data: ledger, error } = await query.limit(50);
+
+      if (error) {
+        console.error('❌ [SESSION LEDGER] Fetch failed:', error);
+        return res.status(500).json({ error: 'Failed to fetch session ledger' });
+      }
+
+      console.log(`✅ [SESSION LEDGER] Returned ${ledger?.length || 0} entries`);
+      res.json(ledger || []);
+
+    } catch (error: any) {
+      console.error('❌ [SESSION LEDGER] Error:', error);
+      res.status(500).json({ error: 'Failed to fetch session ledger' });
+    }
+  });
+
   // ========== STAFF PORTAL KYC ENDPOINTS ==========
   
   // Get all players with KYC status for staff portal

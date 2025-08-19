@@ -58,11 +58,32 @@ export const seatRequests = pgTable("seat_requests", {
   universalId: text("universal_id").unique(), // Enterprise-grade universal ID
   playerId: integer("player_id").references(() => players.id),
   tableId: text("table_id").notNull(), // Changed to text to support UUID table IDs from poker_tables
-  status: text("status").notNull().default("waiting"), // waiting, approved, rejected
+  status: text("status").notNull().default("waiting"), // waiting, approved, rejected, seated, active
   position: integer("position").default(0),
   seatNumber: integer("seat_number"), // Preferred seat number (1-9)
   notes: text("notes"), // Additional notes for seat reservation
   estimatedWait: integer("estimated_wait").default(0), // in minutes
+  
+  // === PLAYTIME TRACKING EXTENSIONS ===
+  sessionStartTime: timestamp("session_start_time"), // When player was seated at table
+  minPlayTime: integer("min_play_time_minutes").default(30), // Minimum play time required (from table config)
+  callTimeWindow: integer("call_time_window_minutes").default(10), // Call time window duration
+  callTimePlayPeriod: integer("call_time_play_period_minutes").default(5), // Required play period before next call time
+  cashoutWindow: integer("cashout_window_minutes").default(3), // Cashout window after call time
+  
+  // Session state tracking
+  callTimeStarted: timestamp("call_time_started"), // When call time was initiated
+  callTimeEnds: timestamp("call_time_ends"), // When current call time window ends
+  cashoutWindowActive: boolean("cashout_window_active").default(false), // Is cashout window currently open
+  cashoutWindowEnds: timestamp("cashout_window_ends"), // When cashout window closes
+  lastCashoutAttempt: timestamp("last_cashout_attempt"), // Last time player tried to cash out
+  
+  // Financial tracking
+  sessionBuyInAmount: text("session_buy_in_amount").default("0.00"), // Total buy-in for this session
+  sessionCashOutAmount: text("session_cash_out_amount").default("0.00"), // Total cash-out for this session
+  sessionRakeAmount: text("session_rake_amount").default("0.00"), // Total rake for this session
+  sessionTipAmount: text("session_tip_amount").default("0.00"), // Total tips for this session
+  
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -110,11 +131,21 @@ export const transactions = pgTable("transactions", {
   id: serial("id").primaryKey(),
   universalId: text("universal_id").unique(), // Enterprise-grade universal ID
   playerId: integer("player_id").references(() => players.id),
-  type: text("type").notNull(), // deposit, withdrawal, win, loss
+  type: text("type").notNull(), // deposit, withdrawal, win, loss, buy_in, cash_out, rake, tip, call_time, session_start, session_end
   amount: text("amount").notNull(),
   description: text("description"),
   staffId: text("staff_id"), // For cashier transactions
   status: text("status").notNull().default("completed"), // completed, pending, cancelled
+  
+  // === SESSION EVENT TRACKING EXTENSIONS ===
+  sessionId: integer("session_id").references(() => seatRequests.id), // Link to seat request/session
+  tableId: text("table_id"), // Table where transaction occurred
+  tableName: text("table_name"), // Table name for quick reference
+  sessionEventType: text("session_event_type"), // session_join, buy_in, call_time_start, call_time_end, cashout_attempt, session_end
+  sessionDuration: integer("session_duration_minutes"), // Duration in minutes (for session_end events)
+  rakePercentage: text("rake_percentage"), // Rake percentage applied
+  tipRecipient: text("tip_recipient"), // Dealer name or staff who received tip
+  
   createdAt: timestamp("created_at").defaultNow(),
 });
 

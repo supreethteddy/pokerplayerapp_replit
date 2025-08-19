@@ -60,6 +60,7 @@ import NotificationPopup from "./NotificationPopup";
 
 import PlayerChatSystem from "./PlayerChatSystem";
 import NotificationHistoryTab from "./NotificationHistoryTab";
+import PlaytimeTracker from "./PlaytimeTracker";
 
 
 // Scrollable Offers Display Component
@@ -416,6 +417,11 @@ function PlayerDashboard() {
     refetchOnWindowFocus: true,
     staleTime: 0, // Always get fresh data
   });
+
+  // Find current active session for playtime tracking
+  const currentActiveSession = seatRequests?.find(req => 
+    req.status === 'active' && req.sessionStartTime
+  );
 
   // Fetch tournaments from staff portal
   const { data: tournaments, isLoading: tournamentsLoading } = useQuery({
@@ -1438,6 +1444,12 @@ function PlayerDashboard() {
               <Gift className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger 
+              value="session" 
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+            >
+              <Clock className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
+            </TabsTrigger>
+            <TabsTrigger 
               value="balance" 
               className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
             >
@@ -1761,6 +1773,16 @@ function PlayerDashboard() {
           {/* Offers Tab - Staff Managed */}
           <TabsContent value="offers" className="space-y-4">
             <ScrollableOffersDisplay />
+          </TabsContent>
+
+          {/* Session Tab - Advanced Playtime Tracking */}
+          <TabsContent value="session" className="space-y-4">
+            <div className="max-w-4xl mx-auto">
+              <PlaytimeTracker 
+                playerId={user?.id?.toString() || ''} 
+                currentSession={currentActiveSession || null}
+              />
+            </div>
           </TabsContent>
 
           {/* Balance Tab - Simplified Cash Balance System */}

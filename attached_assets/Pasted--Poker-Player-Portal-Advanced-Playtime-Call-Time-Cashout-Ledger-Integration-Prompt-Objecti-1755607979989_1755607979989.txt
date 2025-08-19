@@ -1,0 +1,43 @@
+# Poker Player Portal – Advanced Playtime, Call Time, Cashout & Ledger Integration Prompt
+
+**Objective:**  
+Enhance the existing Poker Player Portal with the requirements below, strictly building on existing code/tables only. No new schemas or endpoints. Add/upgrade only.
+
+---
+
+## 1. PLAYTIME, CALL TIME & CASHOUT CYCLE LOGIC
+
+- For every seat session, update the player’s timeline (using only the current session/table join logic):
+    - Track: `session_start_time`, table’s `min_play_time`, `call_time_window`, `call_time_play_period`, `cashout_window`, `actual cashout_time`
+- UI must show live countdowns:
+    - Until minimum play time completion.
+    - Until “call time” becomes available and remaining window.
+    - When “call time” is started, show “cashout” button with a timer based on table config.
+    - If player fails to cash out in the allowed window, button disappears, “call time” restarts after required period.
+
+## 2. ACCOUNT & LEDGER DISPLAY (NO NEW TABLES)
+
+- In the player profile and active table views:
+    - List all buy-ins, cashouts, session join, call time, call time play, cashout times as a 1-line-per-cycle event log.
+    - Clearly show rake and dealer tips added to/debited from the player’s session, using only existing account/tip fields/tables.
+
+## 3. NOTIFICATIONS
+
+- Fix and surface all real-time notifications (Pusher/OneSignal):
+    - For: call time eligibility, cashout window open, session end, tips/rake debited, staff messages.
+    - Use current logic – DO NOT change channels, just ensure player is subscribed and UI displays badges/popups/notifications perfectly.
+
+## 4. CONSTRAINTS
+
+- **Do NOT create any new tables, schemas, endpoints, or background jobs. Only use/extend the current setup.**
+- **Do NOT disturb or break any chat, wallet, feedback, or authentication feature.**
+- All feature additions must be backward-compatible and non-breaking.
+
+## 5. TESTS
+
+- Verify all timers, event logs, and actions (call time, cashout, tips/rake) appear instantly and accurately.
+- Ensure push notifications are live and visible to players as intended.
+- Review the ledger/log view for each player for accuracy and no gaps across all session events.
+
+---
+**Do not introduce any new database objects or connections. Upgrade only.**
