@@ -396,6 +396,16 @@ function PlayerDashboard() {
   
   // Document viewer removed as per requirements
 
+  // Email verification notification state
+  const [showEmailVerificationBanner, setShowEmailVerificationBanner] = useState(false);
+  
+  // Check if user needs email verification
+  useEffect(() => {
+    if (user && user.needsEmailVerification) {
+      setShowEmailVerificationBanner(true);
+    }
+  }, [user]);
+
   // Fetch live tables with optimized settings
   const { data: tables, isLoading: tablesLoading } = useQuery<TableType[]>({
     queryKey: ['/api/tables'],
@@ -1404,6 +1414,28 @@ function PlayerDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-900 w-full overflow-x-hidden">
+      {/* Email Verification Banner */}
+      {showEmailVerificationBanner && user?.needsEmailVerification && (
+        <div className="bg-amber-600 border-b border-amber-500 px-6 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <AlertTriangle className="w-5 h-5 mr-2 text-white" />
+              <span className="text-white font-medium">
+                Please verify your email address. Check your inbox for the verification link.
+              </span>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-white hover:bg-amber-700"
+              onClick={() => setShowEmailVerificationBanner(false)}
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+      
       {/* Push Notification Popup System */}
       <NotificationPopup 
         userId={Number(user.id)} 

@@ -338,7 +338,6 @@ export default function ClerkSignUpPage() {
             </p>
             <SignUp
               appearance={{
-                baseTheme: "dark",
                 elements: {
                   formButtonPrimary: "bg-emerald-600 hover:bg-emerald-700",
                   card: "bg-slate-800 border-slate-700",

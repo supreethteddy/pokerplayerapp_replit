@@ -238,9 +238,11 @@ export function useUltraFastAuth() {
           password: password
         });
         
-        if (error) {
-          console.warn('⚠️ [ULTRA-FAST AUTH] Supabase session creation warning:', error.message);
+        if (error && error.message.includes('Invalid login credentials')) {
+          console.warn('⚠️ [ULTRA-FAST AUTH] Supabase session creation warning (user may not exist in auth):', error.message);
           // Continue anyway as our backend authentication was successful
+        } else if (error) {
+          console.warn('⚠️ [ULTRA-FAST AUTH] Supabase session creation warning:', error.message);
         } else {
           console.log('✅ [ULTRA-FAST AUTH] Supabase session established successfully');
         }

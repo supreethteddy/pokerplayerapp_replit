@@ -23,17 +23,14 @@ export default function DirectClubsAuth() {
   const { user, signIn, signUp } = useUltraFastAuth();
   const { toast } = useToast();
 
-  // Redirect if user is already authenticated
+  // Show success message if user is authenticated
   if (user) {
-    // Use setTimeout to prevent render loops
-    setTimeout(() => {
-      window.location.href = '/dashboard';
-    }, 100);
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white font-medium">Redirecting to dashboard...</p>
+          <p className="text-white font-medium">Successfully signed in!</p>
+          <p className="text-slate-400 text-sm mt-2">Redirecting to dashboard...</p>
         </div>
       </div>
     );
@@ -54,9 +51,13 @@ export default function DirectClubsAuth() {
         const result = await signIn(email, password);
         
         if (result.success) {
-          // Success is handled by useAuth hook
+          toast({
+            title: "Welcome back!",
+            description: "Successfully signed in to your account.",
+          });
+          // Success is handled by useAuth hook - redirect will happen automatically
         } else {
-          throw new Error('Sign in failed');
+          throw new Error(result.error || 'Sign in failed');
         }
       } else {
         if (!email || !firstName || !lastName || !phone) {

@@ -3410,7 +3410,19 @@ export function registerRoutes(app: Express) {
         }
       }
       
-      // Step 4: Return complete player data
+      // Step 4: Check email verification and allow login regardless
+      let loginMessage = "Login successful";
+      let needsEmailVerification = false;
+      
+      if (!player.email_verified) {
+        loginMessage = "Login successful - Please verify your email";
+        needsEmailVerification = true;
+        console.log(`📧 [AUTH SIGNIN] User needs email verification: ${email}`);
+      } else if (player.kyc_status === 'approved') {
+        loginMessage = "Login successful - KYC approved";
+      }
+      
+      // Step 5: Return complete player data
       const playerData = {
         id: player.id.toString(),
         email: player.email,
@@ -3418,6 +3430,8 @@ export function registerRoutes(app: Express) {
         lastName: player.last_name,
         phone: player.phone || '',
         kycStatus: player.kyc_status,
+        emailVerified: Boolean(player.email_verified),
+        needsEmailVerification,
         balance: player.balance || '0.00',
         realBalance: player.balance || '0.00',
         creditBalance: player.current_credit ? String(player.current_credit) : '0.00',
@@ -3436,42 +3450,21 @@ export function registerRoutes(app: Express) {
         authToken: authUser?.id || player.supabase_id // Use as session identifier
       };
       
-      // CRITICAL SECURITY CHECK: Email + KYC Verification Gate
-      // First check email verification
-      if (!player.email_verified) {
-        console.log(`🚫 [AUTH SIGNIN] Email not verified for: ${email}`);
-        return res.status(403).json({
-          error: 'EMAIL_VERIFICATION_REQUIRED',
-          message: 'Please verify your email address before logging in. Check your inbox for verification link.',
-          playerEmail: player.email,
-          playerId: player.id,
-          needsEmailVerification: true
-        });
+      // FLEXIBLE LOGIN SYSTEM: Allow login and show appropriate messaging
+      // Users can login and will see notifications about email/KYC status
+      console.log(`✅ [AUTH SIGNIN] Flexible login allowed - Email verified: ${player.email_verified}, KYC: ${player.kyc_status}`);
+      
+      // Set appropriate message based on user status
+      let statusMessage = loginMessage;
+      if (!player.email_verified && player.kyc_status !== 'approved') {
+        statusMessage = "Login successful - Please verify your email and complete KYC";
+      } else if (!player.email_verified) {
+        statusMessage = "Login successful - Please verify your email";
+      } else if (player.kyc_status !== 'approved') {
+        statusMessage = `Login successful - KYC status: ${player.kyc_status}`;
       }
 
-      // Then check KYC approval - ONLY approved users can login
-      if (player.kyc_status !== 'approved') {
-        console.log(`🚫 [AUTH SIGNIN] KYC verification failed for: ${email} (Status: ${player.kyc_status})`);
-        
-        const kycBlockMessages = {
-          'pending': 'Your account is pending KYC review. Please wait for staff approval before accessing the portal.',
-          'submitted': 'Your KYC documents are being reviewed by our team. Staff has not approved your account yet. Please wait for approval.',
-          'rejected': 'Your KYC documents have been rejected by our staff. Please contact support for assistance.',
-          'incomplete': 'Please complete your KYC document submission before accessing the portal.'
-        };
-        
-        const blockMessage = kycBlockMessages[player.kyc_status as keyof typeof kycBlockMessages] || 'KYC verification required. Please complete document submission.';
-        
-        return res.status(403).json({ 
-          error: 'KYC_VERIFICATION_REQUIRED',
-          message: blockMessage,
-          kycStatus: player.kyc_status,
-          playerEmail: player.email,
-          playerId: player.id
-        });
-      }
-
-      console.log(`✅ [AUTH SIGNIN] KYC verified - Login successful: ${email} (Player ID: ${player.id})`);
+      console.log(`✅ [AUTH SIGNIN] Login successful: ${email} (Player ID: ${player.id}) - ${statusMessage}`);
       
       // Log authentication activity using the existing connection
       try {
@@ -3487,7 +3480,7 @@ export function registerRoutes(app: Express) {
       res.json({
         success: true,
         user: playerData,
-        message: 'Login successful - KYC approved'
+        message: statusMessage
       });
       
     } catch (error: any) {
