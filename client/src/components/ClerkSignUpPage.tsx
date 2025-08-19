@@ -61,10 +61,12 @@ export default function ClerkSignUpPage() {
             variant: "destructive"
           });
           
-          // Redirect to login instead of creating duplicate
+          // Store existing player data and let App.tsx handle redirect
+          sessionStorage.setItem('existing_player_redirect', JSON.stringify(existingPlayerData));
+          
           setTimeout(() => {
-            window.location.href = '/login';
-          }, 2000);
+            window.location.reload();
+          }, 1500);
           
           setLoading(false);
           return;

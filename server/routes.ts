@@ -1406,7 +1406,7 @@ export function registerRoutes(app: Express) {
         lastName,
         phone,
         clerkUserId,
-        supabaseId: supabaseId,
+        supabaseUserId: supabaseId,
         password,
         metadata: { signupSource: 'player_portal' }
       });
@@ -1432,7 +1432,7 @@ export function registerRoutes(app: Express) {
       console.error('❌ [SIGNUP API] Error:', error);
       
       // Handle duplicate email - redirect to KYC process if player exists
-      if (error.code === '23505' && error.constraint === 'players_email_unique') {
+      if ((error as any).code === '23505' && (error as any).constraint === 'players_email_unique') {
         console.log('🔄 [SIGNUP API] Player exists - checking KYC status for:', req.body.email);
         
         try {
@@ -1469,7 +1469,7 @@ export function registerRoutes(app: Express) {
         }
       }
       
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: (error as any).message || 'Unknown error' });
     }
   });
 
@@ -2274,7 +2274,7 @@ export function registerRoutes(app: Express) {
             waitlistId: waitlistData.id,
             timestamp: new Date().toISOString(),
             playerName: `Player ${playerId}`,
-            tableName: tableName || `Table ${tableId}`
+            tableName: `Table ${tableId}`
           });
           
           console.log(`🚀 [NANOSECOND SYNC] Real-time notification sent to staff portal for player ${playerId}`);
