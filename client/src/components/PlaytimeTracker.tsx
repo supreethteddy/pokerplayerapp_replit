@@ -29,6 +29,12 @@ interface LiveSession {
   canCashOut: boolean;
   isLive: boolean;
   sessionStartTime: string;
+  
+  // Enhanced cashout window properties (from backend calculations)
+  cashoutWindowStartMinutes: number;
+  cashoutWindowEndMinutes: number;
+  inCashoutWindow: boolean;
+  cashoutTimeRemaining: number;
 }
 
 interface PlaytimeTrackerProps {
@@ -39,6 +45,41 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Listen for real-time timing rule updates from staff portal
+  useEffect(() => {
+    if (!playerId) return;
+
+    // Import Pusher asynchronously for real-time synchronization
+    import('pusher-js').then(({ default: Pusher }) => {
+      const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, {
+        cluster: import.meta.env.VITE_PUSHER_CLUSTER,
+      });
+
+      const playerChannel = pusher.subscribe(`player-${playerId}`);
+      
+      // Listen for timing rule updates with nanosecond-level sync
+      playerChannel.bind('timing_rules_updated', (data: any) => {
+        console.log('🔧 [TIMING RULES] Staff updated table rules:', data);
+        
+        // Show immediate notification to player
+        toast({
+          title: "Table Rules Updated",
+          description: `${data.tableName}: Timing rules changed by ${data.updatedBy}`,
+          variant: "default",
+        });
+
+        // Invalidate session query to fetch updated timing configuration
+        queryClient.invalidateQueries({ queryKey: ['/api/live-sessions', playerId] });
+      });
+
+      return () => {
+        playerChannel.unbind('timing_rules_updated');
+        pusher.unsubscribe(`player-${playerId}`);
+        pusher.disconnect();
+      };
+    }).catch(console.error);
+  }, [playerId, toast, queryClient]);
 
   // Fetch live session data with proper response structure
   const { data: sessionResponse, isLoading, error } = useQuery<{hasActiveSession: boolean, session: LiveSession | null}>({
@@ -134,45 +175,47 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
     return Math.max(0, Math.ceil(timeUntilCallTime));
   };
 
-  // Calculate cashout window timing
+  // Calculate cashout window timing using enhanced backend data
   const getCashoutWindowStatus = () => {
-    if (!session?.sessionStartTime) return { inWindow: false, timeRemaining: 0, timeUntilWindow: 0 };
+    if (!session) return { inWindow: false, timeRemaining: 0, timeUntilWindow: 0 };
     
-    const start = new Date(session.sessionStartTime);
-    const now = new Date();
-    const minutesPlayed = (now.getTime() - start.getTime()) / (1000 * 60);
+    // Use backend's real-time calculations with dynamic timing rules
+    const inWindow = session.inCashoutWindow || false;
+    const timeRemaining = session.cashoutTimeRemaining || 0;
     
-    // Cashout window starts after minimum play time and lasts for cashoutWindowMinutes
-    const windowStartTime = session.minPlayTimeMinutes;
-    const windowEndTime = windowStartTime + session.cashoutWindowMinutes;
-    
-    if (minutesPlayed < windowStartTime) {
-      // Before window opens
-      return {
-        inWindow: false,
-        timeRemaining: 0,
-        timeUntilWindow: Math.ceil(windowStartTime - minutesPlayed)
-      };
-    } else if (minutesPlayed >= windowStartTime && minutesPlayed <= windowEndTime) {
-      // Inside cashout window
-      return {
-        inWindow: true,
-        timeRemaining: Math.ceil(windowEndTime - minutesPlayed),
-        timeUntilWindow: 0
-      };
-    } else {
-      // Window has closed
-      return {
-        inWindow: false,
-        timeRemaining: 0,
-        timeUntilWindow: 0
-      };
+    // Calculate time until window opens if not in window and before start time
+    let timeUntilWindow = 0;
+    if (!inWindow && session.sessionStartTime) {
+      const start = new Date(session.sessionStartTime);
+      const now = new Date();
+      const minutesPlayed = (now.getTime() - start.getTime()) / (1000 * 60);
+      const windowStartTime = session.cashoutWindowStartMinutes || session.minPlayTimeMinutes || 30;
+      
+      if (minutesPlayed < windowStartTime) {
+        timeUntilWindow = Math.ceil(windowStartTime - minutesPlayed);
+      }
     }
+    
+    return { inWindow, timeRemaining, timeUntilWindow };
   };
 
   const sessionDuration = getSessionDuration();
   const timeUntilCallTime = getTimeUntilCallTime();
   const cashoutStatus = getCashoutWindowStatus();
+  
+  // Calculate time until minimum play time is completed
+  const getTimeUntilMinPlay = () => {
+    if (!session?.sessionStartTime || session.minPlayTimeCompleted) return 0;
+    
+    const start = new Date(session.sessionStartTime);
+    const now = new Date();
+    const minutesPlayed = (now.getTime() - start.getTime()) / (1000 * 60);
+    const timeUntilMinPlay = session.minPlayTimeMinutes - minutesPlayed;
+    
+    return Math.max(0, Math.ceil(timeUntilMinPlay));
+  };
+  
+  const timeUntilMinPlay = getTimeUntilMinPlay();
 
   // Don't render if no session or not loading
   if (isLoading) {
@@ -262,26 +305,43 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
                 {session.callTimeEligible ? 'Call Time' : `Call Time in ${timeUntilCallTime}m`}
               </Button>
 
-              {/* Cash Out Button */}
-              <Button
-                onClick={() => cashOutMutation.mutate()}
-                disabled={!session.canCashOut || cashOutMutation.isPending}
-                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50"
-              >
-                <DollarSign className="h-4 w-4 mr-2" />
-                {session.canCashOut ? 'Cash Out' : `Cash Out in ${timeUntilMinPlay}m`}
-              </Button>
+              {/* Cash Out Button - Only shows during window */}
+              {cashoutStatus.inWindow ? (
+                <Button
+                  onClick={() => cashOutMutation.mutate()}
+                  disabled={cashOutMutation.isPending}
+                  className={`flex-1 ${
+                    cashoutStatus.timeRemaining <= 5 
+                      ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
+                      : 'bg-green-600 hover:bg-green-700'
+                  } transition-all duration-300`}
+                >
+                  <DollarSign className="h-4 w-4 mr-2" />
+                  Cash Out ({cashoutStatus.timeRemaining}m left)
+                </Button>
+              ) : (
+                <Button
+                  disabled={true}
+                  className="flex-1 bg-gray-600 opacity-50 cursor-not-allowed"
+                >
+                  <DollarSign className="h-4 w-4 mr-2" />
+                  {cashoutStatus.timeUntilWindow > 0 
+                    ? `Cash Out in ${cashoutStatus.timeUntilWindow}m`
+                    : 'Cash Out Window Closed'
+                  }
+                </Button>
+              )}
             </div>
 
-            {/* Status Indicators */}
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            {/* Enhanced Status Indicators with Cashout Window */}
+            <div className="grid grid-cols-3 gap-2 text-xs">
               <div className={`p-2 rounded ${session.minPlayTimeCompleted ? 'bg-green-900/50 border border-green-500/50' : 'bg-red-900/50 border border-red-500/50'}`}>
                 <div className="flex items-center justify-between">
                   <span className={session.minPlayTimeCompleted ? 'text-green-400' : 'text-red-400'}>
-                    Min Play Time
+                    Min Play
                   </span>
                   <span className={session.minPlayTimeCompleted ? 'text-green-300' : 'text-red-300'}>
-                    {session.minPlayTimeCompleted ? '✓' : `${timeUntilMinPlay}m left`}
+                    {session.minPlayTimeCompleted ? '✓' : `${timeUntilMinPlay}m`}
                   </span>
                 </div>
               </div>
@@ -291,21 +351,68 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
                     Call Time
                   </span>
                   <span className={session.callTimeEligible ? 'text-green-300' : 'text-yellow-300'}>
-                    {session.callTimeEligible ? 'Available' : `${timeUntilCallTime}m`}
+                    {session.callTimeEligible ? '✓' : `${timeUntilCallTime}m`}
+                  </span>
+                </div>
+              </div>
+              <div className={`p-2 rounded ${
+                cashoutStatus.inWindow 
+                  ? (cashoutStatus.timeRemaining <= 5 
+                      ? 'bg-red-900/50 border border-red-500/50 animate-pulse' 
+                      : 'bg-green-900/50 border border-green-500/50')
+                  : 'bg-gray-900/50 border border-gray-500/50'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className={
+                    cashoutStatus.inWindow 
+                      ? (cashoutStatus.timeRemaining <= 5 ? 'text-red-400' : 'text-green-400')
+                      : 'text-gray-400'
+                  }>
+                    Cashout
+                  </span>
+                  <span className={
+                    cashoutStatus.inWindow 
+                      ? (cashoutStatus.timeRemaining <= 5 ? 'text-red-300' : 'text-green-300')
+                      : 'text-gray-300'
+                  }>
+                    {cashoutStatus.inWindow 
+                      ? `${cashoutStatus.timeRemaining}m` 
+                      : (cashoutStatus.timeUntilWindow > 0 ? `${cashoutStatus.timeUntilWindow}m` : '✗')
+                    }
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Session Rules */}
-            <div className="bg-gray-800/50 p-3 rounded text-xs text-gray-400">
-              <div className="font-medium mb-2">Timing Rules:</div>
+            {/* Dynamic Timing Rules with Real-Time Updates */}
+            <div className="bg-gray-800/50 p-3 rounded text-xs text-gray-400 border border-gray-700">
+              <div className="font-medium mb-2 flex items-center justify-between">
+                <span>Staff-Configurable Timing Rules:</span>
+                <Badge variant="outline" className="text-xs px-2 py-1 bg-blue-900/30 border-blue-500/50 text-blue-300">
+                  Live
+                </Badge>
+              </div>
               <ul className="space-y-1">
-                <li>• Minimum play time: {session.minPlayTimeMinutes} minutes</li>
-                <li>• Call time available after: {session.callTimeWindowMinutes} minutes</li>
-                <li>• Call time duration: {session.callTimePlayPeriodMinutes} minutes</li>
-                <li>• Cash out window: {session.cashoutWindowMinutes} minutes</li>
+                <li className="flex justify-between">
+                  <span>• Minimum play time:</span> 
+                  <span className="font-medium text-white">{session.minPlayTimeMinutes}m</span>
+                </li>
+                <li className="flex justify-between">
+                  <span>• Call time window:</span> 
+                  <span className="font-medium text-white">{session.callTimeWindowMinutes}m</span>
+                </li>
+                <li className="flex justify-between">
+                  <span>• Call time duration:</span> 
+                  <span className="font-medium text-white">{session.callTimePlayPeriodMinutes}m</span>
+                </li>
+                <li className="flex justify-between">
+                  <span>• Cashout window:</span> 
+                  <span className="font-medium text-white">{session.cashoutWindowMinutes}m</span>
+                </li>
               </ul>
+              <div className="mt-2 pt-2 border-t border-gray-700 text-xs text-gray-500">
+                Cashout window: {session.cashoutWindowStartMinutes}m - {session.cashoutWindowEndMinutes}m
+              </div>
             </div>
           </div>
         </DialogContent>

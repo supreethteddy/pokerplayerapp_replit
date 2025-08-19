@@ -3130,11 +3130,18 @@ export function registerRoutes(app: Express) {
       const currentChips = parseFloat(tableSession.current_chips || '0');
       const buyInAmount = parseFloat(tableSession.buy_in_amount || '0');
 
-      // Session timing rules (configurable per table)
-      const minPlayTimeMinutes = 30; // Minimum play time before cash out
-      const callTimeWindowMinutes = 45; // When call time starts
-      const callTimePlayPeriodMinutes = 15; // How long player has to play during call time
-      const cashoutWindowMinutes = 10; // How long the cash out window stays open
+      // Dynamic timing rules from table configuration (staff-configurable)
+      const { data: tableConfig, error: configError } = await supabase
+        .from('poker_tables')
+        .select('min_play_time_minutes, call_time_window_minutes, call_time_play_period_minutes, cashout_window_minutes')
+        .eq('id', tableSession.table_id)
+        .single();
+        
+      // Use table-specific timing rules if available, otherwise defaults
+      const minPlayTimeMinutes = tableConfig?.min_play_time_minutes || 30;
+      const callTimeWindowMinutes = tableConfig?.call_time_window_minutes || 45;
+      const callTimePlayPeriodMinutes = tableConfig?.call_time_play_period_minutes || 15;
+      const cashoutWindowMinutes = tableConfig?.cashout_window_minutes || 15; // Default 15-minute window
 
       const responseData = {
         id: tableSession.id,
@@ -3156,9 +3163,17 @@ export function registerRoutes(app: Express) {
         callTimePlayPeriodMinutes,
         cashoutWindowMinutes,
         
-        // Status flags
+        // Enhanced cashout window logic
         minPlayTimeCompleted: sessionDurationMinutes >= minPlayTimeMinutes,
         callTimeEligible: sessionDurationMinutes >= callTimeWindowMinutes,
+        
+        // Cashout window calculations (staff-configurable)
+        cashoutWindowStartMinutes: minPlayTimeMinutes,
+        cashoutWindowEndMinutes: minPlayTimeMinutes + cashoutWindowMinutes,
+        inCashoutWindow: sessionDurationMinutes >= minPlayTimeMinutes && 
+                        sessionDurationMinutes <= (minPlayTimeMinutes + cashoutWindowMinutes),
+        cashoutTimeRemaining: Math.max(0, (minPlayTimeMinutes + cashoutWindowMinutes) - sessionDurationMinutes),
+        
         canCashOut: sessionDurationMinutes >= minPlayTimeMinutes,
         isLive: true,
         
@@ -3172,6 +3187,101 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error('❌ [LIVE SESSION] Error:', error);
       res.status(500).json({ error: 'Failed to fetch live session data' });
+    }
+  });
+
+  // Staff Portal: Update Table Timing Rules with Real-Time Sync
+  app.put("/api/tables/:tableId/timing-rules", async (req, res) => {
+    try {
+      const { tableId } = req.params;
+      const { minPlayTimeMinutes, callTimeWindowMinutes, callTimePlayPeriodMinutes, cashoutWindowMinutes, updatedBy } = req.body;
+      
+      console.log(`🔧 [TIMING RULES] Updating rules for table: ${tableId} by ${updatedBy}`);
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Update table timing rules
+      const { data: updatedTable, error } = await supabase
+        .from('poker_tables')
+        .update({
+          min_play_time_minutes: minPlayTimeMinutes,
+          call_time_window_minutes: callTimeWindowMinutes,
+          call_time_play_period_minutes: callTimePlayPeriodMinutes,
+          cashout_window_minutes: cashoutWindowMinutes,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', tableId)
+        .select('name')
+        .single();
+
+      if (error) {
+        console.error('❌ [TIMING RULES] Update error:', error);
+        return res.status(500).json({ error: 'Failed to update timing rules' });
+      }
+
+      // Get all active sessions for this table
+      const { data: activeSessions, error: sessionError } = await supabase
+        .from('table_sessions')
+        .select('player_id')
+        .eq('table_id', tableId)
+        .eq('status', 'active');
+
+      if (sessionError) {
+        console.warn('⚠️ [TIMING RULES] Could not fetch active sessions:', sessionError);
+      }
+
+      // Notify all players in active sessions about timing rule changes
+      if (activeSessions && activeSessions.length > 0) {
+        const notificationPromises = activeSessions.map(session => {
+          return pusher.trigger(`player-${session.player_id}`, 'timing_rules_updated', {
+            tableId,
+            tableName: updatedTable?.name || 'Unknown Table',
+            newRules: {
+              minPlayTimeMinutes,
+              callTimeWindowMinutes,
+              callTimePlayPeriodMinutes,
+              cashoutWindowMinutes
+            },
+            updatedBy,
+            timestamp: new Date().toISOString(),
+            message: 'Table timing rules have been updated by staff'
+          });
+        });
+
+        await Promise.all(notificationPromises);
+        console.log(`🔔 [TIMING RULES] Notified ${activeSessions.length} active players about rule changes`);
+      }
+
+      // Also notify staff portal about the successful update
+      await pusher.trigger('staff-notifications', 'timing_rules_updated', {
+        tableId,
+        tableName: updatedTable?.name || 'Unknown Table',
+        newRules: {
+          minPlayTimeMinutes,
+          callTimeWindowMinutes,
+          callTimePlayPeriodMinutes,
+          cashoutWindowMinutes
+        },
+        updatedBy,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log(`✅ [TIMING RULES] Successfully updated timing rules for table ${tableId}`);
+      res.json({ 
+        success: true, 
+        tableId,
+        tableName: updatedTable?.name,
+        activePlayersNotified: activeSessions?.length || 0,
+        message: 'Timing rules updated and players notified'
+      });
+
+    } catch (error: any) {
+      console.error('❌ [TIMING RULES] Error:', error);
+      res.status(500).json({ error: 'Failed to update timing rules' });
     }
   });
 
