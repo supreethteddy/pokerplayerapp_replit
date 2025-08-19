@@ -79,6 +79,7 @@ export function useUltraFastAuth() {
       setAuthChecked(true);
     } catch (error) {
       console.error('❌ [ULTRA-FAST AUTH] Session check error:', error);
+      // Don't let errors prevent the app from loading
       setLoading(false);
       setAuthChecked(true);
     }
@@ -141,7 +142,9 @@ export function useUltraFastAuth() {
     } catch (error: any) {
       if (error.name !== 'AbortError') {
         console.error('❌ [ULTRA-FAST AUTH] Fetch error:', error);
+        // Don't let errors prevent the app from loading
         setLoading(false);
+        setAuthChecked(true);
       }
     }
   };
