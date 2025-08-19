@@ -3065,6 +3065,299 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // ========== LIVE SESSION TRACKING API ==========
+  
+  // Get live sessions for a specific player (seated from waitlist)
+  app.get("/api/live-sessions/:playerId", async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      console.log(`🎯 [LIVE SESSION] Getting active sessions for player: ${playerId}`);
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Check for active table sessions
+      const { data: tableSession, error: sessionError } = await supabase
+        .from('table_sessions')
+        .select(`
+          *,
+          staff_tables:table_id (
+            id,
+            name,
+            game_type,
+            stakes,
+            max_players,
+            current_players
+          )
+        `)
+        .eq('player_id', playerId)
+        .eq('status', 'active')
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (sessionError && sessionError.code !== 'PGRST116') {
+        console.error('❌ [LIVE SESSION] Query error:', sessionError);
+        return res.status(500).json({ error: 'Database query failed' });
+      }
+
+      if (!tableSession) {
+        console.log(`📭 [LIVE SESSION] No active session found for player ${playerId}`);
+        return res.json({ hasActiveSession: false, session: null });
+      }
+
+      // Calculate session metrics
+      const sessionStart = new Date(tableSession.started_at);
+      const now = new Date();
+      const sessionDurationMinutes = Math.floor((now.getTime() - sessionStart.getTime()) / 1000 / 60);
+      
+      // Get table balance for current chips
+      const { data: tableBalance, error: balanceError } = await supabase
+        .from('table_balances')
+        .select('amount, buy_in_amount')
+        .eq('player_id', playerId)
+        .eq('table_id', tableSession.table_id)
+        .eq('is_active', true)
+        .single();
+
+      const currentChips = tableBalance?.amount || tableSession.current_chips || 0;
+      const buyInAmount = tableBalance?.buy_in_amount || tableSession.buy_in_amount || 0;
+
+      // Session timing rules (configurable per table)
+      const minPlayTimeMinutes = 30; // Minimum play time before cash out
+      const callTimeWindowMinutes = 45; // When call time starts
+      const callTimePlayPeriodMinutes = 15; // How long player has to play during call time
+      const cashoutWindowMinutes = 10; // How long the cash out window stays open
+
+      const sessionData = {
+        ...tableSession,
+        table: tableSession.staff_tables,
+        sessionDurationMinutes,
+        currentChips,
+        buyInAmount,
+        profitLoss: currentChips - buyInAmount,
+        
+        // Timing calculations
+        minPlayTimeMinutes,
+        callTimeWindowMinutes,
+        callTimePlayPeriodMinutes,
+        cashoutWindowMinutes,
+        
+        // Status flags
+        minPlayTimeCompleted: sessionDurationMinutes >= minPlayTimeMinutes,
+        callTimeEligible: sessionDurationMinutes >= callTimeWindowMinutes,
+        canCashOut: sessionDurationMinutes >= minPlayTimeMinutes,
+        
+        // Session start time for real-time calculations
+        sessionStartTime: tableSession.started_at
+      };
+
+      console.log(`✅ [LIVE SESSION] Active session found for player ${playerId} at table ${tableSession.staff_tables?.name}`);
+      res.json({ hasActiveSession: true, session: sessionData });
+
+    } catch (error: any) {
+      console.error('❌ [LIVE SESSION] Error:', error);
+      res.status(500).json({ error: 'Failed to fetch live session data' });
+    }
+  });
+
+  // Call Time Button - Start call time period
+  app.post("/api/live-sessions/:playerId/call-time", async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      console.log(`⏰ [CALL TIME] Starting call time for player: ${playerId}`);
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Get active session
+      const { data: session, error: sessionError } = await supabase
+        .from('table_sessions')
+        .select('*')
+        .eq('player_id', playerId)
+        .eq('status', 'active')
+        .single();
+
+      if (sessionError || !session) {
+        return res.status(404).json({ error: 'No active session found' });
+      }
+
+      // Calculate call time end (15 minutes from now)
+      const callTimeStart = new Date();
+      const callTimeEnd = new Date(callTimeStart.getTime() + 15 * 60 * 1000);
+
+      // Update session with call time data
+      const { error: updateError } = await supabase
+        .from('table_sessions')
+        .update({
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', session.id);
+
+      if (updateError) {
+        console.error('❌ [CALL TIME] Update error:', updateError);
+        return res.status(500).json({ error: 'Failed to start call time' });
+      }
+
+      // Send real-time update to player portal
+      await pusher.trigger(`player-${playerId}`, 'call_time_started', {
+        playerId,
+        sessionId: session.id,
+        callTimeStart: callTimeStart.toISOString(),
+        callTimeEnd: callTimeEnd.toISOString(),
+        playPeriodMinutes: 15,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log(`✅ [CALL TIME] Started for player ${playerId}, ends at ${callTimeEnd.toISOString()}`);
+      res.json({ 
+        success: true, 
+        callTimeStart: callTimeStart.toISOString(),
+        callTimeEnd: callTimeEnd.toISOString(),
+        message: 'Call time started - you have 15 minutes to continue playing'
+      });
+
+    } catch (error: any) {
+      console.error('❌ [CALL TIME] Error:', error);
+      res.status(500).json({ error: 'Failed to start call time' });
+    }
+  });
+
+  // Cash Out Button - Process table cash out
+  app.post("/api/live-sessions/:playerId/cash-out", async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      const { staffId } = req.body;
+      console.log(`💰 [CASH OUT] Processing cash out for player: ${playerId}`);
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Get active session and table balance
+      const { data: session, error: sessionError } = await supabase
+        .from('table_sessions')
+        .select(`
+          *,
+          staff_tables:table_id (name, game_type)
+        `)
+        .eq('player_id', playerId)
+        .eq('status', 'active')
+        .single();
+
+      if (sessionError || !session) {
+        return res.status(404).json({ error: 'No active session found' });
+      }
+
+      const { data: tableBalance, error: balanceError } = await supabase
+        .from('table_balances')
+        .select('*')
+        .eq('player_id', playerId)
+        .eq('table_id', session.table_id)
+        .eq('is_active', true)
+        .single();
+
+      const currentChips = tableBalance?.amount || session.current_chips || 0;
+      const buyInAmount = tableBalance?.buy_in_amount || session.buy_in_amount || 0;
+      const profitLoss = currentChips - buyInAmount;
+
+      // End the table session
+      const sessionEnd = new Date();
+      const { error: endSessionError } = await supabase
+        .from('table_sessions')
+        .update({
+          status: 'completed',
+          ended_at: sessionEnd.toISOString(),
+          current_chips: currentChips,
+          updated_at: sessionEnd.toISOString()
+        })
+        .eq('id', session.id);
+
+      if (endSessionError) {
+        console.error('❌ [CASH OUT] Session end error:', endSessionError);
+        return res.status(500).json({ error: 'Failed to end session' });
+      }
+
+      // Deactivate table balance
+      if (tableBalance) {
+        await supabase
+          .from('table_balances')
+          .update({ is_active: false, last_updated: sessionEnd.toISOString() })
+          .eq('id', tableBalance.id);
+      }
+
+      // Add chips back to player balance if profit
+      if (currentChips > 0) {
+        const { data: player, error: playerError } = await supabase
+          .from('players')
+          .select('balance')
+          .eq('id', playerId)
+          .single();
+
+        if (!playerError && player) {
+          const currentBalance = parseFloat(player.balance || '0');
+          const newBalance = currentBalance + currentChips;
+
+          await supabase
+            .from('players')
+            .update({ balance: newBalance.toString() })
+            .eq('id', playerId);
+
+          // Record transaction
+          await supabase
+            .from('transactions')
+            .insert({
+              player_id: playerId,
+              type: 'table_cash_out',
+              amount: currentChips,
+              description: `Cash out from ${session.staff_tables?.name || 'table'}`,
+              staff_id: staffId || 'system',
+              table_id: session.table_id,
+              status: 'completed'
+            });
+        }
+      }
+
+      // Send real-time updates
+      await pusher.trigger(`player-${playerId}`, 'session_ended', {
+        playerId,
+        sessionId: session.id,
+        tableName: session.staff_tables?.name,
+        finalChips: currentChips,
+        profitLoss,
+        sessionDuration: Math.floor((sessionEnd.getTime() - new Date(session.started_at).getTime()) / 1000 / 60),
+        timestamp: sessionEnd.toISOString()
+      });
+
+      await pusher.trigger(`player-${playerId}`, 'balance_updated', {
+        cashBalance: currentChips > 0 ? parseFloat(session.balance || '0') + currentChips : parseFloat(session.balance || '0'),
+        operation: 'table_cash_out',
+        amount: currentChips
+      });
+
+      console.log(`✅ [CASH OUT] Completed for player ${playerId}: ₹${currentChips} chips, P&L: ₹${profitLoss}`);
+      res.json({ 
+        success: true, 
+        finalChips: currentChips,
+        profitLoss,
+        tableName: session.staff_tables?.name,
+        message: 'Cash out completed successfully'
+      });
+
+    } catch (error: any) {
+      console.error('❌ [CASH OUT] Error:', error);
+      res.status(500).json({ error: 'Failed to process cash out' });
+    }
+  });
+
   // KYC approval email endpoint
   app.post('/api/auth/send-kyc-approval-email', async (req, res) => {
     try {
