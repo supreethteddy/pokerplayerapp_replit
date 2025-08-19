@@ -3073,58 +3073,59 @@ export function registerRoutes(app: Express) {
       const { playerId } = req.params;
       console.log(`🎯 [LIVE SESSION] Getting active sessions for player: ${playerId}`);
       
-      // Use local PostgreSQL for session data
-      const { Client } = await import('pg');
-      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
-      await pgClient.connect();
-
-      // Check for active table sessions in local PostgreSQL
-      const sessionQuery = `
-        SELECT * FROM table_sessions 
-        WHERE player_id = $1 AND status = 'active' 
-        ORDER BY started_at DESC 
-        LIMIT 1
-      `;
-      
-      const sessionResult = await pgClient.query(sessionQuery, [playerId]);
-      
-      if (sessionResult.rows.length === 0) {
-        await pgClient.end();
-        console.log(`📭 [LIVE SESSION] No active session found for player ${playerId}`);
-        return res.json({ hasActiveSession: false, session: null });
-      }
-
-      const tableSession = sessionResult.rows[0];
-
-      // Get table information from Supabase
+      // Use Supabase for session data
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      const { data: tableInfo, error: tableError } = await supabase
-        .from('staff_tables')
-        .select('id, name, game_type, stakes, max_players, current_players')
-        .eq('id', tableSession.table_id)
-        .single();
+      // Check for active table sessions in Supabase
+      console.log(`🔍 [LIVE SESSION] Querying Supabase for player ${playerId} with status 'active'`);
+      
+      const { data: sessionList, error: sessionError } = await supabase
+        .from('table_sessions')
+        .select('*')
+        .eq('player_id', parseInt(playerId))
+        .eq('status', 'active')
+        .order('started_at', { ascending: false })
+        .limit(1);
+      
+      console.log(`🔍 [LIVE SESSION] Query result:`, { sessionList, sessionError });
+      
+      if (sessionError || !sessionList || sessionList.length === 0) {
+        console.log(`📭 [LIVE SESSION] No active session found for player ${playerId}`);
+        return res.json({ hasActiveSession: false, session: null });
+      }
+      
+      const sessionData = sessionList[0];
+
+      const tableSession = sessionData;
+
+      // Get table information from Supabase staff_tables
+      let tableInfo = null;
+      try {
+        const { data: tableData, error: tableError } = await supabase
+          .from('staff_tables')
+          .select('id, name, game_type, stakes, max_players, current_players')
+          .eq('id', tableSession.table_id)
+          .single();
+        
+        if (tableData && !tableError) {
+          tableInfo = tableData;
+        }
+      } catch (tableError) {
+        console.warn('⚠️ [LIVE SESSION] Table info fetch failed:', tableError);
+      }
 
       // Calculate session metrics
       const sessionStart = new Date(tableSession.started_at);
       const now = new Date();
       const sessionDurationMinutes = Math.floor((now.getTime() - sessionStart.getTime()) / 1000 / 60);
       
-      // Get table balance for current chips
-      const { data: tableBalance, error: balanceError } = await supabase
-        .from('table_balances')
-        .select('amount, buy_in_amount')
-        .eq('player_id', playerId)
-        .eq('table_id', tableSession.table_id)
-        .eq('is_active', true)
-        .single();
-
-      const currentChips = tableBalance?.amount || tableSession.current_chips || 0;
-      const buyInAmount = tableBalance?.buy_in_amount || tableSession.buy_in_amount || 0;
+      // Get current chips and buy-in from session data (no separate table_balances table needed)
+      const currentChips = parseFloat(tableSession.current_chips || '0');
+      const buyInAmount = parseFloat(tableSession.buy_in_amount || '0');
 
       // Session timing rules (configurable per table)
       const minPlayTimeMinutes = 30; // Minimum play time before cash out
@@ -3132,13 +3133,19 @@ export function registerRoutes(app: Express) {
       const callTimePlayPeriodMinutes = 15; // How long player has to play during call time
       const cashoutWindowMinutes = 10; // How long the cash out window stays open
 
-      const sessionData = {
-        ...tableSession,
-        table: tableSession.staff_tables,
-        sessionDurationMinutes,
-        currentChips,
-        buyInAmount,
-        profitLoss: currentChips - buyInAmount,
+      const responseData = {
+        id: tableSession.id,
+        playerId: tableSession.player_id,
+        tableId: tableSession.table_id,
+        tableName: tableInfo?.name || 'Unknown Table',
+        gameType: tableInfo?.game_type || 'Unknown',
+        stakes: tableInfo?.stakes || 'Unknown',
+        buyInAmount: parseFloat(buyInAmount || '0'),
+        currentChips: parseFloat(currentChips || '0'),
+        sessionDuration: sessionDurationMinutes,
+        startedAt: tableSession.started_at,
+        status: tableSession.status,
+        profitLoss: parseFloat(currentChips || '0') - parseFloat(buyInAmount || '0'),
         
         // Timing calculations
         minPlayTimeMinutes,
@@ -3150,13 +3157,14 @@ export function registerRoutes(app: Express) {
         minPlayTimeCompleted: sessionDurationMinutes >= minPlayTimeMinutes,
         callTimeEligible: sessionDurationMinutes >= callTimeWindowMinutes,
         canCashOut: sessionDurationMinutes >= minPlayTimeMinutes,
+        isLive: true,
         
         // Session start time for real-time calculations
         sessionStartTime: tableSession.started_at
       };
 
-      console.log(`✅ [LIVE SESSION] Active session found for player ${playerId} at table ${tableSession.staff_tables?.name}`);
-      res.json({ hasActiveSession: true, session: sessionData });
+      console.log(`✅ [LIVE SESSION] Active session found for player ${playerId} at table ${tableInfo?.name || 'Unknown'}`);
+      res.json({ hasActiveSession: true, session: responseData });
 
     } catch (error: any) {
       console.error('❌ [LIVE SESSION] Error:', error);
