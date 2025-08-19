@@ -2881,8 +2881,8 @@ export function registerRoutes(app: Express) {
       const docResult = await pool.query(docQuery, [parseInt(playerId)]);
       await pool.end();
 
-      const documentStatus = {};
-      docResult.rows.forEach(row => {
+      const documentStatus: Record<string, { pending: number; approved: number; rejected: number }> = {};
+      docResult.rows.forEach((row: any) => {
         if (!documentStatus[row.document_type]) {
           documentStatus[row.document_type] = { pending: 0, approved: 0, rejected: 0 };
         }

@@ -247,36 +247,96 @@ export function useAuth() {
   };
 
   const signIn = async (email: string, password: string) => {
+    console.log('🔐 [ULTRA-FAST AUTH] Signing in:', email);
+    setLoading(true);
+    
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      // Use our backend authentication endpoint that handles all security gates
+      const response = await fetch('/api/auth/signin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ email, password })
       });
 
-      if (error) {
-        // Handle specific error cases
-        if (error.message.includes('email_not_confirmed')) {
-          toast({
-            title: "Email Not Confirmed",
-            description: "Please check your email and click the confirmation link",
-            variant: "destructive",
-          });
-          return { success: false };
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error('❌ [ULTRA-FAST AUTH] Backend sign in error:', data);
+        setLoading(false);
+        
+        // Handle specific error cases from backend
+        let title = "Sign In Failed";
+        let description = data.message || data.error || "Invalid credentials";
+        
+        if (data.error === "EMAIL_VERIFICATION_REQUIRED") {
+          title = "Email Not Verified";
+          description = "Please verify your email address before logging in. Check your inbox for verification link.";
+        } else if (data.error === "KYC_VERIFICATION_REQUIRED") {
+          title = "KYC Approval Required";
+          description = "Your KYC documents are being reviewed by our team. Please wait for approval.";
         }
-        throw error;
+        
+        toast({
+          title,
+          description,
+          variant: "destructive",
+        });
+        return { success: false };
       }
 
-      // Set session storage flag to trigger loading screen
-      sessionStorage.setItem('just_signed_in', 'true');
+      console.log('✅ [ULTRA-FAST AUTH] Backend authentication successful');
       
-      toast({
-        title: "Welcome Back",
-        description: "Successfully signed in",
-      });
+      // Now sign in with Supabase using the returned auth token
+      if (data.user && data.user.supabaseId) {
+        // For users with existing Supabase auth, sign them in
+        try {
+          const { error: supabaseError } = await supabase.auth.signInWithPassword({
+            email,
+            password
+          });
+          
+          if (supabaseError && !supabaseError.message.includes('email_not_confirmed')) {
+            console.warn('🔄 [ULTRA-FAST AUTH] Supabase sign-in issue, using direct auth:', supabaseError.message);
+          }
+        } catch (supabaseError) {
+          console.warn('🔄 [ULTRA-FAST AUTH] Supabase auth warning (continuing with direct auth):', supabaseError);
+        }
+        
+        // Set user data directly from backend response
+        const enhancedUserData = {
+          ...data.user,
+          realBalance: data.user.balance || '0.00',
+          creditBalance: data.user.creditBalance || '0.00',
+          creditLimit: data.user.creditLimit || '0.00',
+          creditApproved: data.user.creditApproved || false,
+          totalBalance: data.user.totalBalance || '0.00'
+        };
+        
+        console.log('🎉 [ULTRA-FAST AUTH] User data set:', enhancedUserData);
+        setUser(enhancedUserData);
+        
+        // Set session storage flag to trigger loading screen
+        sessionStorage.setItem('just_signed_in', 'true');
+        
+        setLoading(false);
+        console.log('✅ [ULTRA-FAST AUTH] Authentication complete - Player ID:', data.user.id);
+        
+        toast({
+          title: "Welcome Back",
+          description: "Successfully signed in",
+        });
 
-      return { success: true };
+        return { success: true };
+      } else {
+        throw new Error('Invalid user data received');
+      }
+
     } catch (error: any) {
-      console.error('Signin error:', error);
+      setLoading(false);
+      console.error('Auth error:', error);
       toast({
         title: "Sign In Failed",
         description: error.message || "Invalid credentials",
