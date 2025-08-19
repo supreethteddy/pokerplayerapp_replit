@@ -1,347 +1,245 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Clock, DollarSign, Play, Phone, X } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Clock, 
-  Play, 
-  DollarSign, 
-  AlertTriangle, 
-  CheckCircle, 
-  Timer, 
-  Coins, 
-  TrendingUp,
-  History,
-  Award,
-  Target,
-  X,
-  Maximize2
-} from "lucide-react";
-
-interface PlaytimeTrackerProps {
-  playerId: number;
-}
 
 interface LiveSession {
   id: string;
-  player_id: number;
-  table_id: string;
-  table: {
-    id: string;
-    name: string;
-    game_type: string;
-    stakes: string;
-    max_players: number;
-    current_players: number;
-  };
-  buy_in_amount: number;
-  current_chips: number;
-  sessionDurationMinutes: number;
-  profitLoss: number;
+  playerId: string;
+  tableId: string;
+  tableName: string;
+  buyInAmount: number;
+  currentBalance: number;
+  sessionStartTime: string;
+  isActive: boolean;
+  canCallTime: boolean;
+  canCashOut: boolean;
   minPlayTimeMinutes: number;
   callTimeWindowMinutes: number;
   callTimePlayPeriodMinutes: number;
-  cashoutWindowMinutes: number;
-  minPlayTimeCompleted: boolean;
-  callTimeEligible: boolean;
-  canCashOut: boolean;
-  sessionStartTime: string;
-  status: 'active' | 'completed';
+  callTimeEndTime?: string;
+  isInCallTime: boolean;
 }
 
-export default function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
+interface PlaytimeTrackerProps {
+  playerId: string;
+}
+
+export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [showSessionModal, setShowSessionModal] = useState(false);
-  const [callTimeActive, setCallTimeActive] = useState(false);
-  const [callTimeEnd, setCallTimeEnd] = useState<Date | null>(null);
-  
+
   // Fetch live session data
-  const { data: liveSessionData, isLoading: sessionLoading, refetch: refetchSession } = useQuery({
-    queryKey: ['/api/live-sessions', playerId],
+  const { data: session, isLoading, error } = useQuery<LiveSession>({
+    queryKey: ['/api/live-session', playerId],
+    refetchInterval: 1000, // Update every second for real-time tracking
     enabled: !!playerId,
-    refetchInterval: 10000, // Update every 10 seconds
   });
 
-  const session: LiveSession | null = liveSessionData?.hasActiveSession ? liveSessionData.session : null;
-
-  // Timer states
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [timeUntilMinPlay, setTimeUntilMinPlay] = useState(0);
-  const [timeUntilCallTime, setTimeUntilCallTime] = useState(0);
-  const [callTimeRemaining, setCallTimeRemaining] = useState(0);
-
-  // Update timer every second
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(new Date());
-      updateTimers();
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [session]);
-
-  // Show modal when session becomes active
-  useEffect(() => {
-    if (session && !showSessionModal) {
-      setShowSessionModal(true);
-    }
-  }, [session]);
-
-  // Calculate timer values
-  const updateTimers = () => {
-    if (!session?.sessionStartTime) return;
-
-    const sessionStart = new Date(session.sessionStartTime);
-    const now = new Date();
-    const sessionDuration = Math.floor((now.getTime() - sessionStart.getTime()) / 1000 / 60); // in minutes
-
-    // Time until minimum play time is completed
-    const minPlayComplete = sessionDuration >= (session.minPlayTimeMinutes || 30);
-    setTimeUntilMinPlay(minPlayComplete ? 0 : (session.minPlayTimeMinutes || 30) - sessionDuration);
-
-    // Time until call time window opens
-    const callTimeWindowOpen = sessionDuration >= (session.callTimeWindowMinutes || 45);
-    setTimeUntilCallTime(callTimeWindowOpen ? 0 : (session.callTimeWindowMinutes || 45) - sessionDuration);
-
-    // Call time countdown
-    if (callTimeActive && callTimeEnd) {
-      const remaining = Math.max(0, Math.floor((callTimeEnd.getTime() - now.getTime()) / 1000 / 60));
-      setCallTimeRemaining(remaining);
-      
-      if (remaining === 0) {
-        setCallTimeActive(false);
-        setCallTimeEnd(null);
-      }
-  };
-
-  // Call Time Button Handler
+  // Call Time mutation
   const callTimeMutation = useMutation({
-    mutationFn: () => apiRequest(`/api/live-sessions/${playerId}/call-time`, {
-      method: 'POST',
-      body: JSON.stringify({})
-    }),
-    onSuccess: (data) => {
-      setCallTimeActive(true);
-      setCallTimeEnd(new Date(data.callTimeEnd));
-      toast({
-        title: "Call Time Started",
-        description: data.message,
+    mutationFn: async () => {
+      const response = await apiRequest(`/api/live-session/${playerId}/call-time`, {
+        method: 'POST',
       });
-      refetchSession();
+      return response;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Call Time Activated",
+        description: "You have initiated call time. Complete your current hand within the time limit.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/live-session', playerId] });
     },
     onError: (error: any) => {
       toast({
-        title: "Error",
-        description: error.message || "Failed to start call time",
+        title: "Call Time Failed",
+        description: error.message || "Failed to activate call time",
         variant: "destructive",
       });
-    }
+    },
   });
 
-  // Cash Out Button Handler
+  // Cash Out mutation
   const cashOutMutation = useMutation({
-    mutationFn: () => apiRequest(`/api/live-sessions/${playerId}/cash-out`, {
-      method: 'POST',
-      body: JSON.stringify({ staffId: 'player_portal' })
-    }),
-    onSuccess: (data) => {
-      toast({
-        title: "Cash Out Successful",
-        description: data.message,
+    mutationFn: async () => {
+      const response = await apiRequest(`/api/live-session/${playerId}/cash-out`, {
+        method: 'POST',
       });
-      setShowSessionModal(false);
-      refetchSession();
-      queryClient.invalidateQueries({ queryKey: ['/api/balance', playerId] });
+      return response;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Cash Out Initiated",
+        description: "Your cash out request has been sent to staff for processing.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/live-session', playerId] });
+      setIsDialogOpen(false);
     },
     onError: (error: any) => {
       toast({
-        title: "Error",
-        description: error.message || "Failed to process cash out",
+        title: "Cash Out Failed",
+        description: error.message || "Failed to initiate cash out",
         variant: "destructive",
       });
-    }
+    },
   });
 
-  // Format time display
-  const formatTime = (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  // Auto-open dialog when session becomes active
+  useEffect(() => {
+    if (session?.isActive && !isDialogOpen) {
+      setIsDialogOpen(true);
+    }
+  }, [session?.isActive, isDialogOpen]);
+
+  // Calculate session duration
+  const getSessionDuration = () => {
+    if (!session?.sessionStartTime) return "00:00:00";
+    
+    const start = new Date(session.sessionStartTime);
+    const now = new Date();
+    const diff = now.getTime() - start.getTime();
+    
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return `₹${amount.toLocaleString()}`;
+  // Calculate time until call time available
+  const getTimeUntilCallTime = () => {
+    if (!session?.sessionStartTime || session.canCallTime) return 0;
+    
+    const start = new Date(session.sessionStartTime);
+    const now = new Date();
+    const minutesPlayed = (now.getTime() - start.getTime()) / (1000 * 60);
+    const timeUntilCallTime = session.callTimeWindowMinutes - minutesPlayed;
+    
+    return Math.max(0, Math.ceil(timeUntilCallTime));
   };
 
-  if (sessionLoading) {
-    return (
-      <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
-            <Timer className="h-5 w-5" />
-            Live Session Tracker
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center text-gray-400">Loading session data...</div>
-        </CardContent>
-      </Card>
-    );
+  // Calculate time until cash out available
+  const getTimeUntilCashOut = () => {
+    if (!session?.sessionStartTime || session.canCashOut) return 0;
+    
+    const start = new Date(session.sessionStartTime);
+    const now = new Date();
+    const minutesPlayed = (now.getTime() - start.getTime()) / (1000 * 60);
+    const timeUntilCashOut = session.minPlayTimeMinutes - minutesPlayed;
+    
+    return Math.max(0, Math.ceil(timeUntilCashOut));
+  };
+
+  // Calculate call time remaining
+  const getCallTimeRemaining = () => {
+    if (!session?.isInCallTime || !session.callTimeEndTime) return 0;
+    
+    const end = new Date(session.callTimeEndTime);
+    const now = new Date();
+    const remaining = (end.getTime() - now.getTime()) / (1000 * 60);
+    
+    return Math.max(0, Math.ceil(remaining));
+  };
+
+  const sessionDuration = getSessionDuration();
+  const timeUntilCallTime = getTimeUntilCallTime();
+  const timeUntilMinPlay = getTimeUntilCashOut();
+  const callTimeRemaining = getCallTimeRemaining();
+
+  // Don't render if no session or not loading
+  if (isLoading) {
+    return null;
   }
 
-  if (!session) {
-    return (
-      <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
-            <Timer className="h-5 w-5" />
-            Live Session Tracker
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center text-gray-400">
-            <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No active session</p>
-            <p className="text-sm">Join a table to start tracking your playtime</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
+  if (error || !session?.isActive) {
+    return null;
   }
 
   return (
     <>
-      {/* Compact Live Session Indicator */}
-      <Card className="bg-gradient-to-br from-green-900 to-green-800 border-green-600 cursor-pointer" 
-            onClick={() => setShowSessionModal(true)}>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="text-green-100 font-medium">LIVE SESSION</span>
-              </div>
-              <Badge variant="secondary" className="bg-green-700 text-green-100">
-                {session.table.name}
-              </Badge>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <div className="text-green-100 text-sm">Playing Time</div>
-                <div className="text-green-100 font-bold">{formatTime(session.sessionDurationMinutes)}</div>
-              </div>
-              <Maximize2 className="h-4 w-4 text-green-300" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Floating Action Button */}
+      <div className="fixed bottom-6 right-6 z-50">
+        <Button
+          onClick={() => setIsDialogOpen(true)}
+          className="w-16 h-16 rounded-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-lg hover:shadow-emerald-500/25 transition-all duration-300"
+        >
+          <Play className="h-6 w-6" />
+        </Button>
+      </div>
 
-      {/* Animated Session Modal */}
-      <Dialog open={showSessionModal} onOpenChange={setShowSessionModal}>
-        <DialogContent className="max-w-2xl bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700 text-white">
+      {/* Session Details Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700">
           <DialogHeader>
-            <DialogTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-4 h-4 bg-green-400 rounded-full animate-pulse"></div>
-                <span>Live Session - {session.table.name}</span>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => setShowSessionModal(false)}>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-white flex items-center">
+                <Clock className="h-5 w-5 mr-2 text-emerald-500" />
+                Live Session - {session.tableName}
+              </DialogTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsDialogOpen(false)}
+                className="text-slate-400 hover:text-white"
+              >
                 <X className="h-4 w-4" />
               </Button>
-            </DialogTitle>
+            </div>
           </DialogHeader>
 
-          <div className="space-y-6">
-            {/* Table Info */}
+          <div className="space-y-4">
+            {/* Session Timer */}
+            <div className="text-center bg-slate-800 p-4 rounded-lg">
+              <div className="text-2xl font-mono font-bold text-white mb-1">
+                {sessionDuration}
+              </div>
+              <div className="text-sm text-slate-400">Session Time</div>
+            </div>
+
+            {/* Balance Info */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gray-800 p-4 rounded-lg">
-                <div className="text-gray-400 text-sm">Table</div>
-                <div className="font-bold">{session.table.name}</div>
-                <div className="text-sm text-gray-300">{session.table.game_type}</div>
+              <div className="bg-slate-800/50 p-3 rounded text-center">
+                <div className="text-lg font-semibold text-white">₹{session.buyInAmount.toLocaleString()}</div>
+                <div className="text-xs text-slate-400">Buy-in</div>
               </div>
-              <div className="bg-gray-800 p-4 rounded-lg">
-                <div className="text-gray-400 text-sm">Stakes</div>
-                <div className="font-bold">{session.table.stakes}</div>
-                <div className="text-sm text-gray-300">{session.table.current_players}/{session.table.max_players} players</div>
+              <div className="bg-slate-800/50 p-3 rounded text-center">
+                <div className="text-lg font-semibold text-emerald-500">₹{session.currentBalance.toLocaleString()}</div>
+                <div className="text-xs text-slate-400">Current</div>
               </div>
             </div>
 
-            {/* Session Stats */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-blue-900/20 p-4 rounded-lg text-center">
-                <Coins className="h-6 w-6 mx-auto mb-2 text-blue-400" />
-                <div className="text-blue-400 text-sm">Buy-in</div>
-                <div className="font-bold text-lg">{formatCurrency(session.buy_in_amount)}</div>
-              </div>
-              <div className="bg-yellow-900/20 p-4 rounded-lg text-center">
-                <DollarSign className="h-6 w-6 mx-auto mb-2 text-yellow-400" />
-                <div className="text-yellow-400 text-sm">Current Chips</div>
-                <div className="font-bold text-lg">{formatCurrency(session.current_chips)}</div>
-              </div>
-              <div className={`p-4 rounded-lg text-center ${session.profitLoss >= 0 ? 'bg-green-900/20' : 'bg-red-900/20'}`}>
-                <TrendingUp className={`h-6 w-6 mx-auto mb-2 ${session.profitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`} />
-                <div className={`text-sm ${session.profitLoss >= 0 ? 'text-green-400' : 'text-red-400'}`}>P&L</div>
-                <div className="font-bold text-lg">{formatCurrency(session.profitLoss)}</div>
-              </div>
-            </div>
-
-            {/* Timer Display */}
-            <div className="bg-gray-800 p-4 rounded-lg">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-blue-400" />
-                  <span className="font-medium">Session Time</span>
-                </div>
-                <div className="text-2xl font-bold text-blue-400">
-                  {formatTime(session.sessionDurationMinutes)}
-                </div>
-              </div>
-              
-              {/* Min Play Time Progress */}
-              <div className="mb-4">
-                <div className="flex justify-between text-sm mb-1">
-                  <span>Minimum Play Time</span>
-                  <span>{session.minPlayTimeCompleted ? 'Completed' : `${timeUntilMinPlay}m remaining`}</span>
-                </div>
-                <Progress 
-                  value={Math.min(100, (session.sessionDurationMinutes / session.minPlayTimeMinutes) * 100)}
-                  className="h-2"
-                />
-              </div>
-
-              {/* Call Time Progress */}
-              {callTimeActive && (
-                <div className="mb-4">
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-orange-400">Call Time Active</span>
-                    <span className="text-orange-400">{callTimeRemaining}m remaining</span>
+            {/* Call Time Status */}
+            {session.isInCallTime && (
+              <div className="bg-orange-500/20 border border-orange-500/50 p-3 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <Phone className="h-4 w-4 text-orange-500 mr-2" />
+                    <span className="text-orange-300 font-medium">Call Time Active</span>
                   </div>
-                  <Progress 
-                    value={(callTimeRemaining / session.callTimePlayPeriodMinutes) * 100}
-                    className="h-2 bg-orange-900"
-                  />
+                  <Badge className="bg-orange-500/30 text-orange-200">
+                    {callTimeRemaining}m remaining
+                  </Badge>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Action Buttons */}
-            <div className="flex gap-3">
+            <div className="flex space-x-3">
               {/* Call Time Button */}
               <Button
                 onClick={() => callTimeMutation.mutate()}
-                disabled={!session.callTimeEligible || callTimeActive || callTimeMutation.isPending}
+                disabled={!session.canCallTime || callTimeMutation.isPending || session.isInCallTime}
                 className="flex-1 bg-orange-600 hover:bg-orange-700 disabled:opacity-50"
               >
-                <AlertTriangle className="h-4 w-4 mr-2" />
-                {callTimeActive ? `Call Time Active (${callTimeRemaining}m)` : 
-                 session.callTimeEligible ? 'Start Call Time' : 
+                <Phone className="h-4 w-4 mr-2" />
+                {session.isInCallTime ? 'Call Time Active' : 
+                 session.canCallTime ? 'Call Time' : 
                  `Call Time in ${timeUntilCallTime}m`}
               </Button>
 
@@ -369,55 +267,5 @@ export default function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
         </DialogContent>
       </Dialog>
     </>
-  );
-}
-
-      {/* Session Ledger */}
-      <Card className="bg-slate-800 border-slate-700">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center">
-            <History className="w-5 h-5 mr-2 text-purple-500" />
-            Session Activity Log
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {ledgerLoading ? (
-            <div className="text-center text-slate-400 py-4">Loading session history...</div>
-          ) : sessionLedger && sessionLedger.length > 0 ? (
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {sessionLedger.map((entry: any, index: number) => (
-                <div key={index} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-2 h-2 rounded-full ${
-                      entry.type === 'buy_in' ? 'bg-green-500' :
-                      entry.type === 'cash_out' ? 'bg-blue-500' :
-                      entry.type === 'rake' ? 'bg-red-500' :
-                      entry.type === 'tip' ? 'bg-yellow-500' :
-                      'bg-gray-500'
-                    }`} />
-                    <div>
-                      <div className="text-white text-sm font-medium">{entry.description}</div>
-                      <div className="text-slate-400 text-xs">{new Date(entry.createdAt).toLocaleTimeString()}</div>
-                    </div>
-                  </div>
-                  <div className={`text-sm font-bold ${
-                    entry.type === 'buy_in' ? 'text-green-400' :
-                    entry.type === 'cash_out' ? 'text-blue-400' :
-                    'text-red-400'
-                  }`}>
-                    {entry.type === 'buy_in' ? '+' : entry.type === 'cash_out' ? '+' : '-'}₹{entry.amount}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center text-slate-400 py-4">
-              <Award className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p>No session activity yet</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
   );
 }

@@ -52,6 +52,7 @@ import type { Table as TableType, SeatRequest, KycDocument } from "@shared/schem
 import DualBalanceDisplay from "./DualBalanceDisplay";
 import { PlayerBalanceDisplay } from "./PlayerBalanceDisplay";
 import { PlayerTransactionHistory } from "./PlayerTransactionHistory";
+import { PlaytimeTracker } from "./PlaytimeTracker";
 // Cash-out and credit transfer removed - players can only view balance, all financial operations handled by cashier
 // TableOperations removed - players can only view balance, all operations handled by managers/cashiers
 import OfferBanner from "./OfferBanner";
@@ -60,7 +61,6 @@ import NotificationPopup from "./NotificationPopup";
 
 import PlayerChatSystem from "./PlayerChatSystem";
 import NotificationHistoryTab from "./NotificationHistoryTab";
-import PlaytimeTracker from "./PlaytimeTracker";
 
 
 // Scrollable Offers Display Component
@@ -2653,6 +2653,9 @@ function PlayerDashboard() {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Live Session Tracking - PlaytimeTracker for local poker club operations */}
+        {user?.id && <PlaytimeTracker playerId={String(user.id)} />}
 
       </div>
     );
