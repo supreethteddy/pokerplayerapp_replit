@@ -3489,7 +3489,7 @@ export function registerRoutes(app: Express) {
     }
   });
   
-  // PRODUCTION-GRADE SIGNUP ENDPOINT
+  // CLEAN SIGNUP ENDPOINT - SUPABASE ONLY
   app.post('/api/auth/signup', async (req, res) => {
     try {
       const { email, password, firstName, lastName, phone } = req.body;
@@ -3501,29 +3501,38 @@ export function registerRoutes(app: Express) {
       console.log(`🔐 [AUTH SIGNUP] Creating account for: ${email}`);
       
       const { createClient } = await import('@supabase/supabase-js');
-      const supabaseAdmin = createClient(
+      const supabase = createClient(
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
-      
-      // CRITICAL: Check both Supabase and PostgreSQL for existing players
-      const { data: existingSupabasePlayer } = await supabaseAdmin
+
+      // Check if player exists in Supabase
+      const { data: existingPlayer } = await supabase
         .from('players')
         .select('*')
         .eq('email', email)
         .single();
-      
-      // Also check Supabase auth users to prevent cascade deletions
-      const { data: existingAuthUser } = await supabaseAdmin.auth.admin.listUsers();
-      const authUserExists = existingAuthUser.users?.some(user => user.email === email);
-      
-      if (existingSupabasePlayer && authUserExists) {
-        console.log(`🔄 [AUTH SIGNUP] Complete existing player found: ${email}`);
+
+      if (existingPlayer) {
+        console.log(`✅ [AUTH SIGNUP] Existing player found: ${email}`);
         return res.json({
           success: true,
           existing: true,
-          player: existingSupabasePlayer,
-          message: 'Account already exists. Please sign in.'
+          player: {
+            id: existingPlayer.id,
+            email: existingPlayer.email,
+            firstName: existingPlayer.first_name,
+            lastName: existingPlayer.last_name,
+            phone: existingPlayer.phone,
+            kycStatus: existingPlayer.kyc_status,
+            balance: existingPlayer.balance,
+            emailVerified: existingPlayer.email_verified
+          },
+          redirectToKYC: !existingPlayer.email_verified || existingPlayer.kyc_status === 'pending',
+          needsEmailVerification: !existingPlayer.email_verified,
+          needsKYCUpload: existingPlayer.kyc_status === 'pending',
+          needsKYCApproval: existingPlayer.kyc_status === 'submitted',
+          message: 'Welcome back!'
         });
       }
       
