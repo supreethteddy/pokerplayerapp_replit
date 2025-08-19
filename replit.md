@@ -34,7 +34,7 @@ Preferred communication style: Simple, everyday language.
 - **Authentication**: Secure login/signup with KYC document upload, branded loading screens, and robust error handling.
 - **Player Dashboard**: Displays real-time cash table and tournament information, allows waitlist management (join/leave, seat selection), shows simple cash balance (table operations managed by staff), and enables profile management including PAN card verification and transaction history.
 - **KYC Document Management**: Comprehensive system for uploading, viewing, and managing KYC documents (government ID, utility bill, profile photo) with cross-portal status synchronization and file type validation.
-- **Waitlist Management**: Unified system with interactive seat selection and real-time updates.
+- **Waitlist Management**: Bulletproof nanosecond synchronization system with dual-table architecture (seat_requests + waitlist) ensuring instant staff portal visibility and real-time Pusher notifications.
 - **Offer System**: Dynamic, staff-managed offer carousel with analytics tracking.
 - **VIP Club Loyalty Program**: Calculates VIP points based on game activity, with a dedicated VIP Shop for rewards redemption.
 - **Guest Relations (GRE) Chat**: Enterprise-ready real-time bidirectional chat system with complete workflow management (Accept→Activate→Resolve), audit logging, and status transition tracking. Features unified ID mapping and comprehensive field transformation.

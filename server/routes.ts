@@ -2205,27 +2205,91 @@ export function registerRoutes(app: Express) {
       
       await pgClient.connect();
       
-      const insertQuery = `
+      // CRITICAL: Insert into BOTH waitlist tables for nanosecond staff portal sync
+      
+      // 1. Insert into seat_requests (legacy system)
+      const seatRequestsQuery = `
         INSERT INTO seat_requests (player_id, table_id, seat_number, status, created_at)
         VALUES ($1, $2, $3, $4, NOW())
         RETURNING *
       `;
       
-      const result = await pgClient.query(insertQuery, [
+      const seatRequestResult = await pgClient.query(seatRequestsQuery, [
         playerId, tableId, seatNumber, 'waiting'
       ]);
+      
+      // 2. CRITICAL: Also insert into waitlist (staff portal table) for instant visibility
+      const nextPositionQuery = `
+        SELECT COALESCE(MAX(position), 0) + 1 as next_position
+        FROM waitlist 
+        WHERE table_id = $1 AND status IN ('waiting', 'active')
+      `;
+      
+      const positionResult = await pgClient.query(nextPositionQuery, [tableId]);
+      const nextPosition = positionResult.rows[0].next_position;
+      
+      const waitlistQuery = `
+        INSERT INTO waitlist (
+          player_id, 
+          table_id, 
+          game_type, 
+          min_buy_in, 
+          max_buy_in, 
+          position, 
+          status, 
+          seat_number,
+          requested_at,
+          created_at,
+          updated_at
+        )
+        VALUES ($1, $2, 'Texas Hold''em', 100, 5000, $3, 'waiting', $4, NOW(), NOW(), NOW())
+        RETURNING *
+      `;
+      
+      const waitlistResult = await pgClient.query(waitlistQuery, [
+        playerId, tableId, nextPosition, seatNumber
+      ]);
+      
+      const result = seatRequestResult; // Return the seat_requests result for compatibility
       
       await pgClient.end();
       
       const requestData = result.rows[0];
+      const waitlistData = waitlistResult.rows[0];
       
       if (!requestData) {
         console.error('❌ [SEAT REQUEST] No data returned from insert');
         return res.status(500).json({ error: "Failed to create seat request" });
       }
       
-      console.log('✅ [SEAT REQUEST] Successfully created:', requestData.id);
-      res.json({ success: true, request: requestData });
+      // CRITICAL: Send real-time notification to staff portal for INSTANT visibility
+      if ((global as any).pusher && waitlistData) {
+        try {
+          await (global as any).pusher.trigger('staff-portal', 'waitlist_update', {
+            type: 'player_joined',
+            playerId: playerId,
+            tableId: tableId,
+            seatNumber: seatNumber,
+            position: nextPosition,
+            waitlistId: waitlistData.id,
+            timestamp: new Date().toISOString(),
+            playerName: `Player ${playerId}`,
+            tableName: tableName || `Table ${tableId}`
+          });
+          
+          console.log(`🚀 [NANOSECOND SYNC] Real-time notification sent to staff portal for player ${playerId}`);
+        } catch (pushError) {
+          console.error('⚠️ [NANOSECOND SYNC] Pusher notification failed:', pushError);
+        }
+      }
+      
+      console.log(`✅ [NANOSECOND WAITLIST] Player ${playerId} added to BOTH tables - seat_requests: ${requestData.id}, waitlist: ${waitlistData?.id || 'failed'}`);
+      res.json({ 
+        success: true, 
+        request: requestData,
+        waitlistPosition: nextPosition,
+        staffPortalSync: true 
+      });
       
     } catch (error) {
       console.error('❌ [SEAT REQUEST] Unexpected error:', error);
@@ -2236,25 +2300,74 @@ export function registerRoutes(app: Express) {
   app.get("/api/seat-requests/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-      const result = await supabase
-        .from('seat_requests')
-        .select('*')
-        .eq('player_id', playerId)
-        .order('created_at', { ascending: false });
       
-      if (result.error) {
-        console.error('❌ [SEAT REQUESTS API] Database error:', result.error);
-        return res.status(500).json({ error: "Database error" });
-      }
+      console.log(`🔍 [NANOSECOND WAITLIST] Fetching waitlist for player: ${playerId}`);
+      
+      // CRITICAL: Query BOTH tables for complete waitlist visibility
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        connectionTimeoutMillis: 5000,
+      });
 
-      res.json(result.data);
+      // Get from unified waitlist table (staff portal table) for nanosecond sync
+      const waitlistQuery = `
+        SELECT 
+          w.id,
+          w.player_id,
+          w.table_id,
+          w.position,
+          w.status,
+          w.seat_number,
+          w.requested_at as created_at,
+          t.name as table_name,
+          t.game_type,
+          'waitlist' as source_table
+        FROM waitlist w
+        LEFT JOIN tables t ON w.table_id::text = t.id
+        WHERE w.player_id = $1 
+        AND w.status IN ('waiting', 'active')
+        ORDER BY w.requested_at DESC
+      `;
+      
+      // Also get from seat_requests for legacy compatibility
+      const seatRequestsQuery = `
+        SELECT 
+          sr.id,
+          sr.player_id,
+          sr.table_id,
+          1 as position,
+          sr.status,
+          sr.seat_number,
+          sr.created_at,
+          t.name as table_name,
+          t.game_type,
+          'seat_requests' as source_table
+        FROM seat_requests sr
+        LEFT JOIN tables t ON sr.table_id::text = t.id
+        WHERE sr.player_id = $1 
+        AND sr.status IN ('waiting', 'active')
+        ORDER BY sr.created_at DESC
+      `;
+
+      const [waitlistResult, seatRequestsResult] = await Promise.all([
+        pool.query(waitlistQuery, [playerId]),
+        pool.query(seatRequestsQuery, [playerId])
+      ]);
+
+      await pool.end();
+      
+      // Combine both sources for complete waitlist view
+      const allWaitlistEntries = [
+        ...waitlistResult.rows,
+        ...seatRequestsResult.rows
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      console.log(`✅ [NANOSECOND WAITLIST] Found ${allWaitlistEntries.length} waitlist entries from both systems`);
+      
+      res.json(allWaitlistEntries);
     } catch (error) {
-      console.error('❌ [SEAT REQUESTS API] Error:', error);
+      console.error('❌ [NANOSECOND WAITLIST] Error:', error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -4850,6 +4963,84 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error('❌ [WAITLIST JOIN] Error:', error);
       res.status(500).json({ error: 'Failed to join waitlist' });
+    }
+  });
+
+  // CRITICAL: Get waitlist by table ID for staff portal nanosecond visibility
+  app.get('/api/waitlist/table/:tableId', async (req, res) => {
+    try {
+      const { tableId } = req.params;
+      console.log(`🏢 [STAFF WAITLIST] Fetching waitlist for table: ${tableId}`);
+      
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        connectionTimeoutMillis: 5000,
+      });
+
+      // Get all waitlist entries for this table from BOTH systems
+      const unifiedQuery = `
+        WITH combined_waitlist AS (
+          -- From staff portal waitlist table
+          SELECT 
+            w.id,
+            w.player_id,
+            w.table_id,
+            w.position,
+            w.status,
+            w.seat_number,
+            w.requested_at as created_at,
+            p.first_name,
+            p.last_name,
+            p.email,
+            'waitlist' as source
+          FROM waitlist w
+          LEFT JOIN players p ON w.player_id = p.id
+          WHERE w.table_id = $1 AND w.status IN ('waiting', 'active')
+          
+          UNION ALL
+          
+          -- From legacy seat_requests table
+          SELECT 
+            sr.id,
+            sr.player_id,
+            sr.table_id,
+            1 as position,
+            sr.status,
+            sr.seat_number,
+            sr.created_at,
+            p.first_name,
+            p.last_name, 
+            p.email,
+            'seat_requests' as source
+          FROM seat_requests sr
+          LEFT JOIN players p ON sr.player_id = p.id
+          WHERE sr.table_id = $1 AND sr.status IN ('waiting', 'active')
+        )
+        SELECT * FROM combined_waitlist 
+        ORDER BY created_at ASC
+      `;
+
+      const result = await pool.query(unifiedQuery, [tableId]);
+      await pool.end();
+      
+      console.log(`✅ [STAFF WAITLIST] Found ${result.rows.length} players waiting for table ${tableId}`);
+      
+      res.json(result.rows.map(row => ({
+        id: row.id,
+        playerId: row.player_id,
+        tableId: row.table_id,
+        position: row.position,
+        status: row.status,
+        seatNumber: row.seat_number,
+        createdAt: row.created_at,
+        playerName: `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.email || `Player ${row.player_id}`,
+        source: row.source
+      })));
+      
+    } catch (error) {
+      console.error('❌ [STAFF WAITLIST] Error:', error);
+      res.status(500).json({ error: 'Failed to get table waitlist' });
     }
   });
 
