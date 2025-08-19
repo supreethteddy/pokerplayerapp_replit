@@ -52,9 +52,7 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
   // Call Time mutation
   const callTimeMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest(`/api/live-sessions/${playerId}/call-time`, {
-        method: 'POST',
-      });
+      const response = await apiRequest(`/api/live-sessions/${playerId}/call-time`, 'POST');
       return response;
     },
     onSuccess: () => {
@@ -76,9 +74,7 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
   // Cash Out mutation
   const cashOutMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest(`/api/live-sessions/${playerId}/cash-out`, {
-        method: 'POST',
-      });
+      const response = await apiRequest(`/api/live-sessions/${playerId}/cash-out`, 'POST');
       return response;
     },
     onSuccess: () => {
@@ -98,12 +94,18 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
     },
   });
 
-  // Auto-open dialog when session becomes active
+  // Auto-open dialog when session becomes active (only once)
+  const [hasAutoOpened, setHasAutoOpened] = useState(false);
   useEffect(() => {
-    if (session?.isLive && !isDialogOpen) {
+    if (session?.isLive && !isDialogOpen && !hasAutoOpened) {
       setIsDialogOpen(true);
+      setHasAutoOpened(true);
     }
-  }, [session?.isLive, isDialogOpen]);
+    // Reset auto-open flag when session ends
+    if (!session?.isLive) {
+      setHasAutoOpened(false);
+    }
+  }, [session?.isLive, isDialogOpen, hasAutoOpened]);
 
   // Calculate session duration
   const getSessionDuration = () => {
@@ -132,21 +134,45 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
     return Math.max(0, Math.ceil(timeUntilCallTime));
   };
 
-  // Calculate time until cash out available
-  const getTimeUntilCashOut = () => {
-    if (!session?.sessionStartTime || session.canCashOut) return 0;
+  // Calculate cashout window timing
+  const getCashoutWindowStatus = () => {
+    if (!session?.sessionStartTime) return { inWindow: false, timeRemaining: 0, timeUntilWindow: 0 };
     
     const start = new Date(session.sessionStartTime);
     const now = new Date();
     const minutesPlayed = (now.getTime() - start.getTime()) / (1000 * 60);
-    const timeUntilCashOut = session.minPlayTimeMinutes - minutesPlayed;
     
-    return Math.max(0, Math.ceil(timeUntilCashOut));
+    // Cashout window starts after minimum play time and lasts for cashoutWindowMinutes
+    const windowStartTime = session.minPlayTimeMinutes;
+    const windowEndTime = windowStartTime + session.cashoutWindowMinutes;
+    
+    if (minutesPlayed < windowStartTime) {
+      // Before window opens
+      return {
+        inWindow: false,
+        timeRemaining: 0,
+        timeUntilWindow: Math.ceil(windowStartTime - minutesPlayed)
+      };
+    } else if (minutesPlayed >= windowStartTime && minutesPlayed <= windowEndTime) {
+      // Inside cashout window
+      return {
+        inWindow: true,
+        timeRemaining: Math.ceil(windowEndTime - minutesPlayed),
+        timeUntilWindow: 0
+      };
+    } else {
+      // Window has closed
+      return {
+        inWindow: false,
+        timeRemaining: 0,
+        timeUntilWindow: 0
+      };
+    }
   };
 
   const sessionDuration = getSessionDuration();
   const timeUntilCallTime = getTimeUntilCallTime();
-  const timeUntilMinPlay = getTimeUntilCashOut();
+  const cashoutStatus = getCashoutWindowStatus();
 
   // Don't render if no session or not loading
   if (isLoading) {
