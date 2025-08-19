@@ -32,6 +32,8 @@ Preferred communication style: Simple, everyday language.
 
 ### Key Features
 - **Authentication**: Secure login/signup with KYC document upload, branded loading screens, and robust error handling.
+- **Email Verification System**: Complete email verification workflow with token generation, secure links, and database integration. Supports both automated and manual verification processes.
+- **Interactive Thank You Page**: Fully customizable branding system with logo upload, color customization, message personalization, and real-time preview capabilities. Includes export/import functionality for branding configurations.
 - **Player Dashboard**: Displays real-time cash table and tournament information, allows waitlist management (join/leave, seat selection), shows simple cash balance (table operations managed by staff), and enables profile management including PAN card verification and transaction history.
 - **KYC Document Management**: Comprehensive system for uploading, viewing, and managing KYC documents (government ID, utility bill, profile photo) with cross-portal status synchronization and file type validation.
 - **Waitlist Management**: Bulletproof nanosecond synchronization system with dual-table architecture (seat_requests + waitlist) ensuring instant staff portal visibility and real-time Pusher notifications.

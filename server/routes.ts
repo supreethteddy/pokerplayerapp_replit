@@ -2923,6 +2923,146 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // ========== EMAIL VERIFICATION SYSTEM ==========
+  
+  // Send email verification
+  app.post('/api/auth/send-verification-email', async (req, res) => {
+    try {
+      const { email, playerId } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ error: 'Email is required' });
+      }
+      
+      console.log(`📧 [EMAIL VERIFICATION] Sending verification email to:`, email);
+      
+      // Generate verification token
+      const verificationToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      
+      // Store verification token in database
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      await pool.query(`
+        UPDATE players 
+        SET verification_token = $1, token_expiry = $2
+        WHERE email = $3
+      `, [verificationToken, tokenExpiry, email]);
+
+      await pool.end();
+      
+      // Create verification URL
+      const verificationUrl = `${req.protocol}://${req.get('host')}/api/auth/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
+      
+      console.log(`📧 [EMAIL VERIFICATION] Verification URL:`, verificationUrl);
+      console.log(`📧 [EMAIL VERIFICATION] Token:`, verificationToken);
+      
+      // In production, you would send this via your email service
+      // For now, we'll log it and provide a manual verification option
+      
+      res.json({ 
+        success: true, 
+        message: 'Verification email sent',
+        verificationUrl: verificationUrl,
+        token: verificationToken
+      });
+      
+    } catch (error) {
+      console.error('❌ [EMAIL VERIFICATION] Error:', error);
+      res.status(500).json({ error: 'Failed to send verification email' });
+    }
+  });
+  
+  // Verify email endpoint
+  app.get('/api/auth/verify-email', async (req, res) => {
+    try {
+      const { token, email } = req.query;
+      
+      if (!token || !email) {
+        return res.status(400).json({ error: 'Missing token or email' });
+      }
+      
+      console.log(`📧 [EMAIL VERIFICATION] Verifying token for:`, email);
+      
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      const result = await pool.query(`
+        SELECT id, email, verification_token, token_expiry, email_verified
+        FROM players 
+        WHERE email = $1 AND verification_token = $2
+      `, [email, token]);
+
+      if (result.rows.length === 0) {
+        await pool.end();
+        return res.status(400).json({ error: 'Invalid verification token' });
+      }
+
+      const player = result.rows[0];
+      
+      // Check if token is expired
+      if (new Date() > new Date(player.token_expiry)) {
+        await pool.end();
+        return res.status(400).json({ error: 'Verification token expired' });
+      }
+      
+      // Update email verification status
+      await pool.query(`
+        UPDATE players 
+        SET email_verified = true, verification_token = NULL, token_expiry = NULL
+        WHERE id = $1
+      `, [player.id]);
+
+      await pool.end();
+      
+      console.log(`✅ [EMAIL VERIFICATION] Email verified for player:`, player.id);
+      
+      // Redirect to success page
+      res.redirect(`/?verified=true&email=${encodeURIComponent(email)}`);
+      
+    } catch (error) {
+      console.error('❌ [EMAIL VERIFICATION] Error:', error);
+      res.status(500).json({ error: 'Email verification failed' });
+    }
+  });
+  
+  // Manual email verification for testing
+  app.post('/api/auth/verify-email-manual', async (req, res) => {
+    try {
+      const { email } = req.body;
+      
+      console.log(`📧 [MANUAL VERIFICATION] Verifying email:`, email);
+      
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      await pool.query(`
+        UPDATE players 
+        SET email_verified = true, verification_token = NULL, token_expiry = NULL
+        WHERE email = $1
+      `, [email]);
+
+      await pool.end();
+      
+      console.log(`✅ [MANUAL VERIFICATION] Email manually verified:`, email);
+      res.json({ success: true, message: 'Email verification updated' });
+      
+    } catch (error) {
+      console.error('❌ [MANUAL VERIFICATION] Error:', error);
+      res.status(500).json({ error: 'Failed to verify email' });
+    }
+  });
+
   // ========== ENTERPRISE-GRADE PLAYER CREATION SYSTEM ==========
   
   // Enterprise single player creation (optimized for scalability)

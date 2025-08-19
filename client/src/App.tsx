@@ -18,6 +18,7 @@ import { useState, useEffect } from "react";
 
 import NotFound from "@/pages/not-found";
 import ThankYou from "@/pages/thank-you";
+import InteractiveThankYouPage from "./components/InteractiveThankYouPage";
 
 function AppContent() {
   const { user, loading, authChecked } = useUltraFastAuth();
@@ -135,6 +136,12 @@ function AppContent() {
         </Route>
         <Route path="/offer/:id">
           {user ? <OfferDetail /> : <Redirect to="/" />}
+        </Route>
+        <Route path="/interactive-thank-you">
+          <InteractiveThankYouPage 
+            playerEmail="player@example.com" 
+            playerName="Player" 
+          />
         </Route>
         <Route path="/sign-in">
           <AuthWrapper />
