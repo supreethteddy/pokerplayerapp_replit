@@ -3280,7 +3280,7 @@ export function registerRoutes(app: Express) {
 
   // ========== PRODUCTION-GRADE AUTHENTICATION SYSTEM ==========
   
-  // CRITICAL AUTHENTICATION ENDPOINT - Direct Supabase + Database Integration
+  // CLEAN SIGNIN ENDPOINT - SUPABASE ONLY
   app.post('/api/auth/signin', async (req, res) => {
     try {
       const { email, password } = req.body;
@@ -3291,40 +3291,24 @@ export function registerRoutes(app: Express) {
       
       console.log(`🔐 [AUTH SIGNIN] Attempting login for: ${email}`);
       
-      // Step 1: Check if player exists in our database using direct PostgreSQL query
-      // This bypasses any Supabase RLS issues that might block the query
-      const pgClient = new pg.Client({
-        connectionString: process.env.DATABASE_URL
-      });
-      
-      try {
-        await pgClient.connect();
-      } catch (connectionError) {
-        console.error(`❌ [AUTH SIGNIN] Database connection failed:`, connectionError);
-        return res.status(500).json({ error: 'Database connection failed' });
-      }
-      
-      console.log(`🔍 [AUTH SIGNIN] Querying database for player: ${email}`);
-      
-      const playerQuery = `
-        SELECT id, email, password, first_name, last_name, phone, kyc_status, balance, 
-               current_credit, credit_limit, credit_approved, total_deposits, total_withdrawals,
-               total_winnings, total_losses, games_played, hours_played, clerk_user_id, 
-               supabase_id, is_active, last_login_at, email_verified
-        FROM players 
-        WHERE email = $1 AND (is_active IS NULL OR is_active = true)
-      `;
-      
-      const playerResult = await pgClient.query(playerQuery, [email]);
-      
-      if (playerResult.rows.length === 0) {
-        await pgClient.end();
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Check if player exists in Supabase
+      const { data: player, error: playerError } = await supabase
+        .from('players')
+        .select('*')
+        .eq('email', email)
+        .eq('is_active', true)
+        .single();
+
+      if (playerError || !player) {
         console.log(`❌ [AUTH SIGNIN] Player not found: ${email}`);
         return res.status(401).json({ error: 'Invalid credentials' });
       }
-      
-      const player = playerResult.rows[0];
-      await pgClient.end();
       
       console.log(`🔍 [AUTH SIGNIN] Found player: ${player.email} (ID: ${player.id})`);
       
