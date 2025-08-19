@@ -45,8 +45,7 @@ import { directChat } from './direct-chat-system';
 import { directKycStorage } from './direct-kyc-storage';
 import { enterprisePlayerSystem } from './enterprise-player-system';
 
-// Import Clerk integration
-import { ClerkPlayerSync } from './clerk-integration';
+// Clerk integration temporarily disabled to prevent database errors
 
 // Import staff portal integration
 import staffPortalRoutes from './routes/staff-portal-integration';
@@ -1407,8 +1406,7 @@ export function registerRoutes(app: Express) {
 
   // REMOVED: Duplicate endpoint - consolidated into staff-chat-integration/send
 
-  // CLERK AUTHENTICATION INTEGRATION APIs
-  const clerkSync = new ClerkPlayerSync();
+  // CLERK AUTHENTICATION INTEGRATION APIs - TEMPORARILY DISABLED
 
   // Create new player (Enterprise-optimized Signup endpoint)
   app.post("/api/players", async (req, res) => {
@@ -3346,161 +3344,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // CLEAN SIGNUP ENDPOINT - SUPABASE ONLY
-  app.post('/api/auth/signup', async (req, res) => {
-    try {
-      const { email, password, firstName, lastName, phone } = req.body;
-      
-      if (!email || !password || !firstName || !lastName) {
-        return res.status(400).json({ error: 'All required fields must be provided' });
-      }
-      
-      console.log(`🔐 [AUTH SIGNUP] Creating account for: ${email}`);
-      
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
 
-      // Check if player exists in Supabase
-      const { data: existingPlayer } = await supabase
-        .from('players')
-        .select('*')
-        .eq('email', email)
-        .single();
-
-      if (existingPlayer) {
-        console.log(`✅ [AUTH SIGNUP] Existing player found: ${email}`);
-        return res.json({
-          success: true,
-          existing: true,
-          player: {
-            id: existingPlayer.id,
-            email: existingPlayer.email,
-            firstName: existingPlayer.first_name,
-            lastName: existingPlayer.last_name,
-            phone: existingPlayer.phone,
-            kycStatus: existingPlayer.kyc_status,
-            balance: existingPlayer.balance,
-            emailVerified: existingPlayer.email_verified
-          },
-          redirectToKYC: !existingPlayer.email_verified || existingPlayer.kyc_status === 'pending',
-          needsEmailVerification: !existingPlayer.email_verified,
-          needsKYCUpload: existingPlayer.kyc_status === 'pending',
-          needsKYCApproval: existingPlayer.kyc_status === 'submitted',
-          message: 'Welcome back!'
-        });
-      }
-
-      // Create new player
-      console.log(`🔧 [AUTH SIGNUP] Creating new player for: ${email}`);
-
-      // Create Supabase auth user first
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: false, // We'll handle verification separately
-        user_metadata: {
-          first_name: firstName,
-          last_name: lastName
-        }
-      });
-
-      if (authError && !authError.message?.includes('already been registered')) {
-        console.error('❌ [AUTH SIGNUP] Supabase auth creation failed:', authError);
-        return res.status(400).json({ error: authError.message });
-      }
-
-      const authUser = authData?.user;
-      console.log(`✅ [AUTH SIGNUP] Supabase auth user created: ${email}`);
-
-      // Create player record in Supabase
-      const universalId = `unified_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const { data: newPlayer, error: insertError } = await supabase
-        .from('players')
-        .insert({
-          email,
-          password,
-          first_name: firstName,
-          last_name: lastName,
-          phone: phone || '',
-          kyc_status: 'pending',
-          balance: '0.00',
-          email_verified: false
-        })
-        .select('*')
-        .single();
-      
-      if (insertError) {
-        console.error('❌ [AUTH SIGNUP] Player creation failed:', insertError);
-        return res.status(500).json({ error: 'Failed to create player account' });
-      }
-
-      console.log(`✅ [AUTH SIGNUP] Player created: ${newPlayer.email} (ID: ${newPlayer.id})`);
-      
-      // Generate verification token
-      const verificationToken = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
-      const tokenExpiry = new Date();
-      tokenExpiry.setHours(tokenExpiry.getHours() + 24);
-
-      // Store verification token
-      const { error: tokenError } = await supabase
-        .from('players')
-        .update({
-          verification_token: verificationToken,
-          token_expiry: tokenExpiry.toISOString()
-        })
-        .eq('id', newPlayer.id);
-
-      // Send verification email via Supabase
-      const verificationUrl = `${req.protocol}://${req.get('host')}/api/auth/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
-      
-      try {
-        const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-          type: 'signup',
-          email: email,
-          password: password,
-          options: {
-            redirectTo: verificationUrl
-          }
-        });
-
-        if (!linkError && linkData) {
-          console.log('✅ [AUTH SIGNUP] Verification email sent via Supabase to:', email);
-        } else {
-          console.log('⚠️ [AUTH SIGNUP] Email sending issue (user can verify manually):', linkError?.message);
-        }
-      } catch (emailError) {
-        console.log('⚠️ [AUTH SIGNUP] Email sending failed (user can verify manually):', emailError);
-      }
-
-      // Return new player data
-      res.json({
-        success: true,
-        player: {
-          id: newPlayer.id,
-          email: newPlayer.email,
-          firstName: newPlayer.first_name,
-          lastName: newPlayer.last_name,
-          phone: newPlayer.phone,
-          kycStatus: newPlayer.kyc_status,
-          balance: newPlayer.balance,
-          emailVerified: newPlayer.email_verified
-        },
-        redirectToKYC: true,
-        needsEmailVerification: true,
-        needsKYCUpload: true,
-        needsKYCApproval: false,
-        message: 'Account created! Please check your email to verify your account.'
-      });
-      
-    } catch (error: any) {
-      console.error('❌ [AUTH SIGNUP] Server error:', error);
-      res.status(500).json({ error: 'Signup server error' });
-    }
-  });
 
   const httpServer = createServer(app);
   return httpServer;
