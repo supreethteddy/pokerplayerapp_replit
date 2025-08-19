@@ -2961,7 +2961,7 @@ export function registerRoutes(app: Express) {
       console.log(`📧 [EMAIL VERIFICATION] Verification URL:`, verificationUrl);
       console.log(`📧 [EMAIL VERIFICATION] Token:`, verificationToken);
       
-      // Send email via Supabase or trigger Clerk verification
+      // Send email via Supabase with proper verification link
       try {
         // Initialize Supabase admin client for email operations
         const { createClient } = await import('@supabase/supabase-js');
@@ -2976,25 +2976,28 @@ export function registerRoutes(app: Express) {
           }
         );
 
-        // Try to send email via Supabase if user exists in auth
+        // Try to send email via Supabase with our custom verification link
         try {
           const { error: emailError } = await supabaseAdmin.auth.admin.generateLink({
-            type: 'signup',
+            type: 'signup', 
             email: email,
             password: 'temp-password-for-verification',
             options: {
-              redirectTo: `${req.protocol}://${req.get('host')}/?verified=true&email=${encodeURIComponent(email)}`
+              redirectTo: verificationUrl
             }
           });
 
           if (!emailError) {
             console.log(`📧 [EMAIL VERIFICATION] Supabase verification email sent to:`, email);
+            console.log(`🔗 [EMAIL VERIFICATION] Verification link:`, verificationUrl);
+          } else {
+            console.log(`⚠️ [EMAIL VERIFICATION] Supabase email failed:`, emailError);
           }
         } catch (supabaseEmailError) {
-          console.log(`📧 [EMAIL VERIFICATION] Supabase email failed, using manual verification:`, supabaseEmailError);
+          console.log(`⚠️ [EMAIL VERIFICATION] Supabase email error:`, supabaseEmailError);
         }
       } catch (supabaseError) {
-        console.log(`📧 [EMAIL VERIFICATION] Supabase not available, using manual verification:`, supabaseError);
+        console.log(`⚠️ [EMAIL VERIFICATION] Supabase initialization error:`, supabaseError);
       }
       
       res.json({ 
@@ -3057,8 +3060,83 @@ export function registerRoutes(app: Express) {
       
       console.log(`✅ [EMAIL VERIFICATION] Email verified for player:`, player.id);
       
-      // Redirect to success page
-      res.redirect(`/?verified=true&email=${encodeURIComponent(email as string)}`);
+      // Redirect to success page with confirmation
+      const confirmationHtml = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Email Verified Successfully</title>
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+              color: white;
+              margin: 0;
+              padding: 40px 20px;
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .container {
+              background: rgba(255, 255, 255, 0.05);
+              backdrop-filter: blur(10px);
+              border: 1px solid rgba(255, 255, 255, 0.1);
+              border-radius: 16px;
+              padding: 40px;
+              text-align: center;
+              max-width: 500px;
+              width: 100%;
+            }
+            .success-icon {
+              font-size: 64px;
+              margin-bottom: 20px;
+              color: #22c55e;
+            }
+            h1 {
+              margin: 0 0 16px 0;
+              font-size: 28px;
+              font-weight: 600;
+            }
+            p {
+              margin: 0 0 32px 0;
+              font-size: 16px;
+              line-height: 1.5;
+              color: rgba(255, 255, 255, 0.8);
+            }
+            .login-button {
+              background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+              color: white;
+              border: none;
+              border-radius: 8px;
+              padding: 12px 24px;
+              font-size: 16px;
+              font-weight: 600;
+              cursor: pointer;
+              text-decoration: none;
+              display: inline-block;
+              transition: all 0.2s;
+            }
+            .login-button:hover {
+              transform: translateY(-1px);
+              box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="success-icon">✅</div>
+            <h1>Thank you for verifying your email!</h1>
+            <p>Your email address has been successfully verified. You can now log in to your poker room account and complete your KYC process.</p>
+            <a href="/" class="login-button">Continue to Login</a>
+          </div>
+        </body>
+        </html>
+      `;
+      
+      res.send(confirmationHtml);
       
     } catch (error) {
       console.error('❌ [EMAIL VERIFICATION] Error:', error);
@@ -3663,6 +3741,46 @@ export function registerRoutes(app: Express) {
         const needsKYCUpload = newPlayer.kyc_status === 'pending' || !newPlayer.kyc_status;
         const needsKYCApproval = newPlayer.kyc_status === 'submitted' || newPlayer.kyc_status === 'rejected';
         
+        // AUTO-SEND EMAIL VERIFICATION FOR NEW USERS
+        if (needsEmailVerification) {
+          console.log('📧 [AUTH SIGNUP] Sending verification email to new user:', email);
+          try {
+            // Create verification token and store in database
+            const verificationToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+            const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+            
+            // Update player with verification token
+            await supabase
+              .from('players')
+              .update({
+                verification_token: verificationToken,
+                token_expiry: tokenExpiry.toISOString()
+              })
+              .eq('id', newPlayer.id);
+
+            // Send verification email via Supabase
+            const verificationUrl = `${req.protocol}://${req.get('host')}/api/auth/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
+            
+            const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+              type: 'signup',
+              email: email,
+              password: password,
+              options: {
+                redirectTo: verificationUrl
+              }
+            });
+
+            if (!linkError && linkData) {
+              console.log('✅ [AUTH SIGNUP] Verification email sent via Supabase to:', email);
+              console.log('🔗 [AUTH SIGNUP] Verification URL:', verificationUrl);
+            } else {
+              console.log('⚠️ [AUTH SIGNUP] Email sending failed, user can request manual verification:', linkError);
+            }
+          } catch (emailError) {
+            console.log('⚠️ [AUTH SIGNUP] Email sending error:', emailError);
+          }
+        }
+        
         return res.json({
           success: true,
           player: {
@@ -3682,7 +3800,7 @@ export function registerRoutes(app: Express) {
           needsKYCUpload,
           needsKYCApproval,
           message: needsEmailVerification 
-            ? 'Account created! Please verify your email to continue.'
+            ? 'Account created! Please check your email to verify your account.'
             : 'Account created successfully'
         });
         
