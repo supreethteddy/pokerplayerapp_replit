@@ -1473,6 +1473,88 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // ========== CRITICAL CLERK-SUPABASE CROSS-FUNCTIONALITY SYSTEM ==========
+  
+  // Clerk webhook handler for data integrity
+  app.post("/api/clerk/webhooks", async (req, res) => {
+    try {
+      const { type, data } = req.body;
+      console.log(`🔔 [CLERK WEBHOOK] Received event: ${type}`);
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      
+      switch (type) {
+        case 'user.created':
+          // Auto-sync new Clerk user to Supabase
+          const { email_addresses, first_name, last_name, id: clerkUserId } = data;
+          const email = email_addresses?.[0]?.email_address;
+          
+          if (email) {
+            const { error } = await supabase
+              .from('players')
+              .upsert({
+                email,
+                clerk_user_id: clerkUserId,
+                first_name: first_name || '',
+                last_name: last_name || '',
+                kyc_status: 'pending',
+                balance: '0.00',
+                is_active: true,
+                universal_id: `clerk_wh_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                credit_approved: false,
+                credit_limit: 0,
+                current_credit: 0
+              }, {
+                onConflict: 'email'
+              });
+              
+            if (!error) {
+              console.log(`✅ [CLERK WEBHOOK] User synced: ${email}`);
+            }
+          }
+          break;
+          
+        case 'user.deleted':
+          // CRITICAL: Prevent data deletion cascade
+          console.log(`🚨 [CLERK WEBHOOK] User deletion blocked to prevent data loss`);
+          // Mark as inactive instead of deleting
+          await supabase
+            .from('players')
+            .update({ 
+              is_active: false,
+              clerk_user_id: null,
+              deactivated_at: new Date().toISOString()
+            })
+            .eq('clerk_user_id', data.id);
+          break;
+          
+        case 'user.updated':
+          // Sync profile updates
+          const updateEmail = data.email_addresses?.[0]?.email_address;
+          if (updateEmail) {
+            await supabase
+              .from('players')
+              .update({
+                first_name: data.first_name || '',
+                last_name: data.last_name || '',
+                updated_at: new Date().toISOString()
+              })
+              .eq('clerk_user_id', data.id);
+          }
+          break;
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('❌ [CLERK WEBHOOK] Error:', error);
+      res.status(500).json({ error: 'Webhook processing failed' });
+    }
+  });
+
   // Sync Clerk user with Player database
   app.post("/api/clerk/sync-player", async (req, res) => {
     try {
@@ -1480,12 +1562,62 @@ export function registerRoutes(app: Express) {
       
       console.log('🔗 [CLERK API] Syncing player:', email);
       
-      const player = await clerkSync.syncPlayer({
-        clerkUserId,
-        email,
-        firstName,
-        lastName
-      });
+      // Use direct database integration for Clerk sync
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Check if player exists first
+      const { data: existingPlayer } = await supabase
+        .from('players')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      let player;
+      if (existingPlayer) {
+        // Update existing player with Clerk ID
+        const { data: updatedPlayer, error } = await supabase
+          .from('players')
+          .update({
+            clerk_user_id: clerkUserId,
+            first_name: firstName,
+            last_name: lastName,
+            updated_at: new Date().toISOString()
+          })
+          .eq('email', email)
+          .select('*')
+          .single();
+
+        if (error) throw error;
+        player = updatedPlayer;
+        console.log('✅ [CLERK SYNC] Updated existing player:', email);
+      } else {
+        // Create new player for Clerk user
+        const { data: newPlayer, error } = await supabase
+          .from('players')
+          .insert({
+            email,
+            clerk_user_id: clerkUserId,
+            first_name: firstName,
+            last_name: lastName,
+            kyc_status: 'pending',
+            balance: '0.00',
+            is_active: true,
+            universal_id: `clerk_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            credit_approved: false,
+            credit_limit: 0,
+            current_credit: 0
+          })
+          .select('*')
+          .single();
+
+        if (error) throw error;
+        player = newPlayer;
+        console.log('✅ [CLERK SYNC] Created new player for Clerk user:', email);
+      }
 
       res.json({ success: true, player });
     } catch (error: any) {
@@ -1530,8 +1662,25 @@ export function registerRoutes(app: Express) {
       // Handle file uploads and KYC submission
       const { clerkUserId, phone } = req.body;
       
-      // Update player with phone number and KYC status
-      const updatedPlayer = await clerkSync.updatePlayerPhone(clerkUserId, phone);
+      // Update player with phone number directly
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { data: updatedPlayer, error } = await supabase
+        .from('players')
+        .update({
+          phone,
+          kyc_status: 'submitted',
+          updated_at: new Date().toISOString()
+        })
+        .eq('clerk_user_id', clerkUserId)
+        .select('*')
+        .single();
+
+      if (error) throw error;
       
       // In a real implementation, you would:
       // 1. Upload files to storage
@@ -2883,36 +3032,159 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       
-      // Check if player already exists
-      const { data: existingPlayer } = await supabaseAdmin
+      // CRITICAL: Check both Supabase and PostgreSQL for existing players
+      const { data: existingSupabasePlayer } = await supabaseAdmin
         .from('players')
-        .select('id, email, kyc_status')
+        .select('*')
         .eq('email', email)
         .single();
       
-      if (existingPlayer) {
-        console.log(`🔄 [AUTH SIGNUP] Existing player found: ${email}`);
+      // Also check Supabase auth users to prevent cascade deletions
+      const { data: existingAuthUser } = await supabaseAdmin.auth.admin.listUsers();
+      const authUserExists = existingAuthUser.users?.some(user => user.email === email);
+      
+      if (existingSupabasePlayer && authUserExists) {
+        console.log(`🔄 [AUTH SIGNUP] Complete existing player found: ${email}`);
         return res.json({
           success: true,
           existing: true,
-          player: existingPlayer,
+          player: existingSupabasePlayer,
           message: 'Account already exists. Please sign in.'
         });
       }
       
-      // Create Supabase auth user
+      // CRITICAL: Handle partial data corruption scenarios
+      if (existingSupabasePlayer && !authUserExists) {
+        console.log(`🔧 [AUTH SIGNUP] Repairing corrupted auth for: ${email}`);
+        // Create missing Supabase auth user for existing player
+        const { data: repairedAuthData, error: repairError } = await supabaseAdmin.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+          user_metadata: {
+            first_name: firstName,
+            last_name: lastName,
+            player_id: existingSupabasePlayer.id
+          }
+        });
+        
+        if (!repairError && repairedAuthData.user) {
+          // Update player record with repaired Supabase ID
+          const { error: updateError } = await supabaseAdmin
+            .from('players')
+            .update({ supabase_id: repairedAuthData.user.id })
+            .eq('email', email);
+            
+          if (!updateError) {
+            console.log(`✅ [AUTH SIGNUP] Repaired authentication for: ${email}`);
+            return res.json({
+              success: true,
+              repaired: true,
+              player: existingSupabasePlayer,
+              message: 'Account repaired successfully. You can now sign in.'
+            });
+          }
+        }
+      }
+      
+      if (authUserExists && !existingSupabasePlayer) {
+        console.log(`🔧 [AUTH SIGNUP] Repairing missing player data for: ${email}`);
+        // Get the auth user
+        const authUser = existingAuthUser.users?.find(user => user.email === email);
+        if (authUser) {
+          // Create missing player record
+          const { data: repairedPlayer, error: playerError } = await supabaseAdmin
+            .from('players')
+            .insert({
+              email,
+              password,
+              first_name: firstName,
+              last_name: lastName,
+              phone: phone || '',
+              supabase_id: authUser.id,
+              kyc_status: 'pending',
+              balance: '0.00',
+              is_active: true,
+              universal_id: `repaired_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              credit_approved: false,
+              credit_limit: 0,
+              current_credit: 0
+            })
+            .select('*')
+            .single();
+            
+          if (!playerError && repairedPlayer) {
+            console.log(`✅ [AUTH SIGNUP] Repaired player data for: ${email}`);
+            return res.json({
+              success: true,
+              repaired: true,
+              player: repairedPlayer,
+              message: 'Account repaired successfully. You can now continue.'
+            });
+          }
+        }
+      }
+      
+      // CRITICAL: Create Supabase auth user with safe error handling
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
         user_metadata: {
           first_name: firstName,
-          last_name: lastName
+          last_name: lastName,
+          cross_platform_sync: true,
+          created_via: 'player_portal'
         }
       });
       
       if (authError) {
         console.error('❌ [AUTH SIGNUP] Supabase auth creation failed:', authError);
+        
+        // Check if user exists in auth but not in our database
+        if (authError.message?.includes('already been registered')) {
+          console.log('🔧 [AUTH SIGNUP] Attempting auth repair for existing user');
+          
+          // Try to sign in the user to get their Supabase ID
+          const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
+            email,
+            password
+          });
+          
+          if (!signInError && signInData.user) {
+            // Create the missing player record
+            const { data: repairedPlayer, error: repairError } = await supabaseAdmin
+              .from('players')
+              .insert({
+                email,
+                password,
+                first_name: firstName,
+                last_name: lastName,
+                phone: phone || '',
+                supabase_id: signInData.user.id,
+                kyc_status: 'pending',
+                balance: '0.00',
+                is_active: true,
+                universal_id: `auth_repair_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                credit_approved: false,
+                credit_limit: 0,
+                current_credit: 0
+              })
+              .select('*')
+              .single();
+              
+            if (!repairError && repairedPlayer) {
+              console.log(`✅ [AUTH SIGNUP] Repaired authentication for: ${email}`);
+              return res.json({
+                success: true,
+                repaired: true,
+                player: repairedPlayer,
+                message: 'Account authentication repaired successfully'
+              });
+            }
+          }
+        }
+        
         return res.status(400).json({ error: authError.message });
       }
       
