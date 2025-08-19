@@ -983,6 +983,26 @@ export function registerRoutes(app: Express) {
         
         playerData = createResult.rows[0];
         console.log('✅ [CLERK SYNC] Created new player:', playerData.id);
+        
+        await pgClient.end();
+        return res.json({ 
+          success: true, 
+          player: {
+            id: playerData.id,
+            email: playerData.email,
+            firstName: playerData.first_name,
+            lastName: playerData.last_name,
+            phone: playerData.phone,
+            kycStatus: playerData.kyc_status,
+            balance: playerData.balance || '0.00',
+            current_credit: playerData.current_credit || '0.00',
+            credit_limit: playerData.credit_limit || '0.00',
+            credit_approved: playerData.credit_approved || false,
+            clerkUserId: playerData.clerk_user_id
+          },
+          message: 'New player created and synced successfully',
+          existingPlayer: false
+        });
       }
       
       await pgClient.end();
@@ -1001,7 +1021,9 @@ export function registerRoutes(app: Express) {
           credit_limit: playerData.credit_limit || '0.00',
           credit_approved: playerData.credit_approved || false,
           clerkUserId: playerData.clerk_user_id
-        }
+        },
+        message: 'Existing player updated successfully',
+        existingPlayer: true
       });
       
     } catch (error: any) {
@@ -1469,7 +1491,7 @@ export function registerRoutes(app: Express) {
         }
       }
       
-      res.status(500).json({ error: (error as any).message || 'Unknown error' });
+      res.status(500).json({ error: (error as Error).message || 'Unknown error' });
     }
   });
 
@@ -3092,7 +3114,7 @@ export function registerRoutes(app: Express) {
           'incomplete': 'Please complete your KYC document submission before accessing the portal.'
         };
         
-        const blockMessage = kycBlockMessages[player.kyc_status] || 'KYC verification required. Please complete document submission.';
+        const blockMessage = kycBlockMessages[player.kyc_status as keyof typeof kycBlockMessages] || 'KYC verification required. Please complete document submission.';
         
         return res.status(403).json({ 
           error: 'KYC_VERIFICATION_REQUIRED',
@@ -3255,47 +3277,68 @@ export function registerRoutes(app: Express) {
         console.error('❌ [AUTH SIGNUP] Supabase auth creation failed:', authError);
         
         // Check if user exists in auth but not in our database
-        if (authError.message?.includes('already been registered')) {
+        if (authError.message?.includes('already been registered') || authError.code === 'email_exists') {
           console.log('🔧 [AUTH SIGNUP] Attempting auth repair for existing user');
           
-          // Try to sign in the user to get their Supabase ID
-          const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
-            email,
-            password
-          });
+          // Find the existing player in our database instead of trying to sign in
+          const { Client } = await import('pg');
+          const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+          await pgClient.connect();
           
-          if (!signInError && signInData.user) {
-            // Create the missing player record
-            const { data: repairedPlayer, error: repairError } = await supabaseAdmin
-              .from('players')
-              .insert({
-                email,
-                password,
-                first_name: firstName,
-                last_name: lastName,
-                phone: phone || '',
-                supabase_id: signInData.user.id,
-                kyc_status: 'pending',
-                balance: '0.00',
-                is_active: true,
-                universal_id: `auth_repair_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                credit_approved: false,
-                credit_limit: 0,
-                current_credit: 0
-              })
-              .select('*')
-              .single();
+          try {
+            const findQuery = 'SELECT * FROM players WHERE email = $1';
+            const findResult = await pgClient.query(findQuery, [email]);
+            
+            if (findResult.rows.length > 0) {
+              const existingPlayer = findResult.rows[0];
+              console.log(`✅ [AUTH SIGNUP] Existing player found - seamlessly continuing: ${existingPlayer.email} (KYC: ${existingPlayer.kyc_status})`);
               
-            if (!repairError && repairedPlayer) {
-              console.log(`✅ [AUTH SIGNUP] Repaired authentication for: ${email}`);
+              // Update player with fresh data but preserve their progress
+              const updateQuery = `
+                UPDATE players 
+                SET first_name = COALESCE($1, first_name),
+                    last_name = COALESCE($2, last_name),
+                    phone = COALESCE($3, phone)
+                WHERE id = $4 
+                RETURNING *
+              `;
+              
+              const updateResult = await pgClient.query(updateQuery, [
+                firstName,
+                lastName,
+                phone || existingPlayer.phone,
+                existingPlayer.id
+              ]);
+              
+              const updatedPlayer = updateResult.rows[0];
+              await pgClient.end();
+              
               return res.json({
                 success: true,
-                repaired: true,
-                player: repairedPlayer,
-                message: 'Account authentication repaired successfully'
+                player: {
+                  id: updatedPlayer.id,
+                  email: updatedPlayer.email,
+                  firstName: updatedPlayer.first_name,
+                  lastName: updatedPlayer.last_name,
+                  phone: updatedPlayer.phone,
+                  kycStatus: updatedPlayer.kyc_status,
+                  balance: updatedPlayer.balance,
+                  supabaseId: updatedPlayer.supabase_id
+                },
+                redirectToKYC: updatedPlayer.kyc_status !== 'approved',
+                message: updatedPlayer.kyc_status === 'approved' 
+                  ? 'Welcome back! Redirecting to dashboard...' 
+                  : 'Welcome back! Continuing your KYC process...',
+                existingPlayer: true
               });
             }
+            
+            await pgClient.end();
+          } catch (dbError) {
+            await pgClient.end();
+            console.error('❌ [AUTH SIGNUP] Database lookup failed:', dbError);
           }
+          
         }
         
         return res.status(400).json({ error: authError.message });
@@ -3357,6 +3400,62 @@ export function registerRoutes(app: Express) {
         
       } catch (insertError: any) {
         console.error('❌ [AUTH SIGNUP] PostgreSQL player creation failed:', insertError);
+        
+        // CRITICAL: Handle existing player gracefully - don't lose customers!
+        if (insertError.code === '23505' && insertError.constraint === 'players_email_unique') {
+          console.log('🔄 [AUTH SIGNUP] Player exists - seamlessly continuing from where they left off');
+          
+          // Find existing player and update with new auth data
+          const findQuery = 'SELECT * FROM players WHERE email = $1';
+          const findResult = await pgClient.query(findQuery, [email]);
+          
+          if (findResult.rows.length > 0) {
+            const existingPlayer = findResult.rows[0];
+            
+            // Update existing player with Supabase ID to continue journey
+            const updateQuery = `
+              UPDATE players 
+              SET supabase_id = $1, 
+                  first_name = COALESCE($2, first_name),
+                  last_name = COALESCE($3, last_name),
+                  phone = COALESCE($4, phone),
+                  password = COALESCE($5, password)
+              WHERE id = $6 
+              RETURNING *
+            `;
+            
+            const updateResult = await pgClient.query(updateQuery, [
+              authData.user.id,
+              firstName,
+              lastName,
+              phone || existingPlayer.phone,
+              password,
+              existingPlayer.id
+            ]);
+            
+            const updatedPlayer = updateResult.rows[0];
+            console.log(`✅ [AUTH SIGNUP] Existing player seamlessly updated: ${updatedPlayer.email} - continuing KYC journey`);
+            
+            await pgClient.end();
+            return res.json({
+              success: true,
+              player: {
+                id: updatedPlayer.id,
+                email: updatedPlayer.email,
+                firstName: updatedPlayer.first_name,
+                lastName: updatedPlayer.last_name,
+                phone: updatedPlayer.phone,
+                kycStatus: updatedPlayer.kyc_status,
+                balance: updatedPlayer.balance,
+                supabaseId: updatedPlayer.supabase_id
+              },
+              redirectToKYC: true,
+              message: 'Welcome back! Continuing from where you left off...',
+              existingPlayer: true
+            });
+          }
+        }
+        
         await pgClient.end();
         return res.status(500).json({ error: 'Failed to create player profile' });
       }

@@ -115,9 +115,9 @@ export default function ClerkSignUpPage() {
       if (completeSignUp.status === "complete") {
         await setActive({ session: completeSignUp.createdSessionId });
         
-        // Sync with our backend
+        // Sync with our backend - handle existing players gracefully
         try {
-          await fetch('/api/auth/clerk-sync', {
+          const syncResponse = await fetch('/api/auth/clerk-sync', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -131,8 +131,19 @@ export default function ClerkSignUpPage() {
               emailVerified: true,
             }),
           });
+          
+          const syncData = await syncResponse.json();
+          console.log('✅ [CLERK VERIFICATION] Backend sync successful:', syncData);
+          
+          // Store player data for KYC redirect
+          if (syncData.existingPlayer) {
+            sessionStorage.setItem('continuing_player', JSON.stringify(syncData));
+            console.log('🔄 [CLERK VERIFICATION] Existing player - continuing KYC journey');
+          }
+          
         } catch (syncError) {
-          console.error('Sync error:', syncError);
+          console.error('❌ [CLERK VERIFICATION] Sync error:', syncError);
+          // Don't fail - let user continue even if sync has issues
         }
 
         toast({
