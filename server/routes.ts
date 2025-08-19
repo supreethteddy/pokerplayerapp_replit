@@ -4752,32 +4752,57 @@ export function registerRoutes(app: Express) {
 
   // ========== STAFF PORTAL KYC ENDPOINTS ==========
   
-  // Get all players with KYC status for staff portal
+  // Get all players with KYC status for staff portal - DIRECT POSTGRESQL (matches player portal)
   app.get("/api/staff/players", async (req, res) => {
     try {
-      console.log('🏢 [STAFF PORTAL] Getting all players for KYC review');
+      console.log('🏢 [STAFF PORTAL] Getting all players for KYC review via DIRECT PostgreSQL');
       
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
+      // Use DIRECT PostgreSQL to match player portal signup connection
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        connectionTimeoutMillis: 10000,
+      });
 
-      const { data: players, error } = await supabase
-        .from('players')
-        .select('id, email, first_name, last_name, kyc_status, balance, phone, created_at')
-        .order('created_at', { ascending: false });
+      const query = `
+        SELECT 
+          id, 
+          email, 
+          first_name, 
+          last_name, 
+          kyc_status, 
+          balance, 
+          phone, 
+          created_at,
+          email_verified,
+          supabase_id
+        FROM players 
+        ORDER BY created_at DESC
+      `;
 
-      if (error) {
-        console.error('❌ [STAFF PORTAL] Error fetching players:', error);
-        return res.status(500).json({ error: 'Failed to fetch players' });
-      }
+      const result = await pool.query(query);
+      await pool.end();
 
-      console.log(`✅ [STAFF PORTAL] Retrieved ${players?.length || 0} players`);
-      return res.json(players || []);
+      const players = result.rows.map(row => ({
+        id: row.id,
+        email: row.email,
+        first_name: row.first_name,
+        last_name: row.last_name,
+        kyc_status: row.kyc_status,
+        balance: row.balance,
+        phone: row.phone,
+        created_at: row.created_at,
+        email_verified: row.email_verified,
+        supabase_id: row.supabase_id
+      }));
+
+      console.log(`✅ [STAFF PORTAL] Retrieved ${players.length} players via DIRECT PostgreSQL`);
+      console.log(`🔍 [STAFF PORTAL] Recent players:`, players.slice(0, 5).map(p => `ID: ${p.id}, Email: ${p.email}, KYC: ${p.kyc_status}`));
+      
+      return res.json(players);
 
     } catch (error) {
-      console.error('❌ [STAFF PORTAL] Error:', error);
+      console.error('❌ [STAFF PORTAL] Direct PostgreSQL error:', error);
       return res.status(500).json({ error: 'Failed to fetch players' });
     }
   });
