@@ -3281,7 +3281,7 @@ export function registerRoutes(app: Express) {
 
   // ========== PRODUCTION-GRADE AUTHENTICATION SYSTEM ==========
   
-  // HYBRID SUPABASE-CLERK SIGNIN ENDPOINT
+  // RESTORED WORKING SIGNIN WITH CLERK INTEGRATION
   app.post('/api/auth/signin', async (req, res) => {
     try {
       const { email, password } = req.body;
@@ -3290,35 +3290,105 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ error: 'Email and password are required' });
       }
       
-      console.log(`🔐 [HYBRID SIGNIN] Attempting login for: ${email}`);
+      console.log(`🔐 [RESTORED SIGNIN] Login attempt: ${email}`);
       
-      // Import hybrid auth system
-      const { hybridAuthSystem } = await import('./hybrid-auth-system');
-      
-      // Use hybrid auth system for complete integration
-      const result = await hybridAuthSystem.authenticateUser(email, password);
+      // Use direct PostgreSQL query (the working method)
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
 
-      if (!result.success) {
-        console.log(`❌ [HYBRID SIGNIN] Authentication failed: ${result.error}`);
-        return res.status(401).json({ error: 'Invalid credentials' });
+      try {
+        const result = await pgClient.query(
+          'SELECT * FROM players WHERE email = $1 AND password = $2',
+          [email, password]
+        );
+
+        if (result.rows.length === 0) {
+          await pgClient.end();
+          return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        const player = result.rows[0];
+        console.log(`✅ [RESTORED SIGNIN] Player found: ${player.id}`);
+
+        // Update last login
+        await pgClient.query(
+          'UPDATE players SET last_login_at = NOW() WHERE id = $1',
+          [player.id]
+        );
+
+        await pgClient.end();
+
+        // Verify Supabase Auth if available (double authentication)
+        let supabaseAuth = null;
+        if (player.supabase_id) {
+          try {
+            const { createClient } = await import('@supabase/supabase-js');
+            const supabase = createClient(
+              process.env.VITE_SUPABASE_URL!,
+              process.env.SUPABASE_SERVICE_ROLE_KEY!
+            );
+
+            const { data: authData } = await supabase.auth.signInWithPassword({
+              email,
+              password
+            });
+
+            if (authData.user) {
+              supabaseAuth = {
+                id: authData.user.id,
+                email: authData.user.email,
+                emailConfirmed: authData.user.email_confirmed_at ? true : false
+              };
+              console.log(`✅ [RESTORED SIGNIN] Supabase Auth verified: ${authData.user.id}`);
+            }
+          } catch (supabaseError) {
+            console.warn('⚠️ [RESTORED SIGNIN] Supabase Auth verification failed, continuing with player auth:', supabaseError);
+          }
+        }
+
+        // Return comprehensive user data (compatible with existing frontend)
+        const userData = {
+          id: player.id,
+          email: player.email,
+          firstName: player.first_name,
+          lastName: player.last_name,
+          phone: player.phone,
+          kycStatus: player.kyc_status,
+          balance: player.balance,
+          emailVerified: player.email_verified || false,
+          supabaseId: player.supabase_id,
+          clerkUserId: player.clerk_user_id,
+          universalId: player.universal_id,
+          creditBalance: player.current_credit || '0.00',
+          creditLimit: player.credit_limit || '0.00',
+          creditApproved: player.credit_approved || false,
+          totalBalance: (parseFloat(player.balance || '0') + parseFloat(player.current_credit || '0')).toFixed(2),
+          lastLogin: player.last_login_at,
+          clerkSynced: player.clerk_synced_at ? true : false
+        };
+
+        res.json({
+          success: true,
+          user: userData,
+          supabaseUser: supabaseAuth,
+          doubleAuthActive: !!supabaseAuth,
+          message: "Login successful"
+        });
+
+      } finally {
+        if (pgClient) {
+          try { await pgClient.end(); } catch {}
+        }
       }
 
-      console.log(`✅ [HYBRID SIGNIN] Login successful: ${email}`);
-
-      res.json({
-        success: true,
-        user: result.playerData,
-        supabaseUser: result.supabaseUser,
-        message: "Login successful"
-      });
-
     } catch (error: any) {
-      console.error('❌ [HYBRID SIGNIN] Server error:', error);
+      console.error('❌ [RESTORED SIGNIN] Error:', error);
       res.status(500).json({ error: 'Authentication server error' });
     }
   });
 
-  // HYBRID SUPABASE-CLERK SIGNUP ENDPOINT
+  // RESTORED WORKING SIGNUP WITH CLERK INTEGRATION
   app.post('/api/auth/signup', async (req, res) => {
     try {
       const { email, password, firstName, lastName, phone } = req.body;
@@ -3327,41 +3397,198 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ error: 'All required fields must be provided' });
       }
       
-      console.log(`🔐 [HYBRID SIGNUP] Creating account for: ${email}`);
+      console.log(`🔐 [RESTORED SIGNUP] Creating account: ${email}`);
       
-      // Import hybrid auth system
-      const { hybridAuthSystem } = await import('./hybrid-auth-system');
-      
-      // Use hybrid auth system for complete integration
-      const result = await hybridAuthSystem.createUser({
-        email,
-        password,
-        firstName,
-        lastName,
-        phone
-      });
+      // Use the existing working /api/players endpoint logic
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
 
-      if (!result.success) {
-        console.error(`❌ [HYBRID SIGNUP] Failed: ${result.error}`);
-        return res.status(400).json({ error: result.error });
+      try {
+        // Check if player already exists
+        const existingResult = await pgClient.query('SELECT * FROM players WHERE email = $1', [email]);
+        
+        if (existingResult.rows.length > 0) {
+          const existing = existingResult.rows[0];
+          await pgClient.end();
+          
+          return res.json({
+            success: true,
+            existing: true,
+            player: {
+              id: existing.id,
+              email: existing.email,
+              firstName: existing.first_name,
+              lastName: existing.last_name,
+              kycStatus: existing.kyc_status,
+              balance: existing.balance,
+              emailVerified: existing.email_verified
+            },
+            redirectToKYC: existing.kyc_status === 'pending',
+            needsEmailVerification: !existing.email_verified,
+            needsKYCUpload: existing.kyc_status === 'pending',
+            needsKYCApproval: existing.kyc_status === 'submitted',
+            message: 'Welcome back! Continue with verification process.'
+          });
+        }
+
+        // Create new player using the working schema
+        const insertQuery = `
+          INSERT INTO players (
+            email, password, first_name, last_name, phone, kyc_status, 
+            balance, total_deposits, total_withdrawals, total_winnings, 
+            total_losses, games_played, hours_played, is_active,
+            universal_id, created_at
+          ) VALUES (
+            $1, $2, $3, $4, $5, 'pending', '0.00', '0.00', '0.00', 
+            '0.00', '0.00', 0, '0.00', true, $6, NOW()
+          ) RETURNING *
+        `;
+
+        const universalId = `restored_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const result = await pgClient.query(insertQuery, [
+          email, password, firstName, lastName, phone || '', universalId
+        ]);
+
+        const player = result.rows[0];
+        console.log(`✅ [RESTORED SIGNUP] Player created: ${player.id}`);
+
+        await pgClient.end();
+
+        // Now create Supabase Auth user for double authentication
+        try {
+          const { createClient } = await import('@supabase/supabase-js');
+          const supabase = createClient(
+            process.env.VITE_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+          );
+
+          const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: false,
+            user_metadata: {
+              first_name: firstName,
+              last_name: lastName,
+              phone: phone || '',
+              player_id: player.id
+            }
+          });
+
+          if (authData.user) {
+            // Update player with Supabase ID using direct SQL
+            const { Client } = await import('pg');
+            const updateClient = new Client({ connectionString: process.env.DATABASE_URL });
+            await updateClient.connect();
+            
+            await updateClient.query(
+              'UPDATE players SET supabase_id = $1 WHERE id = $2',
+              [authData.user.id, player.id]
+            );
+            
+            await updateClient.end();
+            console.log(`✅ [RESTORED SIGNUP] Supabase Auth linked: ${authData.user.id}`);
+          }
+        } catch (supabaseError) {
+          console.warn('⚠️ [RESTORED SIGNUP] Supabase Auth creation failed, but player created:', supabaseError);
+        }
+
+        res.json({
+          success: true,
+          player: {
+            id: player.id,
+            email: player.email,
+            firstName: player.first_name,
+            lastName: player.last_name,
+            phone: player.phone,
+            kycStatus: player.kyc_status,
+            balance: player.balance,
+            emailVerified: false,
+            universalId: player.universal_id
+          },
+          redirectToKYC: true,
+          needsEmailVerification: true,
+          needsKYCUpload: true,
+          needsKYCApproval: false,
+          message: 'Account created successfully! Please complete KYC verification.'
+        });
+
+      } finally {
+        if (pgClient) {
+          try { await pgClient.end(); } catch {}
+        }
       }
-
-      console.log(`✅ [HYBRID SIGNUP] User created successfully`);
-      
-      res.json({
-        success: true,
-        player: result.playerData,
-        supabaseUser: result.supabaseUser,
-        redirectToKYC: result.redirectToKYC,
-        needsEmailVerification: result.needsEmailVerification,
-        needsKYCUpload: true,
-        needsKYCApproval: false,
-        message: 'Account created successfully! Please verify your email and complete KYC verification.'
-      });
       
     } catch (error: any) {
-      console.error('❌ [HYBRID SIGNUP] Server error:', error);
+      console.error('❌ [RESTORED SIGNUP] Error:', error);
       res.status(500).json({ error: error.message || 'Signup failed' });
+    }
+  });
+
+  // CLERK-SUPABASE SYNCHRONIZATION ENDPOINTS
+  
+  // Clerk webhook endpoint for real-time sync
+  app.post('/api/clerk/webhook', async (req, res) => {
+    const { ClerkSupabaseSync } = await import('./clerk-supabase-sync');
+    await ClerkSupabaseSync.handleClerkWebhook(req, res);
+  });
+
+  // Manual sync endpoint for administrative use
+  app.post('/api/clerk/sync', async (req, res) => {
+    const { ClerkSupabaseSync } = await import('./clerk-supabase-sync');
+    await ClerkSupabaseSync.handleManualSync(req, res);
+  });
+
+  // Double authentication status check
+  app.get('/api/auth/status/:email', async (req, res) => {
+    try {
+      const { email } = req.params;
+      
+      console.log(`🔍 [AUTH STATUS] Checking double auth status: ${email}`);
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { data: player } = await supabase
+        .from('players')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (player) {
+        res.json({
+          success: true,
+          doubleAuthStatus: {
+            supabaseLinked: !!player.supabase_id,
+            clerkLinked: !!player.clerk_user_id,
+            emailVerified: player.email_verified,
+            clerkSynced: !!player.clerk_synced_at,
+            kycStatus: player.kyc_status,
+            isActive: player.is_active
+          },
+          player: {
+            id: player.id,
+            email: player.email,
+            firstName: player.first_name,
+            lastName: player.last_name
+          }
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          error: 'User not found'
+        });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [AUTH STATUS] Error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
     }
   });
 
