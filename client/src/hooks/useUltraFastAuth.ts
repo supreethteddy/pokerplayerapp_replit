@@ -190,9 +190,20 @@ export function useUltraFastAuth() {
   };
 
   const handleSignOut = async () => {
+    // Clear all user data and session info
     setUser(null);
     setLoading(false);
     syncInProgress.current = false;
+    
+    // Clear any session storage items that might cause loading loops
+    sessionStorage.removeItem('just_signed_in');
+    sessionStorage.removeItem('kyc_redirect');
+    
+    // Clear any local storage items
+    localStorage.removeItem('clerk-db-jwt');
+    localStorage.removeItem('auth_token');
+    
+    console.log('🧹 [ULTRA-FAST AUTH] Session cleanup completed');
   };
 
   const signIn = async (email: string, password: string) => {

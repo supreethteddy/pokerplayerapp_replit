@@ -26,6 +26,16 @@ function AppContent() {
   const [hasShownLoadingScreen, setHasShownLoadingScreen] = useState(false);
   const [kycRedirectData, setKycRedirectData] = useState<any>(null);
 
+  // Reset all states when user signs out to prevent loading loops
+  useEffect(() => {
+    if (!user && authChecked && !loading) {
+      setShowLoadingScreen(false);
+      setHasShownLoadingScreen(false);
+      setKycRedirectData(null);
+      console.log('🔄 [APP] States reset after sign out');
+    }
+  }, [user, authChecked, loading]);
+
   // Check for KYC redirect from signup process
   useEffect(() => {
     const kycData = sessionStorage.getItem('kyc_redirect');
