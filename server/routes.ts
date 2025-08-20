@@ -3541,7 +3541,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // SUPABASE-ONLY SIGNUP (SINGLE SOURCE OF TRUTH)
+  // CONSISTENT POSTGRESQL SIGNUP (MATCHING SIGNIN APPROACH)
   app.post('/api/auth/signup', async (req, res) => {
     try {
       const { email, password, firstName, lastName, phone } = req.body;
@@ -3550,32 +3550,34 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ error: 'All required fields must be provided' });
       }
       
-      console.log(`🔐 [SUPABASE-ONLY SIGNUP] Creating account: ${email}`);
-      
-      // CRITICAL: Use ONLY Supabase client for single source of truth
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabaseClient = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false
-          }
-        }
-      );
+      console.log(`🔐 [POSTGRESQL SIGNUP] Creating account: ${email}`);
+
+      // Use consistent PostgreSQL approach (same as signin)
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
 
       try {
-        // Check if player already exists in Supabase
-        const { data: existingPlayer, error: queryError } = await supabaseClient
-          .from('players')
-          .select('*')
-          .eq('email', email)
-          .maybeSingle();
+        // Check if player already exists
+        const existingResult = await pgClient.query(
+          'SELECT * FROM players WHERE email = $1',
+          [email]
+        );
         
-        if (existingPlayer) {
-          // User exists in Supabase
-          console.log(`✅ [SUPABASE-ONLY] Found existing player: ${email}`);
+        if (existingResult.rows.length > 0) {
+          const existingPlayer = existingResult.rows[0];
+          console.log(`✅ [POSTGRESQL SIGNUP] Found existing player: ${email}`);
+          
+          // Update password if different (allows password reset via signup)
+          if (existingPlayer.password !== password) {
+            await pgClient.query(
+              'UPDATE players SET password = $1, last_login_at = NOW() WHERE email = $2',
+              [password, email]
+            );
+            console.log(`🔄 [POSTGRESQL SIGNUP] Updated password for: ${email}`);
+          }
+          
+          await pgClient.end();
           
           // Check what the user needs based on their current status
           const needsEmailVerification = !existingPlayer.email_verified;
@@ -3604,21 +3606,18 @@ export function registerRoutes(app: Express) {
           });
         }
 
-        // User doesn't exist in Supabase players table - check if auth user exists
-        console.log(`🔥 [SUPABASE-ONLY] Creating new player in Supabase: ${email}`);
+        // User doesn't exist - create new player
+        console.log(`🔥 [POSTGRESQL SIGNUP] Creating new player: ${email}`);
         
-        // Check if auth user already exists
-        const { data: existingAuthUsers, error: listError } = await supabaseClient.auth.admin.listUsers();
-        const existingAuthUser = existingAuthUsers?.users.find(user => user.email === email);
-        
-        let supabaseUserId;
-        
-        if (existingAuthUser) {
-          // Auth user exists but no player record - reuse the auth user
-          console.log(`✅ [SUPABASE-ONLY] Found existing auth user, creating player record: ${email}`);
-          supabaseUserId = existingAuthUser.id;
-        } else {
-          // Create new auth user
+        // Create Supabase auth user first (for authentication)
+        let supabaseUserId = null;
+        try {
+          const { createClient } = await import('@supabase/supabase-js');
+          const supabaseClient = createClient(
+            process.env.VITE_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+          );
+
           const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
             email,
             password,
@@ -3630,54 +3629,38 @@ export function registerRoutes(app: Express) {
             }
           });
 
-          if (authError) {
-            console.error('❌ [SUPABASE-ONLY] Auth user creation failed:', authError.message);
-            return res.status(500).json({ error: 'Failed to create user account' });
+          if (authData.user) {
+            supabaseUserId = authData.user.id;
+            console.log(`✅ [POSTGRESQL SIGNUP] Supabase auth user created: ${supabaseUserId}`);
           }
-          
-          supabaseUserId = authData.user?.id;
+        } catch (supabaseError) {
+          console.warn('⚠️ [POSTGRESQL SIGNUP] Supabase auth creation failed, continuing with local auth:', supabaseError);
         }
 
-        if (!supabaseUserId) {
-          return res.status(500).json({ error: 'Failed to get user ID' });
-        }
+        // Create player record using direct PostgreSQL (avoids cache issues)
+        const universalId = `postgres_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        const insertResult = await pgClient.query(`
+          INSERT INTO players (
+            email, password, first_name, last_name, phone, 
+            kyc_status, email_verified, balance, universal_id, 
+            supabase_id, is_active, total_deposits, total_withdrawals, 
+            total_winnings, total_losses, games_played, hours_played,
+            current_credit, credit_limit, credit_approved, created_at
+          ) VALUES (
+            $1, $2, $3, $4, $5, 
+            'pending', false, '0.00', $6, 
+            $7, true, '0.00', '0.00', 
+            '0.00', '0.00', 0, '0.00',
+            0, 0, false, NOW()
+          ) RETURNING *`,
+          [email, password, firstName, lastName, phone, universalId, supabaseUserId]
+        );
 
-        // Create player record in Supabase players table (essential columns only to avoid cache issues)
-        const { data: newPlayer, error: playerError } = await supabaseClient
-          .from('players')
-          .insert({
-            supabase_id: supabaseUserId,
-            email: email,
-            first_name: firstName,
-            last_name: lastName,
-            phone: phone,
-            kyc_status: 'pending',
-            email_verified: false,
-            balance: '0.00',
-            universal_id: `supabase_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            is_active: true,
-            total_deposits: '0.00',
-            total_withdrawals: '0.00',
-            total_winnings: '0.00',
-            total_losses: '0.00',
-            games_played: 0,
-            hours_played: '0.00'
-          })
-          .select()
-          .single();
+        const newPlayer = insertResult.rows[0];
+        await pgClient.end();
 
-        if (playerError) {
-          console.error('❌ [SUPABASE-ONLY] Player record creation failed:', playerError.message);
-          // Clean up auth user if player creation fails
-          try {
-            await supabaseClient.auth.admin.deleteUser(supabaseUserId);
-          } catch (cleanupError) {
-            console.error('❌ [SUPABASE-ONLY] Failed to cleanup auth user:', cleanupError);
-          }
-          return res.status(500).json({ error: 'Failed to create player record' });
-        }
-
-        console.log(`✅ [SUPABASE-ONLY] New player created successfully: ${email} (ID: ${newPlayer.id})`);
+        console.log(`✅ [POSTGRESQL SIGNUP] New player created successfully: ${email} (ID: ${newPlayer.id})`);
 
         // Initialize response data for new player (who needs to complete KYC)
         const responsePlayer = {
@@ -3702,13 +3685,14 @@ export function registerRoutes(app: Express) {
           message: 'Account created successfully! Please verify your email and complete KYC.'
         });
 
-      } catch (supabaseError: any) {
-        console.error('❌ [SUPABASE-ONLY] Database error:', supabaseError.message);
+      } catch (pgError: any) {
+        await pgClient.end();
+        console.error('❌ [POSTGRESQL SIGNUP] Database error:', pgError.message);
         return res.status(500).json({ error: 'Database operation failed' });
       }
 
     } catch (error: any) {
-      console.error('❌ [SUPABASE-ONLY] Signup error:', error.message);
+      console.error('❌ [POSTGRESQL SIGNUP] Signup error:', error.message);
       return res.status(500).json({ error: 'Signup server error' });
     }
   });
