@@ -25,16 +25,22 @@ export default function TableView() {
     refetchInterval: 2000,
   });
   
+  // Add type safety for tables array
+  const tablesArray = Array.isArray(tables) ? tables : [];
+  
   // Use the working ultra-fast auth system (same as PlayerDashboard)
   const { user, loading: authLoading } = useUltraFastAuth();
   
-  const currentTable = tables?.find((table: any) => table.id === tableId);
+  const currentTable = tablesArray.find((table: any) => table.id === tableId);
   
   // Check if user is already on waitlist for this table (optimized to only run when user is loaded)
   const { data: userWaitlist } = useQuery({
     queryKey: ['/api/seat-requests', user?.id],
     enabled: !!user?.id && !authLoading,
   });
+  
+  // Add type safety for userWaitlist array
+  const waitlistArray = Array.isArray(userWaitlist) ? userWaitlist : [];
   
   // Get seated players for this table
   const { data: seatedPlayers } = useQuery({
@@ -43,8 +49,11 @@ export default function TableView() {
     refetchInterval: 2000, // Refresh every 2 seconds to show real-time seat assignments
   });
   
-  const isOnWaitlist = userWaitlist?.some((req: any) => req.tableId === tableId);
-  const waitlistEntry = userWaitlist?.find((req: any) => req.tableId === tableId);
+  // Add type safety for seatedPlayers array
+  const seatedPlayersArray = Array.isArray(seatedPlayers) ? seatedPlayers : [];
+  
+  const isOnWaitlist = waitlistArray.some((req: any) => req.tableId === tableId);
+  const waitlistEntry = waitlistArray.find((req: any) => req.tableId === tableId);
   
   // Join waitlist with seat reservation
   const joinWaitlistMutation = useMutation({
@@ -55,11 +64,11 @@ export default function TableView() {
 
       console.log(`🎯 [TABLE VIEW JOIN] Joining waitlist for seat ${seatNumber} on table ${currentTable.id}`);
 
-      const response = await apiRequest('POST', '/api/waitlist/join', {
+      const response = await apiRequest('POST', '/api/seat-requests', {
         playerId: user.id,
         tableId: currentTable.id,
-        tableName: currentTable.name,
-        preferredSeat: seatNumber
+        seatNumber: seatNumber,
+        notes: `Seat ${seatNumber} request from table view`
       });
       
       if (!response.ok) {
@@ -173,7 +182,7 @@ export default function TableView() {
                   const isSelected = selectedSeat === seatNumber;
                   
                   // Check if this seat is occupied by a seated player
-                  const seatedPlayer = seatedPlayers?.find((p: any) => p.seatNumber === seatNumber);
+                  const seatedPlayer = seatedPlayersArray.find((p: any) => p.seatNumber === seatNumber);
                   const isOccupied = !!seatedPlayer;
                   
                   return (
@@ -266,7 +275,7 @@ export default function TableView() {
             <CardContent className="p-4 text-center">
               <Users className="w-8 h-8 text-blue-400 mx-auto mb-2" />
               <div className="text-slate-400 text-sm">Players</div>
-              <div className="text-white text-xl font-bold">{seatedPlayers?.length || 0}/{currentTable.maxPlayers || 9}</div>
+              <div className="text-white text-xl font-bold">{seatedPlayersArray.length || 0}/{currentTable?.maxPlayers || 9}</div>
             </CardContent>
           </Card>
 
@@ -274,7 +283,7 @@ export default function TableView() {
             <CardContent className="p-4 text-center">
               <DollarSign className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
               <div className="text-slate-400 text-sm">Buy-in Range</div>
-              <div className="text-white text-lg font-bold">{currentTable.stakes}</div>
+              <div className="text-white text-lg font-bold">{currentTable?.stakes || 'N/A'}</div>
             </CardContent>
           </Card>
 

@@ -29,18 +29,11 @@ export function usePlayerBalance(playerId: string) {
   useEffect(() => {
     if (!playerId) return;
 
-    // Only connect to Pusher if environment variables are available
-    const pusherKey = import.meta.env.VITE_PUSHER_KEY;
-    const pusherCluster = import.meta.env.VITE_PUSHER_CLUSTER;
-    
-    if (!pusherKey || !pusherCluster) {
-      console.log('⚠️ [BALANCE] Pusher not configured, using polling only');
-      return;
-    }
-
     try {
-      const pusher = new Pusher(pusherKey, {
-        cluster: pusherCluster,
+      // Use production Pusher configuration
+      const pusher = new Pusher('81b98cb04ef7aeef2baa', {
+        cluster: 'ap2',
+        forceTLS: true
       });
 
     const channel = pusher.subscribe('cross-portal-sync');

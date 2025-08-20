@@ -2347,8 +2347,8 @@ export function registerRoutes(app: Express) {
           t.game_type,
           'waitlist' as source_table
         FROM waitlist w
-        LEFT JOIN tables t ON w.table_id::text = t.id
-        WHERE w.player_id = $1 
+        LEFT JOIN tables t ON w.table_id::text = t.id::text
+        WHERE w.player_id = $1::integer 
         AND w.status IN ('waiting', 'active')
         ORDER BY w.requested_at DESC
       `;
@@ -2367,8 +2367,8 @@ export function registerRoutes(app: Express) {
           t.game_type,
           'seat_requests' as source_table
         FROM seat_requests sr
-        LEFT JOIN tables t ON sr.table_id::text = t.id
-        WHERE sr.player_id = $1 
+        LEFT JOIN tables t ON sr.table_id = t.id::text
+        WHERE sr.player_id = $1::integer 
         AND sr.status IN ('waiting', 'active')
         ORDER BY sr.created_at DESC
       `;
@@ -2839,7 +2839,8 @@ export function registerRoutes(app: Express) {
         // Send confirmation email using Supabase's built-in email service
         const { error: emailError } = await supabaseServiceClient.auth.admin.generateLink({
           type: 'signup',
-          email: email
+          email: email,
+          password: 'temp-password-123' // Required parameter for Supabase
         });
 
         if (emailError) {
