@@ -3418,9 +3418,7 @@ export function registerRoutes(app: Express) {
         });
 
       } finally {
-        if (pgClient) {
-          try { await pgClient.end(); } catch {}
-        }
+        // No cleanup needed for Supabase-only approach
       }
 
     } catch (error: any) {
@@ -3429,7 +3427,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // RESTORED WORKING SIGNUP WITH CLERK INTEGRATION
+  // SUPABASE-ONLY SIGNUP (SINGLE SOURCE OF TRUTH)
   app.post('/api/auth/signup', async (req, res) => {
     try {
       const { email, password, firstName, lastName, phone } = req.body;
@@ -3438,38 +3436,50 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ error: 'All required fields must be provided' });
       }
       
-      console.log(`🔐 [RESTORED SIGNUP] Creating account: ${email}`);
+      console.log(`🔐 [SUPABASE-ONLY SIGNUP] Creating account: ${email}`);
       
-      // Use the existing working /api/players endpoint logic
-      const { Client } = await import('pg');
-      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
-      await pgClient.connect();
+      // CRITICAL: Use ONLY Supabase client for single source of truth
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabaseClient = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        }
+      );
 
       try {
-        // Check if player already exists
-        const existingResult = await pgClient.query('SELECT * FROM players WHERE email = $1', [email]);
+        // Check if player already exists in Supabase
+        const { data: existingPlayer, error: queryError } = await supabaseClient
+          .from('players')
+          .select('*')
+          .eq('email', email)
+          .single();
         
-        if (existingResult.rows.length > 0) {
-          const existing = existingResult.rows[0];
-          await pgClient.end();
+        if (existingPlayer && !queryError) {
+          // User exists in Supabase
+          console.log(`✅ [SUPABASE-ONLY] Found existing player: ${email}`);
           
           // Check what the user needs based on their current status
-          const needsEmailVerification = !existing.email_verified;
-          const needsKYCUpload = existing.kyc_status === 'pending';
-          const needsKYCApproval = existing.kyc_status === 'submitted';
-          const isFullyVerified = existing.email_verified && existing.kyc_status === 'approved';
+          const needsEmailVerification = !existingPlayer.email_verified;
+          const needsKYCUpload = existingPlayer.kyc_status === 'pending';
+          const needsKYCApproval = existingPlayer.kyc_status === 'submitted';
+          const isFullyVerified = existingPlayer.email_verified && existingPlayer.kyc_status === 'approved';
           
           return res.json({
             success: true,
             existing: true,
             player: {
-              id: existing.id,
-              email: existing.email,
-              firstName: existing.first_name,
-              lastName: existing.last_name,
-              kycStatus: existing.kyc_status,
-              balance: existing.balance,
-              emailVerified: existing.email_verified
+              id: existingPlayer.id,
+              email: existingPlayer.email,
+              firstName: existingPlayer.first_name,
+              lastName: existingPlayer.last_name,
+              kycStatus: existingPlayer.kyc_status,
+              balance: existingPlayer.balance,
+              emailVerified: existingPlayer.email_verified
             },
             redirectToKYC: needsKYCUpload || needsKYCApproval,
             needsEmailVerification: needsEmailVerification,
@@ -3480,98 +3490,115 @@ export function registerRoutes(app: Express) {
           });
         }
 
-        // Create new player using the working schema
-        const insertQuery = `
-          INSERT INTO players (
-            email, password, first_name, last_name, phone, kyc_status, 
-            balance, total_deposits, total_withdrawals, total_winnings, 
-            total_losses, games_played, hours_played, is_active,
-            universal_id, created_at
-          ) VALUES (
-            $1, $2, $3, $4, $5, 'pending', '0.00', '0.00', '0.00', 
-            '0.00', '0.00', 0, '0.00', true, $6, NOW()
-          ) RETURNING *
-        `;
-
-        const universalId = `restored_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const result = await pgClient.query(insertQuery, [
-          email, password, firstName, lastName, phone || '', universalId
-        ]);
-
-        const player = result.rows[0];
-        console.log(`✅ [RESTORED SIGNUP] Player created: ${player.id}`);
-
-        await pgClient.end();
-
-        // Now create Supabase Auth user for double authentication
-        try {
-          const { createClient } = await import('@supabase/supabase-js');
-          const supabase = createClient(
-            process.env.VITE_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!
-          );
-
-          const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-            email,
-            password,
-            email_confirm: false,
-            user_metadata: {
-              first_name: firstName,
-              last_name: lastName,
-              phone: phone || '',
-              player_id: player.id
-            }
-          });
-
-          if (authData.user) {
-            // Update player with Supabase ID using direct SQL
-            const { Client } = await import('pg');
-            const updateClient = new Client({ connectionString: process.env.DATABASE_URL });
-            await updateClient.connect();
-            
-            await updateClient.query(
-              'UPDATE players SET supabase_id = $1 WHERE id = $2',
-              [authData.user.id, player.id]
-            );
-            
-            await updateClient.end();
-            console.log(`✅ [RESTORED SIGNUP] Supabase Auth linked: ${authData.user.id}`);
+        // User doesn't exist in Supabase - create new player
+        console.log(`🔥 [SUPABASE-ONLY] Creating new player in Supabase: ${email}`);
+        
+        // First create Supabase auth user
+        const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: false,
+          user_metadata: {
+            first_name: firstName,
+            last_name: lastName,
+            phone: phone
           }
-        } catch (supabaseError) {
-          console.warn('⚠️ [RESTORED SIGNUP] Supabase Auth creation failed, but player created:', supabaseError);
+        });
+
+        if (authError) {
+          console.error('❌ [SUPABASE-ONLY] Auth user creation failed:', authError.message);
+          return res.status(500).json({ error: 'Failed to create user account' });
         }
 
-        res.json({
+        const supabaseUserId = authData.user?.id;
+        if (!supabaseUserId) {
+          return res.status(500).json({ error: 'Failed to get user ID' });
+        }
+
+        // Create player record in Supabase players table (match actual schema)
+        const { data: newPlayer, error: playerError } = await supabaseClient
+          .from('players')
+          .insert({
+            supabase_id: supabaseUserId,
+            email: email,
+            first_name: firstName,
+            last_name: lastName,
+            phone: phone,
+            kyc_status: 'pending',
+            email_verified: false,
+            balance: '0.00',
+            current_credit: '0.00',
+            credit_limit: '0.00',
+            universal_id: `supabase_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            is_active: true,
+            total_deposits: '0.00',
+            total_withdrawals: '0.00',
+            total_winnings: '0.00',
+            total_losses: '0.00',
+            games_played: 0,
+            hours_played: '0.00'
+          })
+          .select()
+          .single();
+
+        if (playerError) {
+          console.error('❌ [SUPABASE-ONLY] Player record creation failed:', playerError.message);
+          // Clean up auth user if player creation fails
+          try {
+            await supabaseClient.auth.admin.deleteUser(supabaseUserId);
+          } catch (cleanupError) {
+            console.error('❌ [SUPABASE-ONLY] Failed to cleanup auth user:', cleanupError);
+          }
+          return res.status(500).json({ error: 'Failed to create player record' });
+        }
+
+        console.log(`✅ [SUPABASE-ONLY] New player created successfully: ${email} (ID: ${newPlayer.id})`);
+
+        // Initialize response data for new player (who needs to complete KYC)
+        const responsePlayer = {
+          id: newPlayer.id,
+          email: newPlayer.email,
+          firstName: newPlayer.first_name,
+          lastName: newPlayer.last_name,
+          kycStatus: newPlayer.kyc_status,
+          balance: newPlayer.balance,
+          emailVerified: newPlayer.email_verified
+        };
+
+        return res.json({
           success: true,
-          player: {
-            id: player.id,
-            email: player.email,
-            firstName: player.first_name,
-            lastName: player.last_name,
-            phone: player.phone,
-            kycStatus: player.kyc_status,
-            balance: player.balance,
-            emailVerified: false,
-            universalId: player.universal_id
-          },
+          existing: false,
+          player: responsePlayer,
           redirectToKYC: true,
           needsEmailVerification: true,
           needsKYCUpload: true,
           needsKYCApproval: false,
-          message: 'Account created successfully! Please complete KYC verification.'
+          isFullyVerified: false,
+          message: 'Account created successfully! Please verify your email and complete KYC.'
         });
 
-      } finally {
-        if (pgClient) {
-          try { await pgClient.end(); } catch {}
-        }
+      } catch (supabaseError: any) {
+        console.error('❌ [SUPABASE-ONLY] Database error:', supabaseError.message);
+        return res.status(500).json({ error: 'Database operation failed' });
       }
-      
+
     } catch (error: any) {
-      console.error('❌ [RESTORED SIGNUP] Error:', error);
-      res.status(500).json({ error: error.message || 'Signup failed' });
+      console.error('❌ [SUPABASE-ONLY] Signup error:', error.message);
+      return res.status(500).json({ error: 'Signup server error' });
     }
   });
+
+  // VERIFY SUPABASE-ONLY APPROACH: Remove old PostgreSQL direct connections
+  app.post('/api/players', async (req, res) => {
+    // DEPRECATED: This endpoint now redirects to /api/auth/signup for consistency
+    console.log('🔄 [DEPRECATED] /api/players endpoint called - redirecting to /api/auth/signup');
+    return res.status(301).json({ 
+      error: 'This endpoint is deprecated. Please use /api/auth/signup for all new registrations.',
+      redirectTo: '/api/auth/signup'
+    });
+  });
+
+  // Continue with other endpoints that should ALSO use Supabase-only approach...
 
   // CLERK-SUPABASE SYNCHRONIZATION ENDPOINTS
   
