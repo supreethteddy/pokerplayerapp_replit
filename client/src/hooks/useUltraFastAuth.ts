@@ -449,9 +449,24 @@ export function useUltraFastAuth() {
         logAuthActivity('logout', user.email, user.id);
       }
       
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      // CRITICAL FIX: Handle sign out gracefully even if Supabase session is missing
+      try {
+        const { error } = await supabase.auth.signOut();
+        if (error && !error.message.includes('session_missing') && !error.message.includes('AuthSessionMissingError')) {
+          console.warn('⚠️ [ULTRA-FAST AUTH] Supabase sign out warning:', error.message);
+        } else {
+          console.log('✅ [ULTRA-FAST AUTH] Supabase sign out successful');
+        }
+      } catch (supabaseError: any) {
+        // Ignore session missing errors - just log and continue
+        if (supabaseError.name === 'AuthSessionMissingError' || supabaseError.message?.includes('session_missing')) {
+          console.log('ℹ️ [ULTRA-FAST AUTH] No active Supabase session to sign out');
+        } else {
+          console.warn('⚠️ [ULTRA-FAST AUTH] Supabase sign out error (continuing anyway):', supabaseError.message);
+        }
+      }
       
+      // Always handle sign out regardless of Supabase session state
       await handleSignOut();
       
       toast({
@@ -460,9 +475,13 @@ export function useUltraFastAuth() {
       });
     } catch (error: any) {
       console.error('❌ [ULTRA-FAST AUTH] Sign out error:', error);
+      
+      // Even if there's an error, still clear the user state
+      await handleSignOut();
+      
       toast({
-        title: "Sign Out Failed",
-        description: error.message || "Failed to sign out",
+        title: "Signed Out",
+        description: "You have been signed out (with some cleanup issues)",
         variant: "destructive",
       });
     }
