@@ -399,9 +399,9 @@ function PlayerDashboard() {
   // Email verification notification state
   const [showEmailVerificationBanner, setShowEmailVerificationBanner] = useState(false);
   
-  // Check if user needs email verification
+  // Check if user needs email verification - integrated with Clerk auth
   useEffect(() => {
-    if (user && user.needsEmailVerification) {
+    if (user && user.email && !user.emailVerified) {
       setShowEmailVerificationBanner(true);
     }
   }, [user]);
@@ -1415,7 +1415,7 @@ function PlayerDashboard() {
   return (
     <div className="min-h-screen bg-slate-900 w-full overflow-x-hidden">
       {/* Email Verification Banner */}
-      {showEmailVerificationBanner && user?.needsEmailVerification && (
+      {showEmailVerificationBanner && user?.email && !user?.emailVerified && (
         <div className="bg-amber-600 border-b border-amber-500 px-6 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
@@ -1439,7 +1439,7 @@ function PlayerDashboard() {
       {/* Push Notification Popup System */}
       <NotificationPopup 
         userId={Number(user.id)} 
-        onChatNotificationClick={() => setUnifiedChatOpen(true)}
+        onChatNotificationClick={() => setChatDialogOpen(true)}
       />
       
       <div className="max-w-full px-3 py-2 sm:px-4 sm:py-4 lg:px-6 lg:py-6">
@@ -2674,11 +2674,11 @@ function PlayerDashboard() {
               </DialogTitle>
             </DialogHeader>
             
-            {/* Chat System Integration */}
-            {chatDialogOpen && (
+            {/* Chat System Integration - Direct PostgreSQL connection to Staff Portal */}
+            {chatDialogOpen && user?.id && (
               <PlayerChatSystem 
-                playerId={user?.id || 0}
-                playerName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim()}
+                playerId={Number(user.id)}
+                playerName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email || 'Player'}
                 isInDialog={true}
                 onClose={() => setChatDialogOpen(false)}
               />
