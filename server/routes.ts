@@ -2343,12 +2343,9 @@ export function registerRoutes(app: Express) {
           w.status,
           w.seat_number,
           w.requested_at as created_at,
-          t.name as table_name,
-          t.game_type,
           'waitlist' as source_table
         FROM waitlist w
-        LEFT JOIN tables t ON w.table_id::text = t.id::text
-        WHERE w.player_id = $1::integer 
+        WHERE w.player_id = $1 
         AND w.status IN ('waiting', 'active')
         ORDER BY w.requested_at DESC
       `;
@@ -2363,12 +2360,9 @@ export function registerRoutes(app: Express) {
           sr.status,
           sr.seat_number,
           sr.created_at,
-          t.name as table_name,
-          t.game_type,
           'seat_requests' as source_table
         FROM seat_requests sr
-        LEFT JOIN tables t ON sr.table_id = t.id::text
-        WHERE sr.player_id = $1::integer 
+        WHERE sr.player_id = $1 
         AND sr.status IN ('waiting', 'active')
         ORDER BY sr.created_at DESC
       `;
@@ -2386,9 +2380,35 @@ export function registerRoutes(app: Express) {
         ...seatRequestsResult.rows
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-      console.log(`✅ [NANOSECOND WAITLIST] Found ${allWaitlistEntries.length} waitlist entries from both systems`);
+      // Get table names using the same API call that's working for /api/tables
+      let staffPortalTables = [];
+      try {
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabase = createClient(
+          process.env.VITE_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+        
+        const tablesResponse = await supabase.from('tables').select('id, name, game_type');
+        staffPortalTables = tablesResponse.data || [];
+        console.log(`🔍 [WAITLIST TABLE LOOKUP] Found ${staffPortalTables.length} Staff Portal tables`);
+      } catch (error) {
+        console.error('⚠️ [WAITLIST TABLE LOOKUP] Failed to get table names:', error);
+      }
       
-      res.json(allWaitlistEntries);
+      // Add table names to waitlist entries
+      const enrichedWaitlistEntries = allWaitlistEntries.map(entry => {
+        const table = staffPortalTables.find(t => t.id === entry.table_id);
+        return {
+          ...entry,
+          table_name: table?.name || `Table ${entry.table_id}`,
+          game_type: table?.game_type || 'Unknown Game'
+        };
+      });
+
+      console.log(`✅ [NANOSECOND WAITLIST] Found ${enrichedWaitlistEntries.length} waitlist entries from both systems`);
+      
+      res.json(enrichedWaitlistEntries);
     } catch (error) {
       console.error('❌ [NANOSECOND WAITLIST] Error:', error);
       res.status(500).json({ error: "Internal server error" });

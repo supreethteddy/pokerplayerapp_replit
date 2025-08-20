@@ -41,9 +41,14 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
     
     console.log('🚀 [PLAYER CHAT] Initializing for player:', playerId, playerName);
     
-    // Initialize Pusher with EXACT credentials from staff portal
-    const pusher = new Pusher('81b98cb04ef7aeef2baa', {
-      cluster: 'ap2',
+    // Initialize Pusher with environment variables to match Staff Portal
+    if (!import.meta.env.VITE_PUSHER_KEY) {
+      console.error('❌ [PUSHER CONFIG] VITE_PUSHER_KEY not found in environment');
+      return;
+    }
+    
+    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, {
+      cluster: import.meta.env.VITE_PUSHER_CLUSTER || 'ap2',
       forceTLS: true
     });
     
