@@ -2838,16 +2838,8 @@ export function registerRoutes(app: Express) {
 
         // Send confirmation email using Supabase's built-in email service
         const { error: emailError } = await supabaseServiceClient.auth.admin.generateLink({
-          type: 'email_change_current',
-          email: email,
-          options: {
-            data: {
-              type: 'kyc_submission_confirmation',
-              message: 'Thank you for registering to the Poker Club. Your documents have been submitted for review. Please wait for approval from our staff. Once approved, you will receive another email and can login to access the player portal.',
-              firstName: firstName,
-              lastName: lastName
-            }
-          }
+          type: 'signup',
+          email: email
         });
 
         if (emailError) {
@@ -3440,6 +3432,12 @@ export function registerRoutes(app: Express) {
           const existing = existingResult.rows[0];
           await pgClient.end();
           
+          // Check what the user needs based on their current status
+          const needsEmailVerification = !existing.email_verified;
+          const needsKYCUpload = existing.kyc_status === 'pending';
+          const needsKYCApproval = existing.kyc_status === 'submitted';
+          const isFullyVerified = existing.email_verified && existing.kyc_status === 'approved';
+          
           return res.json({
             success: true,
             existing: true,
@@ -3452,11 +3450,12 @@ export function registerRoutes(app: Express) {
               balance: existing.balance,
               emailVerified: existing.email_verified
             },
-            redirectToKYC: existing.kyc_status === 'pending',
-            needsEmailVerification: !existing.email_verified,
-            needsKYCUpload: existing.kyc_status === 'pending',
-            needsKYCApproval: existing.kyc_status === 'submitted',
-            message: 'Welcome back! Continue with verification process.'
+            redirectToKYC: needsKYCUpload || needsKYCApproval,
+            needsEmailVerification: needsEmailVerification,
+            needsKYCUpload: needsKYCUpload,
+            needsKYCApproval: needsKYCApproval,
+            isFullyVerified: isFullyVerified,
+            message: isFullyVerified ? 'Welcome back! Your account is fully verified.' : 'Welcome back! Please complete verification process.'
           });
         }
 

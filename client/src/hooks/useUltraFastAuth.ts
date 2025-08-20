@@ -310,13 +310,45 @@ export function useUltraFastAuth() {
         throw new Error(errorData.error || 'Signup failed');
       }
       
-      const { success, player, existing, redirectToKYC, message } = await response.json();
+      const { success, player, existing, redirectToKYC, isFullyVerified, message } = await response.json();
       
       if (!success) {
         throw new Error('Signup failed');
       }
       
       console.log('✅ [ULTRA-FAST AUTH] Integrated signup successful:', player?.email);
+      
+      // If user is fully verified, treat as normal sign-in
+      if (existing && isFullyVerified && player) {
+        console.log('🎯 [ULTRA-FAST AUTH] Fully verified user - redirecting to dashboard');
+        
+        // Set user data like a normal sign-in
+        const enhancedUserData: AuthUser = {
+          ...player,
+          realBalance: player.balance || '0.00',
+          creditBalance: player.creditBalance || '0.00',
+          creditLimit: player.creditLimit || '0.00',
+          creditApproved: player.creditApproved || false,
+          totalBalance: player.totalBalance || '0.00',
+          isClerkSynced: true
+        };
+        
+        setUser(enhancedUserData);
+        setLoading(false);
+        
+        toast({
+          title: "Welcome back!",
+          description: "Successfully signed in to your account.",
+        });
+        
+        return { 
+          success: true, 
+          existing: true,
+          redirectToKYC: false,
+          player,
+          playerData: player
+        };
+      }
       
       // Check if KYC redirect is needed
       if (redirectToKYC && player) {
