@@ -147,8 +147,14 @@ export function UnifiedGreChatDialog_Fixed({
         console.log('🚀 [CHAT NUCLEAR] Loading Pusher library...');
         const Pusher = (await import('pusher-js')).default;
 
-        const pusherKey = import.meta.env.VITE_PUSHER_KEY || '81b98cb04ef7aeef2baa';
+        const pusherKey = import.meta.env.VITE_PUSHER_KEY;
         const pusherCluster = import.meta.env.VITE_PUSHER_CLUSTER || 'ap2';
+        
+        if (!pusherKey) {
+          console.warn('⚠️ [CHAT] VITE_PUSHER_KEY not configured, skipping chat functionality');
+          setConnectionStatus('error');
+          return;
+        }
         
         console.log('🚀 [CHAT NUCLEAR] Creating Pusher instance with key:', pusherKey);
         console.log('🚀 [CHAT NUCLEAR] Using cluster:', pusherCluster);

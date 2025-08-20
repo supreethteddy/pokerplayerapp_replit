@@ -30,9 +30,17 @@ export function usePlayerBalance(playerId: string) {
     if (!playerId) return;
 
     try {
-      // Use production Pusher configuration
-      const pusher = new Pusher('81b98cb04ef7aeef2baa', {
-        cluster: 'ap2',
+      // Use environment variables for Pusher configuration
+      const pusherKey = import.meta.env.VITE_PUSHER_KEY;
+      const pusherCluster = import.meta.env.VITE_PUSHER_CLUSTER;
+      
+      if (!pusherKey) {
+        console.warn('⚠️ [BALANCE] VITE_PUSHER_KEY not configured, skipping real-time updates');
+        return;
+      }
+      
+      const pusher = new Pusher(pusherKey, {
+        cluster: pusherCluster || 'ap2',
         forceTLS: true
       });
 

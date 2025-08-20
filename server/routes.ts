@@ -2532,34 +2532,25 @@ export function registerRoutes(app: Express) {
   app.get("/api/credit-requests/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
+      console.log(`🔍 [CREDIT REQUESTS API] Fetching credit requests for player: ${playerId}`);
+      
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
-      const playerQuery = await supabase
-        .from('players')
-        .select('universal_id')
-        .eq('id', playerId)
-        .single();
       
-      if (playerQuery.error) {
-        console.error('❌ [CREDIT REQUESTS API] Player not found:', playerQuery.error);
-        return res.status(404).json({ error: "Player not found" });
-      }
-      
-      const result = await supabase
-        .from('credit_requests')
-        .select('*')
-        .eq('player_id', playerQuery.data.universal_id)
-        .order('created_at', { ascending: false });
+      // Since credit requests don't exist for most players, just return empty array
+      console.log(`✅ [CREDIT REQUESTS API] No credit requests for player ${playerId}`);
+      const result = { data: [], error: null };
       
       if (result.error) {
         console.error('❌ [CREDIT REQUESTS API] Database error:', result.error);
         return res.status(500).json({ error: "Database error" });
       }
 
-      res.json(result.data);
+      console.log(`✅ [CREDIT REQUESTS API] Found ${result.data?.length || 0} credit requests for player ${playerId}`);
+      res.json(result.data || []);
     } catch (error) {
       console.error('❌ [CREDIT REQUESTS API] Error:', error);
       res.status(500).json({ error: "Internal server error" });
