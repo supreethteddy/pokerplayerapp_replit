@@ -60,6 +60,91 @@ export class ClerkPlayerSync {
     }
   }
   
+  // Clean Clerk-Supabase sync endpoint for nanosecond-speed authentication
+  static async clerkUserSync(req: Request, res: Response) {
+    console.log('⚡ [CLERK-SUPABASE SYNC] Processing user sync:', req.body);
+    
+    const pgClient = await getPgClient();
+    
+    try {
+      const { clerkUserId, email, firstName, lastName, phone, emailVerified } = req.body;
+      
+      if (!clerkUserId || !email) {
+        return res.status(400).json({ error: 'Missing required fields: clerkUserId, email' });
+      }
+
+      // Find or create player with direct PostgreSQL for nanosecond speed
+      const findQuery = 'SELECT * FROM players WHERE email = $1 OR clerk_user_id = $2';
+      const findResult = await pgClient.query(findQuery, [email, clerkUserId]);
+      
+      let player;
+      
+      if (findResult.rows.length > 0) {
+        // Update existing player
+        player = findResult.rows[0];
+        
+        const updateQuery = `
+          UPDATE players 
+          SET clerk_user_id = $1, 
+              first_name = COALESCE($2, first_name), 
+              last_name = COALESCE($3, last_name), 
+              phone = COALESCE($4, phone),
+              email_verified = $5, 
+              last_login_at = NOW()
+          WHERE id = $6
+          RETURNING *
+        `;
+        
+        const updateResult = await pgClient.query(updateQuery, [
+          clerkUserId, firstName, lastName, phone, emailVerified, player.id
+        ]);
+        
+        player = updateResult.rows[0];
+        console.log(`🔄 [CLERK-SUPABASE SYNC] Updated existing player: ${player.id}`);
+      } else {
+        // Create new player
+        const insertQuery = `
+          INSERT INTO players (
+            clerk_user_id, email, first_name, last_name, phone, 
+            email_verified, kyc_status, balance, is_active, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, 'pending', '0.00', true, NOW())
+          RETURNING *
+        `;
+        
+        const insertResult = await pgClient.query(insertQuery, [
+          clerkUserId, email, firstName || '', lastName || '', phone || '', emailVerified
+        ]);
+        
+        player = insertResult.rows[0];
+        console.log(`✨ [CLERK-SUPABASE SYNC] Created new player: ${player.id}`);
+      }
+      
+      // Return standardized player data
+      res.json({
+        id: player.id.toString(),
+        email: player.email,
+        firstName: player.first_name || '',
+        lastName: player.last_name || '',
+        phone: player.phone || '',
+        kycStatus: player.kyc_status || 'pending',
+        balance: player.balance || '0',
+        realBalance: player.balance || '0',
+        creditBalance: player.current_credit || '0',
+        creditLimit: player.credit_limit || '0',
+        creditApproved: player.credit_approved || false,
+        totalBalance: player.balance || '0',
+        clerkUserId: player.clerk_user_id,
+        isClerkSynced: true
+      });
+      
+    } catch (error) {
+      console.error('❌ [CLERK-SUPABASE SYNC] Error:', error);
+      res.status(500).json({ error: 'User sync failed' });
+    } finally {
+      await pgClient.end();
+    }
+  }
+
   // Sync endpoint for manual synchronization
   static async syncPlayer(req: Request, res: Response) {
     console.log('🔄 [CLERK SYNC] Manual sync request:', req.body);

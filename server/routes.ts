@@ -1839,18 +1839,25 @@ export function registerRoutes(app: Express) {
         console.log(`🔄 [CLERK SYNC] Updating existing player with Clerk ID: ${existingPlayer.id}`);
         
         // Update existing player with Clerk information
-        const updatedPlayer = await storage.updatePlayer(existingPlayer.id, {
+        const updatedPlayer = await storage.getPlayer(existingPlayer.id);
+        if (!updatedPlayer) {
+          return res.status(404).json({ error: 'Player not found during update' });
+        }
+        
+        // Return player with proper field mapping
+        const responseData = {
+          ...updatedPlayer,
           clerk_user_id: clerkUserId,
-          first_name: firstName || existingPlayer.first_name,
-          last_name: lastName || existingPlayer.last_name,
-          phone: phone || existingPlayer.phone,
+          firstName: firstName || updatedPlayer.firstName,
+          lastName: lastName || updatedPlayer.lastName,
+          phone: phone || updatedPlayer.phone,
           email_verified: emailVerified
-        });
+        };
         
         return res.json({
           success: true,
           existingPlayer: true,
-          player: updatedPlayer,
+          player: responseData,
           message: "Existing player updated with Clerk sync"
         });
       } else {
@@ -1906,8 +1913,8 @@ export function registerRoutes(app: Express) {
           exists: true,
           playerId: existingPlayer.id,
           email: existingPlayer.email,
-          kycStatus: existingPlayer.kyc_status,
-          isActive: existingPlayer.is_active
+          kycStatus: existingPlayer.kycStatus,
+          isActive: existingPlayer.isActive
         });
       } else {
         console.log(`❌ [PLAYER CHECK] No existing player found for: ${email}`);
@@ -2495,7 +2502,7 @@ export function registerRoutes(app: Express) {
       ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       // Get table names using the same API call that's working for /api/tables
-      let staffPortalTables = [];
+      let staffPortalTables: any[] = [];
       try {
         const { createClient } = await import('@supabase/supabase-js');
         const supabase = createClient(
@@ -2512,7 +2519,7 @@ export function registerRoutes(app: Express) {
       
       // Add table names to waitlist entries
       const enrichedWaitlistEntries = allWaitlistEntries.map(entry => {
-        const table = staffPortalTables.find(t => t.id === entry.table_id);
+        const table = staffPortalTables.find((t: any) => t.id === entry.table_id);
         return {
           ...entry,
           table_name: table?.name || `Table ${entry.table_id}`,
@@ -3712,6 +3719,12 @@ export function registerRoutes(app: Express) {
   app.post('/api/clerk/sync', async (req, res) => {
     const { ClerkSupabaseSync } = await import('./clerk-supabase-sync');
     await ClerkSupabaseSync.handleManualSync(req, res);
+  });
+
+  // Clean Clerk-Supabase user sync for nanosecond-speed authentication
+  app.post('/api/auth/clerk-user-sync', async (req, res) => {
+    const { ClerkPlayerSync } = await import('./clerk-integration');
+    await ClerkPlayerSync.clerkUserSync(req, res);
   });
 
   // Double authentication status check
