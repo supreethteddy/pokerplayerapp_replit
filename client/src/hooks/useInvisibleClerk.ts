@@ -14,7 +14,7 @@ export function useInvisibleClerk(user: any) {
     const syncWithClerk = async () => {
       try {
         console.log('🔄 [INVISIBLE CLERK] Background sync initiated for:', user.email);
-        
+
         const response = await fetch('/api/clerk/sync', {
           method: 'POST',
           headers: {
@@ -33,7 +33,7 @@ export function useInvisibleClerk(user: any) {
         if (response.ok) {
           const data = await response.json();
           console.log('✅ [INVISIBLE CLERK] Background sync successful');
-          
+
           // Store clerk_user_id if returned
           if (data.player?.clerkUserId) {
             localStorage.setItem('clerk_user_id', data.player.clerkUserId);
@@ -49,7 +49,7 @@ export function useInvisibleClerk(user: any) {
 
     // Run sync 2 seconds after user authentication to avoid blocking UI
     const timeoutId = setTimeout(syncWithClerk, 2000);
-    
+
     return () => clearTimeout(timeoutId);
   }, [user?.id, user?.email]); // Re-sync if user changes
 

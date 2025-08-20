@@ -73,6 +73,10 @@ export default function ClerkSignUpPage() {
         }
       } catch (existingCheckError) {
         console.log('📝 [BULLETPROOF SIGNUP] No existing player found, safe to proceed with Clerk signup');
+        // Ensure we don't have network issues blocking signup
+        if (existingCheckError instanceof TypeError && existingCheckError.message.includes('Failed to fetch')) {
+          console.warn('⚠️ [BULLETPROOF SIGNUP] Network error during check, proceeding with signup');
+        }
       }
 
       // Proceed with normal Clerk signup if no existing player

@@ -1,6 +1,27 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import Pusher from 'pusher';
+
+// Single Pusher instance for entire application
+export const pusher = new Pusher({
+  appId: process.env.PUSHER_APP_ID!,
+  key: process.env.PUSHER_KEY!,
+  secret: process.env.PUSHER_SECRET!,
+  cluster: process.env.PUSHER_CLUSTER!,
+  useTLS: true
+});
+
+console.log('🚀 [PUSHER] Single instance initialized for cross-portal communication');
+
+// Single OneSignal client for push notifications
+const OneSignal = require('onesignal-node');
+export const oneSignalClient = new OneSignal.Client(
+  process.env.ONESIGNAL_APP_ID!,
+  process.env.ONESIGNAL_REST_API_KEY!
+);
+
+console.log('📱 [ONESIGNAL] Single instance initialized for push notifications');
 
 const app = express();
 // Increase payload limits for file uploads (10MB limit)
@@ -41,7 +62,7 @@ app.use((req, res, next) => {
   // Initialize Supabase connection - no mock data in production
   const { supabaseStorage } = await import("./supabase-storage");
   await supabaseStorage.initializeSampleData();
-  
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

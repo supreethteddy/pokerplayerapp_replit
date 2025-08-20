@@ -1,18 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 import pg from 'pg';
 // Storage interface removed - using direct implementation
-import type { 
-  Player, 
-  InsertPlayer, 
-  PlayerPrefs, 
-  InsertPlayerPrefs, 
-  Table, 
-  SeatRequest, 
-  InsertSeatRequest, 
-  KycDocument, 
-  InsertKycDocument, 
-  Transaction, 
-  InsertTransaction 
+import type {
+  Player,
+  InsertPlayer,
+  PlayerPrefs,
+  InsertPlayerPrefs,
+  Table,
+  SeatRequest,
+  InsertSeatRequest,
+  KycDocument,
+  InsertKycDocument,
+  Transaction,
+  InsertTransaction
 } from '@shared/schema';
 
 const supabase = createClient(
@@ -41,7 +41,7 @@ export class SupabaseOnlyStorage {
         .eq('id', playerId)
         .select()
         .single();
-      
+
       if (error) throw error;
       return this.transformPlayerFromSupabase(data);
     } catch (error) {
@@ -58,7 +58,7 @@ export class SupabaseOnlyStorage {
         .eq('id', playerId)
         .select()
         .single();
-      
+
       if (error) throw error;
       return this.transformPlayerFromSupabase(data);
     } catch (error) {
@@ -74,7 +74,7 @@ export class SupabaseOnlyStorage {
         .select('*')
         .eq('id', playerId)
         .single();
-      
+
       if (error || !data) return null;
       return this.transformPlayerFromSupabase(data);
     } catch (error) {
@@ -91,11 +91,11 @@ export class SupabaseOnlyStorage {
         .select('*')
         .eq('clerk_user_id', clerkId)
         .single();
-      
+
       if (error || !data) {
         return null;
       }
-      
+
       return data as Player;
     } catch (error) {
       console.error('Error getting player by Clerk ID:', error);
@@ -114,11 +114,11 @@ export class SupabaseOnlyStorage {
         })
         .select()
         .single();
-      
+
       if (error) {
         throw error;
       }
-      
+
       return data as Player;
     } catch (error) {
       console.error('Error creating Clerk player:', error);
@@ -132,12 +132,12 @@ export class SupabaseOnlyStorage {
       const { count, error } = await supabase
         .from('players')
         .select('*', { count: 'exact', head: true });
-      
+
       if (error) {
         console.error('Error getting player count:', error);
         return 0;
       }
-      
+
       return count || 0;
     } catch (error: any) {
       console.error('Error getting player count:', error);
@@ -152,11 +152,11 @@ export class SupabaseOnlyStorage {
         .from('players')
         .update({ kyc_status: status })
         .eq('id', playerId);
-      
+
       if (error) {
         throw new Error(`Failed to update KYC status: ${error.message}`);
       }
-      
+
       console.log(`✅ [UNIVERSAL] Updated KYC status for player ${playerId}: ${status}`);
     } catch (error: any) {
       console.error(`❌ [UNIVERSAL] Error updating KYC status:`, error);
@@ -173,11 +173,11 @@ export class SupabaseOnlyStorage {
         .eq('id', playerId)
         .select()
         .single();
-      
+
       if (error) {
         throw new Error(`Failed to update Supabase ID: ${error.message}`);
       }
-      
+
       console.log(`✅ [UNIVERSAL] Updated player ${playerId} with Supabase ID: ${supabaseId}`);
       return this.transformPlayerFromSupabase(data);
     } catch (error: any) {
@@ -193,25 +193,25 @@ export class SupabaseOnlyStorage {
       .select('*')
       .eq('id', id)
       .single();
-    
+
     if (error) {
       console.error('Error fetching player:', error);
       return undefined;
     }
-    
+
     return this.transformPlayerFromSupabase(data);
   }
 
   async getPlayerByEmail(email: string): Promise<Player | undefined> {
     try {
       console.log('🔄 [UNIFIED] SupabaseOnlyStorage: Getting player by email:', email);
-      
+
       const { data, error } = await supabase
         .from('players')
         .select('*')
         .eq('email', email)
         .single();
-      
+
       if (error) {
         if (error.code === 'PGRST116') {
           console.log('🔍 [UNIFIED] SupabaseOnlyStorage: No player found with email:', email);
@@ -220,7 +220,7 @@ export class SupabaseOnlyStorage {
         console.error('❌ [UNIFIED] SupabaseOnlyStorage: Error fetching player by email:', error);
         return undefined;
       }
-      
+
       console.log('✅ [UNIFIED] SupabaseOnlyStorage: Player found by email - ID:', data.id);
       return this.transformPlayerFromSupabase(data);
     } catch (error: any) {
@@ -231,7 +231,7 @@ export class SupabaseOnlyStorage {
 
   async getPlayerBySupabaseId(supabaseId: string): Promise<Player | undefined> {
     console.log('🔍 [PLAYER API] Getting player by Supabase ID:', supabaseId);
-    
+
     try {
       // Use EXACT same approach as working authentication endpoint
       const { Pool } = await import('pg');
@@ -239,31 +239,31 @@ export class SupabaseOnlyStorage {
         connectionString: process.env.DATABASE_URL,
         ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
       });
-      
+
       console.log('🔧 [PLAYER API] Direct database lookup for:', supabaseId);
-      
+
       // Use EXACT same query structure as working authentication endpoint
       const playerQuery = `
-        SELECT id, email, password, first_name, last_name, phone, kyc_status, balance, 
+        SELECT id, email, password, first_name, last_name, phone, kyc_status, balance,
                current_credit, credit_limit, credit_approved, total_deposits, total_withdrawals,
-               total_winnings, total_losses, games_played, hours_played, clerk_user_id, 
+               total_winnings, total_losses, games_played, hours_played, clerk_user_id,
                supabase_id, is_active, pan_card_number, pan_card_verified, address,
                total_rs_played, current_vip_points, lifetime_vip_points, universal_id
-        FROM players 
+        FROM players
         WHERE supabase_id = $1 AND (is_active IS NULL OR is_active = true)
       `;
-      
+
       const result = await pool.query(playerQuery, [supabaseId]);
       await pool.end();
-      
+
       if (result.rows.length === 0) {
         console.log('❌ [PLAYER API] No player found for Supabase ID:', supabaseId);
         return undefined;
       }
-      
+
       const playerData = result.rows[0];
       console.log('✅ [PLAYER API] Direct database lookup successful:', playerData.email);
-      
+
       // Transform to match expected Player interface
       const player: Player = {
         id: playerData.id,
@@ -293,55 +293,55 @@ export class SupabaseOnlyStorage {
         lifetimeVipPoints: playerData.lifetime_vip_points ? String(playerData.lifetime_vip_points) : '0.00',
         universalId: playerData.universal_id
       };
-      
+
       return player;
-      
+
       // Only try auth lookup if the supabaseId looks like a proper UUID (not custom auth_ IDs)
       const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(supabaseId);
-      
+
       if (!isValidUUID) {
         console.log('🚫 [UNIFIED] Custom auth ID detected (not UUID), skipping auth lookup:', supabaseId);
         return undefined;
       }
-      
+
       console.log('🔄 [UNIFIED] Valid UUID detected, trying auth email lookup');
-      
+
       // Fallback: Get email from Supabase auth and lookup by email (only for real UUIDs)
       const { data: { user }, error: authError } = await supabase.auth.admin.getUserById(supabaseId);
-      
+
       if (authError || !user?.email) {
         console.error('❌ [UNIFIED] Auth user not found:', authError?.message);
         return undefined;
       }
-      
+
       console.log('🔍 [UNIFIED] Found auth email:', user.email);
-      
+
       // Find player by email and update with Supabase ID
       const { data: emailData, error: emailError } = await supabase
         .from('players')
         .select('*')
         .eq('email', user.email)
         .single();
-      
+
       if (emailError || !emailData) {
         console.log('❌ [UNIFIED] Player not found by email:', user.email);
         return undefined;
       }
-      
+
       // Update player with Supabase ID for future direct lookups
       const { error: updateError } = await supabase
         .from('players')
         .update({ supabase_id: supabaseId })
         .eq('id', emailData.id);
-      
+
       if (!updateError) {
         emailData.supabase_id = supabaseId; // Update local data
         console.log('✅ [UNIFIED] Updated player', emailData.id, 'with Supabase ID');
       }
-      
+
       console.log('✅ [UNIFIED] Player found and linked:', emailData.email);
       return this.transformPlayerFromSupabase(emailData);
-      
+
     } catch (error: any) {
       console.error('❌ [UNIFIED] Error in getPlayerBySupabaseId:', error);
       return undefined;
@@ -353,40 +353,40 @@ export class SupabaseOnlyStorage {
   async createPlayer(player: InsertPlayer): Promise<Player> {
     try {
       console.log('🔄 [UNIFIED] SupabaseOnlyStorage: Creating player with unified system:', player);
-      
+
       // Generate unique IDs for unlimited player scaling
       const universalId = `unified_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const supabaseId = player.supabaseId || `auth_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+
       // Transform player data with unified system fields (avoiding schema cache issues)
       const playerData = this.transformPlayerToSupabase(player);
-      
+
       // Add the unified fields directly to the insert
       const finalPlayerData = {
         ...playerData,
         supabase_id: supabaseId,
         universal_id: universalId
       };
-      
+
       console.log('🔄 [UNIFIED] Creating player with data:', {
         email: finalPlayerData.email,
         phone: finalPlayerData.phone,
         supabase_id: finalPlayerData.supabase_id,
         universal_id: finalPlayerData.universal_id
       });
-      
+
       // Create player with all fields in one operation
       const { data, error } = await supabase
         .from('players')
         .insert(finalPlayerData)
         .select()
         .single();
-      
+
       if (error) {
         console.error('❌ [UNIFIED] SupabaseOnlyStorage: Error creating player:', error);
         throw new Error(`Failed to create player: ${error.message}`);
       }
-      
+
       console.log('✅ [UNIFIED] SupabaseOnlyStorage: Player created successfully:', {
         id: data.id,
         email: data.email,
@@ -394,7 +394,7 @@ export class SupabaseOnlyStorage {
         supabase_id: data.supabase_id,
         universal_id: data.universal_id
       });
-      
+
       return this.transformPlayerFromSupabase(data);
     } catch (error: any) {
       console.error('❌ [UNIFIED] SupabaseOnlyStorage: Error in createPlayer:', error);
@@ -406,11 +406,11 @@ export class SupabaseOnlyStorage {
     const { data, error } = await supabase
       .from('players')
       .select('*');
-    
+
     if (error) {
       throw new Error(`Failed to fetch players: ${error.message}`);
     }
-    
+
     return data.map(this.transformPlayerFromSupabase);
   }
 
@@ -421,12 +421,12 @@ export class SupabaseOnlyStorage {
       .select('*')
       .eq('player_id', playerId)
       .single();
-    
+
     if (error) {
       console.error('Error fetching player preferences:', error);
       return undefined;
     }
-    
+
     return this.transformPlayerPrefsFromSupabase(data);
   }
 
@@ -436,11 +436,11 @@ export class SupabaseOnlyStorage {
       .insert(this.transformPlayerPrefsToSupabase(prefs))
       .select()
       .single();
-    
+
     if (error) {
       throw new Error(`Failed to create player preferences: ${error.message}`);
     }
-    
+
     return this.transformPlayerPrefsFromSupabase(data);
   }
 
@@ -451,29 +451,29 @@ export class SupabaseOnlyStorage {
       .eq('player_id', playerId)
       .select()
       .single();
-    
+
     if (error) {
       throw new Error(`Failed to update player preferences: ${error.message}`);
     }
-    
+
     return this.transformPlayerPrefsFromSupabase(data);
   }
 
   // Table operations with forced refresh - fetch ALL tables
   async getTables(): Promise<Table[]> {
     console.log('🔄 [SupabaseOnlyStorage] Fetching ALL tables from database...');
-    
+
     // Force fresh data without any caching or filtering
     const { data, error } = await supabase
       .from('tables')
       .select('*')
       .order('id', { ascending: false });
-    
+
     if (error) {
       console.error('❌ [SupabaseOnlyStorage] Error fetching tables:', error);
       throw new Error(`Failed to fetch tables: ${error.message}`);
     }
-    
+
     console.log(`✅ [SupabaseOnlyStorage] Successfully fetched ${data?.length || 0} tables from database`);
     console.log('📋 [SupabaseOnlyStorage] Table names:', data?.map(t => t.name).join(', '));
     return data.map(this.transformTableFromSupabase);
@@ -482,7 +482,7 @@ export class SupabaseOnlyStorage {
   // Seat request operations
   async createSeatRequest(request: InsertSeatRequest): Promise<SeatRequest> {
     console.log('🎯 [SEAT REQUEST] Creating seat request:', request);
-    
+
     // Handle UUID table IDs by using raw insert since schema expects string
     const insertData = {
       player_id: request.playerId,
@@ -490,20 +490,20 @@ export class SupabaseOnlyStorage {
       position: request.position || 0,
       status: request.status || 'waiting'
     };
-    
+
     console.log('📋 [SEAT REQUEST] Insert data:', insertData);
-    
+
     const { data, error } = await supabase
       .from('seat_requests')
       .insert(insertData)
       .select()
       .single();
-    
+
     if (error) {
       console.error('❌ [SEAT REQUEST] Error:', error);
       throw new Error(`Failed to create seat request: ${error.message}`);
     }
-    
+
     console.log('✅ [SEAT REQUEST] Successfully created:', data);
     return this.transformSeatRequestFromSupabase(data);
   }
@@ -513,13 +513,13 @@ export class SupabaseOnlyStorage {
       .from('player_table_requests')
       .select('*')
       .eq('player_id', playerId);
-    
+
     if (error) {
       console.error('❌ [getSeatRequestsByPlayer] Error:', error);
       // Return empty array if table doesn't exist
       return [];
     }
-    
+
     return data.map(this.transformSeatRequestFromSupabase);
   }
 
@@ -531,15 +531,15 @@ export class SupabaseOnlyStorage {
       .select('id, email')
       .eq('id', document.playerId)
       .single();
-    
+
     console.log(`🔍 [STORAGE] Player check for ID ${document.playerId}:`, playerCheck, playerError);
-    
+
     if (playerError || !playerCheck) {
       console.error(`❌ [STORAGE] Player lookup failed:`, playerError);
       // Don't throw error - allow document creation to proceed
       console.log(`⚠️ [STORAGE] Proceeding with document creation despite player check failure`);
     }
-    
+
     // Insert document with proper handling
     const { data, error } = await supabase
       .from('kyc_documents')
@@ -553,11 +553,11 @@ export class SupabaseOnlyStorage {
       })
       .select()
       .single();
-    
+
     if (error) {
       throw new Error(`Failed to create KYC document: ${error.message}`);
     }
-    
+
     return this.transformKycDocumentFromSupabase(data);
   }
 
@@ -566,11 +566,11 @@ export class SupabaseOnlyStorage {
       .from('kyc_documents')
       .select('*')
       .eq('player_id', playerId);
-    
+
     if (error) {
       throw new Error(`Failed to fetch KYC documents: ${error.message}`);
     }
-    
+
     return data.map(this.transformKycDocumentFromSupabase);
   }
 
@@ -581,11 +581,11 @@ export class SupabaseOnlyStorage {
       .insert(this.transformTransactionToSupabase(transaction))
       .select()
       .single();
-    
+
     if (error) {
       throw new Error(`Failed to create transaction: ${error.message}`);
     }
-    
+
     return this.transformTransactionFromSupabase(data);
   }
 
@@ -594,11 +594,11 @@ export class SupabaseOnlyStorage {
       .from('transactions')
       .select('*')
       .eq('player_id', playerId);
-    
+
     if (error) {
       throw new Error(`Failed to fetch transactions: ${error.message}`);
     }
-    
+
     return data.map(this.transformTransactionFromSupabase);
   }
 
@@ -669,7 +669,7 @@ export class SupabaseOnlyStorage {
       kycStatus: data.kyc_status,
       balance: data.balance || '0.00', // Real cash balance
       currentCredit: data.current_credit ? String(data.current_credit) : '0.00', // Credit balance from cashier
-      creditLimit: data.credit_limit ? String(data.credit_limit) : '0.00', // Maximum credit allowed  
+      creditLimit: data.credit_limit ? String(data.credit_limit) : '0.00', // Maximum credit allowed
       creditApproved: Boolean(data.credit_approved), // Credit approval status
       totalDeposits: data.total_deposits || '0.00',
       totalWithdrawals: data.total_withdrawals || '0.00',

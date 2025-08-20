@@ -1812,6 +1812,120 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Clerk signup verification and sync endpoint
+  app.post("/api/auth/clerk-sync", async (req, res) => {
+    try {
+      const { 
+        clerkUserId, 
+        email, 
+        firstName, 
+        lastName, 
+        phone, 
+        emailVerified 
+      } = req.body;
+      
+      console.log(`🔄 [CLERK SYNC] Processing signup sync for: ${email}`);
+      
+      if (!clerkUserId || !email) {
+        return res.status(400).json({ 
+          error: "clerkUserId and email are required" 
+        });
+      }
+      
+      // Check if player already exists
+      let existingPlayer = await storage.getPlayerByEmail(email);
+      
+      if (existingPlayer) {
+        console.log(`🔄 [CLERK SYNC] Updating existing player with Clerk ID: ${existingPlayer.id}`);
+        
+        // Update existing player with Clerk information
+        const updatedPlayer = await storage.updatePlayer(existingPlayer.id, {
+          clerk_user_id: clerkUserId,
+          first_name: firstName || existingPlayer.first_name,
+          last_name: lastName || existingPlayer.last_name,
+          phone: phone || existingPlayer.phone,
+          email_verified: emailVerified
+        });
+        
+        return res.json({
+          success: true,
+          existingPlayer: true,
+          player: updatedPlayer,
+          message: "Existing player updated with Clerk sync"
+        });
+      } else {
+        console.log(`✨ [CLERK SYNC] Creating new player from Clerk signup`);
+        
+        // Create new player from Clerk data
+        const newPlayer = await storage.createClerkPlayer({
+          clerk_user_id: clerkUserId,
+          email,
+          first_name: firstName || '',
+          last_name: lastName || '',
+          phone: phone || '',
+          kyc_status: 'pending',
+          balance: '0.00',
+          is_active: true,
+          email_verified: emailVerified || false
+        });
+        
+        return res.json({
+          success: true,
+          existingPlayer: false,
+          player: newPlayer,
+          message: "New player created successfully"
+        });
+      }
+      
+    } catch (error: any) {
+      console.error('❌ [CLERK SYNC] Sync failed:', error);
+      res.status(500).json({ 
+        error: "Clerk sync failed",
+        details: error.message 
+      });
+    }
+  });
+
+  // Player existence check endpoint (prevents duplicate signups)
+  app.get("/api/players/check", async (req, res) => {
+    try {
+      const { email } = req.query;
+      
+      if (!email || typeof email !== 'string') {
+        return res.status(400).json({ error: "Email parameter required" });
+      }
+      
+      console.log(`🔍 [PLAYER CHECK] Checking for existing player: ${email}`);
+      
+      // Check if player exists in database
+      const existingPlayer = await storage.getPlayerByEmail(email);
+      
+      if (existingPlayer) {
+        console.log(`✅ [PLAYER CHECK] Found existing player: ${existingPlayer.email} (ID: ${existingPlayer.id})`);
+        return res.json({
+          exists: true,
+          playerId: existingPlayer.id,
+          email: existingPlayer.email,
+          kycStatus: existingPlayer.kyc_status,
+          isActive: existingPlayer.is_active
+        });
+      } else {
+        console.log(`❌ [PLAYER CHECK] No existing player found for: ${email}`);
+        return res.status(404).json({ 
+          exists: false, 
+          message: "Player not found" 
+        });
+      }
+      
+    } catch (error: any) {
+      console.error('❌ [PLAYER CHECK] Error:', error);
+      res.status(500).json({ 
+        error: "Failed to check player existence",
+        details: error.message 
+      });
+    }
+  });
+
   // CRITICAL: Player authentication endpoint for login system
   // Clerk User Sync API
   app.post("/api/players/sync-clerk", async (req, res) => {
