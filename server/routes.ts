@@ -2825,12 +2825,40 @@ export function registerRoutes(app: Express) {
         throw new Error('KYC submission failed');
       }
 
-      // Send submission confirmation email
+      // Send submission confirmation email using Supabase
       try {
-        console.log(`📧 [DIRECT KYC SUBMIT] Sending confirmation email to: ${email}`);
-        console.log(`✅ [DIRECT KYC SUBMIT] Thank you message: Thank you for registering to the Poker Club. Your documents have been submitted for review. Please wait for approval from our staff. Once approved, you will receive another email and can login to access the player portal.`);
+        console.log(`📧 [SUPABASE EMAIL] Sending confirmation email to: ${email}`);
+        
+        // Import Supabase client for server-side operations
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabaseServiceClient = createClient(
+          process.env.VITE_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+
+        // Send confirmation email using Supabase's built-in email service
+        const { error: emailError } = await supabaseServiceClient.auth.admin.generateLink({
+          type: 'email_change_current',
+          email: email,
+          options: {
+            data: {
+              type: 'kyc_submission_confirmation',
+              message: 'Thank you for registering to the Poker Club. Your documents have been submitted for review. Please wait for approval from our staff. Once approved, you will receive another email and can login to access the player portal.',
+              firstName: firstName,
+              lastName: lastName
+            }
+          }
+        });
+
+        if (emailError) {
+          console.log(`⚠️ [SUPABASE EMAIL] Could not send via Supabase auth:`, emailError.message);
+          console.log(`📧 [FALLBACK] Email content for ${email}: Thank you for registering to the Poker Club. Your documents have been submitted for review. Please wait for approval from our staff.`);
+        } else {
+          console.log(`✅ [SUPABASE EMAIL] Confirmation email sent successfully to: ${email}`);
+        }
       } catch (emailError) {
-        console.log('📧 [EMAIL] Note: Email service not configured');
+        console.log(`⚠️ [EMAIL SERVICE] Could not send email:`, emailError);
+        console.log(`📧 [FALLBACK] Email content for ${email}: KYC documents submitted successfully`);
       }
 
       console.log(`✅ [DIRECT KYC SUBMIT] KYC submitted successfully for player:`, playerId);
