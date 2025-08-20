@@ -310,16 +310,17 @@ export function useUltraFastAuth() {
         throw new Error(errorData.error || 'Signup failed');
       }
       
-      const { success, player, existing, redirectToKYC, isFullyVerified, message } = await response.json();
+      const { success, player, existing, redirectToKYC, isFullyVerified, needsEmailVerification, needsKYCUpload, needsKYCApproval, message } = await response.json();
       
       if (!success) {
         throw new Error('Signup failed');
       }
       
       console.log('✅ [ULTRA-FAST AUTH] Integrated signup successful:', player?.email);
+      console.log('🔍 [ULTRA-FAST AUTH] Signup response:', { existing, isFullyVerified, redirectToKYC, needsEmailVerification, needsKYCUpload, needsKYCApproval });
       
-      // If user is fully verified, treat as normal sign-in
-      if (existing && isFullyVerified && player) {
+      // CRITICAL FIX: Only treat as fully verified if isFullyVerified is explicitly true
+      if (isFullyVerified && player) {
         console.log('🎯 [ULTRA-FAST AUTH] Fully verified user - redirecting to dashboard');
         
         // CRITICAL FIX: Create Supabase session for existing user  
@@ -370,8 +371,8 @@ export function useUltraFastAuth() {
         };
       }
       
-      // Check if KYC redirect is needed
-      if (redirectToKYC && player) {
+      // RESTORED DEPLOYED VERSION LOGIC: Check if KYC redirect is needed for any incomplete verification
+      if ((redirectToKYC || needsEmailVerification || needsKYCUpload || needsKYCApproval) && player) {
         console.log('🎯 [ULTRA-FAST AUTH] KYC redirect required for player:', player.id);
         
         // Store KYC redirect data for App.tsx to handle

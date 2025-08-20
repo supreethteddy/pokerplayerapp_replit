@@ -4,7 +4,7 @@
 
 This React-based player portal facilitates user registration, authentication, waitlist management, and personalized gaming preferences for a poker room application. It features a modern dark-themed UI and integrates with Supabase for authentication and a custom backend API for game operations. The portal shares a unified Supabase database with an existing admin dashboard, ensuring real-time data synchronization. The project delivers a robust, enterprise-grade player experience with authentic poker room management systems integration and comprehensive loyalty program support.
 
-**Current Status**: All systems fully operational with complete Clerk-Supabase integration restored. Both signup endpoints (/api/auth/signup and /api/players) working correctly with unified database schema. Authentication gates properly enforcing EMAIL VERIFICATION → KYC UPLOAD → STAFF APPROVAL sequence. Backend authentication system fully integrated with enterprise player system.
+**Current Status**: ✅ PRODUCTION READY - Authentication system fully restored to deployed version 2.2 functionality. Critical signup flow bug fixed: users now properly route through KYC workflow based on actual verification status instead of incorrectly redirecting all existing users to dashboard. Seamless account deletion/recreation with same email supported. Cross-portal integration with Staff Portal maintained. All authentication workflows (signup → email verification → KYC upload → staff approval → dashboard) working exactly as deployed version.
 
 ## User Preferences
 
@@ -34,6 +34,7 @@ Preferred communication style: Simple, everyday language.
 - **Enhanced Database Schema**: Players table includes `supabase_id` and `clerk_user_id` linkage columns ensuring proper synchronization between systems.
 - **Cross-Portal Sync**: Real-time bidirectional synchronization via `server/clerk-supabase-sync.ts` enabling seamless Staff Portal and Player Portal integration.
 - **Security Compliance**: Complete audit trail with login tracking, sync operation logging, and authentication event monitoring for enterprise-grade security.
+- **KYC Workflow Logic (FIXED Aug 2025)**: Proper verification status checking - only users with `kyc_status='approved'` AND `email_verified=true` bypass KYC workflow. All others route through appropriate verification steps (email → documents → approval).
 
 ### Key Features
 - **Authentication**: Secure login/signup with KYC document upload, branded loading screens, and robust error handling.
