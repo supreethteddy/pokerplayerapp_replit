@@ -322,6 +322,23 @@ export function useUltraFastAuth() {
       if (existing && isFullyVerified && player) {
         console.log('🎯 [ULTRA-FAST AUTH] Fully verified user - redirecting to dashboard');
         
+        // CRITICAL FIX: Create Supabase session for existing user  
+        try {
+          const { data: supabaseAuth, error } = await supabase.auth.signInWithPassword({
+            email: email,
+            password: password
+          });
+          
+          if (error) {
+            console.warn('⚠️ [ULTRA-FAST AUTH] Supabase session creation warning:', error.message);
+            // Continue anyway as our backend authentication was successful
+          } else {
+            console.log('✅ [ULTRA-FAST AUTH] Supabase session established for existing user');
+          }
+        } catch (sessionError) {
+          console.warn('⚠️ [ULTRA-FAST AUTH] Supabase session creation failed, continuing:', sessionError);
+        }
+        
         // Set user data like a normal sign-in
         const enhancedUserData: AuthUser = {
           ...player,
@@ -335,6 +352,9 @@ export function useUltraFastAuth() {
         
         setUser(enhancedUserData);
         setLoading(false);
+        
+        // CRITICAL FIX: Set session storage flag for loading screen
+        sessionStorage.setItem('just_signed_in', 'true');
         
         toast({
           title: "Welcome back!",
