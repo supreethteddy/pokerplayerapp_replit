@@ -15,50 +15,57 @@ export const pusher = new Pusher({
 console.log('🚀 [PUSHER] Single instance initialized for cross-portal communication');
 
 // Single OneSignal client for push notifications
-const OneSignal = require('onesignal-node');
-export const oneSignalClient = new OneSignal.Client(
-  process.env.ONESIGNAL_APP_ID!,
-  process.env.ONESIGNAL_REST_API_KEY!
-);
+let oneSignalClient: any = null;
+try {
+  const OneSignal = await import('onesignal-node');
+  oneSignalClient = new OneSignal.default.Client(
+    process.env.ONESIGNAL_APP_ID!,
+    process.env.ONESIGNAL_REST_API_KEY!
+  );
+} catch (error) {
+  console.warn('⚠️ [ONESIGNAL] Failed to initialize OneSignal:', error);
+}
+
+export { oneSignalClient };
 
 console.log('📱 [ONESIGNAL] Single instance initialized for push notifications');
 
-const app = express();
-// Increase payload limits for file uploads (10MB limit)
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: false, limit: '10mb' }));
+async function initializeApp() {
+  const app = express();
+  // Increase payload limits for file uploads (10MB limit)
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+  app.use((req, res, next) => {
+    const start = Date.now();
+    const path = req.path;
+    let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
+    const originalResJson = res.json;
+    res.json = function (bodyJson, ...args) {
+      capturedJsonResponse = bodyJson;
+      return originalResJson.apply(res, [bodyJson, ...args]);
+    };
 
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+    res.on("finish", () => {
+      const duration = Date.now() - start;
+      if (path.startsWith("/api")) {
+        let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+        if (capturedJsonResponse) {
+          logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        }
+
+        if (logLine.length > 80) {
+          logLine = logLine.slice(0, 79) + "…";
+        }
+
+        log(logLine);
       }
+    });
 
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
+    next();
   });
 
-  next();
-});
-
-(async () => {
   // Initialize Supabase connection - no mock data in production
   const { supabaseStorage } = await import("./supabase-storage");
   await supabaseStorage.initializeSampleData();
@@ -93,4 +100,7 @@ app.use((req, res, next) => {
   }, () => {
     log(`serving on port ${port}`);
   });
-})();
+}
+
+// Initialize the application
+initializeApp().catch(console.error);
