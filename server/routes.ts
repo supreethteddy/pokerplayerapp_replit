@@ -3457,9 +3457,9 @@ export function registerRoutes(app: Express) {
           .from('players')
           .select('*')
           .eq('email', email)
-          .single();
+          .maybeSingle();
         
-        if (existingPlayer && !queryError) {
+        if (existingPlayer) {
           // User exists in Supabase
           console.log(`✅ [SUPABASE-ONLY] Found existing player: ${email}`);
           
@@ -3490,32 +3490,45 @@ export function registerRoutes(app: Express) {
           });
         }
 
-        // User doesn't exist in Supabase - create new player
+        // User doesn't exist in Supabase players table - check if auth user exists
         console.log(`🔥 [SUPABASE-ONLY] Creating new player in Supabase: ${email}`);
         
-        // First create Supabase auth user
-        const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
-          email,
-          password,
-          email_confirm: false,
-          user_metadata: {
-            first_name: firstName,
-            last_name: lastName,
-            phone: phone
-          }
-        });
+        // Check if auth user already exists
+        const { data: existingAuthUsers, error: listError } = await supabaseClient.auth.admin.listUsers();
+        const existingAuthUser = existingAuthUsers?.users.find(user => user.email === email);
+        
+        let supabaseUserId;
+        
+        if (existingAuthUser) {
+          // Auth user exists but no player record - reuse the auth user
+          console.log(`✅ [SUPABASE-ONLY] Found existing auth user, creating player record: ${email}`);
+          supabaseUserId = existingAuthUser.id;
+        } else {
+          // Create new auth user
+          const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: false,
+            user_metadata: {
+              first_name: firstName,
+              last_name: lastName,
+              phone: phone
+            }
+          });
 
-        if (authError) {
-          console.error('❌ [SUPABASE-ONLY] Auth user creation failed:', authError.message);
-          return res.status(500).json({ error: 'Failed to create user account' });
+          if (authError) {
+            console.error('❌ [SUPABASE-ONLY] Auth user creation failed:', authError.message);
+            return res.status(500).json({ error: 'Failed to create user account' });
+          }
+          
+          supabaseUserId = authData.user?.id;
         }
 
-        const supabaseUserId = authData.user?.id;
         if (!supabaseUserId) {
           return res.status(500).json({ error: 'Failed to get user ID' });
         }
 
-        // Create player record in Supabase players table (match actual schema)
+        // Create player record in Supabase players table (essential columns only to avoid cache issues)
         const { data: newPlayer, error: playerError } = await supabaseClient
           .from('players')
           .insert({
@@ -3527,8 +3540,6 @@ export function registerRoutes(app: Express) {
             kyc_status: 'pending',
             email_verified: false,
             balance: '0.00',
-            current_credit: '0.00',
-            credit_limit: '0.00',
             universal_id: `supabase_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             is_active: true,
             total_deposits: '0.00',
