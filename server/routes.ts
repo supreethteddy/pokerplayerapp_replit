@@ -51,6 +51,9 @@ import { ClerkPlayerSync } from './clerk-integration';
 // Import staff portal integration
 import staffPortalRoutes from './routes/staff-portal-integration';
 
+// Import F&B schema types
+import { foodBeverageItems, adsOffers, orders } from '@shared/schema';
+
 export function registerRoutes(app: Express) {
   // SIMPLE CASH BALANCE SYSTEM - MANAGER HANDLES TABLE OPERATIONS
   
@@ -1249,6 +1252,195 @@ export function registerRoutes(app: Express) {
       
     } catch (error: any) {
       console.error('❌ [AUTH USER] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // === FOOD & BEVERAGE API ENDPOINTS ===
+  
+  // Get all menu items - shared with staff portal
+  app.get("/api/food-beverage/items", async (req, res) => {
+    try {
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { data: items, error } = await supabase
+        .from('food_beverage_items')
+        .select('*')
+        .eq('is_available', true)
+        .order('display_order', { ascending: true });
+
+      if (error) {
+        console.error('❌ [F&B ITEMS] Error:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      res.json({
+        success: true,
+        items: items || []
+      });
+
+    } catch (error: any) {
+      console.error('❌ [F&B ITEMS] Critical error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get all active ads/offers - shared with staff portal
+  app.get("/api/food-beverage/ads", async (req, res) => {
+    try {
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const now = new Date().toISOString();
+      
+      const { data: ads, error } = await supabase
+        .from('ads_offers')
+        .select('*')
+        .eq('is_active', true)
+        .or(`start_date.is.null,start_date.lte.${now}`)
+        .or(`end_date.is.null,end_date.gte.${now}`)
+        .order('display_order', { ascending: true });
+
+      if (error) {
+        console.error('❌ [F&B ADS] Error:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      res.json({
+        success: true,
+        ads: ads || []
+      });
+
+    } catch (error: any) {
+      console.error('❌ [F&B ADS] Critical error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Place order - instant notification to staff via Pusher/OneSignal
+  app.post("/api/food-beverage/orders", async (req, res) => {
+    try {
+      const { playerId, playerName, items, totalAmount, notes, tableNumber } = req.body;
+      
+      if (!playerId || !playerName || !items || !Array.isArray(items)) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Insert order into database
+      const { data: order, error } = await supabase
+        .from('orders')
+        .insert({
+          player_id: playerId,
+          player_name: playerName,
+          items: items,
+          total_amount: totalAmount || '0.00',
+          notes: notes || null,
+          table_number: tableNumber || null,
+          status: 'pending',
+          order_source: 'player_portal'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ [F&B ORDER] Database error:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      console.log('✅ [F&B ORDER] Order placed:', order);
+
+      // Send real-time notification to staff via Pusher
+      try {
+        await pusher.trigger('staff-portal', 'new-food-order', {
+          orderId: order.id,
+          playerId: playerId,
+          playerName: playerName,
+          items: items,
+          totalAmount: totalAmount,
+          tableNumber: tableNumber,
+          timestamp: new Date().toISOString()
+        });
+        console.log('✅ [F&B ORDER] Pusher notification sent to staff');
+      } catch (pusherError) {
+        console.error('❌ [F&B ORDER] Pusher error:', pusherError);
+      }
+
+      // Send OneSignal notification to staff
+      try {
+        const notification = {
+          app_id: process.env.ONESIGNAL_APP_ID!,
+          included_segments: ['Staff'],
+          headings: { en: 'New Food Order' },
+          contents: { 
+            en: `${playerName} ordered ${items.length} items${tableNumber ? ` for table ${tableNumber}` : ''}`
+          },
+          data: {
+            type: 'food_order',
+            orderId: order.id,
+            playerId: playerId
+          }
+        };
+        
+        await oneSignalClient.createNotification(notification);
+        console.log('✅ [F&B ORDER] OneSignal notification sent to staff');
+      } catch (oneSignalError) {
+        console.error('❌ [F&B ORDER] OneSignal error:', oneSignalError);
+      }
+
+      res.json({
+        success: true,
+        orderId: order.id,
+        message: 'Order placed successfully'
+      });
+
+    } catch (error: any) {
+      console.error('❌ [F&B ORDER] Critical error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get player's order history
+  app.get("/api/food-beverage/orders/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { data: orders, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ [F&B ORDER HISTORY] Error:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      res.json({
+        success: true,
+        orders: orders || []
+      });
+
+    } catch (error: any) {
+      console.error('❌ [F&B ORDER HISTORY] Critical error:', error);
       res.status(500).json({ error: error.message });
     }
   });

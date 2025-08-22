@@ -256,6 +256,52 @@ export const syncActivityLog = pgTable("sync_activity_log", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// === FOOD & BEVERAGE SYSTEM ===
+export const foodBeverageItems = pgTable("food_beverage_items", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  price: text("price").notNull().default("0.00"), // Free if 0.00
+  imageUrl: text("image_url"),
+  category: text("category").notNull(), // food, beverage, snack, dessert
+  isAvailable: boolean("is_available").default(true),
+  displayOrder: integer("display_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const adsOffers = pgTable("ads_offers", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  imageUrl: text("image_url"),
+  videoUrl: text("video_url"),
+  targetUrl: text("target_url"), // Link to open when ad is clicked
+  adType: text("ad_type").notNull().default("banner"), // banner, video, carousel
+  isActive: boolean("is_active").default(true),
+  displayOrder: integer("display_order").default(0),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  createdBy: text("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const orders = pgTable("orders", {
+  id: serial("id").primaryKey(),
+  playerId: integer("player_id").references(() => players.id),
+  playerName: text("player_name").notNull(),
+  items: jsonb("items").notNull(), // Array of {itemId, name, price, quantity}
+  totalAmount: text("total_amount").notNull().default("0.00"),
+  status: text("status").notNull().default("pending"), // pending, preparing, ready, delivered, cancelled
+  notes: text("notes"), // Special instructions
+  tableNumber: text("table_number"), // Table where player is seated
+  orderSource: text("order_source").notNull().default("player_portal"),
+  staffAssignedId: text("staff_assigned_id"), // Staff member handling the order
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const insertPlayerSchema = createInsertSchema(players).omit({
   id: true,
   createdAt: true,
@@ -322,6 +368,19 @@ export type StaffOffer = typeof staffOffers.$inferSelect;
 export const insertChatRequestSchema = createInsertSchema(chatRequests).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertChatRequest = z.infer<typeof insertChatRequestSchema>;
 export type ChatRequest = typeof chatRequests.$inferSelect;
+
+// === FOOD & BEVERAGE SYSTEM TYPES ===
+export const insertFoodBeverageItemSchema = createInsertSchema(foodBeverageItems).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertFoodBeverageItem = z.infer<typeof insertFoodBeverageItemSchema>;
+export type FoodBeverageItem = typeof foodBeverageItems.$inferSelect;
+
+export const insertAdsOfferSchema = createInsertSchema(adsOffers).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertAdsOffer = z.infer<typeof insertAdsOfferSchema>;
+export type AdsOffer = typeof adsOffers.$inferSelect;
+
+export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertOrder = z.infer<typeof insertOrderSchema>;
+export type Order = typeof orders.$inferSelect;
 
 export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;

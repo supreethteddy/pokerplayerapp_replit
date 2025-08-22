@@ -44,7 +44,8 @@ import {
   Plus,
   Info,
   RotateCcw,
-  Trash2
+  Trash2,
+  Coffee
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
@@ -61,6 +62,7 @@ import NotificationPopup from "./NotificationPopup";
 
 import PlayerChatSystem from "./PlayerChatSystem";
 import NotificationHistoryTab from "./NotificationHistoryTab";
+import FoodBeverageTab from "./FoodBeverageTab";
 
 
 // Scrollable Offers Display Component
@@ -1476,6 +1478,12 @@ function PlayerDashboard() {
               <Gift className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger 
+              value="food" 
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+            >
+              <Coffee className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
+            </TabsTrigger>
+            <TabsTrigger 
               value="session" 
               className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
             >
@@ -1805,6 +1813,11 @@ function PlayerDashboard() {
           {/* Offers Tab - Staff Managed */}
           <TabsContent value="offers" className="space-y-4">
             <ScrollableOffersDisplay />
+          </TabsContent>
+
+          {/* Food & Beverage Tab */}
+          <TabsContent value="food" className="space-y-4">
+            <FoodBeverageTab user={user} />
           </TabsContent>
 
           {/* Session Tab - Advanced Playtime Tracking */}
