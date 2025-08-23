@@ -60,54 +60,66 @@ export function registerRoutes(app: Express) {
   // ========== LEGACY ENDPOINT REMOVED - USE /api/balance/:playerId INSTEAD ==========
   // REMOVED: Duplicate /api/player/:playerId/balance endpoint - redirecting to main endpoint
 
-  // Get Player Data by ID (for KYC workflow initialization)
+  // Get Player Data by ID (for KYC workflow initialization) - PostgreSQL Direct
   app.get("/api/players/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
       
       console.log(`🔍 [PLAYER DATA] Fetching player: ${playerId}`);
 
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
+      // Use PostgreSQL direct query (consistent with signup/signin approach)
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
 
-      const { data: player, error } = await supabase
-        .from('players')
-        .select('*')
-        .eq('id', playerId)
-        .single();
+      try {
+        const result = await pgClient.query(
+          'SELECT * FROM players WHERE id = $1',
+          [playerId]
+        );
 
-      if (error || !player) {
-        console.error('❌ [PLAYER DATA] Player not found:', error);
-        return res.status(404).json({ error: 'Player not found' });
+        if (result.rows.length === 0) {
+          await pgClient.end();
+          console.error('❌ [PLAYER DATA] Player not found in PostgreSQL');
+          return res.status(404).json({ error: 'Player not found' });
+        }
+
+        const player = result.rows[0];
+        await pgClient.end();
+
+        // Return formatted player data for KYC workflow (compatible with frontend)
+        const playerData = {
+          id: player.id,
+          email: player.email,
+          firstName: player.first_name,
+          lastName: player.last_name,
+          phone: player.phone,
+          kycStatus: player.kyc_status,
+          balance: player.balance,
+          emailVerified: player.email_verified,
+          panCard: player.pan_card_number,
+          panCardStatus: player.pan_card_status,
+          panCardVerified: player.pan_card_verified,
+          supabaseId: player.supabase_id,
+          universalId: player.universal_id,
+          creditBalance: player.current_credit || '0.00',
+          creditLimit: player.credit_limit || '0.00',
+          creditApproved: player.credit_approved || false,
+          lastLogin: player.last_login_at,
+          createdAt: player.created_at
+        };
+
+        console.log(`✅ [PLAYER DATA] Player found: ${player.email}`);
+        res.json(playerData);
+
+      } finally {
+        // Ensure connection is closed
+        try {
+          await pgClient.end();
+        } catch (e) {
+          // Connection already closed
+        }
       }
-
-      // Return formatted player data for KYC workflow
-      const playerData = {
-        id: player.id,
-        email: player.email,
-        firstName: player.first_name,
-        lastName: player.last_name,
-        phone: player.phone,
-        kycStatus: player.kyc_status,
-        balance: player.balance,
-        emailVerified: player.email_verified,
-        panCard: player.pan_card_number,
-        panCardStatus: player.pan_card_status,
-        panCardVerified: player.pan_card_verified,
-        supabaseId: player.supabase_id,
-        universalId: player.universal_id,
-        creditBalance: player.current_credit || '0.00',
-        creditLimit: player.credit_limit || '0.00',
-        creditApproved: player.credit_approved || false,
-        lastLogin: player.last_login_at,
-        createdAt: player.created_at
-      };
-
-      console.log(`✅ [PLAYER DATA] Player found: ${player.email}`);
-      res.json(playerData);
 
     } catch (error: any) {
       console.error('❌ [PLAYER DATA] Error:', error);
@@ -115,32 +127,38 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Get Player KYC Documents (for KYC workflow initialization)
+  // Get Player KYC Documents (for KYC workflow initialization) - PostgreSQL Direct
   app.get("/api/documents/player/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
       
       console.log(`🔍 [KYC DOCS] Fetching documents for player: ${playerId}`);
 
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
+      // Use PostgreSQL direct query (consistent with signup/signin approach)
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
 
-      const { data: documents, error } = await supabase
-        .from('kyc_documents')
-        .select('*')
-        .eq('player_id', playerId)
-        .order('created_at', { ascending: false });
+      try {
+        const result = await pgClient.query(
+          'SELECT * FROM kyc_documents WHERE player_id = $1 ORDER BY created_at DESC',
+          [playerId]
+        );
 
-      if (error) {
-        console.error('❌ [KYC DOCS] Error fetching documents:', error);
-        return res.status(500).json({ error: 'Failed to fetch documents' });
+        const documents = result.rows;
+        await pgClient.end();
+
+        console.log(`✅ [KYC DOCS] Found ${documents.length} documents for player ${playerId}`);
+        res.json(documents);
+
+      } finally {
+        // Ensure connection is closed
+        try {
+          await pgClient.end();
+        } catch (e) {
+          // Connection already closed
+        }
       }
-
-      console.log(`✅ [KYC DOCS] Found ${documents?.length || 0} documents for player ${playerId}`);
-      res.json(documents || []);
 
     } catch (error: any) {
       console.error('❌ [KYC DOCS] Error:', error);
