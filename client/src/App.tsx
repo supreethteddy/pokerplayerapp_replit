@@ -63,19 +63,18 @@ function AppContent() {
     }
   }, []);
 
-  // Show loading screen when user signs in 
+  // DISABLED: Loading screen for pure Supabase authentication (no Clerk sync needed)
   useEffect(() => {
     if (user && !loading && !hasShownLoadingScreen) {
-      // Check if user just signed in or is returning to a session
+      // For pure Supabase auth, skip loading screen entirely
       const justSignedIn = sessionStorage.getItem('just_signed_in');
-      
-      // Always show loading screen for fresh sign-ins
       if (justSignedIn) {
-        console.log('Fresh sign-in detected - showing loading screen with video');
-        setShowLoadingScreen(true);
+        console.log('🚀 [PURE SUPABASE] Skipping loading screen - direct to dashboard');
         sessionStorage.removeItem('just_signed_in');
       }
       setHasShownLoadingScreen(true);
+      // Never show loading screen for pure Supabase auth
+      setShowLoadingScreen(false);
     }
   }, [user, loading, hasShownLoadingScreen]);
 
@@ -117,8 +116,9 @@ function AppContent() {
     );
   }
 
-  // Show loading screen after sign-in
-  if (showLoadingScreen) {
+  // DISABLED: Loading screen for pure Supabase authentication
+  // Pure Supabase auth doesn't need Clerk sync, so skip loading screen entirely
+  if (false && showLoadingScreen) {
     return (
       <LoadingScreen 
         onComplete={() => setShowLoadingScreen(false)} 
