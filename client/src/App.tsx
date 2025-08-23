@@ -22,6 +22,9 @@ import InteractiveThankYouPage from "./components/InteractiveThankYouPage";
 
 function AppContent() {
   const { user, loading, authChecked } = useUltraFastAuth();
+  
+  // Debug logging for routing
+  console.log('🔍 [APP ROUTING] user:', !!user, 'loading:', loading, 'authChecked:', authChecked);
   const [showLoadingScreen, setShowLoadingScreen] = useState(false);
   const [hasShownLoadingScreen, setHasShownLoadingScreen] = useState(false);
   const [kycRedirectData, setKycRedirectData] = useState<any>(null);

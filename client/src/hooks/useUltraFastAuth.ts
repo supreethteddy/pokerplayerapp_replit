@@ -111,10 +111,7 @@ export function useUltraFastAuth() {
       setUser(enhancedUserData);
       setLoading(false);
       
-      // Background Clerk sync (non-blocking)
-      if (!enhancedUserData.isClerkSynced && !syncInProgress.current) {
-        backgroundClerkSync(enhancedUserData);
-      }
+      // DISABLED: Background Clerk sync removed for pure Supabase auth
       
     } catch (error: any) {
       if (error.name !== 'AbortError') {
@@ -232,7 +229,7 @@ export function useUltraFastAuth() {
       console.log('✅ [DEBUG] User state set:', enhancedUserData);
       console.log('✅ [DEBUG] User ID:', enhancedUserData.id);
       
-      // Log authentication activity
+      // Log authentication activity  
       logAuthActivity('login', email, user.supabaseId || user.id);
       
       // Set session storage flag for loading screen
