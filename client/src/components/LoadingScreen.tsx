@@ -12,51 +12,53 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
   const [showFallback, setShowFallback] = useState(false);
 
   useEffect(() => {
-    // Check if the video has already been played
+    // Check if the video has already been played in this session
     const videoPlayed = sessionStorage.getItem('welcome_video_played');
 
     if (videoPlayed === 'true') {
-      console.log('🎬 [WELCOME VIDEO] Video already played, skipping.');
+      console.log('🎬 [SESSION CHECK] Video already played this session, skipping to dashboard');
       setShowVideo(false);
       onComplete();
-      return; // Exit early if video was already played
+      return;
     }
 
-    // Force fresh video load each time by clearing any cached state
-    setVideoLoaded(false);
-    setShowFallback(false);
+    console.log('🎬 [WELCOME VIDEO] Starting fresh video playback experience');
+    
+    // Mark that we're starting the video to prevent double-play during re-renders
+    sessionStorage.setItem('welcome_video_starting', 'true');
 
-    // Allow video to play to full completion (remove auto-timeout)
-    // Only fallback timeout for emergency cases
-    const maxTimer = setTimeout(() => {
-      console.log('🚨 [EMERGENCY] Video max timeout reached - forcing completion');
-      setShowVideo(false);
-      onComplete();
-    }, 15000); // 15 seconds emergency timeout
-
-    // Show fallback after 3 seconds if video doesn't load  
+    // Emergency fallback if video completely fails to load after 5 seconds
     const fallbackTimer = setTimeout(() => {
       if (!videoLoaded) {
-        console.log('🎬 [FALLBACK] Video not loaded, showing fallback welcome screen');
+        console.log('🎬 [FALLBACK] Video failed to load, showing static welcome screen');
         setShowFallback(true);
-        // Let fallback display for reasonable time, then complete
+        // Mark video as "played" so we don't repeat on next render
+        sessionStorage.setItem('welcome_video_played', 'true');
+        // Show fallback for 3 seconds, then proceed
         setTimeout(() => {
-          console.log('🎬 [FALLBACK] Fallback display complete - proceeding to dashboard');
+          console.log('🎬 [FALLBACK] Static welcome complete - proceeding to dashboard');
           onComplete();
         }, 3000);
       }
-    }, 3000);
+    }, 5000);
 
-    // Clear session storage flags to ensure video shows next time
     return () => {
-      clearTimeout(maxTimer);
       clearTimeout(fallbackTimer);
     };
-  }, [onComplete]);
+  }, []);
 
   const handleVideoEnd = () => {
-    console.log('🎬 [VIDEO] Video ended - proceeding to dashboard');
+    console.log('🎬 [VIDEO COMPLETE] Video played to full completion - proceeding to dashboard');
     sessionStorage.setItem('welcome_video_played', 'true');
+    sessionStorage.removeItem('welcome_video_starting'); // Clean up starting flag
+    setShowVideo(false);
+    onComplete();
+  };
+
+  const handleSkipVideo = () => {
+    console.log('🎬 [VIDEO SKIP] User clicked skip - proceeding immediately to dashboard');
+    sessionStorage.setItem('welcome_video_played', 'true');
+    sessionStorage.removeItem('welcome_video_starting'); // Clean up starting flag
     setShowVideo(false);
     onComplete();
   };
@@ -138,7 +140,7 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
 
         {/* Skip button overlay */}
         <button 
-          onClick={handleVideoEnd}
+          onClick={handleSkipVideo}
           className="absolute bottom-8 right-8 text-white bg-black bg-opacity-50 hover:bg-opacity-70 px-4 py-2 rounded-lg transition-all text-sm backdrop-blur-sm"
         >
           Skip →

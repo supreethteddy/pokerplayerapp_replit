@@ -190,7 +190,8 @@ export function useUltraFastAuth() {
     sessionStorage.removeItem('just_signed_in');
     sessionStorage.removeItem('kyc_redirect');
     sessionStorage.removeItem('authenticated_user'); // NEW: Clear stored user data
-    sessionStorage.removeItem('welcome_video_played'); // Added: Clear video flag on signout
+    sessionStorage.removeItem('welcome_video_played'); // Clear video flag so it plays again on next login
+    sessionStorage.removeItem('welcome_video_starting'); // Clear starting flag
 
     // Clear any local storage items
     localStorage.removeItem('clerk-db-jwt');
