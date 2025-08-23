@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
-import { useInvisibleClerk } from './useInvisibleClerk';
+// REMOVED: useInvisibleClerk for pure Supabase authentication
 
 export interface AuthUser {
   id: string;
@@ -28,8 +28,7 @@ export function useUltraFastAuth() {
   const syncInProgress = useRef(false);
   const fetchController = useRef<AbortController | null>(null);
 
-  // Invisible Clerk integration - runs silently in background
-  useInvisibleClerk(user);
+  // REMOVED: Invisible Clerk integration for pure Supabase authentication
 
   useEffect(() => {
     console.log('🚀 [ULTRA-FAST AUTH] Initializing...');
@@ -228,6 +227,11 @@ export function useUltraFastAuth() {
       
       console.log('✅ [DEBUG] User state set:', enhancedUserData);
       console.log('✅ [DEBUG] User ID:', enhancedUserData.id);
+      
+      // Debug: Check user state after setting
+      setTimeout(() => {
+        console.log('🔍 [DEBUG] User state after 100ms:', !!enhancedUserData);
+      }, 100);
       
       // Log authentication activity  
       logAuthActivity('login', email, user.supabaseId || user.id);
