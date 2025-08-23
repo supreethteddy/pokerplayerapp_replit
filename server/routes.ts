@@ -2633,12 +2633,20 @@ export function registerRoutes(app: Express) {
         console.log('🔄 [2-WAY HANDSHAKE] Player switching from table', existingTableId, 'to table', tableId);
         
         // Decrement current_players from the old table
-        const { error: decrementError } = await supabase
+        const { data: oldTableData } = await supabase
           .from('poker_tables')
-          .update({ 
-            current_players: supabase.raw('current_players - 1')
-          })
-          .eq('id', existingTableId);
+          .select('current_players')
+          .eq('id', existingTableId)
+          .single();
+          
+        if (oldTableData) {
+          const { error: decrementError } = await supabase
+            .from('poker_tables')
+            .update({ 
+              current_players: Math.max(0, (oldTableData.current_players || 0) - 1)
+            })
+            .eq('id', existingTableId);
+        }
         
         if (decrementError) {
           console.error('❌ [2-WAY HANDSHAKE] Failed to decrement old table players:', decrementError);
@@ -2670,12 +2678,20 @@ export function registerRoutes(app: Express) {
         
         // If we decremented the old table, we need to restore it since the move failed
         if (existingTableId && existingTableId !== tableId) {
-          await supabase
+          const { data: restoreTableData } = await supabase
             .from('poker_tables')
-            .update({ 
-              current_players: supabase.raw('current_players + 1')
-            })
-            .eq('id', existingTableId);
+            .select('current_players')
+            .eq('id', existingTableId)
+            .single();
+            
+          if (restoreTableData) {
+            await supabase
+              .from('poker_tables')
+              .update({ 
+                current_players: (restoreTableData.current_players || 0) + 1
+              })
+              .eq('id', existingTableId);
+          }
           console.log('🔄 [2-WAY HANDSHAKE] Restored old table count due to failed move');
         }
         
@@ -2693,7 +2709,7 @@ export function registerRoutes(app: Express) {
       const { error: incrementError } = await supabase
         .from('poker_tables')
         .update({ 
-          current_players: supabase.raw('current_players + 1')
+          current_players: currentPlayers + 1
         })
         .eq('id', tableId);
       
@@ -2717,7 +2733,7 @@ export function registerRoutes(app: Express) {
         await supabase
           .from('poker_tables')
           .update({ 
-            current_players: supabase.raw('current_players - 1')
+            current_players: currentPlayers
           })
           .eq('id', tableId);
           
@@ -3899,33 +3915,7 @@ export function registerRoutes(app: Express) {
 
         await pgClient.end();
 
-        // Verify Supabase Auth if available (double authentication)
-        let supabaseAuth = null;
-        if (player.supabase_id) {
-          try {
-            const { createClient } = await import('@supabase/supabase-js');
-            const supabase = createClient(
-              process.env.VITE_SUPABASE_URL!,
-              process.env.SUPABASE_SERVICE_ROLE_KEY!
-            );
-
-            const { data: authData } = await supabase.auth.signInWithPassword({
-              email,
-              password
-            });
-
-            if (authData.user) {
-              supabaseAuth = {
-                id: authData.user.id,
-                email: authData.user.email,
-                emailConfirmed: authData.user.email_confirmed_at ? true : false
-              };
-              console.log(`✅ [RESTORED SIGNIN] Supabase Auth verified: ${authData.user.id}`);
-            }
-          } catch (supabaseError) {
-            console.warn('⚠️ [RESTORED SIGNIN] Supabase Auth verification failed, continuing with player auth:', supabaseError);
-          }
-        }
+        console.log(`✅ [PLAYERS TABLE AUTH] Authentication successful using players table only: ${player.email}`);
 
         // Return comprehensive user data (compatible with existing frontend)
         const userData = {
@@ -3951,9 +3941,7 @@ export function registerRoutes(app: Express) {
         res.json({
           success: true,
           user: userData,
-          supabaseUser: supabaseAuth,
-          doubleAuthActive: !!supabaseAuth,
-          message: "Login successful"
+          message: "Login successful - authenticated via players table"
         });
 
       } finally {
@@ -4034,52 +4022,24 @@ export function registerRoutes(app: Express) {
         // User doesn't exist - create new player
         console.log(`🔥 [POSTGRESQL SIGNUP] Creating new player: ${email}`);
         
-        // Create Supabase auth user first (for authentication)
-        let supabaseUserId = null;
-        try {
-          const { createClient } = await import('@supabase/supabase-js');
-          const supabaseClient = createClient(
-            process.env.VITE_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!
-          );
-
-          const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
-            email,
-            password,
-            email_confirm: false,
-            user_metadata: {
-              first_name: firstName,
-              last_name: lastName,
-              phone: phone
-            }
-          });
-
-          if (authData.user) {
-            supabaseUserId = authData.user.id;
-            console.log(`✅ [POSTGRESQL SIGNUP] Supabase auth user created: ${supabaseUserId}`);
-          }
-        } catch (supabaseError) {
-          console.warn('⚠️ [POSTGRESQL SIGNUP] Supabase auth creation failed, continuing with local auth:', supabaseError);
-        }
-
-        // Create player record using direct PostgreSQL (avoids cache issues)
-        const universalId = `postgres_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // Create player record using direct PostgreSQL (players table only)
+        const universalId = `players_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
         const insertResult = await pgClient.query(`
           INSERT INTO players (
             email, password, first_name, last_name, phone, 
             kyc_status, email_verified, balance, universal_id, 
-            supabase_id, is_active, total_deposits, total_withdrawals, 
+            is_active, total_deposits, total_withdrawals, 
             total_winnings, total_losses, games_played, hours_played,
             current_credit, credit_limit, credit_approved, created_at
           ) VALUES (
             $1, $2, $3, $4, $5, 
             'pending', false, '0.00', $6, 
-            $7, true, '0.00', '0.00', 
+            true, '0.00', '0.00', 
             '0.00', '0.00', 0, '0.00',
             0, 0, false, NOW()
           ) RETURNING *`,
-          [email, password, firstName, lastName, phone, universalId, supabaseUserId]
+          [email, password, firstName, lastName, phone, universalId]
         );
 
         const newPlayer = insertResult.rows[0];
