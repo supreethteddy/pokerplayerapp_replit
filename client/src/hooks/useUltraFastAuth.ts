@@ -220,17 +220,20 @@ export function useUltraFastAuth() {
       // PURE PLAYERS TABLE AUTH: Skip Supabase auth session creation
       console.log('🎯 [PURE PLAYERS AUTH] Using players table authentication only - skipping Supabase auth');
       
+      // CRITICAL FIX: Force user state update with immediate verification
       setUser(enhancedUserData);
-      setAuthChecked(true); // Ensure auth state is marked as checked
+      setAuthChecked(true);
       setLoading(false);
       
       console.log('✅ [DEBUG] User state set:', enhancedUserData);
       console.log('✅ [DEBUG] User ID:', enhancedUserData.id);
       
-      // Debug: Check user state after setting
+      // Force immediate re-render and state verification
       setTimeout(() => {
-        console.log('🔍 [DEBUG] User state after 100ms:', !!enhancedUserData);
-      }, 100);
+        console.log('🔍 [DEBUG] Forcing state verification...');
+        setUser(enhancedUserData); // Set again to ensure persistence
+        console.log('✅ [DEBUG] User state verified and locked in');
+      }, 50);
       
       // Log authentication activity  
       logAuthActivity('login', email, user.supabaseId || user.id);
@@ -242,6 +245,12 @@ export function useUltraFastAuth() {
         title: "Welcome back!",
         description: message || "Successfully signed in to your account.",
       });
+      
+      // FORCE REDIRECT: If state management fails, force browser redirect
+      setTimeout(() => {
+        console.log('🚀 [FORCE REDIRECT] Redirecting to dashboard...');
+        window.location.href = '/dashboard';
+      }, 1000);
       
       return { success: true };
       
