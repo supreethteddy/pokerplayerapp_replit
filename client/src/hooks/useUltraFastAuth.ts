@@ -226,7 +226,11 @@ export function useUltraFastAuth() {
       console.log('🎯 [PURE PLAYERS AUTH] Using players table authentication only - skipping Supabase auth');
       
       setUser(enhancedUserData);
+      setAuthChecked(true); // Ensure auth state is marked as checked
       setLoading(false);
+      
+      console.log('✅ [DEBUG] User state set:', enhancedUserData);
+      console.log('✅ [DEBUG] User ID:', enhancedUserData.id);
       
       // Log authentication activity
       logAuthActivity('login', email, user.supabaseId || user.id);
