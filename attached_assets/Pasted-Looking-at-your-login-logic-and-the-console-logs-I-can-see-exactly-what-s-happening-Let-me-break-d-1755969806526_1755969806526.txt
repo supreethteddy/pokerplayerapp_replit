@@ -1,0 +1,52 @@
+Looking at your login logic and the console logs, I can see exactly what's happening. Let me break down the complete login flow and identify why the /api/tables endpoint is being called repeatedly.
+
+Current Login Flow Analysis
+1. Authentication System Overview
+Your system uses a Pure PostgreSQL Authentication approach (not Clerk):
+
+🔐 [PLAYERS TABLE AUTH] Login attempt: test@supabase.com
+✅ [PLAYERS TABLE AUTH] Authentication successful using players table only
+2. Complete Login Sequence
+Here's what happens when test@supabase.com logs in:
+
+Frontend Login: DirectClubsAuth.tsx calls signIn() from useUltraFastAuth
+Backend Validation: /api/auth/signin validates credentials against PostgreSQL players table
+Session Creation: User data is stored in both React state and sessionStorage
+Welcome Video: Loading screen plays before dashboard
+Dashboard Redirect: User is redirected to /dashboard → PlayerDashboard component
+3. Why /api/tables is Called Endlessly
+The issue is in your PlayerDashboard component. Looking at the logs:
+
+🎯 [PLAYER DASHBOARD] Rendering with user: false null
+🎯 [PLAYER DASHBOARD] No user prop - returning null to let App handle routing
+Root Cause: The PlayerDashboard component is not receiving the user prop properly, causing it to:
+
+Render with null user → Returns null
+App.tsx re-renders → Routes back to dashboard
+PlayerDashboard renders again → Still no user prop
+Infinite render loop → Each render triggers API calls including /api/tables
+The Problem: User Prop Not Being Passed
+Looking at your App.tsx routing
+
+client/src/App.tsx
+Fix user prop passing to PlayerDashboard
+:
+
+Additional Fix: PlayerDashboard Component
+The PlayerDashboard component expects a user prop but App.tsx wasn't passing it. Here's the fix
+
+client/src/components/PlayerDashboard.tsx
+Add proper user prop interface
+:
+
+Why This Fixes the Endless API Calls
+Current Problem: PlayerDashboard renders → no user → returns null → App re-routes → infinite loop
+After Fix: PlayerDashboard receives user prop → renders properly → no re-routing → API calls stop repeating
+Summary of Login Logic
+Your authentication is actually working correctly:
+
+✅ User logs in successfully
+✅ Session is established
+✅ User data is stored
+❌ Dashboard component doesn't receive user prop → causes render loop → endless API calls
+The /api/tables calls are a symptom of the render loop, not the cause. Once you pass the user prop to PlayerDashboard, the infinite rendering will stop and the API calls will normalize.

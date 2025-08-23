@@ -355,8 +355,15 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
   );
 };
 
-function PlayerDashboard() {
-  const { user, signOut } = useUltraFastAuth();
+interface PlayerDashboardProps {
+  user?: any;
+}
+
+function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
+  const { user: authUser, signOut } = useUltraFastAuth();
+  
+  // Use prop user if available, fallback to auth user
+  const user = userProp || authUser;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [callTime, setCallTime] = useState("02:45");
@@ -1822,7 +1829,6 @@ function PlayerDashboard() {
             <div className="max-w-4xl mx-auto">
               <PlaytimeTracker 
                 playerId={user?.id?.toString() || ''} 
-                currentSession={currentActiveSession || null}
               />
             </div>
           </TabsContent>
@@ -2696,8 +2702,7 @@ function PlayerDashboard() {
           </DialogContent>
         </Dialog>
 
-        {/* Live Session Tracking - PlaytimeTracker for local poker club operations */}
-        {user?.id && <PlaytimeTracker playerId={String(user.id)} />}
+        {/* Live Session Tracking removed - already in Session tab */}
 
       </div>
     );
