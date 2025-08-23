@@ -3915,10 +3915,16 @@ export function registerRoutes(app: Express) {
       const player = players[0];
       console.log(`✅ [PLAYERS TABLE AUTH] Player found: ${player.id}`);
 
-      // Update last login
+      // Update last login with Indian time (IST)
+      const now = new Date();
+      const indianTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000)); // Add 5.5 hours for IST
+      const formattedTime = indianTime.toISOString().slice(0, 19).replace('T', ' '); // Format as YYYY-MM-DD HH:MM:SS
+      
       const { error: updateError } = await supabase
         .from('players')
-        .update({ last_login_at: new Date().toISOString() })
+        .update({ 
+          last_login_at: formattedTime 
+        })
         .eq('id', player.id);
 
       if (updateError) {
@@ -4126,10 +4132,14 @@ export function registerRoutes(app: Express) {
     await ClerkSupabaseSync.handleClerkWebhook(req, res);
   });
 
-  // Manual sync endpoint for administrative use
+  // Manual sync endpoint for administrative use (DISABLED for pure players table auth)
   app.post('/api/clerk/sync', async (req, res) => {
-    const { ClerkSupabaseSync } = await import('./clerk-supabase-sync');
-    await ClerkSupabaseSync.handleManualSync(req, res);
+    console.log('🔄 [CLERK SYNC] Skipped - using pure players table authentication');
+    res.json({
+      success: true,
+      message: 'Clerk sync not needed for players table authentication',
+      skipped: true
+    });
   });
 
   // Clean Clerk-Supabase user sync for nanosecond-speed authentication
