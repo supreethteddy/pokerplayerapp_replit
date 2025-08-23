@@ -1,25 +1,25 @@
-import { useState } from 'react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
-import { X, Eye, EyeOff, Phone, Mail } from 'lucide-react';
-import { useUltraFastAuth } from '../hooks/useUltraFastAuth';
-import { useToast } from '@/hooks/use-toast';
+import { useState } from "react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { X, Eye, EyeOff, Phone, Mail } from "lucide-react";
+import { useUltraFastAuth } from "../hooks/useUltraFastAuth";
+import { useToast } from "@/hooks/use-toast";
 
 export default function DirectClubsAuth() {
-  const [activeTab, setActiveTab] = useState<'signin' | 'signup'>('signin');
+  const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberPassword, setRememberPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  
+
   // Form states
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+
   const { user, signIn, signUp } = useUltraFastAuth();
   const { toast } = useToast();
 
@@ -30,7 +30,9 @@ export default function DirectClubsAuth() {
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-white font-medium">Successfully signed in!</p>
-          <p className="text-slate-400 text-sm mt-2">Redirecting to dashboard...</p>
+          <p className="text-slate-400 text-sm mt-2">
+            Redirecting to dashboard...
+          </p>
         </div>
       </div>
     );
@@ -43,13 +45,13 @@ export default function DirectClubsAuth() {
     setLoading(true);
 
     try {
-      if (activeTab === 'signin') {
+      if (activeTab === "signin") {
         if (!email) {
-          throw new Error('Please enter your email');
+          throw new Error("Please enter your email");
         }
-        
+
         const result = await signIn(email, password);
-        
+
         if (result.success) {
           toast({
             title: "Welcome back!",
@@ -57,31 +59,40 @@ export default function DirectClubsAuth() {
           });
           // Success is handled by useAuth hook - redirect will happen automatically
         } else {
-          throw new Error(result.error || 'Sign in failed');
+          throw new Error(result.error || "Sign in failed");
         }
       } else {
         if (!email || !firstName || !lastName || !phone) {
-          throw new Error('Please fill in all required fields');
+          throw new Error("Please fill in all required fields");
         }
-        
-        const result = await signUp(email, password, firstName, lastName, phone);
-        
+
+        const result = await signUp(
+          email,
+          password,
+          firstName,
+          lastName,
+          phone,
+        );
+
         if (result.success) {
           // Check if we need to redirect to KYC process
           if (result.redirectToKYC) {
-            console.log('🎯 [AUTH] Redirecting to KYC process for player:', result.player?.id);
+            console.log(
+              "🎯 [AUTH] Redirecting to KYC process for player:",
+              result.player?.id,
+            );
             // KYC redirect will be handled by the parent component
           }
         } else {
-          throw new Error(result.error || 'Sign up failed');
+          throw new Error(result.error || "Sign up failed");
         }
       }
     } catch (error: any) {
-      console.error('Auth error:', error);
+      console.error("Auth error:", error);
       toast({
-        title: activeTab === 'signin' ? "Sign In Failed" : "Sign Up Failed",
+        title: activeTab === "signin" ? "Sign In Failed" : "Sign Up Failed",
         description: error.message || "Please try again",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -92,9 +103,9 @@ export default function DirectClubsAuth() {
     <div className="min-h-screen bg-black flex items-center justify-center p-4">
       <Card className="w-full max-w-md bg-gray-900 border-gray-700 relative">
         {/* Close button */}
-        <Button 
-          variant="ghost" 
-          size="sm" 
+        <Button
+          variant="ghost"
+          size="sm"
           className="absolute top-4 right-4 text-gray-400 hover:text-white z-10"
         >
           <X className="w-5 h-5" />
@@ -108,25 +119,25 @@ export default function DirectClubsAuth() {
             </div>
           </div>
           <h1 className="text-white text-xl font-semibold mb-6">CLUBS POKER</h1>
-          
+
           {/* Tab Navigation */}
           <div className="flex border-b border-gray-600 mb-6">
             <button
-              onClick={() => setActiveTab('signin')}
+              onClick={() => setActiveTab("signin")}
               className={`flex-1 py-3 px-4 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'signin'
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-gray-400 hover:text-white'
+                activeTab === "signin"
+                  ? "border-blue-500 text-blue-400"
+                  : "border-transparent text-gray-400 hover:text-white"
               }`}
             >
               Log In
             </button>
             <button
-              onClick={() => setActiveTab('signup')}
+              onClick={() => setActiveTab("signup")}
               className={`flex-1 py-3 px-4 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'signup'
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-gray-400 hover:text-white'
+                activeTab === "signup"
+                  ? "border-blue-500 text-blue-400"
+                  : "border-transparent text-gray-400 hover:text-white"
               }`}
             >
               Sign Up
@@ -137,7 +148,7 @@ export default function DirectClubsAuth() {
         <CardContent className="space-y-4 px-6">
           {/* Email/Password Form */}
           <form onSubmit={handleEmailAuth} className="space-y-4">
-            {activeTab === 'signup' && (
+            {activeTab === "signup" && (
               <>
                 <div className="grid grid-cols-2 gap-3">
                   <Input
@@ -192,26 +203,33 @@ export default function DirectClubsAuth() {
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white h-6 w-6 p-0"
                 onClick={() => setShowPassword(!showPassword)}
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
               </Button>
             </div>
 
-            {activeTab === 'signin' && (
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="remember"
-                    checked={rememberPassword}
-                    onCheckedChange={(checked) => setRememberPassword(checked as boolean)}
-                    className="border-gray-600 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 w-4 h-4 flex-shrink-0"
-                  />
-                  <label htmlFor="remember" className="text-sm text-gray-300 select-none cursor-pointer whitespace-nowrap">
-                    Remember password
-                  </label>
-                </div>
-                <Button variant="link" className="text-blue-400 hover:text-blue-300 p-0 h-auto text-sm self-start sm:self-auto">
-                  Forgot password?
-                </Button>
+            {activeTab === "signin" && (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="remember"
+                  checked={rememberPassword}
+                  onCheckedChange={(v) => setRememberPassword(!!v)}
+                  className="
+            size-4 shrink-0 rounded-[3px] border border-gray-600 p-0 m-0
+            data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
+            leading-none
+          "
+                />
+                <label
+                  htmlFor="remember"
+                  className="text-sm text-gray-300 select-none cursor-pointer whitespace-nowrap"
+                >
+                  Remember password
+                </label>
               </div>
             )}
 
@@ -220,7 +238,11 @@ export default function DirectClubsAuth() {
               disabled={loading}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 h-12 mt-6"
             >
-              {loading ? 'Please wait...' : (activeTab === 'signin' ? 'Log In' : 'Sign Up')}
+              {loading
+                ? "Please wait..."
+                : activeTab === "signin"
+                  ? "Log In"
+                  : "Sign Up"}
             </Button>
           </form>
         </CardContent>
