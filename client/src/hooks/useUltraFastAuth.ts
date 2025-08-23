@@ -49,6 +49,25 @@ export function useUltraFastAuth() {
 
   const checkSessionUltraFast = async () => {
     try {
+      // Check if user is stored in sessionStorage from recent login
+      const storedUser = sessionStorage.getItem('authenticated_user');
+      const justSignedIn = sessionStorage.getItem('just_signed_in');
+      
+      if (storedUser && justSignedIn) {
+        try {
+          const userData = JSON.parse(storedUser);
+          console.log('🔄 [SESSION RESTORE] Restoring user from session:', userData.email);
+          setUser(userData);
+          setAuthChecked(true);
+          setLoading(false);
+          return;
+        } catch (error) {
+          console.error('❌ [SESSION RESTORE] Failed to parse stored user:', error);
+          sessionStorage.removeItem('authenticated_user');
+          sessionStorage.removeItem('just_signed_in');
+        }
+      }
+      
       // PURE PLAYERS TABLE AUTH: Skip Supabase auth session checking
       console.log('🎯 [PURE PLAYERS AUTH] Skipping Supabase session check - using players table only');
       setLoading(false);
@@ -167,15 +186,16 @@ export function useUltraFastAuth() {
     setLoading(false);
     syncInProgress.current = false;
     
-    // Clear any session storage items that might cause loading loops
+    // Clear ALL session storage items that might cause loading loops
     sessionStorage.removeItem('just_signed_in');
     sessionStorage.removeItem('kyc_redirect');
+    sessionStorage.removeItem('authenticated_user'); // NEW: Clear stored user data
     
     // Clear any local storage items
     localStorage.removeItem('clerk-db-jwt');
     localStorage.removeItem('auth_token');
     
-    console.log('🧹 [ULTRA-FAST AUTH] Session cleanup completed');
+    console.log('🧹 [ULTRA-FAST AUTH] Session cleanup completed - all auth data cleared');
   };
 
   const signIn = async (email: string, password: string) => {
@@ -220,13 +240,17 @@ export function useUltraFastAuth() {
       // PURE PLAYERS TABLE AUTH: Skip Supabase auth session creation
       console.log('🎯 [PURE PLAYERS AUTH] Using players table authentication only - skipping Supabase auth');
       
-      // CRITICAL FIX: Force user state update with immediate verification
+      // CRITICAL FIX: Force user state update with session persistence
       setUser(enhancedUserData);
       setAuthChecked(true);
       setLoading(false);
       
+      // Store user in sessionStorage for persistence across navigation
+      sessionStorage.setItem('authenticated_user', JSON.stringify(enhancedUserData));
+      
       console.log('✅ [DEBUG] User state set:', enhancedUserData);
       console.log('✅ [DEBUG] User ID:', enhancedUserData.id);
+      console.log('💾 [SESSION] User stored in sessionStorage for persistence');
       
       // Force immediate re-render and state verification
       setTimeout(() => {
@@ -250,7 +274,7 @@ export function useUltraFastAuth() {
       setTimeout(() => {
         console.log('🚀 [FORCE REDIRECT] Redirecting to dashboard...');
         window.location.href = '/dashboard';
-      }, 1000);
+      }, 500);
       
       return { success: true };
       
