@@ -3886,67 +3886,73 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ error: 'Email and password are required' });
       }
       
-      console.log(`🔐 [RESTORED SIGNIN] Login attempt: ${email}`);
+      console.log(`🔐 [PLAYERS TABLE AUTH] Login attempt: ${email}`);
       
-      // Use direct PostgreSQL query (the working method)
-      const { Client } = await import('pg');
-      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
-      await pgClient.connect();
+      // Use Supabase client with service role to bypass RLS
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
 
-      try {
-        const result = await pgClient.query(
-          'SELECT * FROM players WHERE email = $1 AND password = $2',
-          [email, password]
-        );
+      // Query players table directly (bypasses RLS with service role)
+      const { data: players, error: queryError } = await supabase
+        .from('players')
+        .select('*')
+        .eq('email', email)
+        .eq('password', password);
 
-        if (result.rows.length === 0) {
-          await pgClient.end();
-          return res.status(401).json({ error: 'Invalid credentials' });
-        }
-
-        const player = result.rows[0];
-        console.log(`✅ [RESTORED SIGNIN] Player found: ${player.id}`);
-
-        // Update last login
-        await pgClient.query(
-          'UPDATE players SET last_login_at = NOW() WHERE id = $1',
-          [player.id]
-        );
-
-        await pgClient.end();
-
-        console.log(`✅ [PLAYERS TABLE AUTH] Authentication successful using players table only: ${player.email}`);
-
-        // Return comprehensive user data (compatible with existing frontend)
-        const userData = {
-          id: player.id,
-          email: player.email,
-          firstName: player.first_name,
-          lastName: player.last_name,
-          phone: player.phone,
-          kycStatus: player.kyc_status,
-          balance: player.balance,
-          emailVerified: player.email_verified || false,
-          supabaseId: player.supabase_id,
-          clerkUserId: player.clerk_user_id,
-          universalId: player.universal_id,
-          creditBalance: player.current_credit || '0.00',
-          creditLimit: player.credit_limit || '0.00',
-          creditApproved: player.credit_approved || false,
-          totalBalance: (parseFloat(player.balance || '0') + parseFloat(player.current_credit || '0')).toFixed(2),
-          lastLogin: player.last_login_at,
-          clerkSynced: player.clerk_synced_at ? true : false
-        };
-
-        res.json({
-          success: true,
-          user: userData,
-          message: "Login successful - authenticated via players table"
-        });
-
-      } finally {
-        // No cleanup needed for Supabase-only approach
+      if (queryError) {
+        console.error('❌ [PLAYERS TABLE AUTH] Query error:', queryError);
+        return res.status(500).json({ error: 'Database query failed' });
       }
+
+      if (!players || players.length === 0) {
+        console.log(`❌ [PLAYERS TABLE AUTH] Invalid credentials for: ${email}`);
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+
+      const player = players[0];
+      console.log(`✅ [PLAYERS TABLE AUTH] Player found: ${player.id}`);
+
+      // Update last login
+      const { error: updateError } = await supabase
+        .from('players')
+        .update({ last_login_at: new Date().toISOString() })
+        .eq('id', player.id);
+
+      if (updateError) {
+        console.warn('⚠️ [PLAYERS TABLE AUTH] Failed to update last login:', updateError);
+      }
+
+      console.log(`✅ [PLAYERS TABLE AUTH] Authentication successful using players table only: ${player.email}`);
+
+      // Return comprehensive user data (compatible with existing frontend)
+      const userData = {
+        id: player.id,
+        email: player.email,
+        firstName: player.first_name,
+        lastName: player.last_name,
+        phone: player.phone,
+        kycStatus: player.kyc_status,
+        balance: player.balance,
+        emailVerified: player.email_verified || false,
+        supabaseId: player.supabase_id,
+        clerkUserId: player.clerk_user_id,
+        universalId: player.universal_id,
+        creditBalance: player.current_credit || '0.00',
+        creditLimit: player.credit_limit || '0.00',
+        creditApproved: player.credit_approved || false,
+        totalBalance: (parseFloat(player.balance || '0') + parseFloat(player.current_credit || '0')).toFixed(2),
+        lastLogin: player.last_login_at,
+        clerkSynced: player.clerk_synced_at ? true : false
+      };
+
+      res.json({
+        success: true,
+        user: userData,
+        message: "Login successful - authenticated via players table"
+      });
 
     } catch (error: any) {
       console.error('❌ [RESTORED SIGNIN] Error:', error);
@@ -3963,34 +3969,46 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ error: 'All required fields must be provided' });
       }
       
-      console.log(`🔐 [POSTGRESQL SIGNUP] Creating account: ${email}`);
+      console.log(`🔐 [PLAYERS TABLE SIGNUP] Creating account: ${email}`);
 
-      // Use consistent PostgreSQL approach (same as signin)
-      const { Client } = await import('pg');
-      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
-      await pgClient.connect();
+      // Use Supabase client with service role to bypass RLS (same as signin)
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
 
-      try {
-        // Check if player already exists
-        const existingResult = await pgClient.query(
-          'SELECT * FROM players WHERE email = $1',
-          [email]
-        );
+      // Check if player already exists
+      const { data: existingPlayers, error: checkError } = await supabase
+        .from('players')
+        .select('*')
+        .eq('email', email);
+
+      if (checkError) {
+        console.error('❌ [PLAYERS TABLE SIGNUP] Check error:', checkError);
+        return res.status(500).json({ error: 'Database query failed' });
+      }
         
-        if (existingResult.rows.length > 0) {
-          const existingPlayer = existingResult.rows[0];
-          console.log(`✅ [POSTGRESQL SIGNUP] Found existing player: ${email}`);
-          
-          // Update password if different (allows password reset via signup)
-          if (existingPlayer.password !== password) {
-            await pgClient.query(
-              'UPDATE players SET password = $1, last_login_at = NOW() WHERE email = $2',
-              [password, email]
-            );
-            console.log(`🔄 [POSTGRESQL SIGNUP] Updated password for: ${email}`);
+      if (existingPlayers && existingPlayers.length > 0) {
+        const existingPlayer = existingPlayers[0];
+        console.log(`✅ [PLAYERS TABLE SIGNUP] Found existing player: ${email}`);
+        
+        // Update password if different (allows password reset via signup)
+        if (existingPlayer.password !== password) {
+          const { error: updateError } = await supabase
+            .from('players')
+            .update({ 
+              password: password, 
+              last_login_at: new Date().toISOString() 
+            })
+            .eq('email', email);
+            
+          if (updateError) {
+            console.error('❌ [PLAYERS TABLE SIGNUP] Update error:', updateError);
+          } else {
+            console.log(`🔄 [PLAYERS TABLE SIGNUP] Updated password for: ${email}`);
           }
-          
-          await pgClient.end();
+        }
           
           // Check what the user needs based on their current status
           const needsEmailVerification = !existingPlayer.email_verified;
@@ -4019,62 +4037,68 @@ export function registerRoutes(app: Express) {
           });
         }
 
-        // User doesn't exist - create new player
-        console.log(`🔥 [POSTGRESQL SIGNUP] Creating new player: ${email}`);
-        
-        // Create player record using direct PostgreSQL (players table only)
-        const universalId = `players_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        const insertResult = await pgClient.query(`
-          INSERT INTO players (
-            email, password, first_name, last_name, phone, 
-            kyc_status, email_verified, balance, universal_id, 
-            is_active, total_deposits, total_withdrawals, 
-            total_winnings, total_losses, games_played, hours_played,
-            current_credit, credit_limit, credit_approved, created_at
-          ) VALUES (
-            $1, $2, $3, $4, $5, 
-            'pending', false, '0.00', $6, 
-            true, '0.00', '0.00', 
-            '0.00', '0.00', 0, '0.00',
-            0, 0, false, NOW()
-          ) RETURNING *`,
-          [email, password, firstName, lastName, phone, universalId]
-        );
+      // User doesn't exist - create new player
+      console.log(`🔥 [PLAYERS TABLE SIGNUP] Creating new player: ${email}`);
+      
+      // Create player record using Supabase (players table only)
+      const universalId = `players_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const { data: newPlayers, error: insertError } = await supabase
+        .from('players')
+        .insert({
+          email,
+          password,
+          first_name: firstName,
+          last_name: lastName,
+          phone,
+          kyc_status: 'pending',
+          email_verified: false,
+          balance: '0.00',
+          universal_id: universalId,
+          is_active: true,
+          total_deposits: '0.00',
+          total_withdrawals: '0.00',
+          total_winnings: '0.00',
+          total_losses: '0.00',
+          games_played: 0,
+          hours_played: '0.00',
+          current_credit: 0,
+          credit_limit: 0,
+          credit_approved: false,
+          created_at: new Date().toISOString()
+        })
+        .select();
 
-        const newPlayer = insertResult.rows[0];
-        await pgClient.end();
-
-        console.log(`✅ [POSTGRESQL SIGNUP] New player created successfully: ${email} (ID: ${newPlayer.id})`);
-
-        // Initialize response data for new player (who needs to complete KYC)
-        const responsePlayer = {
-          id: newPlayer.id,
-          email: newPlayer.email,
-          firstName: newPlayer.first_name,
-          lastName: newPlayer.last_name,
-          kycStatus: newPlayer.kyc_status,
-          balance: newPlayer.balance,
-          emailVerified: newPlayer.email_verified
-        };
-
-        return res.json({
-          success: true,
-          existing: false,
-          player: responsePlayer,
-          redirectToKYC: true,
-          needsEmailVerification: true,
-          needsKYCUpload: true,
-          needsKYCApproval: false,
-          isFullyVerified: false,
-          message: 'Account created successfully! Please verify your email and complete KYC.'
-        });
-
-      } catch (pgError: any) {
-        await pgClient.end();
-        console.error('❌ [POSTGRESQL SIGNUP] Database error:', pgError.message);
+      if (insertError) {
+        console.error('❌ [PLAYERS TABLE SIGNUP] Insert error:', insertError);
         return res.status(500).json({ error: 'Database operation failed' });
       }
+
+      const newPlayer = newPlayers[0];
+      console.log(`✅ [PLAYERS TABLE SIGNUP] New player created successfully: ${email} (ID: ${newPlayer.id})`);
+
+      // Initialize response data for new player (who needs to complete KYC)
+      const responsePlayer = {
+        id: newPlayer.id,
+        email: newPlayer.email,
+        firstName: newPlayer.first_name,
+        lastName: newPlayer.last_name,
+        kycStatus: newPlayer.kyc_status,
+        balance: newPlayer.balance,
+        emailVerified: newPlayer.email_verified
+      };
+
+      return res.json({
+        success: true,
+        existing: false,
+        player: responsePlayer,
+        redirectToKYC: true,
+        needsEmailVerification: true,
+        needsKYCUpload: true,
+        needsKYCApproval: false,
+        isFullyVerified: false,
+        message: 'Account created successfully! Please verify your email and complete KYC.'
+      });
 
     } catch (error: any) {
       console.error('❌ [POSTGRESQL SIGNUP] Signup error:', error.message);
