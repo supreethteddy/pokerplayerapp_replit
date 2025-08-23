@@ -1,0 +1,206 @@
+
+🚀 [TABLES API PRODUCTION] Starting fresh query...
+🔍 [TABLES API PRODUCTION] Live poker tables from staff portal: {
+  total: 12,
+  tables: [
+    {
+      id: 'fc97c90c-4b07-46df-b446-fd966a39d9a1',
+      name: 'call time table',
+      game_type: 'Omaha'
+    },
+    {
+      id: '2ccd122f-360d-41c3-9fa7-bc8281098954',
+      name: 'Call time table 2',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: 'c7a44280-b15f-4346-ad26-db7ff88a2758',
+      name: 'hello 3434',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: '56551992-75ac-4248-b5e1-65417d2e4047',
+      name: 'hello123',
+      game_type: 'Omaha'
+    },
+    {
+      id: '16ca08af-a58b-475d-ac00-d561cd919009',
+      name: 'hhh',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: '493d9a04-0d58-4d90-af59-9bf844c16041',
+      name: 'ktktkttktktk',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: '2038a651-f9c1-4705-b53f-c750d70e30aa',
+      name: 'Omaha123',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: 'ce3f5c35-67b2-4342-8ba4-8ea9e6be531a',
+      name: 'ototottotot',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: '60585718-5cd8-4218-98f5-b1c3fab8fb3c',
+      name: 'Recovery Test Table',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: 'fbc0a71e-41a2-4eb9-bd4c-02ef6777b78f',
+      name: 'test2',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: '312e2428-d9d2-4a24-9f6e-0a9dd08e9157',
+      name: 'Testing from phone',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: 'cd686e37-d34e-437a-92ee-1e0fe75fadf7',
+      name: 'tooo goooddd',
+      game_type: "Texas Hold'em"
+    }
+  ]
+}
+✅ [TABLES API PRODUCTION] Returning 12 live staff portal tables
+5:17:55 PM [express] GET /api/tables 200 in 711ms :: [{"id":"fc97c90c-4b07-46df-b446-fd966a39d9a1","…
+🚀 [TABLES API PRODUCTION] Starting fresh query...
+🔍 [TABLES API PRODUCTION] Live poker tables from staff portal: {
+  total: 12,
+  tables: [
+    {
+      id: 'fc97c90c-4b07-46df-b446-fd966a39d9a1',
+      name: 'call time table',
+      game_type: 'Omaha'
+    },
+    {
+      id: '2ccd122f-360d-41c3-9fa7-bc8281098954',
+      name: 'Call time table 2',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: 'c7a44280-b15f-4346-ad26-db7ff88a2758',
+      name: 'hello 3434',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: '56551992-75ac-4248-b5e1-65417d2e4047',
+      name: 'hello123',
+      game_type: 'Omaha'
+    },
+    {
+      id: '16ca08af-a58b-475d-ac00-d561cd919009',
+      name: 'hhh',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: '493d9a04-0d58-4d90-af59-9bf844c16041',
+      name: 'ktktkttktktk',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: '2038a651-f9c1-4705-b53f-c750d70e30aa',
+      name: 'Omaha123',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: 'ce3f5c35-67b2-4342-8ba4-8ea9e6be531a',
+      name: 'ototottotot',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: '60585718-5cd8-4218-98f5-b1c3fab8fb3c',
+      name: 'Recovery Test Table',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: 'fbc0a71e-41a2-4eb9-bd4c-02ef6777b78f',
+      name: 'test2',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: '312e2428-d9d2-4a24-9f6e-0a9dd08e9157',
+      name: 'Testing from phone',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: 'cd686e37-d34e-437a-92ee-1e0fe75fadf7',
+      name: 'tooo goooddd',
+      game_type: "Texas Hold'em"
+    }
+  ]
+}
+✅ [TABLES API PRODUCTION] Returning 12 live staff portal tables
+5:17:56 PM [express] GET /api/tables 200 in 271ms :: [{"id":"fc97c90c-4b07-46df-b446-fd966a39d9a1","…
+🚀 [TABLES API PRODUCTION] Starting fresh query...
+🔍 [TABLES API PRODUCTION] Live poker tables from staff portal: {
+  total: 12,
+  tables: [
+    {
+      id: 'fc97c90c-4b07-46df-b446-fd966a39d9a1',
+      name: 'call time table',
+      game_type: 'Omaha'
+    },
+    {
+      id: '2ccd122f-360d-41c3-9fa7-bc8281098954',
+      name: 'Call time table 2',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: 'c7a44280-b15f-4346-ad26-db7ff88a2758',
+      name: 'hello 3434',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: '56551992-75ac-4248-b5e1-65417d2e4047',
+      name: 'hello123',
+      game_type: 'Omaha'
+    },
+    {
+      id: '16ca08af-a58b-475d-ac00-d561cd919009',
+      name: 'hhh',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: '493d9a04-0d58-4d90-af59-9bf844c16041',
+      name: 'ktktkttktktk',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: '2038a651-f9c1-4705-b53f-c750d70e30aa',
+      name: 'Omaha123',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: 'ce3f5c35-67b2-4342-8ba4-8ea9e6be531a',
+      name: 'ototottotot',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: '60585718-5cd8-4218-98f5-b1c3fab8fb3c',
+      name: 'Recovery Test Table',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: 'fbc0a71e-41a2-4eb9-bd4c-02ef6777b78f',
+      name: 'test2',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: '312e2428-d9d2-4a24-9f6e-0a9dd08e9157',
+      name: 'Testing from phone',
+      game_type: "Texas Hold'em"
+    },
+    {
+      id: 'cd686e37-d34e-437a-92ee-1e0fe75fadf7',
+      name: 'tooo goooddd',
+      game_type: "Texas Hold'em"
+    }
+  ]
+}
+✅ [TABLES API PRODUCTION] Returning 12 live staff portal tables
+5:17:57 PM [express] GET /api/tables 200 in 263ms :: [{"id":"fc97c90c-4b07-46df-b446-fd966a39d9a1","…
+🚀 [TABLES API PRODUCTION] Starting fresh query...

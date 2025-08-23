@@ -403,7 +403,7 @@ function PlayerDashboard() {
   
   // Check if user needs email verification - integrated with Clerk auth
   useEffect(() => {
-    if (user && user.email && !user.emailVerified) {
+    if (user && user.email && !(user as any).emailVerified) {
       setShowEmailVerificationBanner(true);
     }
   }, [user]);
@@ -1401,23 +1401,20 @@ function PlayerDashboard() {
     }
   };
 
-  // Show loading screen instead of "Not authenticated" to prevent flash
+  // Authentication is handled at App level, no need for additional loading screen here
+  // This was causing the persistent "Loading your dashboard..." screen after video completion
+  console.log('🎯 [PLAYER DASHBOARD] Rendering with user:', !!user, user?.email);
+
+  // Safety guard - if no user, return nothing and let App.tsx handle routing
   if (!user) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white font-medium">Loading your dashboard...</p>
-          <p className="text-slate-500 text-sm mt-2">Connecting to your account...</p>
-        </div>
-      </div>
-    );
+    console.log('🎯 [PLAYER DASHBOARD] No user prop - returning null to let App handle routing');
+    return null;
   }
 
   return (
     <div className="min-h-screen bg-slate-900 w-full overflow-x-hidden">
       {/* Email Verification Banner */}
-      {showEmailVerificationBanner && user?.email && !user?.emailVerified && (
+      {showEmailVerificationBanner && user?.email && !(user as any)?.emailVerified && (
         <div className="bg-amber-600 border-b border-amber-500 px-6 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
