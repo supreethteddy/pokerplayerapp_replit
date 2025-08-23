@@ -12,10 +12,20 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
   const [showFallback, setShowFallback] = useState(false);
 
   useEffect(() => {
+    // Check if the video has already been played
+    const videoPlayed = sessionStorage.getItem('welcome_video_played');
+
+    if (videoPlayed === 'true') {
+      console.log('🎬 [WELCOME VIDEO] Video already played, skipping.');
+      setShowVideo(false);
+      onComplete();
+      return; // Exit early if video was already played
+    }
+
     // Force fresh video load each time by clearing any cached state
     setVideoLoaded(false);
     setShowFallback(false);
-    
+
     // Allow video to play to full completion (remove auto-timeout)
     // Only fallback timeout for emergency cases
     const maxTimer = setTimeout(() => {
@@ -45,26 +55,24 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
   }, [onComplete]);
 
   const handleVideoEnd = () => {
-    console.log('🎬 [WELCOME VIDEO] Video playback completed naturally');
-    setTimeout(() => {
-      console.log('🎬 [WELCOME VIDEO] Transitioning to dashboard after video end');
-      setShowVideo(false);
-      onComplete();
-    }, 500); // Small delay for smooth transition
+    console.log('🎬 [VIDEO] Video ended - proceeding to dashboard');
+    sessionStorage.setItem('welcome_video_played', 'true');
+    setShowVideo(false);
+    onComplete();
   };
 
   const handleVideoLoad = () => {
     console.log('Video loaded successfully - attempting autoplay with audio');
     setVideoLoaded(true);
     setShowFallback(false);
-    
+
     // Ensure video plays with audio - try multiple times if needed
     const video = document.querySelector('video');
     if (video) {
       // Force unmute and try to play
       video.muted = false;
       video.volume = 1.0;
-      
+
       const attemptPlay = () => {
         video.play().catch((error) => {
           console.error('Video autoplay failed:', error);
@@ -72,7 +80,7 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
           setTimeout(attemptPlay, 100);
         });
       };
-      
+
       attemptPlay();
     }
   };
@@ -127,7 +135,7 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
             </div>
           </div>
         )}
-        
+
         {/* Skip button overlay */}
         <button 
           onClick={handleVideoEnd}
@@ -135,7 +143,7 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
         >
           Skip →
         </button>
-        
+
         {/* Loading indicator for video */}
         {!videoLoaded && !showFallback && (
           <div className="absolute inset-0 bg-black flex items-center justify-center">

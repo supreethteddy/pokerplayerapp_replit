@@ -31,7 +31,7 @@ export function useUltraFastAuth() {
 
   useEffect(() => {
     console.log('🚀 [ULTRA-FAST AUTH] Initializing...');
-    
+
     // Check current session immediately
     checkSessionUltraFast();
 
@@ -52,7 +52,7 @@ export function useUltraFastAuth() {
       // Check if user is stored in sessionStorage from recent login
       const storedUser = sessionStorage.getItem('authenticated_user');
       const justSignedIn = sessionStorage.getItem('just_signed_in');
-      
+
       if (storedUser && justSignedIn) {
         try {
           const userData = JSON.parse(storedUser);
@@ -67,7 +67,7 @@ export function useUltraFastAuth() {
           sessionStorage.removeItem('just_signed_in');
         }
       }
-      
+
       // PURE PLAYERS TABLE AUTH: Skip Supabase auth session checking
       console.log('🎯 [PURE PLAYERS AUTH] Skipping Supabase session check - using players table only');
       setLoading(false);
@@ -84,12 +84,12 @@ export function useUltraFastAuth() {
     if (fetchController.current) {
       fetchController.current.abort();
     }
-    
+
     fetchController.current = new AbortController();
-    
+
     try {
       console.log('⚡ [ULTRA-FAST AUTH] Fetching user data for:', supabaseUserId);
-      
+
       const response = await fetch(`/api/players/supabase/${supabaseUserId}`, {
         credentials: 'include',
         cache: 'no-cache',
@@ -100,7 +100,7 @@ export function useUltraFastAuth() {
           'Expires': '0'
         }
       });
-      
+
       if (!response.ok) {
         if (response.status === 404) {
           console.log('🚫 [ULTRA-FAST AUTH] Player not found - signing out');
@@ -109,9 +109,9 @@ export function useUltraFastAuth() {
         }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
+
       const userData = await response.json();
-      
+
       // PRODUCTION FIX: Use exact field names from backend response
       const enhancedUserData: AuthUser = {
         ...userData,
@@ -122,14 +122,14 @@ export function useUltraFastAuth() {
         totalBalance: userData.totalBalance || (parseFloat(userData.balance || '0.00') + parseFloat(userData.creditBalance || '0.00')).toFixed(2),
         isClerkSynced: !!userData.clerkUserId
       };
-      
+
       console.log('✅ [ULTRA-FAST AUTH] User loaded:', enhancedUserData.email, 'ID:', enhancedUserData.id);
-      
+
       setUser(enhancedUserData);
       setLoading(false);
-      
+
       // DISABLED: Background Clerk sync removed for pure Supabase auth
-      
+
     } catch (error: any) {
       if (error.name !== 'AbortError') {
         console.error('❌ [ULTRA-FAST AUTH] Fetch error:', error);
@@ -142,12 +142,12 @@ export function useUltraFastAuth() {
 
   const backgroundClerkSync = async (userData: AuthUser) => {
     if (syncInProgress.current) return;
-    
+
     syncInProgress.current = true;
-    
+
     try {
       console.log('🔗 [BACKGROUND CLERK SYNC] Starting for:', userData.email);
-      
+
       // Fire-and-forget Clerk sync
       fetch('/api/auth/clerk-sync', {
         method: 'POST',
@@ -173,7 +173,7 @@ export function useUltraFastAuth() {
       }).finally(() => {
         syncInProgress.current = false;
       });
-      
+
     } catch (error) {
       console.warn('⚠️ [BACKGROUND CLERK SYNC] Error (non-critical):', error);
       syncInProgress.current = false;
@@ -185,16 +185,17 @@ export function useUltraFastAuth() {
     setUser(null);
     setLoading(false);
     syncInProgress.current = false;
-    
+
     // Clear ALL session storage items that might cause loading loops
     sessionStorage.removeItem('just_signed_in');
     sessionStorage.removeItem('kyc_redirect');
     sessionStorage.removeItem('authenticated_user'); // NEW: Clear stored user data
-    
+    sessionStorage.removeItem('welcome_video_played'); // Added: Clear video flag on signout
+
     // Clear any local storage items
     localStorage.removeItem('clerk-db-jwt');
     localStorage.removeItem('auth_token');
-    
+
     console.log('🧹 [ULTRA-FAST AUTH] Session cleanup completed - all auth data cleared');
   };
 
@@ -202,7 +203,7 @@ export function useUltraFastAuth() {
     try {
       setLoading(true);
       console.log('🔐 [ULTRA-FAST AUTH] Signing in:', email);
-      
+
       // PRODUCTION-GRADE INTEGRATED AUTHENTICATION
       // Use our custom backend endpoint that handles both Clerk + Supabase integration
       const response = await fetch('/api/auth/signin', {
@@ -212,20 +213,20 @@ export function useUltraFastAuth() {
         },
         body: JSON.stringify({ email, password }),
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Authentication failed' }));
         throw new Error(errorData.error || 'Authentication failed');
       }
-      
+
       const { success, user, message } = await response.json();
-      
+
       if (!success || !user) {
         throw new Error('Authentication failed');
       }
-      
+
       console.log('✅ [ULTRA-FAST AUTH] Integrated auth successful:', user.email);
-      
+
       // Set user data directly from our integrated backend
       const enhancedUserData: AuthUser = {
         ...user,
@@ -236,58 +237,58 @@ export function useUltraFastAuth() {
         totalBalance: user.totalBalance || '0.00',
         supabaseOnly: true
       };
-      
+
       // PURE PLAYERS TABLE AUTH: Skip Supabase auth session creation
       console.log('🎯 [PURE PLAYERS AUTH] Using players table authentication only - skipping Supabase auth');
-      
+
       // CRITICAL FIX: Force user state update with session persistence
       setUser(enhancedUserData);
       setAuthChecked(true);
       setLoading(false);
-      
+
       // Store user in sessionStorage for persistence across navigation
       sessionStorage.setItem('authenticated_user', JSON.stringify(enhancedUserData));
-      
+
       console.log('✅ [DEBUG] User state set:', enhancedUserData);
       console.log('✅ [DEBUG] User ID:', enhancedUserData.id);
       console.log('💾 [SESSION] User stored in sessionStorage for persistence');
-      
+
       // Force immediate re-render and state verification
       setTimeout(() => {
         console.log('🔍 [DEBUG] Forcing state verification...');
         setUser(enhancedUserData); // Set again to ensure persistence
         console.log('✅ [DEBUG] User state verified and locked in');
       }, 50);
-      
+
       // Log authentication activity  
       logAuthActivity('login', email, user.supabaseId || user.id);
-      
+
       // Set session storage flag for loading screen
       sessionStorage.setItem('just_signed_in', 'true');
-      
+
       toast({
         title: "Welcome back!",
         description: message || "Successfully signed in to your account.",
       });
-      
+
       // FORCE REDIRECT: If state management fails, force browser redirect
       setTimeout(() => {
         console.log('🚀 [FORCE REDIRECT] Redirecting to dashboard...');
         window.location.href = '/dashboard';
       }, 500);
-      
+
       return { success: true };
-      
+
     } catch (error: any) {
       console.error('❌ [ULTRA-FAST AUTH] Sign in error:', error);
       setLoading(false);
-      
+
       toast({
         title: "Sign In Failed",
         description: error.message || "Please check your credentials and try again.",
         variant: "destructive",
       });
-      
+
       return { success: false, error: error.message };
     }
   };
@@ -296,7 +297,7 @@ export function useUltraFastAuth() {
     try {
       setLoading(true);
       console.log('📝 [ULTRA-FAST AUTH] Signing up:', email);
-      
+
       // PRODUCTION-GRADE INTEGRATED SIGNUP
       // Use our custom backend endpoint that handles both Clerk + Supabase integration
       const response = await fetch('/api/auth/signup', {
@@ -312,32 +313,32 @@ export function useUltraFastAuth() {
           phone,
         }),
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Signup failed' }));
         throw new Error(errorData.error || 'Signup failed');
       }
-      
+
       const { success, player, existing, redirectToKYC, isFullyVerified, needsEmailVerification, needsKYCUpload, needsKYCApproval, message } = await response.json();
-      
+
       if (!success) {
         throw new Error('Signup failed');
       }
-      
+
       console.log('✅ [ULTRA-FAST AUTH] Integrated signup successful:', player?.email);
       console.log('🔍 [ULTRA-FAST AUTH] Signup response:', { existing, isFullyVerified, redirectToKYC, needsEmailVerification, needsKYCUpload, needsKYCApproval });
-      
+
       // CRITICAL FIX: Only treat as fully verified if isFullyVerified is explicitly true
       if (isFullyVerified && player) {
         console.log('🎯 [ULTRA-FAST AUTH] Fully verified user - redirecting to dashboard');
-        
+
         // CRITICAL FIX: Create Supabase session for existing user  
         try {
           const { data: supabaseAuth, error } = await supabase.auth.signInWithPassword({
             email: email,
             password: password
           });
-          
+
           if (error) {
             console.warn('⚠️ [ULTRA-FAST AUTH] Supabase session creation warning:', error.message);
             // Continue anyway as our backend authentication was successful
@@ -347,7 +348,7 @@ export function useUltraFastAuth() {
         } catch (sessionError) {
           console.warn('⚠️ [ULTRA-FAST AUTH] Supabase session creation failed, continuing:', sessionError);
         }
-        
+
         // Set user data like a normal sign-in
         const enhancedUserData: AuthUser = {
           ...player,
@@ -358,18 +359,18 @@ export function useUltraFastAuth() {
           totalBalance: player.totalBalance || '0.00',
           isClerkSynced: true
         };
-        
+
         setUser(enhancedUserData);
         setLoading(false);
-        
+
         // CRITICAL FIX: Set session storage flag for loading screen
         sessionStorage.setItem('just_signed_in', 'true');
-        
+
         toast({
           title: "Welcome back!",
           description: "Successfully signed in to your account.",
         });
-        
+
         return { 
           success: true, 
           existing: true,
@@ -378,11 +379,11 @@ export function useUltraFastAuth() {
           playerData: player
         };
       }
-      
+
       // RESTORED DEPLOYED VERSION LOGIC: Check if KYC redirect is needed for any incomplete verification
       if ((redirectToKYC || needsEmailVerification || needsKYCUpload || needsKYCApproval) && player) {
         console.log('🎯 [ULTRA-FAST AUTH] KYC redirect required for player:', player.id);
-        
+
         // Store KYC redirect data for App.tsx to handle
         const kycData = {
           id: player.id,
@@ -394,21 +395,21 @@ export function useUltraFastAuth() {
           existing: existing || false,
           message: existing ? 'Existing account found - proceeding to KYC' : 'New account created - proceeding to KYC'
         };
-        
+
         sessionStorage.setItem('kyc_redirect', JSON.stringify(kycData));
-        
+
         toast({
           title: existing ? "Account Found" : "Account Created Successfully!",
           description: "Redirecting to document upload process...",
         });
-        
+
         setLoading(false);
-        
+
         // Trigger page reload to start KYC workflow
         setTimeout(() => {
           window.location.reload();
         }, 1500);
-        
+
         return { 
           success: true, 
           existing: existing || false,
@@ -421,10 +422,10 @@ export function useUltraFastAuth() {
           title: existing ? "Account Found" : "Account Created",
           description: message || "Welcome to the platform!",
         });
-        
+
         // Set loading flag for redirect
         setLoading(false);
-        
+
         return { 
           success: true, 
           existing: existing || false,
@@ -433,17 +434,17 @@ export function useUltraFastAuth() {
           playerData: player // Add alias for compatibility
         };
       }
-      
+
     } catch (error: any) {
       console.error('❌ [ULTRA-FAST AUTH] Sign up error:', error);
       setLoading(false);
-      
+
       toast({
         title: "Sign Up Failed",
         description: error.message || "Please try again.",
         variant: "destructive",
       });
-      
+
       return { success: false, error: error.message };
     }
   };
@@ -451,12 +452,12 @@ export function useUltraFastAuth() {
   const signOut = async () => {
     try {
       console.log('🚪 [ULTRA-FAST AUTH] Signing out:', user?.email);
-      
+
       if (user) {
         // Log logout activity
         logAuthActivity('logout', user.email, user.id);
       }
-      
+
       // CRITICAL FIX: Handle sign out gracefully even if Supabase session is missing
       try {
         const { error } = await supabase.auth.signOut();
@@ -473,20 +474,20 @@ export function useUltraFastAuth() {
           console.warn('⚠️ [ULTRA-FAST AUTH] Supabase sign out error (continuing anyway):', supabaseError.message);
         }
       }
-      
+
       // Always handle sign out regardless of Supabase session state
       await handleSignOut();
-      
+
       toast({
         title: "Signed Out",
         description: "You have been signed out successfully",
       });
     } catch (error: any) {
       console.error('❌ [ULTRA-FAST AUTH] Sign out error:', error);
-      
+
       // Even if there's an error, still clear the user state
       await handleSignOut();
-      
+
       toast({
         title: "Signed Out",
         description: "You have been signed out (with some cleanup issues)",
@@ -511,7 +512,7 @@ export function useUltraFastAuth() {
           userAgent: navigator.userAgent,
         }),
       });
-      
+
       console.log(`📊 [AUTH LOG] ${action.toUpperCase()} logged for:`, email);
     } catch (error) {
       console.warn('⚠️ [AUTH LOG] Failed to log activity:', error);
@@ -531,7 +532,7 @@ export function useUltraFastAuth() {
           firstName,
         }),
       });
-      
+
       console.log('📧 [WELCOME EMAIL] Sent to:', email);
     } catch (error) {
       console.warn('⚠️ [WELCOME EMAIL] Failed to send:', error);
