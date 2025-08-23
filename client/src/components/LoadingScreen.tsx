@@ -16,24 +16,26 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
     setVideoLoaded(false);
     setShowFallback(false);
     
-    // Auto-complete after 3 seconds maximum (quick welcome video for pure Supabase auth)
+    // Allow video to play to full completion (remove auto-timeout)
+    // Only fallback timeout for emergency cases
     const maxTimer = setTimeout(() => {
-      console.log('Welcome video complete - proceeding to dashboard');
+      console.log('🚨 [EMERGENCY] Video max timeout reached - forcing completion');
       setShowVideo(false);
       onComplete();
-    }, 3000);
+    }, 15000); // 15 seconds emergency timeout
 
-    // Show fallback after 1.5 seconds if video doesn't load
+    // Show fallback after 3 seconds if video doesn't load  
     const fallbackTimer = setTimeout(() => {
       if (!videoLoaded) {
-        console.log('Video not loaded, showing fallback for welcome experience');
+        console.log('🎬 [FALLBACK] Video not loaded, showing fallback welcome screen');
         setShowFallback(true);
-        // Complete after showing fallback briefly
+        // Let fallback display for reasonable time, then complete
         setTimeout(() => {
+          console.log('🎬 [FALLBACK] Fallback display complete - proceeding to dashboard');
           onComplete();
-        }, 1500);
+        }, 3000);
       }
-    }, 1500);
+    }, 3000);
 
     // Clear session storage flags to ensure video shows next time
     return () => {
@@ -43,7 +45,9 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
   }, [onComplete]);
 
   const handleVideoEnd = () => {
+    console.log('🎬 [WELCOME VIDEO] Video playback completed naturally');
     setTimeout(() => {
+      console.log('🎬 [WELCOME VIDEO] Transitioning to dashboard after video end');
       setShowVideo(false);
       onComplete();
     }, 500); // Small delay for smooth transition

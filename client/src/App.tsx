@@ -63,19 +63,16 @@ function AppContent() {
     }
   }, []);
 
-  // Quick welcome video for pure Supabase authentication (no Clerk sync needed)
+  // Welcome video for pure Supabase authentication (no Clerk sync needed)
   useEffect(() => {
     if (user && !loading && !hasShownLoadingScreen) {
       const justSignedIn = sessionStorage.getItem('just_signed_in');
       if (justSignedIn) {
-        console.log('🎬 [PURE SUPABASE] Playing quick welcome video before dashboard');
+        console.log('🎬 [PURE SUPABASE] Playing welcome video before dashboard');
         setShowLoadingScreen(true);
         sessionStorage.removeItem('just_signed_in');
-        // Auto-hide loading screen after short video
-        setTimeout(() => {
-          console.log('🎬 [PURE SUPABASE] Welcome video complete - showing dashboard');
-          setShowLoadingScreen(false);
-        }, 3000); // 3 second welcome video
+        // No auto-timeout - let video play to completion or user skip
+        console.log('🎬 [PURE SUPABASE] Video will play to full completion unless skipped');
       }
       setHasShownLoadingScreen(true);
     }
@@ -119,11 +116,15 @@ function AppContent() {
     );
   }
 
-  // Quick welcome video for pure Supabase authentication
+  // Welcome video for pure Supabase authentication
   if (showLoadingScreen) {
     return (
       <LoadingScreen 
-        onComplete={() => setShowLoadingScreen(false)} 
+        onComplete={() => {
+          console.log('🎬 [APP] Loading screen completed - setting showLoadingScreen to false');
+          console.log('🎬 [APP] Current user state:', !!user, 'authChecked:', authChecked);
+          setShowLoadingScreen(false);
+        }} 
       />
     );
   }
