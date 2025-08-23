@@ -60,6 +60,94 @@ export function registerRoutes(app: Express) {
   // ========== LEGACY ENDPOINT REMOVED - USE /api/balance/:playerId INSTEAD ==========
   // REMOVED: Duplicate /api/player/:playerId/balance endpoint - redirecting to main endpoint
 
+  // Get Player Data by ID (for KYC workflow initialization)
+  app.get("/api/players/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      
+      console.log(`🔍 [PLAYER DATA] Fetching player: ${playerId}`);
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { data: player, error } = await supabase
+        .from('players')
+        .select('*')
+        .eq('id', playerId)
+        .single();
+
+      if (error || !player) {
+        console.error('❌ [PLAYER DATA] Player not found:', error);
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      // Return formatted player data for KYC workflow
+      const playerData = {
+        id: player.id,
+        email: player.email,
+        firstName: player.first_name,
+        lastName: player.last_name,
+        phone: player.phone,
+        kycStatus: player.kyc_status,
+        balance: player.balance,
+        emailVerified: player.email_verified,
+        panCard: player.pan_card_number,
+        panCardStatus: player.pan_card_status,
+        panCardVerified: player.pan_card_verified,
+        supabaseId: player.supabase_id,
+        universalId: player.universal_id,
+        creditBalance: player.current_credit || '0.00',
+        creditLimit: player.credit_limit || '0.00',
+        creditApproved: player.credit_approved || false,
+        lastLogin: player.last_login_at,
+        createdAt: player.created_at
+      };
+
+      console.log(`✅ [PLAYER DATA] Player found: ${player.email}`);
+      res.json(playerData);
+
+    } catch (error: any) {
+      console.error('❌ [PLAYER DATA] Error:', error);
+      res.status(500).json({ error: 'Failed to fetch player data' });
+    }
+  });
+
+  // Get Player KYC Documents (for KYC workflow initialization)
+  app.get("/api/documents/player/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      
+      console.log(`🔍 [KYC DOCS] Fetching documents for player: ${playerId}`);
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { data: documents, error } = await supabase
+        .from('kyc_documents')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ [KYC DOCS] Error fetching documents:', error);
+        return res.status(500).json({ error: 'Failed to fetch documents' });
+      }
+
+      console.log(`✅ [KYC DOCS] Found ${documents?.length || 0} documents for player ${playerId}`);
+      res.json(documents || []);
+
+    } catch (error: any) {
+      console.error('❌ [KYC DOCS] Error:', error);
+      res.status(500).json({ error: 'Failed to fetch documents' });
+    }
+  });
+
   // Player Balance Update API - Force update balance (for fixing data sync issues)
   app.post("/api/player/:playerId/update-balance", async (req, res) => {
     try {
