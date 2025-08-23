@@ -69,15 +69,19 @@ function AppContent() {
       const justSignedIn = sessionStorage.getItem('just_signed_in');
       const videoPlayed = sessionStorage.getItem('welcome_video_played');
       
-      // CRITICAL FIX: Only show loading screen if video hasn't been played AND user just signed in
-      if (justSignedIn && videoPlayed !== 'true') {
-        console.log('🎬 [PURE SUPABASE] Playing welcome video before dashboard - SINGLE TIME ONLY');
+      console.log('🎬 [VIDEO CHECK] justSignedIn:', !!justSignedIn, 'videoPlayed:', videoPlayed, 'hasShownLoadingScreen:', hasShownLoadingScreen);
+      
+      // Show loading screen if user just signed in and video hasn't been played this session
+      if (justSignedIn === 'true' && videoPlayed !== 'true') {
+        console.log('🎬 [PURE SUPABASE] Showing welcome video for new login');
         setShowLoadingScreen(true);
-        setHasShownLoadingScreen(true); // IMMEDIATELY mark as shown to prevent re-triggers
-        sessionStorage.removeItem('just_signed_in');
-        console.log('🎬 [PURE SUPABASE] Video will play to full completion unless skipped');
+        setHasShownLoadingScreen(true); // Mark as shown to prevent re-triggers
+        // Don't remove just_signed_in yet - let LoadingScreen handle cleanup
+        console.log('🎬 [PURE SUPABASE] LoadingScreen will handle video playback');
+      } else {
+        console.log('🎬 [VIDEO SKIP] Conditions not met for video - proceeding to dashboard');
+        setHasShownLoadingScreen(true);
       }
-      setHasShownLoadingScreen(true);
     }
   }, [user, loading, hasShownLoadingScreen]);
 

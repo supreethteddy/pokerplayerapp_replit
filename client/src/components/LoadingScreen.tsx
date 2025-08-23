@@ -12,47 +12,33 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
   const [showFallback, setShowFallback] = useState(false);
 
   useEffect(() => {
-    // CRITICAL FIX: Check if video is already played OR currently playing
-    const videoPlayed = sessionStorage.getItem('welcome_video_played');
-    const videoStarting = sessionStorage.getItem('welcome_video_starting');
-
-    if (videoPlayed === 'true') {
-      console.log('🎬 [SESSION CHECK] Video already completed this session, skipping to dashboard');
-      onComplete();
-      return;
-    }
-
-    if (videoStarting === 'true') {
-      console.log('🎬 [DUPLICATE PREVENTION] Video already starting in another component instance, skipping');
-      onComplete();
-      return;
-    }
-
-    console.log('🎬 [WELCOME VIDEO] Starting SINGLE video playback experience');
+    console.log('🎬 [WELCOME VIDEO] LoadingScreen component mounted, preparing video');
     
-    // IMMEDIATELY mark that we're starting the video to prevent any duplicates
+    // Always show the video when LoadingScreen is mounted - let App.tsx handle the logic
+    console.log('🎬 [WELCOME VIDEO] Starting video playback experience');
+    
+    // Set starting flag to prevent duplicates
     sessionStorage.setItem('welcome_video_starting', 'true');
 
-    // Emergency fallback if video completely fails to load after 5 seconds
+    // Emergency fallback if video completely fails to load after 8 seconds
     const fallbackTimer = setTimeout(() => {
       if (!videoLoaded) {
-        console.log('🎬 [FALLBACK] Video failed to load, showing static welcome screen');
+        console.log('🎬 [FALLBACK] Video failed to load after 8 seconds, showing static welcome screen');
         setShowFallback(true);
-        // Mark video as "played" so we don't repeat on next render
-        sessionStorage.setItem('welcome_video_played', 'true');
-        sessionStorage.removeItem('welcome_video_starting');
         // Show fallback for 3 seconds, then proceed
         setTimeout(() => {
           console.log('🎬 [FALLBACK] Static welcome complete - proceeding to dashboard');
+          sessionStorage.setItem('welcome_video_played', 'true');
+          sessionStorage.removeItem('welcome_video_starting');
           onComplete();
         }, 3000);
       }
-    }, 5000);
+    }, 8000);
 
     return () => {
       clearTimeout(fallbackTimer);
     };
-  }, [onComplete]);
+  }, [onComplete, videoLoaded]);
 
   const handleVideoEnd = () => {
     console.log('🎬 [VIDEO COMPLETE] Video played to full completion - proceeding to dashboard');
