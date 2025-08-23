@@ -37,24 +37,9 @@ export function useUltraFastAuth() {
     // Check current session immediately
     checkSessionUltraFast();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('🔄 [ULTRA-FAST AUTH] State change:', event, session?.user?.email || 'No user');
-        
-        if (event === 'SIGNED_IN' && session?.user) {
-          console.log('✅ [ULTRA-FAST AUTH] Supabase session established:', session.user.email);
-          if (!user) {
-            await fetchUserDataUltraFast(session.user.id);
-          }
-        } else if (event === 'SIGNED_OUT') {
-          console.log('🚪 [ULTRA-FAST AUTH] User signed out');
-          handleSignOut();
-        }
-        
-        setAuthChecked(true);
-      }
-    );
+    // PURE PLAYERS TABLE AUTH: Disable Supabase auth state listeners
+    console.log('🎯 [PURE PLAYERS AUTH] Skipping Supabase auth state listeners - using players table only');
+    const subscription = { unsubscribe: () => {} }; // Mock subscription for cleanup
 
     return () => {
       subscription.unsubscribe();
@@ -66,20 +51,12 @@ export function useUltraFastAuth() {
 
   const checkSessionUltraFast = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        console.log('🔍 [ULTRA-FAST AUTH] Existing session found:', session.user.email);
-        await fetchUserDataUltraFast(session.user.id);
-      } else {
-        console.log('❌ [ULTRA-FAST AUTH] No existing session');
-        setLoading(false);
-      }
-      
+      // PURE PLAYERS TABLE AUTH: Skip Supabase auth session checking
+      console.log('🎯 [PURE PLAYERS AUTH] Skipping Supabase session check - using players table only');
+      setLoading(false);
       setAuthChecked(true);
     } catch (error) {
       console.error('❌ [ULTRA-FAST AUTH] Session check error:', error);
-      // Don't let errors prevent the app from loading
       setLoading(false);
       setAuthChecked(true);
     }
@@ -245,25 +222,8 @@ export function useUltraFastAuth() {
         isClerkSynced: user.isClerkSynced || true
       };
       
-      // CRITICAL FIX: Create Supabase session to prevent logout loop
-      try {
-        const { data: supabaseAuth, error } = await supabase.auth.signInWithPassword({
-          email: user.email,
-          password: password
-        });
-        
-        if (error && error.message.includes('Invalid login credentials')) {
-          console.warn('⚠️ [ULTRA-FAST AUTH] Supabase session creation warning (user may not exist in auth):', error.message);
-          // Continue anyway as our backend authentication was successful
-        } else if (error) {
-          console.warn('⚠️ [ULTRA-FAST AUTH] Supabase session creation warning:', error.message);
-        } else {
-          console.log('✅ [ULTRA-FAST AUTH] Supabase session established successfully');
-        }
-      } catch (sessionError) {
-        console.warn('⚠️ [ULTRA-FAST AUTH] Supabase session creation failed, continuing with backend auth:', sessionError);
-        // Continue anyway as our backend authentication was successful
-      }
+      // PURE PLAYERS TABLE AUTH: Skip Supabase auth session creation
+      console.log('🎯 [PURE PLAYERS AUTH] Using players table authentication only - skipping Supabase auth');
       
       setUser(enhancedUserData);
       setLoading(false);
