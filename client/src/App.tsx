@@ -25,6 +25,9 @@ function AppContent() {
   
   // Debug logging for routing
   console.log('🔍 [APP ROUTING] user:', !!user, 'loading:', loading, 'authChecked:', authChecked);
+  if (user) {
+    console.log('🔍 [APP ROUTING] User details:', { id: user.id, email: user.email });
+  }
   const [showLoadingScreen, setShowLoadingScreen] = useState(false);
   const [hasShownLoadingScreen, setHasShownLoadingScreen] = useState(false);
   const [kycRedirectData, setKycRedirectData] = useState<any>(null);

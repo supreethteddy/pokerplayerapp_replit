@@ -16,8 +16,7 @@ export interface AuthUser {
   creditLimit: string;
   creditApproved: boolean;
   totalBalance: string;
-  clerkUserId?: string;
-  isClerkSynced?: boolean;
+  supabaseOnly: boolean;
 }
 
 export function useUltraFastAuth() {
@@ -215,7 +214,7 @@ export function useUltraFastAuth() {
         creditLimit: user.creditLimit || '0.00',
         creditApproved: user.creditApproved || false,
         totalBalance: user.totalBalance || '0.00',
-        isClerkSynced: user.isClerkSynced || true
+        supabaseOnly: true
       };
       
       // PURE PLAYERS TABLE AUTH: Skip Supabase auth session creation
