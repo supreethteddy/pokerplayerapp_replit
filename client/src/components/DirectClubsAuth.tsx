@@ -198,14 +198,14 @@ export default function DirectClubsAuth() {
 
             {activeTab === 'signin' && (
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-                <div className="flex items-center space-x-2 min-w-0 flex-shrink-0">
+                <div className="flex items-center space-x-2">
                   <Checkbox
                     id="remember"
                     checked={rememberPassword}
                     onCheckedChange={(checked) => setRememberPassword(checked as boolean)}
-                    className="border-gray-600 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 w-4 h-4 min-w-[16px] min-h-[16px] flex-shrink-0 rounded-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="border-gray-600 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 w-4 h-4 flex-shrink-0"
                   />
-                  <label htmlFor="remember" className="text-sm text-gray-300 select-none cursor-pointer flex-shrink-0 leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  <label htmlFor="remember" className="text-sm text-gray-300 select-none cursor-pointer whitespace-nowrap">
                     Remember password
                   </label>
                 </div>
