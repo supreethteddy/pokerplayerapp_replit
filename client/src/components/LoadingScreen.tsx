@@ -16,24 +16,24 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
     setVideoLoaded(false);
     setShowFallback(false);
     
-    // Auto-complete after 2 seconds maximum (fast loading for pure Supabase auth)
+    // Auto-complete after 3 seconds maximum (quick welcome video for pure Supabase auth)
     const maxTimer = setTimeout(() => {
-      console.log('Loading screen max timer reached - completing immediately');
+      console.log('Welcome video complete - proceeding to dashboard');
       setShowVideo(false);
       onComplete();
-    }, 2000);
+    }, 3000);
 
-    // Show fallback after 1 second if video doesn't load (faster for Supabase auth)
+    // Show fallback after 1.5 seconds if video doesn't load
     const fallbackTimer = setTimeout(() => {
       if (!videoLoaded) {
-        console.log('Video not loaded, showing fallback and completing');
+        console.log('Video not loaded, showing fallback for welcome experience');
         setShowFallback(true);
-        // Complete immediately if video fails to load
+        // Complete after showing fallback briefly
         setTimeout(() => {
           onComplete();
-        }, 500);
+        }, 1500);
       }
-    }, 1000);
+    }, 1500);
 
     // Clear session storage flags to ensure video shows next time
     return () => {
