@@ -67,11 +67,14 @@ function AppContent() {
   useEffect(() => {
     if (user && !loading && !hasShownLoadingScreen) {
       const justSignedIn = sessionStorage.getItem('just_signed_in');
-      if (justSignedIn) {
-        console.log('🎬 [PURE SUPABASE] Playing welcome video before dashboard');
+      const videoPlayed = sessionStorage.getItem('welcome_video_played');
+      
+      // CRITICAL FIX: Only show loading screen if video hasn't been played AND user just signed in
+      if (justSignedIn && videoPlayed !== 'true') {
+        console.log('🎬 [PURE SUPABASE] Playing welcome video before dashboard - SINGLE TIME ONLY');
         setShowLoadingScreen(true);
+        setHasShownLoadingScreen(true); // IMMEDIATELY mark as shown to prevent re-triggers
         sessionStorage.removeItem('just_signed_in');
-        // No auto-timeout - let video play to completion or user skip
         console.log('🎬 [PURE SUPABASE] Video will play to full completion unless skipped');
       }
       setHasShownLoadingScreen(true);
