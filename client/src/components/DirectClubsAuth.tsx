@@ -20,23 +20,10 @@ export default function DirectClubsAuth() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
 
-  const { user, signIn, signUp } = useUltraFastAuth();
+  const { signIn, signUp } = useUltraFastAuth();
   const { toast } = useToast();
 
-  // Show success message if user is authenticated
-  if (user) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white font-medium">Successfully signed in!</p>
-          <p className="text-slate-400 text-sm mt-2">
-            Redirecting to dashboard...
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // Remove authentication check - let App.tsx routing handle redirects
 
   // Google authentication removed - using email/phone only
 
