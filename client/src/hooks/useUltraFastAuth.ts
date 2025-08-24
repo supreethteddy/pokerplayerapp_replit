@@ -181,9 +181,12 @@ export function useUltraFastAuth() {
   };
 
   const handleSignOut = async () => {
+    console.log('🚪 [ULTRA-FAST AUTH] Starting handleSignOut cleanup...');
+    
     // Clear all user data and session info
     setUser(null);
     setLoading(false);
+    setAuthChecked(true); // Ensure auth is marked as checked
     syncInProgress.current = false;
 
     // Clear ALL session storage items that might cause loading loops
@@ -198,6 +201,12 @@ export function useUltraFastAuth() {
     localStorage.removeItem('auth_token');
 
     console.log('🧹 [ULTRA-FAST AUTH] Session cleanup completed - all auth data cleared');
+    
+    // CRITICAL FIX: Force navigation to login screen
+    setTimeout(() => {
+      console.log('🔄 [ULTRA-FAST AUTH] Forcing navigation to login screen...');
+      window.location.href = '/';
+    }, 100);
   };
 
   const signIn = async (email: string, password: string) => {
@@ -455,45 +464,32 @@ export function useUltraFastAuth() {
       console.log('🚪 [ULTRA-FAST AUTH] Signing out:', user?.email);
 
       if (user) {
-        // Log logout activity
-        logAuthActivity('logout', user.email, user.id);
+        // Log logout activity BEFORE clearing user data
+        await logAuthActivity('logout', user.email, user.id);
       }
 
-      // CRITICAL FIX: Handle sign out gracefully even if Supabase session is missing
-      try {
-        const { error } = await supabase.auth.signOut();
-        if (error && !error.message.includes('session_missing') && !error.message.includes('AuthSessionMissingError')) {
-          console.warn('⚠️ [ULTRA-FAST AUTH] Supabase sign out warning:', error.message);
-        } else {
-          console.log('✅ [ULTRA-FAST AUTH] Supabase sign out successful');
-        }
-      } catch (supabaseError: any) {
-        // Ignore session missing errors - just log and continue
-        if (supabaseError.name === 'AuthSessionMissingError' || supabaseError.message?.includes('session_missing')) {
-          console.log('ℹ️ [ULTRA-FAST AUTH] No active Supabase session to sign out');
-        } else {
-          console.warn('⚠️ [ULTRA-FAST AUTH] Supabase sign out error (continuing anyway):', supabaseError.message);
-        }
-      }
+      // PURE SUPABASE: Skip Supabase auth signOut since we're not using sessions
+      console.log('🎯 [PURE SUPABASE] Skipping Supabase session signOut - using players table only');
 
-      // Always handle sign out regardless of Supabase session state
-      await handleSignOut();
-
+      // Show success toast BEFORE clearing state
       toast({
-        title: "Signed Out",
+        title: "Signed Out", 
         description: "You have been signed out successfully",
       });
+
+      // Clear all authentication state and redirect
+      await handleSignOut();
+
     } catch (error: any) {
       console.error('❌ [ULTRA-FAST AUTH] Sign out error:', error);
 
       // Even if there's an error, still clear the user state
-      await handleSignOut();
-
       toast({
         title: "Signed Out",
-        description: "You have been signed out (with some cleanup issues)",
-        variant: "destructive",
+        description: "You have been signed out successfully", // Don't show error to user
       });
+      
+      await handleSignOut();
     }
   };
 
