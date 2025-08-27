@@ -4002,7 +4002,7 @@ export function registerRoutes(app: Express) {
       // User doesn't exist - create new player
       console.log(`🔥 [PLAYERS TABLE SIGNUP] Creating new player: ${email}`);
 
-      // STEP 1: Create Clerk user first
+      // STEP 1: Create Clerk user first with corrected API format
       let clerkUserId = null;
       try {
         const { clerkClient } = await import('@clerk/clerk-sdk-node');
@@ -4012,70 +4012,93 @@ export function registerRoutes(app: Express) {
           firstName: firstName,
           lastName: lastName,
           privateMetadata: {
-            source: 'player_portal'
+            source: 'player_portal',
+            created_from: 'signup_endpoint'
+          },
+          publicMetadata: {
+            role: 'player'
           }
         });
         clerkUserId = clerkUser.id;
         console.log(`✅ [CLERK] User created successfully: ${clerkUserId}`);
+        
+        // Verify Clerk user appears in dashboard
+        console.log(`🔍 [CLERK] User details - ID: ${clerkUser.id}, Email: ${clerkUser.emailAddresses?.[0]?.emailAddress}`);
+        
       } catch (clerkError: any) {
         console.warn('⚠️ [CLERK] Failed to create Clerk user, continuing with player-only signup:', clerkError.message);
-        console.warn('⚠️ [CLERK] Error details:', clerkError);
+        
+        // Log detailed error information for debugging
+        if (clerkError.errors) {
+          console.warn('⚠️ [CLERK] Validation errors:', clerkError.errors);
+        }
+        if (clerkError.status) {
+          console.warn('⚠️ [CLERK] Status code:', clerkError.status);
+        }
+        
         // Continue without Clerk user - the system should work without Clerk
       }
 
-      // Get existing player IDs to generate next available ID
-      const { data: allPlayerIds } = await supabase
-        .from('players')
-        .select('player_id')
-        .not('player_id', 'is', null);
-
-      const existingPlayerIds = allPlayerIds?.map(p => p.player_id).filter(Boolean) || [];
-      const generatedPlayerId = generateNextPlayerId(existingPlayerIds);
+      // Database will auto-generate the ID, no need for player_id generation
 
       // Create player record using Supabase (players table only)
       const fullName = `${firstName} ${lastName}`.trim();
       const playerNickname = nickname?.trim() || firstName;
       const currentTimestamp = new Date().toISOString();
 
-      console.log(`🎯 [PLAYER ID GENERATION] Generated player ID: ${generatedPlayerId}`);
+      console.log(`🎯 [DATABASE] Creating player with auto-generated ID`);
 
-      // Use .upsert to handle potential ID conflicts gracefully
-      const { data: newPlayers, error: insertError } = await supabase
-        .from('players')
-        .upsert({
-          email,
-          password,
-          first_name: firstName,
-          last_name: lastName,
-          phone,
-          kyc_status: 'pending',
-          balance: '0.00',
-          player_id: generatedPlayerId,
-          clerk_user_id: clerkUserId,
-          created_at: currentTimestamp
-        })
-        .select();
+      // Use direct PostgreSQL insertion to avoid ID conflicts
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
 
-      if (insertError) {
-        console.error('❌ [PLAYERS TABLE SIGNUP] Insert error:', insertError);
+      let newPlayerData;
+      try {
+        const insertQuery = `
+          INSERT INTO players (
+            email, password, first_name, last_name, phone, 
+            kyc_status, email_verified, balance, universal_id, 
+            is_active, clerk_user_id, current_credit, credit_limit, 
+            credit_approved, total_deposits, total_withdrawals, total_winnings, 
+            total_losses, games_played, hours_played
+          ) VALUES (
+            $1, $2, $3, $4, $5, 'pending', false, '0.00', $6, 
+            true, $7, 0.00, 0.00, false, '0.00', '0.00', 
+            '0.00', '0.00', 0, '0.00'
+          ) RETURNING *
+        `;
+
+        const universalId = `players_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        const result = await pgClient.query(insertQuery, [
+          email, password, firstName, lastName, phone,
+          universalId, clerkUserId
+        ]);
+
+        newPlayerData = result.rows[0];
+        await pgClient.end();
+        
+        console.log(`✅ [PLAYERS TABLE SIGNUP] New player created successfully: ${email} (ID: ${newPlayerData.id})`);
+        
+      } catch (dbError) {
+        await pgClient.end();
+        console.error('❌ [PLAYERS TABLE SIGNUP] Database insertion error:', dbError);
         return res.status(500).json({ error: 'Database operation failed' });
       }
 
-      const newPlayer = newPlayers[0];
-      console.log(`✅ [PLAYERS TABLE SIGNUP] New player created successfully: ${email} (ID: ${newPlayer.id})`);
-
       // Initialize response data for new player (who needs to complete KYC)
       const responsePlayer = {
-        id: newPlayer.id,
-        email: newPlayer.email,
-        firstName: newPlayer.first_name,
-        lastName: newPlayer.last_name,
-        fullName: newPlayer.full_name,
-        nickname: newPlayer.nickname,
-        playerId: newPlayer.player_id,
-        kycStatus: newPlayer.kyc_status,
-        balance: newPlayer.balance,
-        emailVerified: newPlayer.email_verified
+        id: newPlayerData.id,
+        email: newPlayerData.email,
+        firstName: newPlayerData.first_name,
+        lastName: newPlayerData.last_name,
+        fullName: `${newPlayerData.first_name} ${newPlayerData.last_name}`.trim(),
+        nickname: nickname?.trim() || firstName,
+        playerId: newPlayerData.id,
+        kycStatus: newPlayerData.kyc_status,
+        balance: newPlayerData.balance,
+        emailVerified: newPlayerData.email_verified
       };
 
       return res.json({
