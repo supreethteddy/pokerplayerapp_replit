@@ -19,6 +19,7 @@ export default function DirectClubsAuth() {
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [nickname, setNickname] = useState(""); // Added nickname state
 
   const { signIn, signUp } = useUltraFastAuth();
   const { toast } = useToast();
@@ -49,6 +50,9 @@ export default function DirectClubsAuth() {
           throw new Error(result.error || "Sign in failed");
         }
       } else {
+        // Concatenate first and last name for full_name
+        const fullName = `${firstName} ${lastName}`;
+        
         if (!email || !firstName || !lastName || !phone) {
           throw new Error("Please fill in all required fields");
         }
@@ -56,8 +60,8 @@ export default function DirectClubsAuth() {
         const result = await signUp(
           email,
           password,
-          firstName,
-          lastName,
+          fullName, // Pass the concatenated full name
+          nickname, // Pass the nickname
           phone,
         );
 
@@ -160,6 +164,14 @@ export default function DirectClubsAuth() {
                   placeholder="Phone Number"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
+                  className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
+                />
+                {/* Nickname Input */}
+                <Input
+                  type="text"
+                  placeholder="Nickname (optional)"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
                   className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
                 />
               </>

@@ -13,6 +13,7 @@ import { setupProductionAPIs } from './production-apis';
 import { setupDeepFixAPIs } from './deep-fix-apis';
 import { unifiedPlayerSystem } from './unified-player-system';
 import { db } from './db';
+import { generateNextPlayerId } from '../whitelabeling';
 
 // Validate environment variables
 const requiredEnvVars = ['PUSHER_APP_ID', 'PUSHER_KEY', 'PUSHER_SECRET', 'PUSHER_CLUSTER', 'VITE_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
@@ -3906,7 +3907,7 @@ export function registerRoutes(app: Express) {
   // CONSISTENT POSTGRESQL SIGNUP (MATCHING SIGNIN APPROACH)
   app.post('/api/auth/signup', async (req, res) => {
     try {
-      const { email, password, firstName, lastName, phone } = req.body;
+      const { email, password, firstName, lastName, phone, nickname } = req.body;
       
       if (!email || !password || !firstName || !lastName) {
         return res.status(400).json({ error: 'All required fields must be provided' });
@@ -3983,10 +3984,22 @@ export function registerRoutes(app: Express) {
       // User doesn't exist - create new player
       console.log(`🔥 [PLAYERS TABLE SIGNUP] Creating new player: ${email}`);
       
+      // Get existing player IDs to generate next available ID
+      const { data: existingPlayers } = await supabase
+        .from('players')
+        .select('player_id')
+        .not('player_id', 'is', null);
+      
+      const existingPlayerIds = existingPlayers?.map(p => p.player_id).filter(Boolean) || [];
+      const generatedPlayerId = generateNextPlayerId(existingPlayerIds);
+      
       // Create player record using Supabase (players table only)
       const universalId = `players_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const fullName = `${firstName} ${lastName}`.trim();
+      const playerNickname = nickname?.trim() || firstName;
       const currentTimestamp = new Date().toISOString();
+      
+      console.log(`🎯 [PLAYER ID GENERATION] Generated player ID: ${generatedPlayerId}`);
       
       const { data: newPlayers, error: insertError } = await supabase
         .from('players')
@@ -4012,8 +4025,8 @@ export function registerRoutes(app: Express) {
           credit_limit: 0,
           credit_approved: false,
           credit_eligible: false,
-          nickname: firstName,
-          player_id: null,
+          nickname: playerNickname,
+          player_id: generatedPlayerId,
           clerk_user_id: null,
           created_at: currentTimestamp,
           updated_at: currentTimestamp,
@@ -4035,6 +4048,9 @@ export function registerRoutes(app: Express) {
         email: newPlayer.email,
         firstName: newPlayer.first_name,
         lastName: newPlayer.last_name,
+        fullName: newPlayer.full_name,
+        nickname: newPlayer.nickname,
+        playerId: newPlayer.player_id,
         kycStatus: newPlayer.kyc_status,
         balance: newPlayer.balance,
         emailVerified: newPlayer.email_verified

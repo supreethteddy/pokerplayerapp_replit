@@ -8,6 +8,8 @@ export interface AuthUser {
   email: string;
   firstName: string;
   lastName: string;
+  fullName: string; // Added for full name
+  nickname: string; // Added for nickname
   phone: string;
   kycStatus: string;
   balance: string;
@@ -17,6 +19,7 @@ export interface AuthUser {
   creditApproved: boolean;
   totalBalance: string;
   supabaseOnly: boolean;
+  player_id?: string; // Added for player ID
 }
 
 export function useUltraFastAuth() {
@@ -115,12 +118,14 @@ export function useUltraFastAuth() {
       // PRODUCTION FIX: Use exact field names from backend response
       const enhancedUserData: AuthUser = {
         ...userData,
+        fullName: `${userData.firstName || ''} ${userData.lastName || ''}`.trim(), // Concatenate first and last name
         realBalance: userData.balance || '0.00',
         creditBalance: userData.creditBalance || '0.00', // FIXED: Use correct field name
         creditLimit: userData.creditLimit || '0.00',
         creditApproved: userData.creditApproved || false,
         totalBalance: userData.totalBalance || (parseFloat(userData.balance || '0.00') + parseFloat(userData.creditBalance || '0.00')).toFixed(2),
-        isClerkSynced: !!userData.clerkUserId
+        isClerkSynced: !!userData.clerkUserId,
+        player_id: userData.player_id // Ensure player_id is included
       };
 
       console.log('✅ [ULTRA-FAST AUTH] User loaded:', enhancedUserData.email, 'ID:', enhancedUserData.id);
@@ -182,7 +187,7 @@ export function useUltraFastAuth() {
 
   const handleSignOut = async () => {
     console.log('🚪 [ULTRA-FAST AUTH] Starting handleSignOut cleanup...');
-    
+
     // Clear all user data and session info
     setUser(null);
     setLoading(false);
@@ -201,12 +206,34 @@ export function useUltraFastAuth() {
     localStorage.removeItem('auth_token');
 
     console.log('🧹 [ULTRA-FAST AUTH] Session cleanup completed - all auth data cleared');
-    
+
     // CRITICAL FIX: Force navigation to login screen
     setTimeout(() => {
       console.log('🔄 [ULTRA-FAST AUTH] Forcing navigation to login screen...');
       window.location.href = '/';
     }, 100);
+  };
+
+  // Helper to generate sequential player ID
+  const generatePlayerId = async (existingPlayerIds: string[]) => {
+    // Dynamically import whitelabeling config to avoid potential SSR issues if not imported elsewhere
+    // This assumes whitelabeling.ts is in the root or accessible via module resolution.
+    // If whitelabeling.ts is in a specific directory like src/config, adjust the import path.
+    const whitellabeling = await import('@/whitelabeling'); // Adjust path if necessary
+    const { player_id_prefix, player_id_number_length } = whitellabeling.WHITELABELING_CONFIG;
+
+    let playerId: string;
+    let counter = 1;
+
+    while (true) {
+      const paddedCounter = String(counter).padStart(player_id_number_length, '0');
+      playerId = `${player_id_prefix}-${paddedCounter}`;
+
+      if (!existingPlayerIds.includes(playerId)) {
+        return playerId;
+      }
+      counter++;
+    }
   };
 
   const signIn = async (email: string, password: string) => {
@@ -240,12 +267,15 @@ export function useUltraFastAuth() {
       // Set user data directly from our integrated backend
       const enhancedUserData: AuthUser = {
         ...user,
+        fullName: `${user.firstName || ''} ${user.lastName || ''}`.trim(), // Concatenate first and last name
+        nickname: user.nickname || '', // Ensure nickname is set
         realBalance: user.balance || '0.00',
         creditBalance: user.creditBalance || '0.00',
         creditLimit: user.creditLimit || '0.00',
         creditApproved: user.creditApproved || false,
         totalBalance: user.totalBalance || '0.00',
-        supabaseOnly: true
+        supabaseOnly: true,
+        player_id: user.player_id // Ensure player_id is included
       };
 
       // PURE PLAYERS TABLE AUTH: Skip Supabase auth session creation
@@ -303,10 +333,28 @@ export function useUltraFastAuth() {
     }
   };
 
-  const signUp = async (email: string, password: string, firstName: string, lastName: string, phone: string) => {
+  const signUp = async (email: string, password: string, firstName: string, lastName: string, phone: string, nickname: string) => {
     try {
       setLoading(true);
       console.log('📝 [ULTRA-FAST AUTH] Signing up:', email);
+
+      // Fetch existing player IDs to ensure uniqueness for new player ID generation
+      let existingPlayerIds: string[] = [];
+      try {
+        const { data: players, error } = await supabase
+          .from('players')
+          .select('player_id');
+        if (error) {
+          console.warn('⚠️ [SIGNUP] Could not fetch existing player IDs:', error.message);
+        } else if (players) {
+          existingPlayerIds = players.map((p: any) => p.player_id).filter(Boolean);
+        }
+      } catch (fetchError) {
+        console.warn('⚠️ [SIGNUP] Error fetching existing player IDs:', fetchError);
+      }
+
+      // Generate the new player ID
+      const newPlayerId = await generatePlayerId(existingPlayerIds);
 
       // PRODUCTION-GRADE INTEGRATED SIGNUP
       // Use our custom backend endpoint that handles both Clerk + Supabase integration
@@ -321,6 +369,9 @@ export function useUltraFastAuth() {
           firstName,
           lastName,
           phone,
+          nickname, // Include nickname
+          fullName: `${firstName} ${lastName}`.trim(), // Include full name
+          player_id: newPlayerId, // Include generated player ID
         }),
       });
 
@@ -362,12 +413,15 @@ export function useUltraFastAuth() {
         // Set user data like a normal sign-in
         const enhancedUserData: AuthUser = {
           ...player,
+          fullName: `${player.firstName || ''} ${player.lastName || ''}`.trim(), // Concatenate first and last name
+          nickname: player.nickname || '', // Ensure nickname is set
           realBalance: player.balance || '0.00',
           creditBalance: player.creditBalance || '0.00',
           creditLimit: player.creditLimit || '0.00',
           creditApproved: player.creditApproved || false,
           totalBalance: player.totalBalance || '0.00',
-          isClerkSynced: true
+          isClerkSynced: true,
+          player_id: player.player_id // Ensure player_id is included
         };
 
         setUser(enhancedUserData);
@@ -468,7 +522,7 @@ export function useUltraFastAuth() {
         await logAuthActivity('logout', user.email, user.id);
       }
 
-      // PURE SUPABASE: Skip Supabase auth signOut since we're not using sessions
+      // PURE SUPABASE: Skip Supabase authsignOut since we're not using sessions
       console.log('🎯 [PURE SUPABASE] Skipping Supabase session signOut - using players table only');
 
       // Show success toast BEFORE clearing state
@@ -488,7 +542,7 @@ export function useUltraFastAuth() {
         title: "Signed Out",
         description: "You have been signed out successfully", // Don't show error to user
       });
-      
+
       await handleSignOut();
     }
   };
