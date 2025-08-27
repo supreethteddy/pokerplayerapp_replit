@@ -1579,7 +1579,7 @@ export function registerRoutes(app: Express) {
 
       console.log(`🔍 [CHAT HISTORY FIXED] Supabase client created successfully`);
 
-      // DIRECT POSTGRES QUERY - Bypass Supabase client issue
+      // DIRECT POSTGRESQL QUERY - Bypass Supabase client issue
       console.log(`🔍 [CHAT HISTORY FIXED] Using direct PostgreSQL query for player_id: ${playerId}`);
 
       // Import postgres client
@@ -1706,7 +1706,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // REMOVED: Duplicate endpoint - consolidated into staff-chat-integration/send
+  // REMOVED: Duplicate endpoint - using unified clear above
 
   // CLERK AUTHENTICATION INTEGRATION APIS
   const clerkSync = new ClerkPlayerSync();
@@ -2021,7 +2021,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // REMOVED - Using unified core system
+  // REMOVED: Using unified core system
 
   // Get Active (Non-Archived) Chat Messages
   app.get("/api/unified-chat/messages/:playerId", async (req, res) => {
@@ -3231,7 +3231,7 @@ export function registerRoutes(app: Express) {
 
       // Perform malware scanning with ClamAV
       const scanResult = await scanBufferForMalware(fileBuffer, fileName);
-      
+
       if (scanResult.isInfected) {
         console.log(`🚨 [MALWARE DETECTED] File ${fileName} contains malware:`, scanResult.viruses);
         return res.status(400).json({ 
@@ -4043,40 +4043,9 @@ export function registerRoutes(app: Express) {
         }
 
       // User doesn't exist - create new player
-      console.log(`🔥 [PLAYERS TABLE SIGNUP] Creating new player: ${email}`);
+      console.log(`🔥 [DUAL AUTH SIGNUP] Creating new player: ${email}`);
 
-      // STEP 1: Create Supabase Auth user first (PRIMARY AUTHENTICATION SYSTEM)
-      let supabaseUserId = null;
-      try {
-        const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-          email: email,
-          password: password,
-          email_confirm: false, // We'll handle email verification manually
-          user_metadata: {
-            first_name: firstName,
-            last_name: lastName,
-            phone: phone || '',
-            source: 'player_portal'
-          }
-        });
-
-        if (authError || !authUser.user) {
-          console.error('❌ [SUPABASE AUTH] User creation failed:', authError);
-          throw new Error(authError?.message || 'Failed to create Supabase auth user');
-        }
-
-        supabaseUserId = authUser.user.id;
-        console.log(`✅ [SUPABASE AUTH] User created successfully: ${supabaseUserId}`);
-        
-      } catch (supabaseError: any) {
-        console.error('❌ [SUPABASE AUTH] Failed to create auth user:', supabaseError.message);
-        return res.status(500).json({ 
-          error: 'Failed to create authentication user', 
-          details: supabaseError.message 
-        });
-      }
-
-      // STEP 2: Create Clerk user (SECONDARY AUTHENTICATION SYSTEM)
+      // STEP 1: Create Clerk user (PRIMARY AUTHENTICATION SYSTEM)
       let clerkUserId = null;
       try {
         const { clerkClient } = await import('@clerk/clerk-sdk-node');
@@ -4088,7 +4057,6 @@ export function registerRoutes(app: Express) {
           privateMetadata: {
             source: 'player_portal',
             created_from: 'signup_endpoint',
-            supabase_id: supabaseUserId
           },
           publicMetadata: {
             role: 'player'
@@ -4096,13 +4064,13 @@ export function registerRoutes(app: Express) {
         });
         clerkUserId = clerkUser.id;
         console.log(`✅ [CLERK] User created successfully: ${clerkUserId}`);
-        
+
         // Verify Clerk user appears in dashboard
         console.log(`🔍 [CLERK] User details - ID: ${clerkUser.id}, Email: ${clerkUser.emailAddresses?.[0]?.emailAddress}`);
-        
+
       } catch (clerkError: any) {
         console.warn('⚠️ [CLERK] Failed to create Clerk user, continuing with Supabase-only signup:', clerkError.message);
-        
+
         // Log detailed error information for debugging
         if (clerkError.errors) {
           console.warn('⚠️ [CLERK] Validation errors:', clerkError.errors);
@@ -4110,7 +4078,7 @@ export function registerRoutes(app: Express) {
         if (clerkError.status) {
           console.warn('⚠️ [CLERK] Status code:', clerkError.status);
         }
-        
+
         // Continue without Clerk user - the system works with Supabase as primary
       }
 
@@ -4134,32 +4102,32 @@ export function registerRoutes(app: Express) {
           INSERT INTO players (
             email, password, first_name, last_name, phone, 
             kyc_status, email_verified, balance, universal_id, 
-            is_active, supabase_id, clerk_user_id, current_credit, credit_limit, 
+            is_active, clerk_user_id, current_credit, credit_limit, 
             credit_approved, total_deposits, total_withdrawals, total_winnings, 
             total_losses, games_played, hours_played
           ) VALUES (
             $1, $2, $3, $4, $5, 'pending', false, '0.00', $6, 
-            true, $7, $8, 0.00, 0.00, false, '0.00', '0.00', 
+            true, $7, 0.00, 0.00, false, '0.00', '0.00', 
             '0.00', '0.00', 0, '0.00'
           ) RETURNING *
         `;
 
-        const universalId = `unified_${supabaseUserId}_${Date.now()}`;
+        const universalId = `unified_${clerkUserId}_${Date.now()}`;
 
         const result = await pgClient.query(insertQuery, [
           email, password, firstName, lastName, phone,
-          universalId, supabaseUserId, clerkUserId
+          universalId, clerkUserId
         ]);
 
         newPlayerData = result.rows[0];
         await pgClient.end();
-        
+
         console.log(`✅ [PLAYERS TABLE SIGNUP] New player created successfully: ${email} (ID: ${newPlayerData.id})`);
-        
+
       } catch (dbError: any) {
         await pgClient.end();
         console.error('❌ [PLAYERS TABLE SIGNUP] Database insertion error:', dbError);
-        
+
         // Handle duplicate email constraint violation
         if (dbError.code === '23505' && dbError.constraint === 'players_email_unique') {
           console.log('🔍 [DUPLICATE EMAIL] Email already exists, checking if user can log in:', email);
@@ -4169,7 +4137,7 @@ export function registerRoutes(app: Express) {
             suggestLogin: true
           });
         }
-        
+
         return res.status(500).json({ error: 'Database operation failed' });
       }
 
@@ -4205,33 +4173,12 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // VERIFY SUPABASE-ONLY APPROACH: Remove old PostgreSQL direct connections
+  // DEPRECATED: This endpoint now redirects to /api/auth/signup for consistency
   app.post('/api/players', async (req, res) => {
-    // DEPRECATED: This endpoint now redirects to /api/auth/signup for consistency
     console.log('🔄 [DEPRECATED] /api/players endpoint called - redirecting to /api/auth/signup');
     return res.status(301).json({ 
       error: 'This endpoint is deprecated. Please use /api/auth/signup for all new registrations.',
       redirectTo: '/api/auth/signup'
-    });
-  });
-
-  // Continue with other endpoints that should ALSO use Supabase-only approach...
-
-  // CLERK-SUPABASE SYNCHRONIZATION ENDPOINTS
-
-  // Clerk webhook endpoint for real-time sync
-  app.post('/api/clerk/webhook', async (req, res) => {
-    const { ClerkSupabaseSync } = await import('./clerk-supabase-sync');
-    await ClerkSupabaseSync.handleClerkWebhook(req, res);
-  });
-
-  // Manual sync endpoint for administrative use (DISABLED for pure players table auth)
-  app.post('/api/clerk/sync', async (req, res) => {
-    console.log('🔄 [CLERK SYNC] Skipped - using pure players table authentication');
-    res.json({
-      success: true,
-      message: 'Clerk sync not needed for players table authentication',
-      skipped: true
     });
   });
 
