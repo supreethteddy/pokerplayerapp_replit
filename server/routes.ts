@@ -4032,7 +4032,6 @@ export function registerRoutes(app: Express) {
       const generatedPlayerId = generateNextPlayerId(existingPlayerIds);
 
       // Create player record using Supabase (players table only)
-      const universalId = `players_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const fullName = `${firstName} ${lastName}`.trim();
       const playerNickname = nickname?.trim() || firstName;
       const currentTimestamp = new Date().toISOString();
@@ -4049,7 +4048,6 @@ export function registerRoutes(app: Express) {
           phone,
           kyc_status: 'pending',
           balance: '0.00',
-          universal_id: universalId,
           player_id: generatedPlayerId,
           clerk_user_id: clerkUserId,
           created_at: currentTimestamp
