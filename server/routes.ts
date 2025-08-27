@@ -3078,7 +3078,7 @@ export function registerRoutes(app: Express) {
         SELECT balance, current_credit, credit_limit, credit_approved, total_deposits, total_withdrawals,
                first_name, last_name, email, last_login_at
         FROM players 
-        WHERE id = $1
+        WHERE id = $1 OR player_id = $1
       `;
       
       const result = await pool.query(query, [playerId]);
@@ -3985,12 +3985,12 @@ export function registerRoutes(app: Express) {
       console.log(`🔥 [PLAYERS TABLE SIGNUP] Creating new player: ${email}`);
       
       // Get existing player IDs to generate next available ID
-      const { data: existingPlayers } = await supabase
+      const { data: allPlayerIds } = await supabase
         .from('players')
         .select('player_id')
         .not('player_id', 'is', null);
       
-      const existingPlayerIds = existingPlayers?.map(p => p.player_id).filter(Boolean) || [];
+      const existingPlayerIds = allPlayerIds?.map(p => p.player_id).filter(Boolean) || [];
       const generatedPlayerId = generateNextPlayerId(existingPlayerIds);
       
       // Create player record using Supabase (players table only)

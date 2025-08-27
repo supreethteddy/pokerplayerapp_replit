@@ -216,11 +216,9 @@ export function useUltraFastAuth() {
 
   // Helper to generate sequential player ID
   const generatePlayerId = async (existingPlayerIds: string[]) => {
-    // Dynamically import whitelabeling config to avoid potential SSR issues if not imported elsewhere
-    // This assumes whitelabeling.ts is in the root or accessible via module resolution.
-    // If whitelabeling.ts is in a specific directory like src/config, adjust the import path.
-    const whitellabeling = await import('@/whitelabeling'); // Adjust path if necessary
-    const { player_id_prefix, player_id_number_length } = whitellabeling.WHITELABELING_CONFIG;
+    // Use simple player ID generation instead of complex whitelabeling config
+    const player_id_prefix = 'PLAYER';
+    const player_id_number_length = 4;
 
     let playerId: string;
     let counter = 1;
