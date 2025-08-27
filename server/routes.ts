@@ -1033,7 +1033,7 @@ export function registerRoutes(app: Express) {
       // Use direct PostgreSQL connection to bypass schema cache issues
       const { Client } = await import('pg');
       const pgClient = new Client({
-        connectionString: process.env.DATABASE_URL
+        connectionString: process.env.SUPABASE_DATABASE_URL
       });
 
       await pgClient.connect();
