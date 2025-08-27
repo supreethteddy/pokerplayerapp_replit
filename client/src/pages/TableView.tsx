@@ -63,6 +63,12 @@ export default function TableView() {
       }
 
       console.log(`🎯 [TABLE VIEW JOIN] Joining waitlist for seat ${seatNumber} on table ${currentTable.id}`);
+      console.log(`🎯 [TABLE VIEW JOIN] Request payload:`, {
+        playerId: user.id,
+        tableId: currentTable.id,
+        seatNumber: seatNumber,
+        notes: `Seat ${seatNumber} request from table view`
+      });
 
       const response = await apiRequest('POST', '/api/seat-requests', {
         playerId: user.id,
@@ -71,12 +77,25 @@ export default function TableView() {
         notes: `Seat ${seatNumber} request from table view`
       });
       
+      console.log(`🎯 [TABLE VIEW JOIN] API Response status:`, response.status);
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
+        const errorText = await response.text();
+        console.error(`🎯 [TABLE VIEW JOIN] API Error response:`, errorText);
+        
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: errorText || `HTTP ${response.status}` };
+        }
+        
+        throw new Error(errorData.error || errorData.message || `Server Error: ${response.status}`);
       }
       
-      return response.json();
+      const result = await response.json();
+      console.log(`🎯 [TABLE VIEW JOIN] API Success response:`, result);
+      return result;
     },
     onSuccess: (data) => {
       console.log('✅ [TABLE VIEW JOIN] Waitlist join successful:', data);
