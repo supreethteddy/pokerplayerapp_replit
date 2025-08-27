@@ -3081,7 +3081,7 @@ export function registerRoutes(app: Express) {
         SELECT balance, current_credit, credit_limit, credit_eligible, total_deposits, total_withdrawals,
                first_name, last_name, email, last_login_at
         FROM players 
-        WHERE id = $1 OR player_id = $1
+        WHERE id = $1
       `;
 
       const result = await pool.query(query, [playerId]);
@@ -3101,7 +3101,7 @@ export function registerRoutes(app: Express) {
         cashBalance,
         creditBalance,
         creditLimit: parseFloat(player.credit_limit || '0'),
-        creditEligible: player.credit_eligible || false,
+        creditEligible: Boolean(player.credit_eligible),
         totalBalance
       };
 
