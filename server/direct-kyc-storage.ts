@@ -24,7 +24,7 @@ export class DirectKycStorage {
   // Get PostgreSQL client
   private async getPgClient(): Promise<Client> {
     const client = new Client({
-      connectionString: process.env.DATABASE_URL,
+      connectionString: process.env.SUPABASE_DATABASE_URL,
       connectionTimeoutMillis: 10000,
       query_timeout: 10000,
       statement_timeout: 10000,

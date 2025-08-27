@@ -17,7 +17,7 @@ export class DirectChatSystem {
 
     // Direct PostgreSQL connection bypassing Supabase client cache
     this.pool = new Pool({
-      connectionString: process.env.DATABASE_URL!,
+      connectionString: process.env.SUPABASE_DATABASE_URL!,
       ssl: { rejectUnauthorized: false }
     });
 

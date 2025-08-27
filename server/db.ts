@@ -13,13 +13,13 @@ export const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Direct PostgreSQL connection for table_sessions and other development tables
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL must be set for direct PostgreSQL connection");
+// Direct PostgreSQL connection to Supabase database  
+if (!process.env.SUPABASE_DATABASE_URL) {
+  throw new Error("SUPABASE_DATABASE_URL must be set for Supabase PostgreSQL connection");
 }
 
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.SUPABASE_DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
 
@@ -27,4 +27,4 @@ export const db = {
   query: (text: string, params?: any[]) => pool.query(text, params),
 };
 
-console.log('🚀 [DIRECT CHAT] System initialized with direct PostgreSQL connection');
+console.log('🚀 [SUPABASE DB] System initialized with direct Supabase PostgreSQL connection');

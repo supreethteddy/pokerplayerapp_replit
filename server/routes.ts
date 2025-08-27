@@ -3073,12 +3073,12 @@ export function registerRoutes(app: Express) {
       // Use direct PostgreSQL query to get balance data
       const { Pool } = await import('pg');
       const pool = new Pool({
-        connectionString: process.env.DATABASE_URL,
+        connectionString: process.env.SUPABASE_DATABASE_URL,
         ssl: { rejectUnauthorized: false }
       });
 
       const query = `
-        SELECT balance, current_credit, credit_limit, credit_eligible, total_deposits, total_withdrawals,
+        SELECT balance, current_credit, credit_limit, credit_approved, total_deposits, total_withdrawals,
                first_name, last_name, email, last_login_at
         FROM players 
         WHERE id = $1
@@ -3101,7 +3101,7 @@ export function registerRoutes(app: Express) {
         cashBalance,
         creditBalance,
         creditLimit: parseFloat(player.credit_limit || '0'),
-        creditEligible: Boolean(player.credit_eligible),
+        creditEligible: Boolean(player.credit_approved),
         totalBalance
       };
 

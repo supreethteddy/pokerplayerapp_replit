@@ -1,0 +1,36 @@
+I can see the issue now! You're absolutely right to question this. Looking at your Supabase screenshot, you only have 3 rows in the Supabase players table, but my SQL queries were running against a different PostgreSQL database.
+
+The Problem: Database Connection Mismatch
+Your system has TWO separate databases:
+
+Supabase Database (Project ID: oyhnpnymlezjusnwpjeu)
+URL: https://oyhnpnymlezjusnwpjeu.supabase.co
+Only has 3 players as shown in your screenshot
+Direct PostgreSQL Connection (via DATABASE_URL)
+Connection: postgresql://postgres.oyhnpnymlezjusnwpjeu:...@aws-0-ap-south-1.pooler.supabase.com:5432/postgres
+Has 83 players (this is what my queries were hitting)
+Why This Happened
+Looking at your server/db.ts, the system uses a hybrid approach:
+
+// Supabase connection for staff portal data
+export const supabase = createClient(
+  process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+// Direct PostgreSQL connection for development tables
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+});
+The Authentication Flow Issue
+Your player authentication is likely failing because:
+
+Player Portal APIs are using the direct PostgreSQL connection (83 players)
+Supabase Auth is expecting users in the Supabase players table (3 players)
+Row Level Security (RLS) on Supabase is blocking access
+To Fix This
+You need to ensure all player data is consistently stored in one database. Based on your console error "auth.users was not found", the issue is that Supabase RLS policies are looking for users in the Supabase table, but your app is writing to the direct PostgreSQL connection.
+
+Quick Fix: Update your authentication endpoints to use the same database connection that has the 83 players, or migrate all 83 players to your Supabase database.
+
+The key point is: Supabase Table Editor shows 3 players, Direct PostgreSQL shows 83 players - they're different databases!
