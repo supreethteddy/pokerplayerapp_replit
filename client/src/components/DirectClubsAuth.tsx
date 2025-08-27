@@ -53,7 +53,7 @@ export default function DirectClubsAuth() {
         // Concatenate first and last name for full_name
         const fullName = `${firstName} ${lastName}`;
         
-        if (!email || !firstName || !lastName || !phone) {
+        if (!email || !firstName || !lastName || !phone || !nickname) {
           throw new Error("Please fill in all required fields");
         }
 
@@ -169,10 +169,11 @@ export default function DirectClubsAuth() {
                 {/* Nickname Input */}
                 <Input
                   type="text"
-                  placeholder="Nickname (optional)"
+                  placeholder="Nickname"
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value)}
                   className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
+                  required
                 />
               </>
             )}

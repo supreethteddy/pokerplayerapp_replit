@@ -1,4 +1,3 @@
-
 import type { Express } from "express";
 import { createServer } from "http";
 import { supabaseOnlyStorage as storage } from "./supabase-only-storage";
@@ -57,7 +56,7 @@ import { foodBeverageItems, adsOffers, orders } from '@shared/schema';
 
 export function registerRoutes(app: Express) {
   // SIMPLE CASH BALANCE SYSTEM - MANAGER HANDLES TABLE OPERATIONS
-  
+
   // ========== LEGACY ENDPOINT REMOVED - USE /api/balance/:playerId INSTEAD ==========
   // REMOVED: Duplicate /api/player/:playerId/balance endpoint - redirecting to main endpoint
 
@@ -65,7 +64,7 @@ export function registerRoutes(app: Express) {
   app.get("/api/players/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
-      
+
       console.log(`🔍 [PLAYER DATA] Fetching player: ${playerId}`);
 
       // Use PostgreSQL direct query (consistent with signup/signin approach)
@@ -132,7 +131,7 @@ export function registerRoutes(app: Express) {
   app.get("/api/documents/player/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
-      
+
       console.log(`🔍 [KYC DOCS] Fetching documents for player: ${playerId}`);
 
       // Use PostgreSQL direct query (consistent with signup/signin approach)
@@ -172,7 +171,7 @@ export function registerRoutes(app: Express) {
     try {
       const playerId = parseInt(req.params.playerId);
       const { balance } = req.body;
-      
+
       console.log(`🔧 [BALANCE UPDATE] Updating player ${playerId} balance to: ${balance}`);
 
       const { createClient } = await import('@supabase/supabase-js');
@@ -207,7 +206,7 @@ export function registerRoutes(app: Express) {
     try {
       const playerId = parseInt(req.params.playerId);
       const { amount } = req.body;
-      
+
       console.log(`💳 [CREDIT TRANSFER] Player ${playerId} transferring: ${amount}`);
 
       const { createClient } = await import('@supabase/supabase-js');
@@ -347,7 +346,7 @@ export function registerRoutes(app: Express) {
       }
 
       const availableBalance = parseFloat(player.balance || '0');
-      
+
       if (amount > availableBalance) {
         return res.status(400).json({ 
           error: `Insufficient balance. Available: ₹${availableBalance.toLocaleString()}` 
@@ -436,7 +435,7 @@ export function registerRoutes(app: Express) {
       }
 
       const currentBalance = parseFloat(player.balance || '0');
-      
+
       // Validate sufficient balance
       if (amount > currentBalance) {
         // Mark request as rejected
@@ -720,20 +719,20 @@ export function registerRoutes(app: Express) {
   });
 
   // UNIFIED CHAT SYSTEM - Single source of truth (NEW CORE)
-  
+
   // STAFF PORTAL COMPATIBLE API ENDPOINTS
-  
+
   // PLAYER-TO-STAFF MESSAGING - Using exact same directChat system that works
   app.post("/api/player-chat-integration/send", async (req, res) => {
     try {
       const { playerId, playerName, message, isFromPlayer } = req.body;
-      
+
       if (!playerId || !message) {
         return res.status(400).json({ success: false, error: 'Player ID and message are required' });
       }
-      
+
       console.log(`💬 [PLAYER CHAT] Player ${playerId} sending: "${message}"`);
-      
+
       // Use the exact same directChat system that staff portal uses
       const result = await directChat.sendMessage(
         parseInt(playerId.toString()),
@@ -741,15 +740,15 @@ export function registerRoutes(app: Express) {
         message,
         'player'
       );
-      
+
       console.log(`✅ [PLAYER CHAT] Message sent successfully via directChat`);
-      
+
       res.json({
         success: true,
         id: result.data.id,
         timestamp: result.data.timestamp
       });
-      
+
     } catch (error: any) {
       console.error('❌ [PLAYER CHAT] Error:', error);
       res.status(500).json({ success: false, error: error.message });
@@ -758,14 +757,14 @@ export function registerRoutes(app: Express) {
 
   // STAFF PORTAL INTEGRATION ENDPOINTS - EXACT PRODUCTION SPECIFICATION
   // From: Player Portal Production Integration Document (August 11, 2025)
-  
+
   // 1. Send Player Message to Staff (OPTIMIZED V1.2) - Speed enhanced for 1M+ players
   app.post("/api/staff-chat-integration/send", async (req, res) => {
     const startTime = process.hrtime.bigint();
-    
+
     try {
       const { requestId, playerId, playerName, message, staffId = 151, staffName = "Guest Relation Executive" } = req.body;
-      
+
       if (!playerId || !message) {
         return res.status(400).json({ success: false, error: 'playerId and message are required' });
       }
@@ -776,7 +775,7 @@ export function registerRoutes(app: Express) {
       const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const timestamp = new Date().toISOString();
       const pusherChannels = [`player-${playerId}`, 'staff-portal'];
-      
+
       // Prepare optimistic response
       const optimisticResponse = {
         success: true,
@@ -807,7 +806,7 @@ export function registerRoutes(app: Express) {
             // Session management (parallel)
             (async () => {
               let sessionId = requestId;
-              
+
               // Check existing session
               const { data: existingSession } = await supabase
                 .from('chat_sessions')
@@ -815,7 +814,7 @@ export function registerRoutes(app: Express) {
                 .eq('player_id', playerId)
                 .in('status', ['waiting', 'active'])
                 .limit(1);
-              
+
               if (existingSession && existingSession.length > 0) {
                 return existingSession[0].id;
               }
@@ -835,7 +834,7 @@ export function registerRoutes(app: Express) {
                   created_at: timestamp,
                   updated_at: timestamp
                 }, { onConflict: 'id' });
-              
+
               return sessionId;
             })(),
 
@@ -873,18 +872,18 @@ export function registerRoutes(app: Express) {
 
           const processingTime = Number(process.hrtime.bigint() - startTime) / 1000000;
           console.log(`⚡ [OPTIMIZED V1.2] Background processing completed in ${processingTime.toFixed(2)}ms`);
-          
+
           // Log any background errors (doesn't affect user experience)
           if (sessionResult.status === 'rejected') console.error('Session error:', sessionResult.reason);
           if (messageResult.status === 'rejected') console.error('Message error:', messageResult.reason);
           if (pusherResult.status === 'rejected') console.error('Pusher error:', pusherResult.reason);
-          
+
         } catch (backgroundError) {
           console.error('❌ [OPTIMIZED V1.2] Background error:', backgroundError);
           // Background errors don't affect user experience since response already sent
         }
       });
-      
+
     } catch (error: any) {
       console.error('❌ [OPTIMIZED V1.2] Critical error:', error);
       res.status(500).json({ success: false, error: error.message });
@@ -920,7 +919,7 @@ export function registerRoutes(app: Express) {
         success: true,
         requests: categorized
       });
-      
+
     } catch (error: any) {
       console.error('❌ [STAFF CHAT REQUESTS] Error:', error);
       res.status(500).json({ success: false, error: error.message });
@@ -931,7 +930,7 @@ export function registerRoutes(app: Express) {
   app.get("/api/staff-chat-integration/messages/:sessionId", async (req, res) => {
     try {
       const { sessionId } = req.params;
-      
+
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
         process.env.VITE_SUPABASE_URL!,
@@ -953,7 +952,7 @@ export function registerRoutes(app: Express) {
         messages: messages || [],
         count: messages?.length || 0
       });
-      
+
     } catch (error: any) {
       console.error('❌ [STAFF CHAT MESSAGES] Error:', error);
       res.status(500).json({ success: false, error: error.message });
@@ -965,7 +964,7 @@ export function registerRoutes(app: Express) {
     try {
       const playerId = parseInt(req.params.playerId);
       const historyResult = await directChat.getChatHistory(playerId);
-      
+
       if (!historyResult.success || !historyResult.conversations[0]) {
         return res.json({ success: true, messages: [] });
       }
@@ -1020,29 +1019,29 @@ export function registerRoutes(app: Express) {
   // Clerk sync endpoint for unified authentication
   app.post('/api/auth/clerk-sync', async (req, res) => {
     console.log('🔐 [CLERK SYNC] Received sync request:', req.body);
-    
+
     try {
       const { clerkUserId, email, firstName, lastName, phone, emailVerified } = req.body;
-      
+
       if (!clerkUserId || !email) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
-      
+
       // Use direct PostgreSQL connection to bypass schema cache issues
       const { Client } = await import('pg');
       const pgClient = new Client({
         connectionString: process.env.DATABASE_URL
       });
-      
+
       await pgClient.connect();
-      
+
       // Check if player already exists by email
       const findQuery = 'SELECT * FROM players WHERE email = $1 LIMIT 1';
       const findResult = await pgClient.query(findQuery, [email]);
       const existingPlayer = findResult.rows[0];
-      
+
       let playerData;
-      
+
       if (existingPlayer) {
         // Update existing player with Clerk ID
         const updateQuery = `
@@ -1056,7 +1055,7 @@ export function registerRoutes(app: Express) {
           WHERE id = $5
           RETURNING *
         `;
-        
+
         const updateResult = await pgClient.query(updateQuery, [
           clerkUserId,
           firstName,
@@ -1064,10 +1063,10 @@ export function registerRoutes(app: Express) {
           phone,
           existingPlayer.id
         ]);
-        
+
         playerData = updateResult.rows[0];
         console.log('✅ [CLERK SYNC] Updated existing player:', existingPlayer.id);
-        
+
       } else {
         // Create new player with Clerk ID
         const insertQuery = `
@@ -1079,9 +1078,9 @@ export function registerRoutes(app: Express) {
           )
           RETURNING *
         `;
-        
+
         const universalId = `unified_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
+
         const createResult = await pgClient.query(insertQuery, [
           email,
           firstName,
@@ -1091,10 +1090,10 @@ export function registerRoutes(app: Express) {
           emailVerified ? 'pending' : 'incomplete',
           universalId
         ]);
-        
+
         playerData = createResult.rows[0];
         console.log('✅ [CLERK SYNC] Created new player:', playerData.id);
-        
+
         await pgClient.end();
         return res.json({ 
           success: true, 
@@ -1115,9 +1114,9 @@ export function registerRoutes(app: Express) {
           existingPlayer: false
         });
       }
-      
+
       await pgClient.end();
-      
+
       res.json({
         success: true,
         player: {
@@ -1136,7 +1135,7 @@ export function registerRoutes(app: Express) {
         message: 'Existing player updated successfully',
         existingPlayer: true
       });
-      
+
     } catch (error: any) {
       console.error('❌ [CLERK SYNC] Error:', error);
       res.status(500).json({ error: error.message || 'Sync failed' });
@@ -1144,25 +1143,25 @@ export function registerRoutes(app: Express) {
   });
 
   // ========== PRODUCTION-READY CLERK WEBHOOK ENDPOINT ==========
-  
+
   // Clerk webhook endpoint for production integration
   app.post('/api/clerk/webhook', async (req, res) => {
     console.log('🪝 [CLERK WEBHOOK] Received event:', req.body?.type);
-    
+
     try {
       const { type, data } = req.body;
-      
+
       if (!type || !data) {
         return res.status(400).json({ error: 'Invalid webhook payload' });
       }
-      
+
       const { Client } = await import('pg');
       const pgClient = new Client({
         connectionString: process.env.DATABASE_URL
       });
-      
+
       await pgClient.connect();
-      
+
       // Log webhook event
       await pgClient.query(`
         INSERT INTO clerk_webhook_events (event_type, clerk_user_id, email, webhook_payload, success)
@@ -1174,36 +1173,36 @@ export function registerRoutes(app: Express) {
         JSON.stringify(req.body),
         true
       ]);
-      
+
       // Handle different webhook events
       switch (type) {
         case 'user.created':
         case 'user.updated':
           await handleUserWebhook(pgClient, data, type);
           break;
-          
+
         case 'user.deleted':
           await handleUserDeletion(pgClient, data);
           break;
-          
+
         default:
           console.log(`ℹ️ [CLERK WEBHOOK] Unhandled event type: ${type}`);
       }
-      
+
       await pgClient.end();
-      
+
       console.log(`✅ [CLERK WEBHOOK] Successfully processed ${type} event`);
       res.json({ success: true, processed: type });
-      
+
     } catch (error: any) {
       console.error('❌ [CLERK WEBHOOK] Error:', error);
-      
+
       // Log webhook error
       try {
         const { Client } = await import('pg');
         const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
         await pgClient.connect();
-        
+
         await pgClient.query(`
           INSERT INTO clerk_webhook_events (event_type, webhook_payload, success, error_message)
           VALUES ($1, $2, $3, $4)
@@ -1213,34 +1212,34 @@ export function registerRoutes(app: Express) {
           false,
           error.message
         ]);
-        
+
         await pgClient.end();
       } catch (logError: any) {
         console.warn('⚠️ [CLERK WEBHOOK] Could not log error:', logError.message);
       }
-      
+
       res.status(500).json({ error: error.message });
     }
   });
-  
+
   async function handleUserWebhook(pgClient: any, userData: any, eventType: string) {
     const clerkUserId = userData.id;
     const email = userData.email_addresses?.[0]?.email_address;
     const firstName = userData.first_name;
     const lastName = userData.last_name;
     const phone = userData.phone_numbers?.[0]?.phone_number;
-    
+
     if (!clerkUserId || !email) {
       console.warn('⚠️ [CLERK WEBHOOK] Missing required user data');
       return;
     }
-    
+
     // Check if player exists
     const findResult = await pgClient.query(
       'SELECT * FROM players WHERE clerk_user_id = $1 OR email = $2 LIMIT 1',
       [clerkUserId, email]
     );
-    
+
     if (findResult.rows.length > 0) {
       // Update existing player
       await pgClient.query(`
@@ -1255,12 +1254,12 @@ export function registerRoutes(app: Express) {
           last_login_at = NOW()
         WHERE id = $6
       `, [clerkUserId, email, firstName, lastName, phone, findResult.rows[0].id]);
-      
+
       console.log(`✅ [CLERK WEBHOOK] Updated player ${findResult.rows[0].id} from ${eventType}`);
     } else {
       // Create new player
       const universalId = `unified_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+
       await pgClient.query(`
         INSERT INTO players (
           email, first_name, last_name, phone, clerk_user_id, clerk_synced_at,
@@ -1269,19 +1268,19 @@ export function registerRoutes(app: Express) {
           $1, $2, $3, $4, $5, NOW(), 'pending', 'clerk_managed', $6, '0.00', true, NOW()
         )
       `, [email, firstName, lastName, phone, clerkUserId, universalId]);
-      
+
       console.log(`✅ [CLERK WEBHOOK] Created new player from ${eventType}`);
     }
   }
-  
+
   async function handleUserDeletion(pgClient: any, userData: any) {
     const clerkUserId = userData.id;
-    
+
     if (!clerkUserId) {
       console.warn('⚠️ [CLERK WEBHOOK] Missing user ID for deletion');
       return;
     }
-    
+
     // Mark user as inactive instead of deleting
     await pgClient.query(`
       UPDATE players 
@@ -1291,7 +1290,7 @@ export function registerRoutes(app: Express) {
         clerk_synced_at = NOW()
       WHERE clerk_user_id = $1
     `, [clerkUserId]);
-    
+
     console.log(`✅ [CLERK WEBHOOK] Deactivated player with Clerk ID: ${clerkUserId}`);
   }
 
@@ -1299,15 +1298,15 @@ export function registerRoutes(app: Express) {
   app.get('/api/auth/user', async (req, res) => {
     try {
       console.log('🔍 [AUTH USER] Dynamic user endpoint called');
-      
+
       // Check for Supabase session token in Authorization header
       const authHeader = req.headers.authorization;
       let supabaseToken = null;
-      
+
       if (authHeader && authHeader.startsWith('Bearer ')) {
         supabaseToken = authHeader.split(' ')[1];
       }
-      
+
       // If we have a Supabase token, verify and get user data
       if (supabaseToken) {
         try {
@@ -1316,25 +1315,25 @@ export function registerRoutes(app: Express) {
             process.env.VITE_SUPABASE_URL!,
             process.env.SUPABASE_SERVICE_ROLE_KEY!
           );
-          
+
           // Verify the token and get user
           const { data: { user }, error } = await supabase.auth.getUser(supabaseToken);
-          
+
           if (error || !user) {
             return res.status(401).json({ error: 'Invalid token' });
           }
-          
+
           // Fetch player data from our database
           const { data: playerData, error: playerError } = await supabase
             .from('players')
             .select('*')
             .eq('supabase_id', user.id)
             .single();
-          
+
           if (playerError || !playerData) {
             return res.status(404).json({ error: 'Player not found' });
           }
-          
+
           // Return formatted player data
           res.json({
             id: playerData.id,
@@ -1347,7 +1346,7 @@ export function registerRoutes(app: Express) {
             authenticated: true,
             supabaseId: user.id
           });
-          
+
         } catch (authError: any) {
           console.error('❌ [AUTH USER] Supabase auth error:', authError);
           return res.status(401).json({ error: 'Authentication failed' });
@@ -1356,7 +1355,7 @@ export function registerRoutes(app: Express) {
         // No authentication provided
         return res.status(401).json({ error: 'No authentication provided' });
       }
-      
+
     } catch (error: any) {
       console.error('❌ [AUTH USER] Error:', error);
       res.status(500).json({ error: error.message });
@@ -1364,7 +1363,7 @@ export function registerRoutes(app: Express) {
   });
 
   // === FOOD & BEVERAGE API ENDPOINTS ===
-  
+
   // Get all menu items - shared with staff portal
   app.get("/api/food-beverage/items", async (req, res) => {
     try {
@@ -1406,7 +1405,7 @@ export function registerRoutes(app: Express) {
       );
 
       const now = new Date().toISOString();
-      
+
       const { data: ads, error } = await supabase
         .from('ads_offers')
         .select('*')
@@ -1435,7 +1434,7 @@ export function registerRoutes(app: Express) {
   app.post("/api/food-beverage/orders", async (req, res) => {
     try {
       const { playerId, playerName, items, totalAmount, notes, tableNumber } = req.body;
-      
+
       if (!playerId || !playerName || !items || !Array.isArray(items)) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
@@ -1500,7 +1499,7 @@ export function registerRoutes(app: Express) {
             playerId: playerId
           }
         };
-        
+
         await oneSignalClient.createNotification(notification);
         console.log('✅ [F&B ORDER] OneSignal notification sent to staff');
       } catch (oneSignalError) {
@@ -1523,7 +1522,7 @@ export function registerRoutes(app: Express) {
   app.get("/api/food-beverage/orders/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
-      
+
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
         process.env.VITE_SUPABASE_URL!,
@@ -1556,37 +1555,37 @@ export function registerRoutes(app: Express) {
   app.get("/api/OLD-chat-history/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId); // CRITICAL FIX: Convert string to integer
-      
+
       console.log(`🔍 [CHAT HISTORY FIXED] Fetching history for player ID: ${playerId} (type: ${typeof playerId})`);
-      
+
       // Verify environment variables
       console.log(`🔍 [CHAT HISTORY FIXED] Supabase URL exists: ${!!process.env.VITE_SUPABASE_URL}`);
       console.log(`🔍 [CHAT HISTORY FIXED] Service key exists: ${!!process.env.SUPABASE_SERVICE_ROLE_KEY}`);
-      
+
       const { createClient } = await import('@supabase/supabase-js');
-      
+
       // Direct environment variable check for debugging
       const supabaseUrl = process.env.VITE_SUPABASE_URL;
       const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      
+
       console.log(`🔍 [CHAT HISTORY FIXED] Environment check:`);
       console.log(`   - Supabase URL: ${supabaseUrl?.substring(0, 30)}...`);
       console.log(`   - Service Key: ${serviceKey ? 'EXISTS' : 'MISSING'}`);
-      
+
       const supabase = createClient(supabaseUrl!, serviceKey!);
-      
+
       console.log(`🔍 [CHAT HISTORY FIXED] Supabase client created successfully`);
-      
+
       // DIRECT POSTGRES QUERY - Bypass Supabase client issue
       console.log(`🔍 [CHAT HISTORY FIXED] Using direct PostgreSQL query for player_id: ${playerId}`);
-      
+
       // Import postgres client
       const { Pool } = await import('pg');
       const pool = new Pool({
         connectionString: process.env.DATABASE_URL,
         ssl: { rejectUnauthorized: false }
       });
-      
+
       try {
         // Direct SQL query to get chat requests
         const requestsQuery = `
@@ -1606,60 +1605,60 @@ export function registerRoutes(app: Express) {
           GROUP BY cr.id
           ORDER BY cr.created_at DESC
         `;
-        
+
         const result = await pool.query(requestsQuery, [playerId]);
         const requests = result.rows;
-        
+
         console.log(`🔍 [CHAT HISTORY FIXED] Direct PostgreSQL result:`, { 
           query: `chat_requests WHERE player_id = ${playerId}`,
           result: requests, 
           count: requests.length 
         });
-        
+
         // Transform data to match expected format
         const requestsWithMessages = requests.map(row => ({
           ...row,
           chat_messages: row.chat_messages || []
         }));
-        
+
         await pool.end();
-        
+
         console.log(`✅ [CHAT HISTORY FIXED] Direct query result: ${requestsWithMessages.length} conversations`);
         res.json({ success: true, conversations: requestsWithMessages });
         return;
-        
+
       } catch (pgError) {
         console.error('❌ [CHAT HISTORY FIXED] PostgreSQL error:', pgError);
         await pool.end();
         // Fall back to Supabase if PostgreSQL fails
       }
-      
+
       // Fallback: Original Supabase query
       console.log(`🔍 [CHAT HISTORY FIXED] Fallback to Supabase query for player_id: ${playerId}`);
-      
+
       const { data: requests, error: requestsError } = await supabase
         .from('chat_requests')
         .select('*')
         .eq('player_id', playerId)
         .order('created_at', { ascending: false });
-        
+
       console.log(`🔍 [CHAT HISTORY FIXED] Supabase fallback result:`, { 
         query: `chat_requests WHERE player_id = ${playerId}`,
         result: requests, 
         error: requestsError 
       });
-        
+
       console.log(`🔍 [CHAT HISTORY FIXED] Raw requests result:`, { 
         requests: requests, 
         error: requestsError, 
         length: (requests || []).length 
       });
-      
+
       if (requestsError) {
         console.error('❌ [CHAT HISTORY FIXED] Requests error:', requestsError);
         return res.status(500).json({ error: "Failed to fetch chat requests" });
       }
-      
+
       // If no requests found, let's try a broader query to debug
       if (!requests || requests.length === 0) {
         console.log(`🔍 [CHAT HISTORY DEBUG] No requests found for player ${playerId}, checking all players...`);
@@ -1669,35 +1668,35 @@ export function registerRoutes(app: Express) {
           .limit(10);
         console.log(`🔍 [CHAT HISTORY DEBUG] Sample player_ids in database:`, allRequests?.map(r => r.player_id));
       }
-      
+
       // Get messages for each request separately with debug logging
       const requestsWithMessages = [];
       for (const request of requests || []) {
         console.log(`🔍 [CHAT HISTORY FIXED] Processing request:`, request.id);
-        
+
         const { data: messages, error: messagesError } = await supabase
           .from('chat_messages')
           .select('id, sender, sender_name, message_text, timestamp')
           .eq('request_id', request.id)
           .order('timestamp', { ascending: true });
-        
+
         console.log(`🔍 [CHAT HISTORY FIXED] Messages for ${request.id}:`, { 
           messages: messages, 
           error: messagesError, 
           count: (messages || []).length 
         });
-        
+
         requestsWithMessages.push({
           ...request,
           chat_messages: messages || []
         });
       }
-      
+
       console.log(`✅ [CHAT HISTORY FIXED] Final result: ${requestsWithMessages.length} conversations for player ${playerId}`);
       console.log(`✅ [CHAT HISTORY FIXED] Complete response:`, JSON.stringify(requestsWithMessages, null, 2));
-      
+
       res.json({ success: true, conversations: requestsWithMessages });
-      
+
     } catch (error) {
       console.error('❌ [CHAT HISTORY] Error:', error);
       res.status(500).json({ error: "Internal server error" });
@@ -1706,16 +1705,16 @@ export function registerRoutes(app: Express) {
 
   // REMOVED: Duplicate endpoint - consolidated into staff-chat-integration/send
 
-  // CLERK AUTHENTICATION INTEGRATION APIs
+  // CLERK AUTHENTICATION INTEGRATION APIS
   const clerkSync = new ClerkPlayerSync();
 
   // Create new player (Enterprise-optimized Signup endpoint)
   app.post("/api/players", async (req, res) => {
     try {
       const { email, password, firstName, lastName, phone, supabaseId, clerkUserId } = req.body;
-      
+
       console.log('🆕 [ENTERPRISE SIGNUP] Creating player:', { email, firstName, lastName, phone });
-      
+
       // Validate required fields
       if (!email || !firstName || !lastName || !phone) {
         return res.status(400).json({ error: "Missing required fields" });
@@ -1752,16 +1751,16 @@ export function registerRoutes(app: Express) {
       res.json(player);
     } catch (error: any) {
       console.error('❌ [SIGNUP API] Error:', error);
-      
+
       // Handle duplicate email - redirect to KYC process if player exists
       if ((error as any).code === '23505' && (error as any).constraint === 'players_email_unique') {
         console.log('🔄 [SIGNUP API] Player exists - checking KYC status for:', req.body.email);
-        
+
         try {
           const { Client } = await import('pg');
           const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
           await pgClient.connect();
-          
+
           const existingPlayerQuery = `
             SELECT id, first_name, last_name, email, kyc_status, created_at 
             FROM players 
@@ -1769,11 +1768,11 @@ export function registerRoutes(app: Express) {
           `;
           const existingResult = await pgClient.query(existingPlayerQuery, [req.body.email]);
           await pgClient.end();
-          
+
           if (existingResult.rows.length > 0) {
             const existingPlayer = existingResult.rows[0];
             console.log('✅ [SIGNUP API] Existing player found - redirecting to KYC:', existingPlayer.kyc_status);
-            
+
             // Return existing player data for KYC redirect
             res.json({
               id: existingPlayer.id,
@@ -1790,31 +1789,32 @@ export function registerRoutes(app: Express) {
           console.error('❌ [SIGNUP API] Lookup error:', lookupError);
         }
       }
-      
+
       res.status(500).json({ error: (error as Error).message || 'Unknown error' });
     }
   });
 
   // ========== CRITICAL CLERK-SUPABASE CROSS-FUNCTIONALITY SYSTEM ==========
-  
+
   // Clerk webhook handler for data integrity
   app.post("/api/clerk/webhooks", async (req, res) => {
     try {
       const { type, data } = req.body;
       console.log(`🔔 [CLERK WEBHOOK] Received event: ${type}`);
-      
+
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
-      
+
       switch (type) {
         case 'user.created':
+        case 'user.updated':
           // Auto-sync new Clerk user to Supabase
           const { email_addresses, first_name, last_name, id: clerkUserId } = data;
           const email = email_addresses?.[0]?.email_address;
-          
+
           if (email) {
             const { error } = await supabase
               .from('players')
@@ -1833,13 +1833,13 @@ export function registerRoutes(app: Express) {
               }, {
                 onConflict: 'email'
               });
-              
+
             if (!error) {
               console.log(`✅ [CLERK WEBHOOK] User synced: ${email}`);
             }
           }
           break;
-          
+
         case 'user.deleted':
           // CRITICAL: Prevent data deletion cascade
           console.log(`🚨 [CLERK WEBHOOK] User deletion blocked to prevent data loss`);
@@ -1853,7 +1853,7 @@ export function registerRoutes(app: Express) {
             })
             .eq('clerk_user_id', data.id);
           break;
-          
+
         case 'user.updated':
           // Sync profile updates
           const updateEmail = data.email_addresses?.[0]?.email_address;
@@ -1869,7 +1869,7 @@ export function registerRoutes(app: Express) {
           }
           break;
       }
-      
+
       res.json({ success: true });
     } catch (error) {
       console.error('❌ [CLERK WEBHOOK] Error:', error);
@@ -1881,9 +1881,9 @@ export function registerRoutes(app: Express) {
   app.post("/api/clerk/sync-player", async (req, res) => {
     try {
       const { clerkUserId, email, firstName, lastName } = req.body;
-      
+
       console.log('🔗 [CLERK API] Syncing player:', email);
-      
+
       // Use direct database integration for Clerk sync
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
@@ -1952,7 +1952,7 @@ export function registerRoutes(app: Express) {
   app.get("/api/clerk/kyc-status/:clerkUserId", async (req, res) => {
     try {
       const { clerkUserId } = req.params;
-      
+
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
         process.env.VITE_SUPABASE_URL!,
@@ -1970,7 +1970,7 @@ export function registerRoutes(app: Express) {
       }
 
       const requiresKyc = !player || player.kyc_status === 'pending' || !player.phone;
-      
+
       res.json({ requiresKyc, kycStatus: player?.kyc_status });
     } catch (error: any) {
       console.error('❌ [CLERK API] KYC status error:', error);
@@ -1983,7 +1983,7 @@ export function registerRoutes(app: Express) {
     try {
       // Handle file uploads and KYC submission
       const { clerkUserId, phone } = req.body;
-      
+
       // Update player with phone number directly
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
@@ -2003,14 +2003,14 @@ export function registerRoutes(app: Express) {
         .single();
 
       if (error) throw error;
-      
+
       // In a real implementation, you would:
       // 1. Upload files to storage
       // 2. Create KYC document records
       // 3. Set KYC status to 'pending'
-      
+
       console.log('📋 [CLERK API] KYC submitted for player:', updatedPlayer.id);
-      
+
       res.json({ success: true, message: 'KYC documents submitted successfully' });
     } catch (error: any) {
       console.error('❌ [CLERK API] KYC submit error:', error);
@@ -2028,14 +2028,14 @@ export function registerRoutes(app: Express) {
 
       // Use direct chat system to get messages (it handles the database correctly)
       const result = await directChat.getChatHistory(playerId);
-      
+
       if (!result.success) {
         console.error('❌ [FIXED CHAT SYSTEM] Error from direct chat system');
         return res.status(500).json({ error: "Failed to fetch messages" });
       }
-      
+
       console.log(`✅ [FIXED CHAT SYSTEM] Retrieved ${result.conversations[0]?.chat_messages?.length || 0} messages for player ${playerId}`);
-      
+
       // Transform messages to expected frontend format
       if (result.conversations[0]?.chat_messages) {
         result.conversations[0].chat_messages = result.conversations[0].chat_messages.map(msg => ({
@@ -2047,9 +2047,9 @@ export function registerRoutes(app: Express) {
           isFromStaff: msg.sender === 'staff' || msg.sender === 'gre'
         }));
       }
-      
+
       res.json(result);
-      
+
     } catch (error: any) {
       console.error('❌ [FIXED CHAT SYSTEM] Error:', error);
       res.status(500).json({ error: error.message });
@@ -2071,7 +2071,7 @@ export function registerRoutes(app: Express) {
           timestamp: new Date().toISOString(),
           testId: Date.now()
         });
-        
+
         await pusher.trigger('staff-portal', 'connection-test', {
           playerId: playerId,
           message: 'Staff portal connection test',
@@ -2080,7 +2080,7 @@ export function registerRoutes(app: Express) {
         });
 
         console.log(`✅ [CHAT TEST] Pusher triggers sent successfully`);
-        
+
         res.json({
           success: true,
           message: 'Real-time connectivity test completed',
@@ -2091,7 +2091,7 @@ export function registerRoutes(app: Express) {
             timestamp: new Date().toISOString()
           }
         });
-        
+
       } catch (pusherError: any) {
         console.error('❌ [CHAT TEST] Pusher test failed:', pusherError);
         res.status(500).json({ 
@@ -2122,27 +2122,27 @@ export function registerRoutes(app: Express) {
         phone, 
         emailVerified 
       } = req.body;
-      
+
       console.log(`🔄 [CLERK SYNC] Processing signup sync for: ${email}`);
-      
+
       if (!clerkUserId || !email) {
         return res.status(400).json({ 
           error: "clerkUserId and email are required" 
         });
       }
-      
+
       // Check if player already exists
       let existingPlayer = await storage.getPlayerByEmail(email);
-      
+
       if (existingPlayer) {
         console.log(`🔄 [CLERK SYNC] Updating existing player with Clerk ID: ${existingPlayer.id}`);
-        
+
         // Update existing player with Clerk information
         const updatedPlayer = await storage.getPlayer(existingPlayer.id);
         if (!updatedPlayer) {
           return res.status(404).json({ error: 'Player not found during update' });
         }
-        
+
         // Return player with proper field mapping
         const responseData = {
           ...updatedPlayer,
@@ -2152,7 +2152,7 @@ export function registerRoutes(app: Express) {
           phone: phone || updatedPlayer.phone,
           email_verified: emailVerified
         };
-        
+
         return res.json({
           success: true,
           existingPlayer: true,
@@ -2161,7 +2161,7 @@ export function registerRoutes(app: Express) {
         });
       } else {
         console.log(`✨ [CLERK SYNC] Creating new player from Clerk signup`);
-        
+
         // Create new player from Clerk data
         const newPlayer = await storage.createClerkPlayer({
           clerk_user_id: clerkUserId,
@@ -2174,7 +2174,7 @@ export function registerRoutes(app: Express) {
           is_active: true,
           email_verified: emailVerified || false
         });
-        
+
         return res.json({
           success: true,
           existingPlayer: false,
@@ -2182,7 +2182,7 @@ export function registerRoutes(app: Express) {
           message: "New player created successfully"
         });
       }
-      
+
     } catch (error: any) {
       console.error('❌ [CLERK SYNC] Sync failed:', error);
       res.status(500).json({ 
@@ -2196,16 +2196,16 @@ export function registerRoutes(app: Express) {
   app.get("/api/players/check", async (req, res) => {
     try {
       const { email } = req.query;
-      
+
       if (!email || typeof email !== 'string') {
         return res.status(400).json({ error: "Email parameter required" });
       }
-      
+
       console.log(`🔍 [PLAYER CHECK] Checking for existing player: ${email}`);
-      
+
       // Check if player exists in database
       const existingPlayer = await storage.getPlayerByEmail(email);
-      
+
       if (existingPlayer) {
         console.log(`✅ [PLAYER CHECK] Found existing player: ${existingPlayer.email} (ID: ${existingPlayer.id})`);
         return res.json({
@@ -2222,7 +2222,7 @@ export function registerRoutes(app: Express) {
           message: "Player not found" 
         });
       }
-      
+
     } catch (error: any) {
       console.error('❌ [PLAYER CHECK] Error:', error);
       res.status(500).json({ 
@@ -2237,7 +2237,7 @@ export function registerRoutes(app: Express) {
   app.post("/api/players/sync-clerk", async (req, res) => {
     try {
       const { clerk_user_id, email, first_name, last_name, phone } = req.body;
-      
+
       if (!clerk_user_id || !email) {
         return res.status(400).json({ error: "clerk_user_id and email are required" });
       }
@@ -2285,7 +2285,7 @@ export function registerRoutes(app: Express) {
     try {
       const { supabaseId } = req.params;
       console.log(`🏢 [ENTERPRISE PLAYER] Getting player by Supabase ID: ${supabaseId}`);
-      
+
       // PRODUCTION APPROACH: First try to get the player by email from the working authentication flow
       // Step 1: Get email from Supabase auth service (proven to work)
       const { createClient } = await import('@supabase/supabase-js');
@@ -2299,7 +2299,7 @@ export function registerRoutes(app: Express) {
           }
         }
       );
-      
+
       let userEmail = null;
       try {
         const { data: { user }, error: authError } = await supabaseAdmin.auth.admin.getUserById(supabaseId);
@@ -2310,21 +2310,21 @@ export function registerRoutes(app: Express) {
       } catch (authError) {
         console.log(`⚠️ [ENTERPRISE PLAYER] Auth lookup failed, trying direct database:`, authError);
       }
-      
+
       // Step 2: Use proven authentication endpoint pattern with email lookup
       const pgClient = new pg.Client({
         connectionString: process.env.DATABASE_URL
       });
-      
+
       try {
         await pgClient.connect();
       } catch (connectionError) {
         console.error(`❌ [ENTERPRISE PLAYER] Database connection failed:`, connectionError);
         return res.status(500).json({ error: 'Database connection failed' });
       }
-      
+
       let playerQuery, queryParams;
-      
+
       if (userEmail) {
         // Use email lookup (proven to work in authentication endpoint)
         console.log(`🔧 [ENTERPRISE PLAYER] Using proven email lookup for: ${userEmail}`);
@@ -2350,18 +2350,18 @@ export function registerRoutes(app: Express) {
         `;
         queryParams = [supabaseId];
       }
-      
+
       const playerResult = await pgClient.query(playerQuery, queryParams);
       await pgClient.end();
-      
+
       if (playerResult.rows.length === 0) {
         console.log(`❌ [ENTERPRISE PLAYER] Player not found for: ${userEmail || supabaseId}`);
         return res.status(404).json({ error: 'Player not found' });
       }
-      
+
       const playerData = playerResult.rows[0];
       console.log(`✅ [ENTERPRISE PLAYER] Found player: ${playerData.email} (ID: ${playerData.id})`);
-      
+
       // Transform data to match frontend expectations (EXACT same format as authentication endpoint)
       const player = {
         id: playerData.id.toString(),
@@ -2387,10 +2387,10 @@ export function registerRoutes(app: Express) {
         supabaseId: playerData.supabase_id,
         authToken: playerData.supabase_id
       };
-      
+
       console.log(`🎯 [ENTERPRISE PLAYER] Enterprise lookup successful: ${player.email} (ID: ${player.id}, KYC: ${player.kycStatus})`);
       res.json(player);
-      
+
     } catch (error: any) {
       console.error('❌ [ENTERPRISE PLAYER] Critical error:', error);
       res.status(500).json({ error: "Enterprise player lookup failed", details: error.message });
@@ -2401,33 +2401,33 @@ export function registerRoutes(app: Express) {
   app.get("/api/tables", async (req, res) => {
     try {
       console.log('🚀 [TABLES API PRODUCTION] Starting fresh query...');
-      
+
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
-      
+
       const { data: tablesData, error } = await supabase
         .from('poker_tables')
         .select('*')
         .order('name');
-      
+
       console.log('🔍 [TABLES API PRODUCTION] Live poker tables from staff portal:', {
         total: tablesData?.length || 0,
         tables: tablesData?.map(t => ({ id: t.id, name: t.name, game_type: t.game_type })) || []
       });
-      
+
       if (error) {
         console.error('❌ [TABLES API PRODUCTION] Database error:', error);
         return res.status(500).json({ error: "Failed to fetch tables", details: error.message });
       }
-      
+
       if (!tablesData || tablesData.length === 0) {
         console.log('⚠️ [TABLES API PRODUCTION] No tables in database');
         return res.json([]);
       }
-      
+
       const transformedTables = tablesData.map(table => ({
         id: table.id,
         name: table.name,
@@ -2440,15 +2440,15 @@ export function registerRoutes(app: Express) {
         pot: table.current_pot || 0, // Use actual pot from staff portal
         avgStack: table.avg_stack || 0 // Use actual data from staff portal - hidden in UI
       }));
-      
+
       console.log(`✅ [TABLES API PRODUCTION] Returning ${transformedTables.length} live staff portal tables`);
-      
+
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
-      
+
       res.json(transformedTables);
-      
+
     } catch (error) {
       console.error('💥 [TABLES API PRODUCTION] Unexpected error:', error);
       res.status(500).json({ error: "Internal server error" });
@@ -2467,7 +2467,7 @@ export function registerRoutes(app: Express) {
         .from('tournaments')
         .select('*')
         .order('start_time');
-      
+
       if (result.error) {
         console.error('❌ [TOURNAMENTS API] Database error:', result.error);
         return res.status(500).json({ error: "Database error" });
@@ -2494,15 +2494,15 @@ export function registerRoutes(app: Express) {
   app.get("/api/staff-offers", async (req, res) => {
     try {
       console.log('🎁 [OFFERS API] Fetching offers directly from database...');
-      
+
       // Use direct database connection like other working APIs
       const pg = await import('pg');
       const client = new pg.Client({
         connectionString: process.env.DATABASE_URL,
       });
-      
+
       await client.connect();
-      
+
       const result = await client.query(`
         SELECT id, title, description, image_url, video_url, offer_type, 
                is_active, start_date, end_date, created_at, updated_at
@@ -2510,14 +2510,14 @@ export function registerRoutes(app: Express) {
         WHERE is_active = true 
         ORDER BY created_at DESC
       `);
-      
+
       await client.end();
-      
+
       console.log('🔍 [OFFERS API] Database results:', {
         total: result.rows.length,
         offers: result.rows.map(o => ({ id: o.id, title: o.title }))
       });
-      
+
       const transformedOffers = result.rows.map((offer: any) => ({
         id: offer.id,
         title: offer.title,
@@ -2545,21 +2545,21 @@ export function registerRoutes(app: Express) {
     try {
       const { offer_id } = req.body;
       console.log('👁️ [OFFER VIEWS] Tracking view for offer:', offer_id);
-      
+
       const pg = await import('pg');
       const client = new pg.Client({
         connectionString: process.env.DATABASE_URL,
       });
-      
+
       await client.connect();
-      
+
       await client.query(`
         INSERT INTO offer_views (offer_id, viewed_at)
         VALUES ($1, NOW())
       `, [offer_id]);
-      
+
       await client.end();
-      
+
       console.log(`✅ [OFFER VIEWS] Tracked view for offer: ${offer_id}`);
       res.json({ success: true });
     } catch (error) {
@@ -2572,24 +2572,24 @@ export function registerRoutes(app: Express) {
     try {
       const { playerId } = req.params;
       console.log(`🗂️ [KYC API] Fetching KYC documents for player ${playerId}...`);
-      
+
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
-      
+
       const { data: documents, error } = await supabase
         .from('kyc_documents')
         .select('*')
         .eq('player_id', parseInt(playerId))
         .order('created_at', { ascending: false });
-      
+
       if (error) {
         console.error('❌ [KYC API] Error fetching documents:', error);
         return res.status(500).json({ error: "Failed to fetch KYC documents" });
       }
-      
+
       console.log(`✅ [KYC API] Returning ${documents?.length || 0} KYC documents for player ${playerId}`);
       res.json(documents || []);
     } catch (error) {
@@ -2606,16 +2606,16 @@ export function registerRoutes(app: Express) {
     let pgClient = null;
     try {
       const { playerId, tableId, seatNumber, notes } = req.body;
-      
+
       console.log('🎯 [SEAT REQUEST] Join attempt:', { playerId, tableId, seatNumber });
-      
+
       // Validate required fields
       if (!playerId || !tableId || !seatNumber) {
         return res.status(400).json({ 
           error: 'Missing required fields: playerId, tableId, or seatNumber' 
         });
       }
-      
+
       // Use direct PostgreSQL client for reliable database operations
       const { Client } = await import('pg');
       pgClient = new Client({
@@ -2624,10 +2624,10 @@ export function registerRoutes(app: Express) {
         query_timeout: 10000,
         statement_timeout: 10000
       });
-      
+
       await pgClient.connect();
       console.log('✅ [SEAT REQUEST] Database connected successfully');
-      
+
       // STEP 1: Check if player already has an active seat request
       const existingRequestQuery = `
         SELECT id, table_id, seat_number, status 
@@ -2636,13 +2636,13 @@ export function registerRoutes(app: Express) {
         ORDER BY created_at DESC 
         LIMIT 1
       `;
-      
+
       const existingResult = await pgClient.query(existingRequestQuery, [playerId]);
       const existingRequest = existingResult.rows[0];
-      
+
       if (existingRequest) {
         console.log('🔄 [SEAT REQUEST] Player has existing request:', existingRequest);
-        
+
         // If same table and seat, return existing request
         if (existingRequest.table_id === tableId && existingRequest.seat_number === seatNumber) {
           await pgClient.end();
@@ -2653,34 +2653,34 @@ export function registerRoutes(app: Express) {
             message: "Already waiting for this seat"
           });
         }
-        
+
         // Different table/seat - update existing request
         console.log('🔄 [SEAT REQUEST] Updating existing request to new table/seat');
-        
+
         const updateRequestQuery = `
           UPDATE seat_requests 
           SET table_id = $1, seat_number = $2, notes = $3, created_at = NOW()
           WHERE id = $4
           RETURNING *
         `;
-        
+
         const updateResult = await pgClient.query(updateRequestQuery, [
           tableId, seatNumber, notes || `Seat ${seatNumber} request`, existingRequest.id
         ]);
-        
+
         const updatedRequest = updateResult.rows[0];
-        
+
         // Also update waitlist table for staff portal sync
         const updateWaitlistQuery = `
           UPDATE waitlist 
           SET table_id = $1, seat_number = $2, updated_at = NOW()
           WHERE player_id = $3 AND status = 'waiting'
         `;
-        
+
         await pgClient.query(updateWaitlistQuery, [tableId, seatNumber, playerId]);
-        
+
         await pgClient.end();
-        
+
         // Send real-time notification for table change
         try {
           await pusher.trigger('staff-portal', 'waitlist_update', {
@@ -2694,7 +2694,7 @@ export function registerRoutes(app: Express) {
         } catch (pushError) {
           console.error('⚠️ [SEAT REQUEST] Pusher notification failed:', pushError);
         }
-        
+
         console.log(`✅ [SEAT REQUEST] Updated existing request for player ${playerId}`);
         return res.json({ 
           success: true, 
@@ -2702,31 +2702,31 @@ export function registerRoutes(app: Express) {
           message: "Seat request updated"
         });
       }
-      
+
       // STEP 2: Create new seat request
       console.log('🆕 [SEAT REQUEST] Creating new seat request');
-      
+
       // Insert into seat_requests table
       const seatRequestsQuery = `
         INSERT INTO seat_requests (player_id, table_id, seat_number, status, notes, created_at)
         VALUES ($1, $2, $3, $4, $5, NOW())
         RETURNING *
       `;
-      
+
       const seatRequestResult = await pgClient.query(seatRequestsQuery, [
         playerId, tableId, seatNumber, 'waiting', notes || `Seat ${seatNumber} request`
       ]);
-      
+
       // Get next position for waitlist table
       const nextPositionQuery = `
         SELECT COALESCE(MAX(position), 0) + 1 as next_position
         FROM waitlist 
         WHERE table_id = $1 AND status IN ('waiting', 'active')
       `;
-      
+
       const positionResult = await pgClient.query(nextPositionQuery, [tableId]);
       const nextPosition = positionResult.rows[0].next_position;
-      
+
       // Insert into waitlist table for staff portal sync
       const waitlistQuery = `
         INSERT INTO waitlist (
@@ -2745,21 +2745,21 @@ export function registerRoutes(app: Express) {
         VALUES ($1, $2, 'Texas Hold''em', 100, 5000, $3, 'waiting', $4, NOW(), NOW(), NOW())
         RETURNING *
       `;
-      
+
       const waitlistResult = await pgClient.query(waitlistQuery, [
         playerId, tableId, nextPosition, seatNumber
       ]);
-      
+
       await pgClient.end();
-      
+
       const requestData = seatRequestResult.rows[0];
       const waitlistData = waitlistResult.rows[0];
-      
+
       if (!requestData) {
         console.error('❌ [SEAT REQUEST] No data returned from insert');
         return res.status(500).json({ error: "Failed to create seat request" });
       }
-      
+
       // Send real-time notification to staff portal
       try {
         await pusher.trigger('staff-portal', 'waitlist_update', {
@@ -2773,12 +2773,12 @@ export function registerRoutes(app: Express) {
           playerName: `Player ${playerId}`,
           tableName: `Table ${tableId}`
         });
-        
+
         console.log(`🚀 [SEAT REQUEST] Real-time notification sent to staff portal`);
       } catch (pushError) {
         console.error('⚠️ [SEAT REQUEST] Pusher notification failed:', pushError);
       }
-      
+
       console.log(`✅ [SEAT REQUEST] Player ${playerId} added to waitlist - seat_requests: ${requestData.id}, waitlist: ${waitlistData?.id || 'failed'}`);
       res.json({ 
         success: true, 
@@ -2786,10 +2786,10 @@ export function registerRoutes(app: Express) {
         waitlistPosition: nextPosition,
         staffPortalSync: true 
       });
-      
+
     } catch (error: any) {
       console.error('❌ [SEAT REQUEST] Unexpected error:', error);
-      
+
       // Log detailed error information for debugging
       console.error('❌ [SEAT REQUEST] Error details:', {
         message: error.message,
@@ -2797,7 +2797,7 @@ export function registerRoutes(app: Express) {
         severity: error.severity,
         detail: error.detail
       });
-      
+
       // Return appropriate error message based on error type
       let errorMessage = "Internal server error";
       if (error.code === '57P01') {
@@ -2807,7 +2807,7 @@ export function registerRoutes(app: Express) {
       } else if (error.code === 'ECONNREFUSED') {
         errorMessage = "Database server unavailable. Please try again later.";
       }
-      
+
       res.status(500).json({ error: errorMessage });
     } finally {
       // Ensure database connection is always closed
@@ -2825,9 +2825,9 @@ export function registerRoutes(app: Express) {
   app.get("/api/seat-requests/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
-      
+
       console.log(`🔍 [NANOSECOND WAITLIST] Fetching waitlist for player: ${playerId}`);
-      
+
       // CRITICAL: Query BOTH tables for complete waitlist visibility
       const { Pool } = await import('pg');
       const pool = new Pool({
@@ -2851,7 +2851,7 @@ export function registerRoutes(app: Express) {
         AND w.status IN ('waiting', 'active')
         ORDER BY w.requested_at DESC
       `;
-      
+
       // Also get from seat_requests for legacy compatibility
       const seatRequestsQuery = `
         SELECT 
@@ -2875,7 +2875,7 @@ export function registerRoutes(app: Express) {
       ]);
 
       await pool.end();
-      
+
       // Combine both sources for complete waitlist view
       const allWaitlistEntries = [
         ...waitlistResult.rows,
@@ -2890,14 +2890,14 @@ export function registerRoutes(app: Express) {
           process.env.VITE_SUPABASE_URL!,
           process.env.SUPABASE_SERVICE_ROLE_KEY!
         );
-        
+
         const tablesResponse = await supabase.from('tables').select('id, name, game_type');
         staffPortalTables = tablesResponse.data || [];
         console.log(`🔍 [WAITLIST TABLE LOOKUP] Found ${staffPortalTables.length} Staff Portal tables`);
       } catch (error) {
         console.error('⚠️ [WAITLIST TABLE LOOKUP] Failed to get table names:', error);
       }
-      
+
       // Add table names to waitlist entries
       const enrichedWaitlistEntries = allWaitlistEntries.map(entry => {
         const table = staffPortalTables.find((t: any) => t.id === entry.table_id);
@@ -2909,7 +2909,7 @@ export function registerRoutes(app: Express) {
       });
 
       console.log(`✅ [NANOSECOND WAITLIST] Found ${enrichedWaitlistEntries.length} waitlist entries from both systems`);
-      
+
       res.json(enrichedWaitlistEntries);
     } catch (error) {
       console.error('❌ [NANOSECOND WAITLIST] Error:', error);
@@ -2921,17 +2921,17 @@ export function registerRoutes(app: Express) {
     try {
       const { playerId } = req.params;
       console.log(`🔍 [CREDIT REQUESTS API] Fetching credit requests for player: ${playerId}`);
-      
+
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
-      
+
       // Since credit requests don't exist for most players, just return empty array
       console.log(`✅ [CREDIT REQUESTS API] No credit requests for player ${playerId}`);
       const result = { data: [], error: null };
-      
+
       if (result.error) {
         console.error('❌ [CREDIT REQUESTS API] Database error:', result.error);
         return res.status(500).json({ error: "Database error" });
@@ -2953,20 +2953,20 @@ export function registerRoutes(app: Express) {
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
-      
+
       const { data: columns } = await supabase
         .from('push_notifications')
         .select('*')
         .limit(1);
-      
+
       console.log('📱 [NOTIFICATIONS DEBUG] First row:', columns);
-      
+
       const result = await supabase
         .from('push_notifications')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(20);
-      
+
       if (result.error) {
         console.error('❌ [NOTIFICATIONS API] Database error:', result.error);
         return res.status(500).json({ error: "Database error" });
@@ -2985,9 +2985,9 @@ export function registerRoutes(app: Express) {
     try {
       const { playerId } = req.params;
       const { operation = 'manual_sync' } = req.body;
-      
+
       console.log(`🔄 [NANOSECOND SYNC] Triggering balance update for player: ${playerId}`);
-      
+
       // Get fresh balance from PostgreSQL (source of truth)
       const { Pool } = await import('pg');
       const pool = new Pool({
@@ -3014,12 +3014,12 @@ export function registerRoutes(app: Express) {
           process.env.SUPABASE_URL!,
           process.env.SUPABASE_SERVICE_ROLE_KEY!
         );
-        
+
         const { error } = await supabase
           .from('players')
           .update({ balance: cashBalance.toFixed(2) })
           .eq('id', playerId);
-          
+
         if (error) {
           console.error('⚠️ [NANOSECOND SYNC] Supabase error:', error);
         } else {
@@ -3060,13 +3060,13 @@ export function registerRoutes(app: Express) {
   });
 
   // ========== DUAL BALANCE MANAGEMENT SYSTEM ==========
-  
+
   // Enhanced balance API with dual balance support + comprehensive monitoring
   app.get('/api/balance/:playerId', async (req, res) => {
     try {
       const { playerId } = req.params;
       console.log(`💰 [DUAL BALANCE] Getting balance for player:`, playerId);
-      
+
       // Use direct PostgreSQL query to get balance data
       const { Pool } = await import('pg');
       const pool = new Pool({
@@ -3080,7 +3080,7 @@ export function registerRoutes(app: Express) {
         FROM players 
         WHERE id = $1 OR player_id = $1
       `;
-      
+
       const result = await pool.query(query, [playerId]);
       await pool.end();
 
@@ -3093,7 +3093,7 @@ export function registerRoutes(app: Express) {
       const cashBalance = parseFloat(player.balance || '0');
       const creditBalance = parseFloat(player.current_credit || '0');
       const totalBalance = cashBalance + creditBalance;
-      
+
       const balanceData = {
         cashBalance,
         creditBalance,
@@ -3115,7 +3115,7 @@ export function registerRoutes(app: Express) {
       const totalDeposits = parseFloat(player.total_deposits || '0');
       const totalWithdrawals = parseFloat(player.total_withdrawals || '0');
       const expectedBalance = totalDeposits - totalWithdrawals;
-      
+
       if (Math.abs(cashBalance - expectedBalance) > 0.01 && totalDeposits > 0) {
         console.warn(`⚠️ [BALANCE INTEGRITY] Potential discrepancy for Player ${playerId}:`, {
           currentBalance: cashBalance,
@@ -3134,12 +3134,12 @@ export function registerRoutes(app: Express) {
   });
 
   // ========== BALANCE INTEGRITY MONITORING SYSTEM ==========
-  
+
   // Balance audit endpoint for staff portal monitoring
   app.get('/api/admin/balance-audit', async (req, res) => {
     try {
       console.log('🔍 [BALANCE AUDIT] Running comprehensive balance integrity check...');
-      
+
       const { Pool } = await import('pg');
       const pool = new Pool({
         connectionString: process.env.DATABASE_URL,
@@ -3162,7 +3162,7 @@ export function registerRoutes(app: Express) {
         ORDER BY discrepancy DESC, last_login_at DESC NULLS LAST
         LIMIT 50
       `;
-      
+
       const result = await pool.query(auditQuery);
       await pool.end();
 
@@ -3201,15 +3201,15 @@ export function registerRoutes(app: Express) {
   // REMOVED: Duplicate /api/account-balance/:playerId endpoint - use main endpoint instead
 
   // ========== KYC DOCUMENT UPLOAD AND MANAGEMENT SYSTEM ==========
-  
+
   // Document upload endpoint - Direct PostgreSQL (bypasses Supabase cache)
   app.post('/api/documents/upload', async (req, res) => {
     try {
       const { playerId, documentType, fileName, fileData, fileSize, mimeType } = req.body;
-      
+
       console.log(`🔧 [DIRECT KYC UPLOAD] Uploading ${documentType} for player:`, playerId);
       console.log(`🔧 [DIRECT KYC UPLOAD] Request data:`, { playerId, documentType, fileName, fileDataLength: fileData?.length });
-      
+
       if (!playerId || !documentType || !fileName || !fileData) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
@@ -3234,9 +3234,9 @@ export function registerRoutes(app: Express) {
   app.get('/api/documents/player/:playerId', async (req, res) => {
     try {
       const { playerId } = req.params;
-      
+
       console.log(`🔧 [DIRECT KYC DOCS] Getting documents for player:`, playerId);
-      
+
       // Use direct PostgreSQL to bypass Supabase cache issues
       const documents = await directKycStorage.getPlayerDocuments(parseInt(playerId));
 
@@ -3252,9 +3252,9 @@ export function registerRoutes(app: Express) {
   app.get('/api/documents/view/:documentId', async (req, res) => {
     try {
       const { documentId } = req.params;
-      
+
       console.log(`🔧 [DIRECT KYC VIEW] Getting document:`, documentId);
-      
+
       // Get document details from database
       const { Pool } = await import('pg');
       const pool = new Pool({
@@ -3277,30 +3277,30 @@ export function registerRoutes(app: Express) {
 
       const document = result.rows[0];
       console.log(`✅ [DIRECT KYC VIEW] Document found:`, document.file_name);
-      
+
       // For Supabase URLs, fetch and serve the content directly to avoid CORS issues
       if (document.file_url.startsWith('https://') && document.file_url.includes('supabase.co')) {
         console.log(`🔗 [DIRECT KYC VIEW] Fetching and serving Supabase document:`, document.file_url);
-        
+
         try {
           const response = await fetch(document.file_url);
           if (!response.ok) {
             console.error(`❌ [DIRECT KYC VIEW] Failed to fetch document: ${response.status}`);
             return res.status(404).json({ error: 'Document not accessible' });
           }
-          
+
           const contentType = response.headers.get('content-type') || 'application/octet-stream';
           const buffer = await response.arrayBuffer();
-          
+
           console.log(`✅ [DIRECT KYC VIEW] Serving document: ${document.file_name} (${contentType})`);
-          
+
           res.set({
             'Content-Type': contentType,
             'Content-Length': buffer.byteLength.toString(),
             'Content-Disposition': `inline; filename="${document.file_name}"`,
             'Cache-Control': 'public, max-age=86400'
           });
-          
+
           res.send(Buffer.from(buffer));
           return;
         } catch (fetchError) {
@@ -3311,7 +3311,7 @@ export function registerRoutes(app: Express) {
 
       // Otherwise serve the file directly
       res.json({ error: 'Direct file serving not implemented for this storage type' });
-      
+
     } catch (error) {
       console.error('❌ [DIRECT KYC VIEW] Error:', error);
       res.status(500).json({ error: 'Failed to fetch document' });
@@ -3322,9 +3322,9 @@ export function registerRoutes(app: Express) {
   app.post('/api/kyc/submit', async (req, res) => {
     try {
       const { playerId, email, firstName, lastName, panCardNumber, phone, address } = req.body;
-      
+
       console.log(`🔧 [DIRECT KYC SUBMIT] Submitting KYC for player:`, playerId);
-      
+
       // Use direct PostgreSQL to bypass Supabase cache issues
       const success = await directKycStorage.submitKyc(parseInt(playerId), {
         firstName: firstName || '',
@@ -3341,7 +3341,7 @@ export function registerRoutes(app: Express) {
       // Send submission confirmation email using Supabase
       try {
         console.log(`📧 [SUPABASE EMAIL] Sending confirmation email to: ${email}`);
-        
+
         // Import Supabase client for server-side operations
         const { createClient } = await import('@supabase/supabase-js');
         const supabaseServiceClient = createClient(
@@ -3351,7 +3351,7 @@ export function registerRoutes(app: Express) {
 
         // Send confirmation email using Supabase's built-in email service
         const { error: emailError } = await supabaseServiceClient.auth.admin.generateLink({
-          type: 'signup',
+          type: 'signup', 
           email: email,
           password: 'temp-password-123' // Required parameter for Supabase
         });
@@ -3380,7 +3380,7 @@ export function registerRoutes(app: Express) {
     try {
       const { playerId } = req.params;
       console.log(`🔧 [DIRECT KYC STATUS] Getting KYC status for player:`, playerId);
-      
+
       const { Pool } = await import('pg');
       const pool = new Pool({
         connectionString: process.env.DATABASE_URL,
@@ -3392,9 +3392,9 @@ export function registerRoutes(app: Express) {
         FROM players 
         WHERE id = $1
       `;
-      
+
       const playerResult = await pool.query(playerQuery, [parseInt(playerId)]);
-      
+
       if (playerResult.rows.length === 0) {
         await pool.end();
         return res.status(404).json({ error: 'Player not found' });
@@ -3412,7 +3412,7 @@ export function registerRoutes(app: Express) {
         WHERE player_id = $1
         GROUP BY document_type, status
       `;
-      
+
       const docResult = await pool.query(docQuery, [parseInt(playerId)]);
       await pool.end();
 
@@ -3447,10 +3447,10 @@ export function registerRoutes(app: Express) {
     try {
       const { playerId } = req.params;
       console.log(`🔧 [DIRECT KYC DOCS] Getting KYC documents for player:`, playerId);
-      
+
       const documents = await directKycStorage.getPlayerDocuments(parseInt(playerId));
       console.log(`✅ [DIRECT KYC DOCS] Found ${documents.length} documents for player:`, playerId);
-      
+
       res.json(documents);
     } catch (error) {
       console.error('❌ [DIRECT KYC DOCS] Error:', error);
@@ -3459,22 +3459,22 @@ export function registerRoutes(app: Express) {
   });
 
   // ========== EMAIL VERIFICATION SYSTEM ==========
-  
+
   // Send email verification
   app.post('/api/auth/send-verification-email', async (req, res) => {
     try {
       const { email, playerId } = req.body;
-      
+
       if (!email) {
         return res.status(400).json({ error: 'Email is required' });
       }
-      
+
       console.log(`📧 [EMAIL VERIFICATION] Sending verification email to:`, email);
-      
+
       // Generate verification token
       const verificationToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
       const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-      
+
       // Store verification token in database
       const { Pool } = await import('pg');
       const pool = new Pool({
@@ -3489,13 +3489,13 @@ export function registerRoutes(app: Express) {
       `, [verificationToken, tokenExpiry, email]);
 
       await pool.end();
-      
+
       // Create verification URL
       const verificationUrl = `${req.protocol}://${req.get('host')}/api/auth/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
-      
+
       console.log(`📧 [EMAIL VERIFICATION] Verification URL:`, verificationUrl);
       console.log(`📧 [EMAIL VERIFICATION] Token:`, verificationToken);
-      
+
       // Send email via Supabase with proper verification link
       try {
         // Initialize Supabase admin client for email operations
@@ -3534,31 +3534,31 @@ export function registerRoutes(app: Express) {
       } catch (supabaseError) {
         console.log(`⚠️ [EMAIL VERIFICATION] Supabase initialization error:`, supabaseError);
       }
-      
+
       res.json({ 
         success: true, 
         message: 'Verification email sent',
         verificationUrl: verificationUrl,
         token: verificationToken
       });
-      
+
     } catch (error) {
       console.error('❌ [EMAIL VERIFICATION] Error:', error);
       res.status(500).json({ error: 'Failed to send verification email' });
     }
   });
-  
+
   // Verify email endpoint
   app.get('/api/auth/verify-email', async (req, res) => {
     try {
       const { token, email } = req.query;
-      
+
       if (!token || !email) {
         return res.status(400).json({ error: 'Missing token or email' });
       }
-      
+
       console.log(`📧 [EMAIL VERIFICATION] Verifying token for:`, email);
-      
+
       const { Pool } = await import('pg');
       const pool = new Pool({
         connectionString: process.env.DATABASE_URL,
@@ -3577,13 +3577,13 @@ export function registerRoutes(app: Express) {
       }
 
       const player = result.rows[0];
-      
+
       // Check if token is expired
       if (new Date() > new Date(player.token_expiry)) {
         await pool.end();
         return res.status(400).json({ error: 'Verification token expired' });
       }
-      
+
       // Update email verification status
       await pool.query(`
         UPDATE players 
@@ -3592,9 +3592,9 @@ export function registerRoutes(app: Express) {
       `, [player.id]);
 
       await pool.end();
-      
+
       console.log(`✅ [EMAIL VERIFICATION] Email verified for player:`, player.id);
-      
+
       // Redirect to success page with confirmation
       const confirmationHtml = `
         <!DOCTYPE html>
@@ -3670,22 +3670,22 @@ export function registerRoutes(app: Express) {
         </body>
         </html>
       `;
-      
+
       res.send(confirmationHtml);
-      
+
     } catch (error) {
       console.error('❌ [EMAIL VERIFICATION] Error:', error);
       res.status(500).json({ error: 'Email verification failed' });
     }
   });
-  
+
   // Manual email verification for testing
   app.post('/api/auth/verify-email-manual', async (req, res) => {
     try {
       const { email } = req.body;
-      
+
       console.log(`📧 [MANUAL VERIFICATION] Verifying email:`, email);
-      
+
       const { Pool } = await import('pg');
       const pool = new Pool({
         connectionString: process.env.DATABASE_URL,
@@ -3699,10 +3699,10 @@ export function registerRoutes(app: Express) {
       `, [email]);
 
       await pool.end();
-      
+
       console.log(`✅ [MANUAL VERIFICATION] Email manually verified:`, email);
       res.json({ success: true, message: 'Email verification updated' });
-      
+
     } catch (error) {
       console.error('❌ [MANUAL VERIFICATION] Error:', error);
       res.status(500).json({ error: 'Failed to verify email' });
@@ -3710,16 +3710,16 @@ export function registerRoutes(app: Express) {
   });
 
   // ========== ENTERPRISE-GRADE PLAYER CREATION SYSTEM ==========
-  
+
   // Enterprise single player creation (optimized for scalability)
   app.post('/api/enterprise/players/create', async (req, res) => {
     try {
       const playerData = req.body;
-      
+
       console.log('🏢 [ENTERPRISE CREATE] Creating player:', playerData.email);
-      
+
       const result = await enterprisePlayerSystem.createSinglePlayer(playerData);
-      
+
       console.log(`✅ [ENTERPRISE CREATE] Player ${result.status}:`, result.playerId);
       res.json({
         success: true,
@@ -3727,7 +3727,7 @@ export function registerRoutes(app: Express) {
         status: result.status,
         message: result.message
       });
-      
+
     } catch (error: any) {
       console.error('❌ [ENTERPRISE CREATE] Error:', error);
       res.status(500).json({ 
@@ -3741,21 +3741,21 @@ export function registerRoutes(app: Express) {
   app.post('/api/enterprise/players/bulk-create', async (req, res) => {
     try {
       const { players } = req.body;
-      
+
       if (!Array.isArray(players) || players.length === 0) {
         return res.status(400).json({
           success: false,
           error: 'Invalid players array provided'
         });
       }
-      
+
       console.log(`🏢 [ENTERPRISE BULK] Starting bulk creation of ${players.length} players`);
-      
+
       const result = await enterprisePlayerSystem.createBulkPlayers(players);
-      
+
       console.log(`✅ [ENTERPRISE BULK] Completed: ${result.created} created, ${result.failed} failed`);
       res.json(result);
-      
+
     } catch (error: any) {
       console.error('❌ [ENTERPRISE BULK] Error:', error);
       res.status(500).json({ 
@@ -3769,22 +3769,22 @@ export function registerRoutes(app: Express) {
   app.get('/api/enterprise/players/generate-test/:count', async (req, res) => {
     try {
       const count = parseInt(req.params.count);
-      
+
       if (isNaN(count) || count <= 0 || count > 50000) {
         return res.status(400).json({
           error: 'Count must be between 1 and 50,000'
         });
       }
-      
+
       console.log(`🏢 [ENTERPRISE TEST] Generating ${count} test players`);
-      
+
       const testPlayers = enterprisePlayerSystem.generateTestPlayers(count);
-      
+
       res.json({
         count: testPlayers.length,
         players: testPlayers
       });
-      
+
     } catch (error: any) {
       console.error('❌ [ENTERPRISE TEST] Error:', error);
       res.status(500).json({ error: error.message });
@@ -3795,15 +3795,15 @@ export function registerRoutes(app: Express) {
   app.get('/api/enterprise/health', async (req, res) => {
     try {
       console.log('🏢 [ENTERPRISE HEALTH] Running health check...');
-      
+
       const healthCheck = await enterprisePlayerSystem.healthCheck();
-      
+
       res.json({
         status: healthCheck.databaseConnected && healthCheck.supabaseConnected ? 'healthy' : 'degraded',
         ...healthCheck,
         timestamp: new Date().toISOString()
       });
-      
+
     } catch (error: any) {
       console.error('❌ [ENTERPRISE HEALTH] Error:', error);
       res.status(500).json({ 
@@ -3814,18 +3814,18 @@ export function registerRoutes(app: Express) {
   });
 
   // ========== PRODUCTION-GRADE AUTHENTICATION SYSTEM ==========
-  
+
   // RESTORED WORKING SIGNIN WITH CLERK INTEGRATION
   app.post('/api/auth/signin', async (req, res) => {
     try {
       const { email, password } = req.body;
-      
+
       if (!email || !password) {
         return res.status(400).json({ error: 'Email and password are required' });
       }
-      
+
       console.log(`🔐 [PLAYERS TABLE AUTH] Login attempt: ${email}`);
-      
+
       // Use Supabase client with service role to bypass RLS
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
@@ -3857,7 +3857,7 @@ export function registerRoutes(app: Express) {
       const now = new Date();
       const indianTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000)); // Add 5.5 hours for IST
       const formattedTime = indianTime.toISOString().slice(0, 19).replace('T', ' '); // Format as YYYY-MM-DD HH:MM:SS
-      
+
       const { error: updateError } = await supabase
         .from('players')
         .update({ 
@@ -3908,11 +3908,11 @@ export function registerRoutes(app: Express) {
   app.post('/api/auth/signup', async (req, res) => {
     try {
       const { email, password, firstName, lastName, phone, nickname } = req.body;
-      
-      if (!email || !password || !firstName || !lastName) {
-        return res.status(400).json({ error: 'All required fields must be provided' });
+
+      if (!email || !password || !firstName || !lastName || !nickname) {
+        return res.status(400).json({ error: 'All required fields must be provided including nickname' });
       }
-      
+
       console.log(`🔐 [PLAYERS TABLE SIGNUP] Creating account: ${email}`);
 
       // Use Supabase client with service role to bypass RLS (same as signin)
@@ -3932,11 +3932,11 @@ export function registerRoutes(app: Express) {
         console.error('❌ [PLAYERS TABLE SIGNUP] Check error:', checkError);
         return res.status(500).json({ error: 'Database query failed' });
       }
-        
+
       if (existingPlayers && existingPlayers.length > 0) {
         const existingPlayer = existingPlayers[0];
         console.log(`✅ [PLAYERS TABLE SIGNUP] Found existing player: ${email}`);
-        
+
         // Update password if different (allows password reset via signup)
         if (existingPlayer.password !== password) {
           const { error: updateError } = await supabase
@@ -3946,20 +3946,20 @@ export function registerRoutes(app: Express) {
               last_login_at: new Date().toISOString() 
             })
             .eq('email', email);
-            
+
           if (updateError) {
             console.error('❌ [PLAYERS TABLE SIGNUP] Update error:', updateError);
           } else {
             console.log(`🔄 [PLAYERS TABLE SIGNUP] Updated password for: ${email}`);
           }
         }
-          
+
           // Check what the user needs based on their current status
           const needsEmailVerification = !existingPlayer.email_verified;
           const needsKYCUpload = existingPlayer.kyc_status === 'pending';
           const needsKYCApproval = existingPlayer.kyc_status === 'submitted';
           const isFullyVerified = existingPlayer.email_verified && existingPlayer.kyc_status === 'approved';
-          
+
           return res.json({
             success: true,
             existing: true,
@@ -3983,24 +3983,24 @@ export function registerRoutes(app: Express) {
 
       // User doesn't exist - create new player
       console.log(`🔥 [PLAYERS TABLE SIGNUP] Creating new player: ${email}`);
-      
+
       // Get existing player IDs to generate next available ID
       const { data: allPlayerIds } = await supabase
         .from('players')
         .select('player_id')
         .not('player_id', 'is', null);
-      
+
       const existingPlayerIds = allPlayerIds?.map(p => p.player_id).filter(Boolean) || [];
       const generatedPlayerId = generateNextPlayerId(existingPlayerIds);
-      
+
       // Create player record using Supabase (players table only)
       const universalId = `players_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const fullName = `${firstName} ${lastName}`.trim();
       const playerNickname = nickname?.trim() || firstName;
       const currentTimestamp = new Date().toISOString();
-      
+
       console.log(`🎯 [PLAYER ID GENERATION] Generated player ID: ${generatedPlayerId}`);
-      
+
       const { data: newPlayers, error: insertError } = await supabase
         .from('players')
         .insert({
@@ -4087,7 +4087,7 @@ export function registerRoutes(app: Express) {
   // Continue with other endpoints that should ALSO use Supabase-only approach...
 
   // CLERK-SUPABASE SYNCHRONIZATION ENDPOINTS
-  
+
   // Clerk webhook endpoint for real-time sync
   app.post('/api/clerk/webhook', async (req, res) => {
     const { ClerkSupabaseSync } = await import('./clerk-supabase-sync');
@@ -4114,9 +4114,9 @@ export function registerRoutes(app: Express) {
   app.get('/api/auth/status/:email', async (req, res) => {
     try {
       const { email } = req.params;
-      
+
       console.log(`🔍 [AUTH STATUS] Checking double auth status: ${email}`);
-      
+
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
         process.env.VITE_SUPABASE_URL!,
