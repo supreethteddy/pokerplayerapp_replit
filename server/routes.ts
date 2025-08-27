@@ -4093,7 +4093,7 @@ export function registerRoutes(app: Express) {
 
       // Use direct PostgreSQL insertion to avoid ID conflicts
       const { Client } = await import('pg');
-      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      const pgClient = new Client({ connectionString: process.env.SUPABASE_DATABASE_URL });
       await pgClient.connect();
 
       let newPlayerData;
