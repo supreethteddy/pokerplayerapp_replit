@@ -16,45 +16,45 @@ export default function TableView() {
   const [showJoinDialog, setShowJoinDialog] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+
   console.log('🎯 TableView render - selectedSeat:', selectedSeat, 'showJoinDialog:', showJoinDialog);
-  
+
   // Fetch table data from API
   const { data: tables } = useQuery({
     queryKey: ['/api/tables'],
     refetchInterval: 2000,
   });
-  
+
   // Add type safety for tables array
   const tablesArray = Array.isArray(tables) ? tables : [];
-  
+
   // Use the working ultra-fast auth system (same as PlayerDashboard)
   const { user, loading: authLoading } = useUltraFastAuth();
-  
+
   const currentTable = tablesArray.find((table: any) => table.id === tableId);
-  
+
   // Check if user is already on waitlist for this table (optimized to only run when user is loaded)
   const { data: userWaitlist } = useQuery({
     queryKey: ['/api/seat-requests', user?.id],
     enabled: !!user?.id && !authLoading,
   });
-  
+
   // Add type safety for userWaitlist array
   const waitlistArray = Array.isArray(userWaitlist) ? userWaitlist : [];
-  
+
   // Get seated players for this table
   const { data: seatedPlayers } = useQuery({
     queryKey: ['/api/table-seats', tableId],
     enabled: !!tableId,
     refetchInterval: 2000, // Refresh every 2 seconds to show real-time seat assignments
   });
-  
+
   // Add type safety for seatedPlayers array
   const seatedPlayersArray = Array.isArray(seatedPlayers) ? seatedPlayers : [];
-  
+
   const isOnWaitlist = waitlistArray.some((req: any) => req.tableId === tableId);
   const waitlistEntry = waitlistArray.find((req: any) => req.tableId === tableId);
-  
+
   // Join waitlist with seat reservation
   const joinWaitlistMutation = useMutation({
     mutationFn: async (seatNumber: number) => {
@@ -76,23 +76,23 @@ export default function TableView() {
         seatNumber: seatNumber,
         notes: `Seat ${seatNumber} request from table view`
       });
-      
+
       console.log(`🎯 [TABLE VIEW JOIN] API Response status:`, response.status);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`🎯 [TABLE VIEW JOIN] API Error response:`, errorText);
-        
+
         let errorData;
         try {
           errorData = JSON.parse(errorText);
         } catch {
           errorData = { error: errorText || `HTTP ${response.status}` };
         }
-        
+
         throw new Error(errorData.error || errorData.message || `Server Error: ${response.status}`);
       }
-      
+
       const result = await response.json();
       console.log(`🎯 [TABLE VIEW JOIN] API Success response:`, result);
       return result;
@@ -111,7 +111,7 @@ export default function TableView() {
     },
     onError: (error: any) => {
       console.error('❌ [TABLE VIEW JOIN] Waitlist join failed:', error);
-      
+
       // Handle "already on waitlist" scenario specifically
       if (error.message && error.message.includes('Already on waitlist')) {
         toast({
@@ -130,7 +130,7 @@ export default function TableView() {
       }
     },
   });
-  
+
   if (!currentTable) {
     return (
       <div className="min-h-screen bg-slate-900 text-white p-4 flex items-center justify-center">
@@ -154,12 +154,12 @@ export default function TableView() {
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back
         </Button>
-        
+
         <div className="text-center">
           <h1 className="text-2xl font-bold text-white">{currentTable.name}</h1>
           <p className="text-slate-300">{currentTable.gameType} • {currentTable.stakes}</p>
         </div>
-        
+
         <div className="w-16"></div> {/* Spacer for centering */}
       </div>
 
@@ -184,12 +184,12 @@ export default function TableView() {
       <div className="flex-1 flex flex-col items-center px-4 py-8">
         <div className="relative w-full max-w-4xl">
           {/* Poker Table - Oval Shape matching staff portal */}
-          <div className="relative aspect-[5/3] max-w-2xl mx-auto">
+          <div className="relative aspect-[5/3] max-w-2xl mx-auto mb-12 mt-8">
             {/* Table Background with Golden Border */}
             <div className="absolute inset-0 rounded-[50%] bg-gradient-to-br from-amber-600 via-yellow-500 to-amber-600 p-2 shadow-2xl">
               {/* Green Felt Surface */}
               <div className="absolute inset-2 rounded-[50%] bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-800 shadow-inner">
-                
+
                 {/* Seat Positions - 9 seats arranged around oval, skipping 12 o'clock dealer position */}
                 {Array.from({ length: 9 }, (_, index) => {
                   const seatNumber = index + 1;
@@ -204,11 +204,11 @@ export default function TableView() {
                   const x = 50 + radiusX * Math.cos(angle);
                   const y = 50 + radiusY * Math.sin(angle);
                   const isSelected = selectedSeat === seatNumber;
-                  
+
                   // Check if this seat is occupied by a seated player
                   const seatedPlayer = seatedPlayersArray.find((p: any) => p.seatNumber === seatNumber);
                   const isOccupied = !!seatedPlayer;
-                  
+
                   return (
                     <div
                       key={seatNumber}
@@ -386,7 +386,7 @@ export default function TableView() {
               Confirm your seat reservation for {currentTable?.name}
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
               <h4 className="font-semibold text-emerald-400 mb-2">Table Information</h4>
@@ -417,7 +417,7 @@ export default function TableView() {
                 <X className="w-4 h-4 mr-2" />
                 Cancel
               </Button>
-              
+
               <Button
                 onClick={() => {
                   if (selectedSeat && user?.id) {
