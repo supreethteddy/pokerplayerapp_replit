@@ -4045,7 +4045,38 @@ export function registerRoutes(app: Express) {
       // User doesn't exist - create new player
       console.log(`🔥 [PLAYERS TABLE SIGNUP] Creating new player: ${email}`);
 
-      // STEP 1: Create Clerk user first with corrected API format
+      // STEP 1: Create Supabase Auth user first (PRIMARY AUTHENTICATION SYSTEM)
+      let supabaseUserId = null;
+      try {
+        const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+          email: email,
+          password: password,
+          email_confirm: false, // We'll handle email verification manually
+          user_metadata: {
+            first_name: firstName,
+            last_name: lastName,
+            phone: phone || '',
+            source: 'player_portal'
+          }
+        });
+
+        if (authError || !authUser.user) {
+          console.error('❌ [SUPABASE AUTH] User creation failed:', authError);
+          throw new Error(authError?.message || 'Failed to create Supabase auth user');
+        }
+
+        supabaseUserId = authUser.user.id;
+        console.log(`✅ [SUPABASE AUTH] User created successfully: ${supabaseUserId}`);
+        
+      } catch (supabaseError: any) {
+        console.error('❌ [SUPABASE AUTH] Failed to create auth user:', supabaseError.message);
+        return res.status(500).json({ 
+          error: 'Failed to create authentication user', 
+          details: supabaseError.message 
+        });
+      }
+
+      // STEP 2: Create Clerk user (SECONDARY AUTHENTICATION SYSTEM)
       let clerkUserId = null;
       try {
         const { clerkClient } = await import('@clerk/clerk-sdk-node');
@@ -4056,7 +4087,8 @@ export function registerRoutes(app: Express) {
           lastName: lastName,
           privateMetadata: {
             source: 'player_portal',
-            created_from: 'signup_endpoint'
+            created_from: 'signup_endpoint',
+            supabase_id: supabaseUserId
           },
           publicMetadata: {
             role: 'player'
@@ -4069,7 +4101,7 @@ export function registerRoutes(app: Express) {
         console.log(`🔍 [CLERK] User details - ID: ${clerkUser.id}, Email: ${clerkUser.emailAddresses?.[0]?.emailAddress}`);
         
       } catch (clerkError: any) {
-        console.warn('⚠️ [CLERK] Failed to create Clerk user, continuing with player-only signup:', clerkError.message);
+        console.warn('⚠️ [CLERK] Failed to create Clerk user, continuing with Supabase-only signup:', clerkError.message);
         
         // Log detailed error information for debugging
         if (clerkError.errors) {
@@ -4079,7 +4111,7 @@ export function registerRoutes(app: Express) {
           console.warn('⚠️ [CLERK] Status code:', clerkError.status);
         }
         
-        // Continue without Clerk user - the system should work without Clerk
+        // Continue without Clerk user - the system works with Supabase as primary
       }
 
       // Database will auto-generate the ID, no need for player_id generation
@@ -4102,21 +4134,21 @@ export function registerRoutes(app: Express) {
           INSERT INTO players (
             email, password, first_name, last_name, phone, 
             kyc_status, email_verified, balance, universal_id, 
-            is_active, clerk_user_id, current_credit, credit_limit, 
+            is_active, supabase_id, clerk_user_id, current_credit, credit_limit, 
             credit_approved, total_deposits, total_withdrawals, total_winnings, 
             total_losses, games_played, hours_played
           ) VALUES (
             $1, $2, $3, $4, $5, 'pending', false, '0.00', $6, 
-            true, $7, 0.00, 0.00, false, '0.00', '0.00', 
+            true, $7, $8, 0.00, 0.00, false, '0.00', '0.00', 
             '0.00', '0.00', 0, '0.00'
           ) RETURNING *
         `;
 
-        const universalId = `players_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const universalId = `unified_${supabaseUserId}_${Date.now()}`;
 
         const result = await pgClient.query(insertQuery, [
           email, password, firstName, lastName, phone,
-          universalId, clerkUserId
+          universalId, supabaseUserId, clerkUserId
         ]);
 
         newPlayerData = result.rows[0];
