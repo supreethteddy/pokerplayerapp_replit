@@ -22,6 +22,15 @@ export interface AuthUser {
   player_id?: string; // Added for player ID
 }
 
+export interface AuthResult {
+  success: boolean;
+  error?: string;
+  redirectToKYC?: boolean;
+  existing?: boolean;
+  player?: any;
+  playerData?: any;
+}
+
 export function useUltraFastAuth() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
