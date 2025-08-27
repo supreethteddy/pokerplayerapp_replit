@@ -4081,9 +4081,20 @@ export function registerRoutes(app: Express) {
         
         console.log(`✅ [PLAYERS TABLE SIGNUP] New player created successfully: ${email} (ID: ${newPlayerData.id})`);
         
-      } catch (dbError) {
+      } catch (dbError: any) {
         await pgClient.end();
         console.error('❌ [PLAYERS TABLE SIGNUP] Database insertion error:', dbError);
+        
+        // Handle duplicate email constraint violation
+        if (dbError.code === '23505' && dbError.constraint === 'players_email_unique') {
+          console.log('🔍 [DUPLICATE EMAIL] Email already exists, checking if user can log in:', email);
+          return res.status(409).json({ 
+            error: 'An account with this email already exists. Please try logging in instead.',
+            code: 'EMAIL_EXISTS',
+            suggestLogin: true
+          });
+        }
+        
         return res.status(500).json({ error: 'Database operation failed' });
       }
 

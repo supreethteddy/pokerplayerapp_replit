@@ -399,6 +399,12 @@ export function useUltraFastAuth() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Signup failed' }));
+        
+        // Handle duplicate email with user-friendly message
+        if (response.status === 409 && errorData.code === 'EMAIL_EXISTS') {
+          throw new Error('This email is already registered. Please use the login form instead.');
+        }
+        
         throw new Error(errorData.error || 'Signup failed');
       }
 
