@@ -30,7 +30,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     firstName: playerData.firstName || '',
     lastName: playerData.lastName || '',
     email: playerData.email || '',
-    phone: ''
+    phone: playerData.phone || ''
   });
   const [uploadedDocs, setUploadedDocs] = useState({
     governmentId: null as string | null,
