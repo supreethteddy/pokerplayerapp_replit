@@ -4,6 +4,7 @@ import {
   tables, 
   seatRequests, 
   kycDocuments,
+  transactions,
   type Player, 
   type InsertPlayer,
   type PlayerPrefs,
@@ -12,7 +13,9 @@ import {
   type SeatRequest,
   type InsertSeatRequest,
   type KycDocument,
-  type InsertKycDocument
+  type InsertKycDocument,
+  type Transaction,
+  type InsertTransaction
 } from "@shared/schema";
 
 export interface IStorage {
@@ -79,11 +82,19 @@ export class MemStorage implements IStorage {
     return Array.from(this.players.values()).find(player => player.email === email);
   }
 
+  async getPlayerBySupabaseId(supabaseId: string): Promise<Player | undefined> {
+    return Array.from(this.players.values()).find(player => player.supabaseId === supabaseId);
+  }
+
   async createPlayer(insertPlayer: InsertPlayer): Promise<Player> {
     const id = this.currentPlayerId++;
     const player: Player = { 
       ...insertPlayer, 
       id,
+      supabaseId: insertPlayer.supabaseId || null,
+      universalId: null,
+      clerkUserId: null,
+      password: insertPlayer.password || null,
       kycStatus: insertPlayer.kycStatus || "pending",
       balance: "0.00",
       totalDeposits: "0.00",
@@ -92,6 +103,18 @@ export class MemStorage implements IStorage {
       totalLosses: "0.00",
       gamesPlayed: 0,
       hoursPlayed: "0.00",
+      creditApproved: false,
+      creditLimit: "0.00",
+      currentCredit: "0.00",
+      panCardNumber: null,
+      panCardDocumentUrl: null,
+      panCardStatus: "missing",
+      panCardVerified: false,
+      panCardUploadedAt: null,
+      isActive: true,
+      emailVerified: false,
+      lastLoginAt: null,
+      clerkSyncedAt: null,
       createdAt: new Date(),
     };
     this.players.set(id, player);
@@ -137,11 +160,28 @@ export class MemStorage implements IStorage {
     const id = this.currentRequestId++;
     const request: SeatRequest = {
       id,
+      universalId: null,
       playerId: insertRequest.playerId || null,
-      tableId: insertRequest.tableId || null,
+      tableId: insertRequest.tableId,
       status: insertRequest.status || "waiting",
       position: insertRequest.position || 1,
+      seatNumber: insertRequest.seatNumber || null,
+      notes: insertRequest.notes || null,
       estimatedWait: insertRequest.estimatedWait || 15,
+      sessionStartTime: null,
+      minPlayTime: 30,
+      callTimeWindow: 10,
+      callTimePlayPeriod: 5,
+      cashoutWindow: 3,
+      callTimeStarted: null,
+      callTimeEnds: null,
+      cashoutWindowActive: false,
+      cashoutWindowEnds: null,
+      lastCashoutAttempt: null,
+      sessionBuyInAmount: "0.00",
+      sessionCashOutAmount: "0.00",
+      sessionRakeAmount: "0.00",
+      sessionTipAmount: "0.00",
       createdAt: new Date(),
     };
     this.seatRequests.set(id, request);
@@ -168,17 +208,29 @@ export class MemStorage implements IStorage {
     return document;
   }
 
+  async getKycDocumentsByPlayer(playerId: number): Promise<KycDocument[]> {
+    return Array.from(this.kycDocuments.values()).filter(doc => doc.playerId === playerId);
+  }
+
   // Transaction operations
   async createTransaction(insertTransaction: InsertTransaction): Promise<Transaction> {
     const id = this.currentTransactionId++;
     const transaction: Transaction = {
       id,
+      universalId: null,
       playerId: insertTransaction.playerId || null,
       type: insertTransaction.type,
       amount: insertTransaction.amount,
-      description: insertTransaction.description,
-      staffId: insertTransaction.staffId,
+      description: insertTransaction.description || null,
+      staffId: insertTransaction.staffId || null,
       status: insertTransaction.status || "completed",
+      sessionId: insertTransaction.sessionId || null,
+      tableId: insertTransaction.tableId || null,
+      tableName: insertTransaction.tableName || null,
+      sessionEventType: insertTransaction.sessionEventType || null,
+      sessionDuration: insertTransaction.sessionDuration || null,
+      rakePercentage: insertTransaction.rakePercentage || null,
+      tipRecipient: insertTransaction.tipRecipient || null,
       createdAt: new Date(),
     };
     this.transactions.set(id, transaction);

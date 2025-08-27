@@ -16,14 +16,26 @@ console.log('🚀 [PUSHER] Single instance initialized for cross-portal communic
 
 // Single OneSignal client for push notifications
 let oneSignalClient: any = null;
-try {
-  const OneSignal = await import('onesignal-node');
-  oneSignalClient = new OneSignal.default.Client(
-    process.env.ONESIGNAL_APP_ID!,
-    process.env.ONESIGNAL_REST_API_KEY!
-  );
-} catch (error) {
-  console.warn('⚠️ [ONESIGNAL] Failed to initialize OneSignal:', error);
+
+async function initializeOneSignal() {
+  try {
+    if (process.env.ONESIGNAL_APP_ID && process.env.ONESIGNAL_REST_API_KEY) {
+      const OneSignal = await import('onesignal-node');
+      if (OneSignal.default && OneSignal.default.Client) {
+        oneSignalClient = new OneSignal.default.Client(
+          process.env.ONESIGNAL_APP_ID,
+          process.env.ONESIGNAL_REST_API_KEY
+        );
+        console.log('📱 [ONESIGNAL] Successfully initialized');
+      } else {
+        console.warn('⚠️ [ONESIGNAL] Client class not available in onesignal-node module');
+      }
+    } else {
+      console.log('📱 [ONESIGNAL] Skipping initialization - missing environment variables');
+    }
+  } catch (error) {
+    console.warn('⚠️ [ONESIGNAL] Failed to initialize OneSignal:', (error as Error).message);
+  }
 }
 
 export { oneSignalClient };
@@ -31,6 +43,9 @@ export { oneSignalClient };
 console.log('📱 [ONESIGNAL] Single instance initialized for push notifications');
 
 async function initializeApp() {
+  // Initialize OneSignal first
+  await initializeOneSignal();
+  
   const app = express();
   // Increase payload limits for file uploads (10MB limit)
   app.use(express.json({ limit: '10mb' }));
