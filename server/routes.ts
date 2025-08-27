@@ -2600,12 +2600,12 @@ export function registerRoutes(app: Express) {
   // ========== DUPLICATE ENDPOINT REMOVED - USE MAIN: /api/balance/:playerId ==========
   // REMOVED: First duplicate /api/account-balance/:playerId endpoint - redirecting to main
 
-  // POST endpoint for joining waitlist with 2-way handshake table management
+  // POST endpoint for joining waitlist - updated to use seat_requests table properly
   app.post("/api/seat-requests", async (req, res) => {
     try {
       const { playerId, tableId, seatNumber, notes } = req.body;
       
-      console.log('🎯 [SEAT REQUEST] Join attempt with 2-way handshake:', { playerId, tableId, seatNumber });
+      console.log('🎯 [SEAT REQUEST] Join attempt:', { playerId, tableId, seatNumber });
       
       const { createClient } = await import('@supabase/supabase-js');
       const supabase = createClient(
@@ -2613,178 +2613,7 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       
-      // STEP 1: Check if user already has a table_waiting_id (existing table assignment)
-      const { data: playerData, error: playerError } = await supabase
-        .from('players')
-        .select('table_waiting_id')
-        .eq('id', playerId)
-        .single();
-      
-      if (playerError) {
-        console.error('❌ [SEAT REQUEST] Player lookup error:', playerError);
-        return res.status(404).json({ error: "Player not found" });
-      }
-      
-      const existingTableId = playerData.table_waiting_id;
-      console.log('🔍 [2-WAY HANDSHAKE] Player current table_waiting_id:', existingTableId);
-      
-      // STEP 2: If player is already waiting for a different table, handle table switch
-      if (existingTableId && existingTableId !== tableId) {
-        console.log('🔄 [2-WAY HANDSHAKE] Player switching from table', existingTableId, 'to table', tableId);
-        
-        // Decrement current_players from the old table
-        const { data: oldTableData } = await supabase
-          .from('poker_tables')
-          .select('current_players')
-          .eq('id', existingTableId)
-          .single();
-          
-        if (oldTableData) {
-          const { error: decrementError } = await supabase
-            .from('poker_tables')
-            .update({ 
-              current_players: Math.max(0, (oldTableData.current_players || 0) - 1)
-            })
-            .eq('id', existingTableId);
-        }
-        
-        if (decrementError) {
-          console.error('❌ [2-WAY HANDSHAKE] Failed to decrement old table players:', decrementError);
-        } else {
-          console.log('✅ [2-WAY HANDSHAKE] Decremented players from old table:', existingTableId);
-        }
-      }
-      
-      // STEP 3: Check new table capacity and availability
-      const { data: tableData, error: tableError } = await supabase
-        .from('poker_tables')
-        .select('max_players, current_players, id')
-        .eq('id', tableId)
-        .single();
-      
-      if (tableError) {
-        console.error('❌ [SEAT REQUEST] Table lookup error:', tableError);
-        return res.status(404).json({ error: "Table not found" });
-      }
-      
-      const maxPlayers = tableData.max_players || 9;
-      const currentPlayers = tableData.current_players || 0;
-      
-      console.log('🎯 [2-WAY HANDSHAKE] New table capacity check:', { tableId, maxPlayers, currentPlayers });
-      
-      // STEP 4: Check if new table has space
-      if (currentPlayers >= maxPlayers) {
-        console.log('🚫 [2-WAY HANDSHAKE] New table full - rejecting join request');
-        
-        // If we decremented the old table, we need to restore it since the move failed
-        if (existingTableId && existingTableId !== tableId) {
-          const { data: restoreTableData } = await supabase
-            .from('poker_tables')
-            .select('current_players')
-            .eq('id', existingTableId)
-            .single();
-            
-          if (restoreTableData) {
-            await supabase
-              .from('poker_tables')
-              .update({ 
-                current_players: (restoreTableData.current_players || 0) + 1
-              })
-              .eq('id', existingTableId);
-          }
-          console.log('🔄 [2-WAY HANDSHAKE] Restored old table count due to failed move');
-        }
-        
-        return res.status(400).json({ 
-          error: "Table is full", 
-          message: "Cannot join - table at capacity",
-          currentPlayers,
-          maxPlayers
-        });
-      }
-      
-      // STEP 5: Complete the 2-way handshake - update both tables
-      
-      // 5a. Increment current_players for the new table
-      const { error: incrementError } = await supabase
-        .from('poker_tables')
-        .update({ 
-          current_players: currentPlayers + 1
-        })
-        .eq('id', tableId);
-      
-      if (incrementError) {
-        console.error('❌ [2-WAY HANDSHAKE] Failed to increment new table players:', incrementError);
-        return res.status(500).json({ error: "Failed to update table capacity" });
-      }
-      
-      // 5b. Update player's table_waiting_id to the new table
-      const { error: playerUpdateError } = await supabase
-        .from('players')
-        .update({ 
-          table_waiting_id: tableId
-        })
-        .eq('id', playerId);
-      
-      if (playerUpdateError) {
-        console.error('❌ [2-WAY HANDSHAKE] Failed to update player table_waiting_id:', playerUpdateError);
-        
-        // Rollback: decrement the table counter we just incremented
-        await supabase
-          .from('poker_tables')
-          .update({ 
-            current_players: currentPlayers
-          })
-          .eq('id', tableId);
-          
-        return res.status(500).json({ error: "Failed to update player table assignment" });
-      }
-      
-      console.log('✅ [2-WAY HANDSHAKE] Successfully completed:', { 
-        playerId, 
-        newTableId: tableId, 
-        oldTableId: existingTableId,
-        seatNumber 
-      });
-      
-      // STEP 6: Send real-time notifications for 2-way handshake updates
-      try {
-        // Notify all portals of table assignment change
-        await pusher.trigger('cross-portal-sync', 'table_assignment_update', {
-          type: '2way_handshake_completed',
-          playerId: playerId,
-          newTableId: tableId,
-          oldTableId: existingTableId,
-          seatNumber: seatNumber,
-          timestamp: new Date().toISOString()
-        });
-        
-        // Update new table players count in real-time
-        await pusher.trigger('table-updates', `table-${tableId}`, {
-          type: 'player_count_updated',
-          tableId: tableId,
-          action: 'player_joined',
-          playerId: playerId,
-          newPlayerCount: currentPlayers + 1
-        });
-        
-        // If switching tables, update old table too
-        if (existingTableId && existingTableId !== tableId) {
-          await pusher.trigger('table-updates', `table-${existingTableId}`, {
-            type: 'player_count_updated',
-            tableId: existingTableId,
-            action: 'player_left',
-            playerId: playerId,
-            newPlayerCount: 'updated'
-          });
-        }
-        
-        console.log('🚀 [2-WAY HANDSHAKE] Real-time notifications sent successfully');
-      } catch (pushError) {
-        console.error('⚠️ [2-WAY HANDSHAKE] Pusher notification failed:', pushError);
-      }
-      
-      // Use direct PostgreSQL client to bypass Supabase schema cache issues
+      // Use direct PostgreSQL client for reliable database operations
       const { Client } = await import('pg');
       const pgClient = new Client({
         connectionString: process.env.DATABASE_URL
@@ -2792,20 +2621,96 @@ export function registerRoutes(app: Express) {
       
       await pgClient.connect();
       
-      // CRITICAL: Insert into BOTH waitlist tables for nanosecond staff portal sync
+      // STEP 1: Check if player already has an active seat request
+      const existingRequestQuery = `
+        SELECT id, table_id, seat_number, status 
+        FROM seat_requests 
+        WHERE player_id = $1 AND status = 'waiting'
+        ORDER BY created_at DESC 
+        LIMIT 1
+      `;
       
-      // 1. Insert into seat_requests (legacy system)
+      const existingResult = await pgClient.query(existingRequestQuery, [playerId]);
+      const existingRequest = existingResult.rows[0];
+      
+      if (existingRequest) {
+        console.log('🔄 [SEAT REQUEST] Player has existing request:', existingRequest);
+        
+        // If same table and seat, return existing request
+        if (existingRequest.table_id === tableId && existingRequest.seat_number === seatNumber) {
+          await pgClient.end();
+          console.log('✅ [SEAT REQUEST] Same request already exists');
+          return res.json({ 
+            success: true, 
+            request: existingRequest,
+            message: "Already waiting for this seat"
+          });
+        }
+        
+        // Different table/seat - update existing request
+        console.log('🔄 [SEAT REQUEST] Updating existing request to new table/seat');
+        
+        const updateRequestQuery = `
+          UPDATE seat_requests 
+          SET table_id = $1, seat_number = $2, notes = $3, created_at = NOW()
+          WHERE id = $4
+          RETURNING *
+        `;
+        
+        const updateResult = await pgClient.query(updateRequestQuery, [
+          tableId, seatNumber, notes || `Seat ${seatNumber} request`, existingRequest.id
+        ]);
+        
+        const updatedRequest = updateResult.rows[0];
+        
+        // Also update waitlist table for staff portal sync
+        const updateWaitlistQuery = `
+          UPDATE waitlist 
+          SET table_id = $1, seat_number = $2, updated_at = NOW()
+          WHERE player_id = $3 AND status = 'waiting'
+        `;
+        
+        await pgClient.query(updateWaitlistQuery, [tableId, seatNumber, playerId]);
+        
+        await pgClient.end();
+        
+        // Send real-time notification for table change
+        try {
+          await pusher.trigger('staff-portal', 'waitlist_update', {
+            type: 'player_moved',
+            playerId: playerId,
+            oldTableId: existingRequest.table_id,
+            newTableId: tableId,
+            seatNumber: seatNumber,
+            timestamp: new Date().toISOString()
+          });
+        } catch (pushError) {
+          console.error('⚠️ [SEAT REQUEST] Pusher notification failed:', pushError);
+        }
+        
+        console.log(`✅ [SEAT REQUEST] Updated existing request for player ${playerId}`);
+        return res.json({ 
+          success: true, 
+          request: updatedRequest,
+          message: "Seat request updated"
+        });
+      }
+      
+      // STEP 2: Create new seat request
+      console.log('🆕 [SEAT REQUEST] Creating new seat request');
+      
+      // Insert into seat_requests table
       const seatRequestsQuery = `
-        INSERT INTO seat_requests (player_id, table_id, seat_number, status, created_at)
-        VALUES ($1, $2, $3, $4, NOW())
+        INSERT INTO seat_requests (player_id, table_id, seat_number, status, notes, created_at)
+        VALUES ($1, $2, $3, $4, $5, NOW())
         RETURNING *
       `;
       
       const seatRequestResult = await pgClient.query(seatRequestsQuery, [
-        playerId, tableId, seatNumber, 'waiting'
+        playerId, tableId, seatNumber, 'waiting', notes || `Seat ${seatNumber} request`
       ]);
       
-      // 2. CRITICAL: Also insert into waitlist (staff portal table) for instant visibility
+      // Get next position for waitlist table
       const nextPositionQuery = `
         SELECT COALESCE(MAX(position), 0) + 1 as next_position
         FROM waitlist 
@@ -2815,6 +2720,7 @@ export function registerRoutes(app: Express) {
       const positionResult = await pgClient.query(nextPositionQuery, [tableId]);
       const nextPosition = positionResult.rows[0].next_position;
       
+      // Insert into waitlist table for staff portal sync
       const waitlistQuery = `
         INSERT INTO waitlist (
           player_id, 
@@ -2837,11 +2743,9 @@ export function registerRoutes(app: Express) {
         playerId, tableId, nextPosition, seatNumber
       ]);
       
-      const result = seatRequestResult; // Return the seat_requests result for compatibility
-      
       await pgClient.end();
       
-      const requestData = result.rows[0];
+      const requestData = seatRequestResult.rows[0];
       const waitlistData = waitlistResult.rows[0];
       
       if (!requestData) {
@@ -2849,28 +2753,26 @@ export function registerRoutes(app: Express) {
         return res.status(500).json({ error: "Failed to create seat request" });
       }
       
-      // CRITICAL: Send real-time notification to staff portal for INSTANT visibility
-      if ((global as any).pusher && waitlistData) {
-        try {
-          await (global as any).pusher.trigger('staff-portal', 'waitlist_update', {
-            type: 'player_joined',
-            playerId: playerId,
-            tableId: tableId,
-            seatNumber: seatNumber,
-            position: nextPosition,
-            waitlistId: waitlistData.id,
-            timestamp: new Date().toISOString(),
-            playerName: `Player ${playerId}`,
-            tableName: `Table ${tableId}`
-          });
-          
-          console.log(`🚀 [NANOSECOND SYNC] Real-time notification sent to staff portal for player ${playerId}`);
-        } catch (pushError) {
-          console.error('⚠️ [NANOSECOND SYNC] Pusher notification failed:', pushError);
-        }
+      // Send real-time notification to staff portal
+      try {
+        await pusher.trigger('staff-portal', 'waitlist_update', {
+          type: 'player_joined',
+          playerId: playerId,
+          tableId: tableId,
+          seatNumber: seatNumber,
+          position: nextPosition,
+          waitlistId: waitlistData?.id,
+          timestamp: new Date().toISOString(),
+          playerName: `Player ${playerId}`,
+          tableName: `Table ${tableId}`
+        });
+        
+        console.log(`🚀 [SEAT REQUEST] Real-time notification sent to staff portal`);
+      } catch (pushError) {
+        console.error('⚠️ [SEAT REQUEST] Pusher notification failed:', pushError);
       }
       
-      console.log(`✅ [NANOSECOND WAITLIST] Player ${playerId} added to BOTH tables - seat_requests: ${requestData.id}, waitlist: ${waitlistData?.id || 'failed'}`);
+      console.log(`✅ [SEAT REQUEST] Player ${playerId} added to waitlist - seat_requests: ${requestData.id}, waitlist: ${waitlistData?.id || 'failed'}`);
       res.json({ 
         success: true, 
         request: requestData,
