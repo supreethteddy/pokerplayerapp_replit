@@ -3985,6 +3985,8 @@ export function registerRoutes(app: Express) {
       
       // Create player record using Supabase (players table only)
       const universalId = `players_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const fullName = `${firstName} ${lastName}`.trim();
+      const currentTimestamp = new Date().toISOString();
       
       const { data: newPlayers, error: insertError } = await supabase
         .from('players')
@@ -3993,6 +3995,7 @@ export function registerRoutes(app: Express) {
           password,
           first_name: firstName,
           last_name: lastName,
+          full_name: fullName,
           phone,
           kyc_status: 'pending',
           email_verified: false,
@@ -4008,7 +4011,13 @@ export function registerRoutes(app: Express) {
           current_credit: 0,
           credit_limit: 0,
           credit_approved: false,
-          created_at: new Date().toISOString()
+          credit_eligible: false,
+          nickname: firstName,
+          player_id: null,
+          clerk_user_id: null,
+          created_at: currentTimestamp,
+          updated_at: currentTimestamp,
+          last_login_at: null
         })
         .select();
 
