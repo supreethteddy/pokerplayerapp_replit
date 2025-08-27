@@ -1,4 +1,4 @@
-import { ClerkProvider, SignedIn, SignedOut } from '@clerk/clerk-react';
+import { SignedIn, SignedOut } from '@clerk/clerk-react';
 import { useClerkSupabaseAuth } from '../hooks/useClerkSupabaseAuth';
 import ClerkSignInPage from './ClerkSignInPage';
 import ClerkSignUpPage from './ClerkSignUpPage';
@@ -109,39 +109,14 @@ function AuthChoice() {
 }
 
 export default function ClerkAuthWrapper({ children }: ClerkAuthWrapperProps) {
-  const clerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-
-  if (!clerkKey) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-white mb-4">Configuration Error</h1>
-          <p className="text-slate-400">Clerk publishable key not found</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <ClerkProvider 
-      publishableKey={clerkKey}
-      appearance={{
-        elements: {
-          rootBox: 'mx-auto',
-          card: 'bg-slate-800 border border-slate-700 text-white',
-          headerTitle: 'text-white',
-          headerSubtitle: 'text-slate-400',
-          formButtonPrimary: 'bg-emerald-600 hover:bg-emerald-700',
-          footerActionLink: 'text-emerald-400 hover:text-emerald-300'
-        }
-      }}
-    >
+    <>
       <SignedIn>
         <AuthenticatedContent>{children}</AuthenticatedContent>
       </SignedIn>
       <SignedOut>
         <AuthChoice />
       </SignedOut>
-    </ClerkProvider>
+    </>
   );
 }

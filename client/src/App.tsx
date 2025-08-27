@@ -4,8 +4,11 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useUltraFastAuth } from "./hooks/useUltraFastAuth";
+import { useHybridAuth } from "./hooks/useHybridAuth";
+import { ClerkProvider } from '@clerk/clerk-react';
 
 import AuthWrapper from "./components/AuthWrapper";
+import ClerkAuthWrapper from "./components/ClerkAuthWrapper";
 import SafeAuthWrapper from "./components/AuthErrorBoundary";
 import PlayerDashboard from "./components/PlayerDashboard";
 import KYCWorkflow from "./components/KYCWorkflow";
@@ -21,7 +24,12 @@ import ThankYou from "@/pages/thank-you";
 import InteractiveThankYouPage from "./components/InteractiveThankYouPage";
 
 function AppContent() {
-  const { user, loading, authChecked } = useUltraFastAuth();
+  // Check if we should use Clerk authentication
+  const useClerk = !new URLSearchParams(window.location.search).get('use_legacy') && 
+                   import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+  
+  // Use hybrid auth to support both Clerk and legacy authentication
+  const { user, loading, authChecked } = useClerk ? useHybridAuth() : useUltraFastAuth();
   
   // Debug logging for routing
   console.log('🔍 [APP ROUTING] user:', !!user, 'loading:', loading, 'authChecked:', authChecked);
@@ -143,7 +151,7 @@ function AppContent() {
       
       <Switch>
         <Route path="/">
-          {user ? <Redirect to="/dashboard" /> : <AuthWrapper />}
+          {user ? <Redirect to="/dashboard" /> : (useClerk ? <ClerkAuthWrapper><div /></ClerkAuthWrapper> : <AuthWrapper />)}
         </Route>
         <Route path="/dashboard">
           {user ? <PlayerDashboard user={user} /> : <Redirect to="/" />}
@@ -170,10 +178,10 @@ function AppContent() {
           />
         </Route>
         <Route path="/sign-in">
-          <AuthWrapper />
+          {useClerk ? <ClerkAuthWrapper><div /></ClerkAuthWrapper> : <AuthWrapper />}
         </Route>
         <Route path="/sign-up">
-          <AuthWrapper />
+          {useClerk ? <ClerkAuthWrapper><div /></ClerkAuthWrapper> : <AuthWrapper />}
         </Route>
         <Route component={NotFound} />
       </Switch>
@@ -182,6 +190,25 @@ function AppContent() {
 }
 
 function App() {
+  const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+  
+  // If Clerk key is available, wrap with ClerkProvider
+  if (clerkPublishableKey && !new URLSearchParams(window.location.search).get('use_legacy')) {
+    return (
+      <ClerkProvider publishableKey={clerkPublishableKey}>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <SafeAuthWrapper>
+              <AppContent />
+            </SafeAuthWrapper>
+            <Toaster />
+          </TooltipProvider>
+        </QueryClientProvider>
+      </ClerkProvider>
+    );
+  }
+  
+  // Fall back to legacy auth
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

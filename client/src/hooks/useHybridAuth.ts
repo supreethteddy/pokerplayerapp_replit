@@ -125,3 +125,38 @@ export function useHybridAuth() {
     supabaseUser
   };
 }
+
+// Standalone function to create Clerk user and sync with Supabase
+export const createClerkSupabaseUser = async (clerkUser: any) => {
+  try {
+    console.log('🔄 [HYBRID AUTH] Creating/syncing Clerk user with Supabase...');
+    
+    const response = await fetch('/api/auth/clerk-user-sync', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        clerkUserId: clerkUser.id,
+        email: clerkUser.primaryEmailAddress?.emailAddress,
+        firstName: clerkUser.firstName || '',
+        lastName: clerkUser.lastName || '',
+        phone: clerkUser.primaryPhoneNumber?.phoneNumber || '',
+        emailVerified: clerkUser.primaryEmailAddress?.verification?.status === 'verified'
+      })
+    });
+
+    if (response.ok) {
+      const userData = await response.json();
+      console.log('✅ [HYBRID AUTH] Clerk user synced successfully');
+      return { success: true, userData };
+    } else {
+      const error = await response.text();
+      console.error('❌ [HYBRID AUTH] Failed to sync Clerk user:', error);
+      return { success: false, error };
+    }
+  } catch (error) {
+    console.error('❌ [HYBRID AUTH] Sync error:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Sync failed' };
+  }
+};

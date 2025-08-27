@@ -1,0 +1,65 @@
+What all data is sent to clerk mwhen the user signs up to create a clerk account for the user
+
+PS
+
+galyxisworkhub
+Assistant
+just now
+Looking at your codebase, I can see that when a user signs up, no data is sent to Clerk automatically. Your authentication system is currently using a "pure players table" approach that bypasses Clerk entirely.
+
+Here's what happens during signup based on your current implementation:
+
+Current Signup Flow (No Clerk Integration)
+In useUltraFastAuth.ts, the signup process:
+
+Collects user data locally:
+
+email
+password
+firstName
+lastName
+phone
+nickname
+Sends data to your backend API (/api/auth/signup):
+
+const response = await fetch('/api/auth/signup', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email,
+    password,
+    firstName,
+    lastName,
+    phone,
+    nickname,
+    fullName: `${firstName} ${lastName}`.trim(),
+    player_id: newPlayerId,
+  }),
+});
+Stores data in your Supabase players table - no Clerk interaction occurs.
+
+What Would Be Sent to Clerk (If Enabled)
+Based on the commented code and Clerk integration files in your codebase, if you wanted to enable Clerk integration, the typical data sent would be:
+
+email (required)
+password (required)
+firstName (optional)
+lastName (optional)
+phone (optional but recommended)
+Your Current System Status
+Your logs show:
+
+🎯 [PURE PLAYERS AUTH] Skipping Supabase auth state listeners - using players table only
+This means you're intentionally bypassing both Clerk and Supabase auth, using only your custom players table authentication.
+
+If You Want to Enable Clerk Integration
+You have the infrastructure ready in files like:
+
+ClerkAuthWrapper.tsx
+ClerkSignUpPage.tsx
+useClerkAuth.ts
+But currently, the main auth hook (useUltraFastAuth.ts) explicitly skips Clerk integration with comments like "REMOVED: Invisible Clerk for pure Supabase authentication".
+
+Bottom line: Currently, no data is sent to Clerk during signup. Your system uses a custom authentication approach that stores everything in your own database.
