@@ -263,10 +263,18 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     return userDetails.firstName && userDetails.lastName && userDetails.email && userDetails.phone;
   };
 
-  const isValidPAN = (pan: string) => {
-    // PAN format: 5 letters + 4 numbers + 1 letter (e.g., ABCDE1234F)
-    const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
-    return panRegex.test(pan.toUpperCase());
+  const isValidPAN = (pan: string): boolean => {
+    // Enhanced PAN Card validation with specific entity codes
+    // Pattern: ^[A-Z]{3}[PCHABGJLFT][A-Z][0-9]{4}[A-Z]$
+    // First 3: Alphabets, 4th: Entity code, 5th: Alphabet, Next 4: Digits, Last: Alphabet
+    const panRegex = /^[A-Z]{3}[PCHABGJLFT][A-Z][0-9]{4}[A-Z]$/;
+    
+    // Length and case validation
+    if (!pan || pan.length !== 10 || pan !== pan.toUpperCase()) {
+      return false;
+    }
+    
+    return panRegex.test(pan);
   };
 
   const isStep2Complete = () => {
@@ -437,11 +445,11 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                       className={`bg-gray-700 border-gray-600 text-white ${
                         panCardNumber && !isValidPAN(panCardNumber) ? 'border-red-500' : ''
                       }`}
-                      placeholder="ABCDE1234F"
+                      placeholder="ABCPF1234G"
                       maxLength={10}
                     />
                     {panCardNumber && !isValidPAN(panCardNumber) && (
-                      <p className="text-red-400 text-xs">Invalid PAN format. Use: 5 letters + 4 numbers + 1 letter</p>
+                      <p className="text-red-400 text-xs">Invalid PAN format. Format: 3 letters + entity code + 1 letter + 4 digits + 1 letter (e.g. ABCPF1234G)</p>
                     )}
                   </div>
                   <div className="space-y-2">

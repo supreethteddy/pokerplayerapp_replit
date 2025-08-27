@@ -51,6 +51,9 @@ import { ClerkPlayerSync } from './clerk-integration';
 // Import staff portal integration
 import staffPortalRoutes from './routes/staff-portal-integration';
 
+// Import malware scanner
+import { scanBufferForMalware } from './malware-scanner';
+
 // Import F&B schema types
 import { foodBeverageItems, adsOffers, orders } from '@shared/schema';
 
@@ -3202,7 +3205,7 @@ export function registerRoutes(app: Express) {
 
   // ========== KYC DOCUMENT UPLOAD AND MANAGEMENT SYSTEM ==========
 
-  // Document upload endpoint - Direct PostgreSQL (bypasses Supabase cache)
+  // Document upload endpoint - Direct PostgreSQL with ClamAV malware scanning
   app.post('/api/documents/upload', async (req, res) => {
     try {
       const { playerId, documentType, fileName, fileData, fileSize, mimeType } = req.body;
@@ -3214,6 +3217,38 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
+      // Convert base64 file data to buffer for scanning
+      let fileBuffer: Buffer;
+      try {
+        // Remove data URL prefix if present (data:image/png;base64,...)
+        const base64Data = fileData.includes(',') ? fileData.split(',')[1] : fileData;
+        fileBuffer = Buffer.from(base64Data, 'base64');
+        console.log(`🔍 [MALWARE SCAN] Preparing to scan ${fileName} (${fileBuffer.length} bytes)`);
+      } catch (error) {
+        console.error('❌ [DIRECT KYC UPLOAD] Invalid file data:', error);
+        return res.status(400).json({ error: 'Invalid file data format' });
+      }
+
+      // Perform malware scanning with ClamAV
+      const scanResult = await scanBufferForMalware(fileBuffer, fileName);
+      
+      if (scanResult.isInfected) {
+        console.log(`🚨 [MALWARE DETECTED] File ${fileName} contains malware:`, scanResult.viruses);
+        return res.status(400).json({ 
+          error: 'Malware detected in uploaded file',
+          malware: true,
+          viruses: scanResult.viruses,
+          message: 'The uploaded file contains malware and cannot be processed. Please upload a clean file.'
+        });
+      }
+
+      if (scanResult.error) {
+        console.warn(`⚠️ [MALWARE SCAN] Scan error for ${fileName}:`, scanResult.error);
+        // Continue with upload even if scan fails (log warning but don't block user)
+      } else {
+        console.log(`✅ [MALWARE SCAN] File ${fileName} is clean - proceeding with upload`);
+      }
+
       // Use direct PostgreSQL to bypass Supabase cache issues
       const uploadedDoc = await directKycStorage.uploadDocument(
         parseInt(playerId),
@@ -3223,7 +3258,15 @@ export function registerRoutes(app: Express) {
       );
 
       console.log(`✅ [DIRECT KYC UPLOAD] Document uploaded successfully:`, uploadedDoc.id);
-      res.json({ success: true, document: uploadedDoc });
+      res.json({ 
+        success: true, 
+        document: uploadedDoc,
+        malwareScan: {
+          scanned: !scanResult.error,
+          clean: !scanResult.isInfected,
+          scanResult: scanResult.scanResult || 'UNKNOWN'
+        }
+      });
     } catch (error) {
       console.error('❌ [DIRECT KYC UPLOAD] Error:', error);
       res.status(500).json({ error: 'Failed to upload document' });
