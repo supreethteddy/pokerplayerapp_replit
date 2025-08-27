@@ -3909,8 +3909,26 @@ export function registerRoutes(app: Express) {
     try {
       const { email, password, firstName, lastName, phone, nickname } = req.body;
 
-      if (!email || !password || !firstName || !lastName || !nickname) {
-        return res.status(400).json({ error: 'All required fields must be provided including nickname' });
+      // Log received data for debugging
+      console.log('🔐 [SIGNUP VALIDATION] Received data:', { 
+        email: !!email, 
+        password: !!password, 
+        firstName: !!firstName, 
+        lastName: !!lastName, 
+        phone: !!phone, 
+        nickname: !!nickname 
+      });
+
+      if (!email || !password || !firstName || !lastName || !phone || !nickname) {
+        console.log('❌ [SIGNUP VALIDATION] Missing fields:', { 
+          email: !email ? 'MISSING' : 'OK', 
+          password: !password ? 'MISSING' : 'OK', 
+          firstName: !firstName ? 'MISSING' : 'OK', 
+          lastName: !lastName ? 'MISSING' : 'OK', 
+          phone: !phone ? 'MISSING' : 'OK', 
+          nickname: !nickname ? 'MISSING' : 'OK' 
+        });
+        return res.status(400).json({ error: 'All required fields must be provided: email, password, firstName, lastName, phone, and nickname' });
       }
 
       console.log(`🔐 [PLAYERS TABLE SIGNUP] Creating account: ${email}`);

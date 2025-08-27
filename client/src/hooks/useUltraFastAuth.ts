@@ -331,7 +331,22 @@ export function useUltraFastAuth() {
     }
   };
 
-  const signUp = async (email: string, password: string, firstName: string, lastName: string, phone: string, nickname: string) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    firstName: string,
+    lastName: string,
+    phone: string,
+    nickname: string,
+  ): Promise<AuthResult> => {
+    console.log('📝 [ULTRA-FAST AUTH] SignUp data being sent:', { 
+      email, 
+      hasPassword: !!password, 
+      firstName,
+      lastName, 
+      nickname, 
+      phone 
+    });
     try {
       setLoading(true);
       console.log('📝 [ULTRA-FAST AUTH] Signing up:', email);
@@ -367,7 +382,7 @@ export function useUltraFastAuth() {
           firstName,
           lastName,
           phone,
-          nickname, // Include nickname
+          nickname, // This was missing!
           fullName: `${firstName} ${lastName}`.trim(), // Include full name
           player_id: newPlayerId, // Include generated player ID
         }),
