@@ -4046,29 +4046,13 @@ export function registerRoutes(app: Express) {
           password,
           first_name: firstName,
           last_name: lastName,
-          full_name: fullName,
           phone,
           kyc_status: 'pending',
-          email_verified: false,
           balance: '0.00',
           universal_id: universalId,
-          is_active: true,
-          total_deposits: '0.00',
-          total_withdrawals: '0.00',
-          total_winnings: '0.00',
-          total_losses: '0.00',
-          games_played: 0,
-          hours_played: '0.00',
-          current_credit: 0,
-          credit_limit: 0,
-          credit_approved: false,
-          credit_eligible: false,
-          nickname: playerNickname,
           player_id: generatedPlayerId,
           clerk_user_id: clerkUserId,
-          created_at: currentTimestamp,
-          updated_at: currentTimestamp,
-          last_login_at: null
+          created_at: currentTimestamp
         })
         .select();
 
