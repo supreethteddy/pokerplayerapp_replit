@@ -190,10 +190,15 @@ export default function TableView() {
               {/* Green Felt Surface */}
               <div className="absolute inset-2 rounded-[50%] bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-800 shadow-inner">
                 
-                {/* Seat Positions - 9 seats as shown in staff portal */}
+                {/* Seat Positions - 9 seats arranged around oval, skipping 12 o'clock dealer position */}
                 {Array.from({ length: 9 }, (_, index) => {
                   const seatNumber = index + 1;
-                  const angle = (index / 9) * 2 * Math.PI - Math.PI / 2;
+                  // Calculate angle skipping 12 o'clock position (dealer position)
+                  // We have 10 total positions (9 players + 1 dealer), so each position is 36 degrees apart
+                  // Start from 1:12 position (36 degrees from top) and go clockwise
+                  const totalPositions = 10; // 9 players + 1 dealer
+                  const angleStep = (2 * Math.PI) / totalPositions;
+                  const angle = (index + 1) * angleStep - Math.PI / 2; // +1 to skip dealer at index 0
                   const radiusX = 42;
                   const radiusY = 32;
                   const x = 50 + radiusX * Math.cos(angle);
