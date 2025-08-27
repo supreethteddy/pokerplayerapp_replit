@@ -18,9 +18,25 @@ export interface HybridUser {
 }
 
 export function useHybridAuth() {
-  // Clerk authentication state
-  const { user: clerkUser, isLoaded: clerkLoaded, isSignedIn } = useUser();
-  const { signOut: clerkSignOut } = useClerkAuth();
+  // Safely check if we're inside ClerkProvider
+  let clerkUser, clerkLoaded, isSignedIn, clerkSignOut;
+  
+  try {
+    // Clerk authentication state
+    const clerkUserHook = useUser();
+    const clerkAuthHook = useClerkAuth();
+    clerkUser = clerkUserHook.user;
+    clerkLoaded = clerkUserHook.isLoaded;
+    isSignedIn = clerkUserHook.isSignedIn;
+    clerkSignOut = clerkAuthHook.signOut;
+  } catch (error) {
+    // If Clerk hooks fail, fall back to no Clerk user
+    clerkUser = null;
+    clerkLoaded = true;
+    isSignedIn = false;
+    clerkSignOut = async () => {};
+    console.warn('🚫 [HYBRID AUTH] Clerk hooks not available, using Supabase only');
+  }
   
   // Existing Supabase authentication state
   const { user: supabaseUser, loading: supabaseLoading, authChecked } = useUltraFastAuth();

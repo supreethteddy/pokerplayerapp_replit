@@ -24,11 +24,12 @@ import ThankYou from "@/pages/thank-you";
 import InteractiveThankYouPage from "./components/InteractiveThankYouPage";
 
 function AppContent() {
-  // Temporarily disable Clerk to use legacy authentication system
-  const useClerk = false; // Disabled until Clerk keys are properly configured
+  // Enable Clerk authentication now that keys are configured
+  const useClerk = !new URLSearchParams(window.location.search).get('use_legacy') && 
+                   import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
   
-  // Use legacy authentication for now
-  const { user, loading, authChecked } = useUltraFastAuth();
+  // Use hybrid auth to support both Clerk and legacy authentication
+  const { user, loading, authChecked } = useClerk ? useHybridAuth() : useUltraFastAuth();
   
   // Debug logging for routing
   console.log('🔍 [APP ROUTING] user:', !!user, 'loading:', loading, 'authChecked:', authChecked);
@@ -189,7 +190,25 @@ function AppContent() {
 }
 
 function App() {
-  // Use legacy authentication system for now
+  const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+  
+  // If Clerk key is available, wrap with ClerkProvider for dual authentication
+  if (clerkPublishableKey && !new URLSearchParams(window.location.search).get('use_legacy')) {
+    return (
+      <ClerkProvider publishableKey={clerkPublishableKey}>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <SafeAuthWrapper>
+              <AppContent />
+            </SafeAuthWrapper>
+            <Toaster />
+          </TooltipProvider>
+        </QueryClientProvider>
+      </ClerkProvider>
+    );
+  }
+  
+  // Fall back to legacy auth if no Clerk key or use_legacy param
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
