@@ -60,9 +60,10 @@ export default function DirectClubsAuth() {
         const result = await signUp(
           email,
           password,
-          fullName, // Pass the concatenated full name
-          nickname, // Pass the nickname
+          firstName, // Pass the first name
+          lastName, // Pass the last name
           phone,
+          nickname, // Pass the nickname
         );
 
         if (result.success) {
