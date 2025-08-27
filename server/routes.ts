@@ -2602,24 +2602,30 @@ export function registerRoutes(app: Express) {
 
   // POST endpoint for joining waitlist - updated to use seat_requests table properly
   app.post("/api/seat-requests", async (req, res) => {
+    let pgClient = null;
     try {
       const { playerId, tableId, seatNumber, notes } = req.body;
       
       console.log('🎯 [SEAT REQUEST] Join attempt:', { playerId, tableId, seatNumber });
       
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
+      // Validate required fields
+      if (!playerId || !tableId || !seatNumber) {
+        return res.status(400).json({ 
+          error: 'Missing required fields: playerId, tableId, or seatNumber' 
+        });
+      }
       
       // Use direct PostgreSQL client for reliable database operations
       const { Client } = await import('pg');
-      const pgClient = new Client({
-        connectionString: process.env.DATABASE_URL
+      pgClient = new Client({
+        connectionString: process.env.DATABASE_URL,
+        connectionTimeoutMillis: 10000, // 10 second timeout
+        query_timeout: 10000,
+        statement_timeout: 10000
       });
       
       await pgClient.connect();
+      console.log('✅ [SEAT REQUEST] Database connected successfully');
       
       // STEP 1: Check if player already has an active seat request
       const existingRequestQuery = `
@@ -2780,9 +2786,38 @@ export function registerRoutes(app: Express) {
         staffPortalSync: true 
       });
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ [SEAT REQUEST] Unexpected error:', error);
-      res.status(500).json({ error: "Internal server error" });
+      
+      // Log detailed error information for debugging
+      console.error('❌ [SEAT REQUEST] Error details:', {
+        message: error.message,
+        code: error.code,
+        severity: error.severity,
+        detail: error.detail
+      });
+      
+      // Return appropriate error message based on error type
+      let errorMessage = "Internal server error";
+      if (error.code === '57P01') {
+        errorMessage = "Database connection terminated. Please try again.";
+      } else if (error.code === 'ENOTFOUND') {
+        errorMessage = "Database connection failed. Please check your connection.";
+      } else if (error.code === 'ECONNREFUSED') {
+        errorMessage = "Database server unavailable. Please try again later.";
+      }
+      
+      res.status(500).json({ error: errorMessage });
+    } finally {
+      // Ensure database connection is always closed
+      if (pgClient) {
+        try {
+          await pgClient.end();
+          console.log('✅ [SEAT REQUEST] Database connection closed');
+        } catch (closeError) {
+          console.error('⚠️ [SEAT REQUEST] Error closing database connection:', closeError);
+        }
+      }
     }
   });
 
