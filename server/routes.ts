@@ -4019,6 +4019,7 @@ export function registerRoutes(app: Express) {
         console.log(`✅ [CLERK] User created successfully: ${clerkUserId}`);
       } catch (clerkError: any) {
         console.warn('⚠️ [CLERK] Failed to create Clerk user, continuing with player-only signup:', clerkError.message);
+        console.warn('⚠️ [CLERK] Error details:', clerkError);
         // Continue without Clerk user - the system should work without Clerk
       }
 
@@ -4038,9 +4039,10 @@ export function registerRoutes(app: Express) {
 
       console.log(`🎯 [PLAYER ID GENERATION] Generated player ID: ${generatedPlayerId}`);
 
+      // Use .upsert to handle potential ID conflicts gracefully
       const { data: newPlayers, error: insertError } = await supabase
         .from('players')
-        .insert({
+        .upsert({
           email,
           password,
           first_name: firstName,
