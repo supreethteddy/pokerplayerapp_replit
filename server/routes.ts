@@ -104,7 +104,7 @@ export function registerRoutes(app: Express) {
           universalId: player.universal_id,
           creditBalance: player.current_credit || '0.00',
           creditLimit: player.credit_limit || '0.00',
-          creditApproved: player.credit_approved || false,
+          creditEligible: player.credit_eligible || false,
           lastLogin: player.last_login_at,
           createdAt: player.created_at
         };
@@ -218,7 +218,7 @@ export function registerRoutes(app: Express) {
       // Get current player data
       const { data: player, error: playerError } = await supabase
         .from('players')
-        .select('id, balance, credit_limit, current_credit, credit_approved')
+        .select('id, balance, credit_limit, current_credit, credit_eligible')
         .eq('id', playerId)
         .single();
 
@@ -240,7 +240,7 @@ export function registerRoutes(app: Express) {
         return res.status(400).json({ error: 'Insufficient credit balance' });
       }
 
-      if (!player.credit_approved) {
+      if (!player.credit_eligible) {
         return res.status(403).json({ error: 'Credit not approved for this player' });
       }
 
@@ -1107,7 +1107,7 @@ export function registerRoutes(app: Express) {
             balance: playerData.balance || '0.00',
             current_credit: playerData.current_credit || '0.00',
             credit_limit: playerData.credit_limit || '0.00',
-            credit_approved: playerData.credit_approved || false,
+            credit_eligible: playerData.credit_eligible || false,
             clerkUserId: playerData.clerk_user_id
           },
           message: 'New player created and synced successfully',
@@ -1129,7 +1129,7 @@ export function registerRoutes(app: Express) {
           balance: playerData.balance || '0.00',
           current_credit: playerData.current_credit || '0.00',
           credit_limit: playerData.credit_limit || '0.00',
-          credit_approved: playerData.credit_approved || false,
+          credit_eligible: playerData.credit_eligible || false,
           clerkUserId: playerData.clerk_user_id
         },
         message: 'Existing player updated successfully',
@@ -1827,7 +1827,7 @@ export function registerRoutes(app: Express) {
                 balance: '0.00',
                 is_active: true,
                 universal_id: `clerk_wh_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                credit_approved: false,
+                credit_eligible: false,
                 credit_limit: 0,
                 current_credit: 0
               }, {
@@ -1929,7 +1929,7 @@ export function registerRoutes(app: Express) {
             balance: '0.00',
             is_active: true,
             universal_id: `clerk_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            credit_approved: false,
+            credit_eligible: false,
             credit_limit: 0,
             current_credit: 0
           })
@@ -2330,7 +2330,7 @@ export function registerRoutes(app: Express) {
         console.log(`🔧 [ENTERPRISE PLAYER] Using proven email lookup for: ${userEmail}`);
         playerQuery = `
           SELECT id, email, password, first_name, last_name, phone, kyc_status, balance, 
-                 current_credit, credit_limit, credit_approved, total_deposits, total_withdrawals,
+                 current_credit, credit_limit, credit_eligible, total_deposits, total_withdrawals,
                  total_winnings, total_losses, games_played, hours_played, clerk_user_id, 
                  supabase_id, is_active
           FROM players 
@@ -2342,7 +2342,7 @@ export function registerRoutes(app: Express) {
         console.log(`🔧 [ENTERPRISE PLAYER] Using direct Supabase ID lookup for: ${supabaseId}`);
         playerQuery = `
           SELECT id, email, password, first_name, last_name, phone, kyc_status, balance, 
-                 current_credit, credit_limit, credit_approved, total_deposits, total_withdrawals,
+                 current_credit, credit_limit, credit_eligible, total_deposits, total_withdrawals,
                  total_winnings, total_losses, games_played, hours_played, clerk_user_id, 
                  supabase_id, is_active
           FROM players 
@@ -2374,7 +2374,7 @@ export function registerRoutes(app: Express) {
         realBalance: playerData.balance || '0.00',
         creditBalance: playerData.current_credit ? String(playerData.current_credit) : '0.00',
         creditLimit: playerData.credit_limit ? String(playerData.credit_limit) : '0.00',
-        creditApproved: Boolean(playerData.credit_approved),
+        creditEligible: Boolean(playerData.credit_eligible),
         totalBalance: (parseFloat(playerData.balance || '0.00') + parseFloat(playerData.current_credit || '0.00')).toFixed(2),
         totalDeposits: playerData.total_deposits || '0.00',
         totalWithdrawals: playerData.total_withdrawals || '0.00',
@@ -3075,7 +3075,7 @@ export function registerRoutes(app: Express) {
       });
 
       const query = `
-        SELECT balance, current_credit, credit_limit, credit_approved, total_deposits, total_withdrawals,
+        SELECT balance, current_credit, credit_limit, credit_eligible, total_deposits, total_withdrawals,
                first_name, last_name, email, last_login_at
         FROM players 
         WHERE id = $1 OR player_id = $1
@@ -3098,7 +3098,7 @@ export function registerRoutes(app: Express) {
         cashBalance,
         creditBalance,
         creditLimit: parseFloat(player.credit_limit || '0'),
-        creditApproved: player.credit_approved || false,
+        creditEligible: player.credit_eligible || false,
         totalBalance
       };
 
@@ -3886,7 +3886,7 @@ export function registerRoutes(app: Express) {
         universalId: player.universal_id,
         creditBalance: player.current_credit || '0.00',
         creditLimit: player.credit_limit || '0.00',
-        creditApproved: player.credit_approved || false,
+        creditEligible: player.credit_eligible || false,
         totalBalance: (parseFloat(player.balance || '0') + parseFloat(player.current_credit || '0')).toFixed(2),
         lastLogin: player.last_login_at,
         clerkSynced: player.clerk_synced_at ? true : false
