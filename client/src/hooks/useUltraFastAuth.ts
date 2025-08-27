@@ -64,11 +64,18 @@ export function useUltraFastAuth() {
       // Check if user is stored in sessionStorage from recent login
       const storedUser = sessionStorage.getItem('authenticated_user');
       const justSignedIn = sessionStorage.getItem('just_signed_in');
+      const kycFlowActive = sessionStorage.getItem('kyc_flow_active');
 
-      if (storedUser && justSignedIn) {
+      // CRITICAL FIX: Restore authentication for both login and KYC flows
+      if (storedUser && (justSignedIn || kycFlowActive)) {
         try {
           const userData = JSON.parse(storedUser);
           console.log('🔄 [SESSION RESTORE] Restoring user from session:', userData.email);
+          
+          if (kycFlowActive) {
+            console.log('🔐 [KYC AUTH] Authentication restored for KYC workflow');
+          }
+          
           setUser(userData);
           setAuthChecked(true);
           setLoading(false);
@@ -77,6 +84,7 @@ export function useUltraFastAuth() {
           console.error('❌ [SESSION RESTORE] Failed to parse stored user:', error);
           sessionStorage.removeItem('authenticated_user');
           sessionStorage.removeItem('just_signed_in');
+          sessionStorage.removeItem('kyc_flow_active');
         }
       }
 

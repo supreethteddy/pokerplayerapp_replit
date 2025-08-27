@@ -67,17 +67,26 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
               };
               setUploadedDocs(docStatus);
               
-              // Determine step based on status
-              if (playerData.kycStatus === 'approved') {
-                setCurrentStep(4); // Already approved
-              } else if (playerData.kycStatus === 'submitted' || playerData.kycStatus === 'pending') {
-                setCurrentStep(4); // Waiting for approval
-              } else if (docStatus.governmentId && docStatus.utilityBill && docStatus.panCard) {
-                setCurrentStep(3); // Ready to submit
-              } else if (player.phone) {
-                setCurrentStep(2); // Ready for document upload
+              // FIXED: Check if this is from a fresh signup (KYC flow active)
+              const kycFlowActive = sessionStorage.getItem('kyc_flow_active');
+              
+              if (kycFlowActive === 'true') {
+                // Fresh signup - always start from step 1 to allow confirmation
+                console.log('🎯 [KYC] Fresh signup detected - starting from step 1 for confirmation');
+                setCurrentStep(1);
               } else {
-                setCurrentStep(1); // Need user details
+                // Returning user - determine step based on status
+                if (playerData.kycStatus === 'approved') {
+                  setCurrentStep(4); // Already approved
+                } else if (playerData.kycStatus === 'submitted' || playerData.kycStatus === 'pending') {
+                  setCurrentStep(4); // Waiting for approval
+                } else if (docStatus.governmentId && docStatus.utilityBill && docStatus.panCard) {
+                  setCurrentStep(3); // Ready to submit
+                } else if (player.phone) {
+                  setCurrentStep(2); // Ready for document upload
+                } else {
+                  setCurrentStep(1); // Need user details
+                }
               }
             }
           }
