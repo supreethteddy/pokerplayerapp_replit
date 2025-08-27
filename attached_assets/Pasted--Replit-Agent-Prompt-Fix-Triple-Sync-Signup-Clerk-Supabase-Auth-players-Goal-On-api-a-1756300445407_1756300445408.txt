@@ -1,0 +1,295 @@
+🔧 Replit Agent Prompt — “Fix Triple-Sync Signup (Clerk + Supabase Auth + players)”
+
+Goal
+
+On /api/auth/signup, create users in all three systems and keep IDs in sync:
+
+Clerk → clerk_user_id
+
+Supabase Auth (auth.users) → supabase_id
+
+Postgres public.players → row with both IDs + profile fields
+
+Make the operation atomic (rollback if any step fails).
+
+Verify by running test signups and SQL checks.
+
+Ensure dashboard visibility (RLS policies won’t hide rows in Supabase UI for admins).
+
+0) Repo survey
+
+Locate server code (likely server/routes.ts, server/db.ts, or similar).
+
+Confirm we’re using one .env source everywhere (backend & scripts).
+
+Identify current signup handler (/api/auth/signup) and any helper modules.
+
+Output: paths to files you’ll edit.
+
+1) Environment & keys (backend-only)
+
+Ensure these env vars exist (and are server-only):
+
+VITE_SUPABASE_URL=<from Supabase “Project Settings → API → Project URL”>
+SUPABASE_SERVICE_ROLE_KEY=<from Supabase “Project Settings → API → service_role”>
+DATABASE_URL=postgresql://postgres:<DB_PASSWORD>@db.<PROJECT-REF>.supabase.co:5432/postgres
+VITE_CLERK_PUBLISHABLE_KEY=<Clerk publishable key>
+CLERK_SECRET_KEY=<Clerk secret key>
+
+
+Never expose SUPABASE_SERVICE_ROLE_KEY or DATABASE_URL to the client bundle.
+
+If the repo uses a single .env, make sure server build does not leak these to the client.
+
+Output: the file(s) updated and a redacted print of process.env keys’ presence (not values).
+
+2) DB schema migration (idempotent)
+
+Create (or update) a migration SQL (e.g., supabase/migrations/2025-…-players-sync.sql) that:
+
+-- Ensure columns exist on public.players
+alter table public.players
+  add column if not exists supabase_id uuid,
+  add column if not exists clerk_user_id text,
+  add column if not exists clerk_synced_at timestamptz,
+  add column if not exists first_name text,
+  add column if not exists last_name text,
+  add column if not exists phone text;
+
+-- Helpful composite index
+create index if not exists idx_players_supabase_clerk
+on public.players (supabase_id, clerk_user_id);
+
+-- RLS: allow admin reads in dashboard
+alter table public.players enable row level security;
+
+-- Create an admin-readable policy (adjust role as needed)
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='public' and tablename='players' and policyname='admin read players'
+  ) then
+    create policy "admin read players"
+    on public.players
+    for select
+    to authenticated
+    using (true);
+  end if;
+end$$;
+
+
+Apply it using the Supabase SQL editor or your migration flow.
+
+Output: confirmation the columns exist:
+
+select column_name from information_schema.columns
+where table_schema='public' and table_name='players'
+  and column_name in ('supabase_id','clerk_user_id','clerk_synced_at','first_name','last_name','phone');
+
+3) Supabase Admin SDK (Auth) & Postgres client
+
+If not present, install SDKs:
+
+npm i @supabase/supabase-js pg
+
+
+Create a small utility (server/lib/supabase.ts):
+
+import { createClient } from '@supabase/supabase-js';
+
+export const supabaseAdmin = createClient(
+  process.env.VITE_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { persistSession: false } }
+);
+
+
+Postgres pool (server/lib/pg.ts):
+
+import { Pool } from 'pg';
+
+export const pgPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
+
+4) Clerk server SDK
+
+Install (if missing):
+
+npm i @clerk/clerk-sdk-node
+
+
+Create server/lib/clerk.ts:
+
+import { Clerk } from '@clerk/clerk-sdk-node';
+export const clerk = new Clerk({ secretKey: process.env.CLERK_SECRET_KEY! });
+
+5) Atomic signup handler
+
+Edit /api/auth/signup handler to do this order with rollback:
+
+Create Supabase Auth user via admin API.
+
+Create Clerk user (mirror email & name).
+
+Insert into public.players with both IDs.
+
+On any failure, rollback: delete any created user in Clerk or Supabase Auth.
+
+import { supabaseAdmin } from './lib/supabase';
+import { clerk } from './lib/clerk';
+import { pgPool } from './lib/pg';
+
+type SignupBody = {
+  email: string;
+  password: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  nickname?: string;
+};
+
+export async function signupHandler(req, res) {
+  const { email, password, firstName = '', lastName = '', phone = '', nickname = '' } = (await req.json?.()) || req.body;
+
+  let supabaseUserId: string | null = null;
+  let clerkUserId: string | null = null;
+  const client = await pgPool.connect();
+
+  try {
+    // 1) Supabase Auth (primary identity)
+    const { data: supaUser, error: supaErr } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { firstName, lastName, phone, nickname },
+    });
+    if (supaErr || !supaUser?.user?.id) throw new Error(`Supabase auth create failed: ${supaErr?.message}`);
+    supabaseUserId = supaUser.user.id;
+
+    // 2) Clerk (secondary identity)
+    const clerkUser = await clerk.users.createUser({
+      emailAddress: [email],
+      password,
+      firstName,
+      lastName,
+      publicMetadata: { supabase_id: supabaseUserId, nickname, phone },
+    });
+    clerkUserId = clerkUser.id;
+
+    // 3) Postgres insert (players)
+    await client.query('begin');
+    const insertSQL = `
+      insert into public.players (email, first_name, last_name, phone, supabase_id, clerk_user_id, clerk_synced_at, created_at)
+      values ($1,$2,$3,$4,$5,$6, now(), now())
+      on conflict (email) do update
+        set first_name = excluded.first_name,
+            last_name  = excluded.last_name,
+            phone      = excluded.phone,
+            supabase_id= coalesce(public.players.supabase_id, excluded.supabase_id),
+            clerk_user_id = coalesce(public.players.clerk_user_id, excluded.clerk_user_id),
+            clerk_synced_at = now(),
+            updated_at = now()
+      returning id;
+    `;
+    const { rows } = await client.query(insertSQL, [email, firstName, lastName, phone, supabaseUserId, clerkUserId]);
+    await client.query('commit');
+
+    return res.status(201).json({
+      ok: true,
+      playerId: rows[0]?.id,
+      supabase_id: supabaseUserId,
+      clerk_user_id: clerkUserId,
+    });
+  } catch (e:any) {
+    await client.query('rollback').catch(()=>{});
+    // Rollback external creates
+    if (clerkUserId) {
+      try { await clerk.users.deleteUser(clerkUserId); } catch {}
+    }
+    if (supabaseUserId) {
+      try { await supabaseAdmin.auth.admin.deleteUser(supabaseUserId); } catch {}
+    }
+    return res.status(500).json({ ok:false, error: e.message });
+  } finally {
+    client.release();
+  }
+}
+
+
+Ensure the route is wired (POST /api/auth/signup).
+
+Remove any older conflicting code paths that created only Clerk or only Postgres users.
+
+6) Acceptance tests
+
+Run these (update port/path if needed):
+
+# Fresh test user
+curl -s -X POST http://localhost:5000/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{ "email": "triple-sync-check+1@example.com", "password": "UltraSafe!2025", "firstName": "Triple", "lastName": "Sync1", "phone": "+911234567890", "nickname": "T1" }' | jq
+
+# DB checks (use Supabase SQL editor if you prefer)
+# 1) players row
+#   Expect non-null supabase_id and clerk_user_id
+SELECT id, email, supabase_id, clerk_user_id, created_at
+FROM public.players
+WHERE email = 'triple-sync-check+1@example.com';
+
+# 2) verify count visible
+SELECT count(*) FROM public.players;
+
+# 3) list policies affecting reads
+SELECT * FROM pg_policies WHERE schemaname='public' AND tablename='players';
+
+
+Also verify in:
+
+Clerk dashboard → Users → the email exists.
+
+Supabase → Authentication → Users → the email exists.
+
+Supabase → Table editor → public.players → a row exists (if not, RLS policy is the reason; see step 2 for admin read policy).
+
+7) Error cases & logging
+
+Log a concise line on each external step success/failure (no secrets).
+
+If email already exists in any system, return 409 with a clear message.
+
+8) Cleanup / consistency
+
+Remove any old code paths or env usage that wrote to a different DB or bypassed Supabase Admin SDK.
+
+Ensure only one signup flow exists.
+
+Confirm no backend code runs with client-side anon keys.
+
+9) Output summary
+
+Post back:
+
+Files changed (with paths).
+
+Migrations applied.
+
+Test output (player row showing both IDs).
+
+Confirmation screenshots/JSON from Clerk & Supabase Auth lists (redact PII).
+
+Note any RLS policies altered.
+
+Constraints
+
+No secrets printed.
+
+Don’t break existing endpoints.
+
+Keep service_role key server-only.
+
+Use try/rollback to keep external systems consistent.
+
+If anything prevents triple-sync (e.g., invalid keys), stop and report exactly which env var is missing or wrong.
