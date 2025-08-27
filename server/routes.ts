@@ -4002,6 +4002,26 @@ export function registerRoutes(app: Express) {
       // User doesn't exist - create new player
       console.log(`🔥 [PLAYERS TABLE SIGNUP] Creating new player: ${email}`);
 
+      // STEP 1: Create Clerk user first
+      let clerkUserId = null;
+      try {
+        const { clerkClient } = await import('@clerk/clerk-sdk-node');
+        const clerkUser = await clerkClient.users.createUser({
+          emailAddress: [email],
+          password: password,
+          firstName: firstName,
+          lastName: lastName,
+          privateMetadata: {
+            source: 'player_portal'
+          }
+        });
+        clerkUserId = clerkUser.id;
+        console.log(`✅ [CLERK] User created successfully: ${clerkUserId}`);
+      } catch (clerkError: any) {
+        console.warn('⚠️ [CLERK] Failed to create Clerk user, continuing with player-only signup:', clerkError.message);
+        // Continue without Clerk user - the system should work without Clerk
+      }
+
       // Get existing player IDs to generate next available ID
       const { data: allPlayerIds } = await supabase
         .from('players')
@@ -4045,7 +4065,7 @@ export function registerRoutes(app: Express) {
           credit_eligible: false,
           nickname: playerNickname,
           player_id: generatedPlayerId,
-          clerk_user_id: null,
+          clerk_user_id: clerkUserId,
           created_at: currentTimestamp,
           updated_at: currentTimestamp,
           last_login_at: null
