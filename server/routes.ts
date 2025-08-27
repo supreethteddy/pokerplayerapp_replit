@@ -4101,18 +4101,17 @@ export function registerRoutes(app: Express) {
         const insertQuery = `
           INSERT INTO players (
             email, password, first_name, last_name, phone, 
-            kyc_status, email_verified, balance, universal_id, 
-            is_active, clerk_user_id, current_credit, credit_limit, 
-            credit_approved, total_deposits, total_withdrawals, total_winnings, 
-            total_losses, games_played, hours_played
+            kyc_status, balance, universal_id, 
+            is_active, clerk_user_id
           ) VALUES (
-            $1, $2, $3, $4, $5, 'pending', false, '0.00', $6, 
-            true, $7, 0.00, 0.00, false, '0.00', '0.00', 
-            '0.00', '0.00', 0, '0.00'
+            $1, $2, $3, $4, $5, 'pending', '0.00', $6, 
+            true, $7
           ) RETURNING *
         `;
 
-        const universalId = `unified_${clerkUserId}_${Date.now()}`;
+        // Generate a proper UUID for universal_id
+        const { randomUUID } = await import('crypto');
+        const universalId = randomUUID();
 
         const result = await pgClient.query(insertQuery, [
           email, password, firstName, lastName, phone,
@@ -4152,7 +4151,7 @@ export function registerRoutes(app: Express) {
         playerId: newPlayerData.id,
         kycStatus: newPlayerData.kyc_status,
         balance: newPlayerData.balance,
-        emailVerified: newPlayerData.email_verified
+        emailVerified: false
       };
 
       return res.json({
