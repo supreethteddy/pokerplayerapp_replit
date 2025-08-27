@@ -348,13 +348,13 @@ export function useUltraFastAuth() {
     phone: string,
     nickname: string,
   ): Promise<AuthResult> => {
-    console.log('📝 [ULTRA-FAST AUTH] SignUp data being sent:', { 
-      email, 
-      hasPassword: !!password, 
+    console.log('📝 [ULTRA-FAST AUTH] SignUp data being sent:', {
+      email,
+      hasPassword: !!password,
       firstName,
-      lastName, 
-      nickname, 
-      phone 
+      lastName,
+      nickname,
+      phone
     });
     try {
       setLoading(true);
@@ -399,12 +399,12 @@ export function useUltraFastAuth() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Signup failed' }));
-        
+
         // Handle duplicate email with user-friendly message
         if (response.status === 409 && errorData.code === 'EMAIL_EXISTS') {
           throw new Error('This email is already registered. Please use the login form instead.');
         }
-        
+
         throw new Error(errorData.error || 'Signup failed');
       }
 
@@ -421,7 +421,7 @@ export function useUltraFastAuth() {
       if (isFullyVerified && player) {
         console.log('🎯 [ULTRA-FAST AUTH] Fully verified user - redirecting to dashboard');
 
-        // CRITICAL FIX: Create Supabase session for existing user  
+        // CRITICAL FIX: Create Supabase session for existing user
         try {
           const { data: supabaseAuth, error } = await supabase.auth.signInWithPassword({
             email: email,
@@ -463,8 +463,8 @@ export function useUltraFastAuth() {
           description: "Successfully signed in to your account.",
         });
 
-        return { 
-          success: true, 
+        return {
+          success: true,
           existing: true,
           redirectToKYC: false,
           player,
@@ -489,7 +489,7 @@ export function useUltraFastAuth() {
         };
 
         sessionStorage.setItem('kyc_redirect', JSON.stringify(kycData));
-        
+
         // CRITICAL FIX: Store minimal user data for authentication persistence through KYC redirect
         const kycUserData: AuthUser = {
           id: player.id,
@@ -511,26 +511,27 @@ export function useUltraFastAuth() {
           supabaseOnly: true,
           player_id: player.player_id || player.id
         };
-        
+
+        // CRITICAL FIX: Set user authentication state BEFORE triggering KYC redirect
+        setUser(kycUserData);
+        setLoading(false);
+
         // Store user authentication for KYC workflow persistence
         sessionStorage.setItem('authenticated_user', JSON.stringify(kycUserData));
         sessionStorage.setItem('kyc_flow_active', 'true');
 
         toast({
           title: existing ? "Account Found" : "Account Created Successfully!",
-          description: "Redirecting to document upload process...",
+          description: existing ? "Redirecting to KYC process..." : "Redirecting to document upload process..."
         });
 
-        setLoading(false);
-
-        // FIXED: Direct redirect to KYC instead of reload to maintain auth state
+        // Trigger page reload to start KYC workflow
         setTimeout(() => {
-          console.log('🎯 [AUTH] Redirecting to KYC process for player:', player.id);
-          window.location.href = '/kyc';
+          window.location.reload();
         }, 1500);
 
-        return { 
-          success: true, 
+        return {
+          success: true,
           existing: existing || false,
           redirectToKYC: true,
           player,
@@ -545,8 +546,8 @@ export function useUltraFastAuth() {
         // Set loading flag for redirect
         setLoading(false);
 
-        return { 
-          success: true, 
+        return {
+          success: true,
           existing: existing || false,
           redirectToKYC: redirectToKYC || false,
           player,
@@ -582,7 +583,7 @@ export function useUltraFastAuth() {
 
       // Show success toast BEFORE clearing state
       toast({
-        title: "Signed Out", 
+        title: "Signed Out",
         description: "You have been signed out successfully",
       });
 

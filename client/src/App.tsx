@@ -52,9 +52,13 @@ function AppContent() {
   // Check for KYC redirect from signup process
   useEffect(() => {
     const kycData = sessionStorage.getItem('kyc_redirect');
-    if (kycData) {
+    const kycFlowActive = sessionStorage.getItem('kyc_flow_active');
+    const authenticatedUser = sessionStorage.getItem('authenticated_user');
+    
+    if (kycData && kycFlowActive && authenticatedUser) {
       try {
         const parsedData = JSON.parse(kycData);
+        const userData = JSON.parse(authenticatedUser);
         
         // Convert playerId to id for KYC component compatibility
         if (parsedData.playerId && !parsedData.id) {
@@ -62,10 +66,16 @@ function AppContent() {
         }
         
         setKycRedirectData(parsedData);
-        console.log('🎯 [APP] KYC redirect detected:', parsedData);
+        
+        // CRITICAL FIX: Ensure user is authenticated during KYC flow
+        console.log('🎯 [APP] KYC redirect detected with authenticated user:', parsedData);
+        console.log('🔐 [APP] User data available for KYC:', userData.email);
+        
       } catch (error) {
         console.error('Error parsing KYC redirect data:', error);
         sessionStorage.removeItem('kyc_redirect');
+        sessionStorage.removeItem('kyc_flow_active');
+        sessionStorage.removeItem('authenticated_user');
       }
     }
   }, []);
