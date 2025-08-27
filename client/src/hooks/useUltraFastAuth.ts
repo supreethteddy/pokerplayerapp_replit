@@ -483,6 +483,32 @@ export function useUltraFastAuth() {
         };
 
         sessionStorage.setItem('kyc_redirect', JSON.stringify(kycData));
+        
+        // CRITICAL FIX: Store minimal user data for authentication persistence through KYC redirect
+        const kycUserData: AuthUser = {
+          id: player.id,
+          playerId: player.playerId || player.id,
+          email: player.email,
+          firstName: player.firstName,
+          lastName: player.lastName,
+          fullName: `${player.firstName || ''} ${player.lastName || ''}`.trim(),
+          nickname: player.nickname || '',
+          phone: player.phone || '',
+          kycStatus: player.kycStatus || 'pending',
+          balance: player.balance || '0.00',
+          emailVerified: player.emailVerified || false,
+          realBalance: player.balance || '0.00',
+          creditBalance: '0.00',
+          creditLimit: '0.00',
+          creditApproved: false,
+          totalBalance: player.balance || '0.00',
+          supabaseOnly: true,
+          player_id: player.player_id || player.id
+        };
+        
+        // Store user authentication for KYC workflow persistence
+        sessionStorage.setItem('authenticated_user', JSON.stringify(kycUserData));
+        sessionStorage.setItem('kyc_flow_active', 'true');
 
         toast({
           title: existing ? "Account Found" : "Account Created Successfully!",
@@ -491,9 +517,10 @@ export function useUltraFastAuth() {
 
         setLoading(false);
 
-        // Trigger page reload to start KYC workflow
+        // FIXED: Direct redirect to KYC instead of reload to maintain auth state
         setTimeout(() => {
-          window.location.reload();
+          console.log('🎯 [AUTH] Redirecting to KYC process for player:', player.id);
+          window.location.href = '/kyc';
         }, 1500);
 
         return { 

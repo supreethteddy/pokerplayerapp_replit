@@ -161,6 +161,21 @@ function AppContent() {
         <Route path="/kyc-upload">
           {user ? <PlayerDashboard user={user} /> : <Redirect to="/thank-you" />}
         </Route>
+        <Route path="/kyc">
+          {/* Handle direct KYC redirect from signup - check for KYC data first, then user auth */}
+          {kycRedirectData ? (
+            <div className="min-h-screen bg-slate-900 dark">
+              <KYCWorkflow 
+                playerData={kycRedirectData} 
+                onComplete={handleKYCComplete}
+              />
+            </div>
+          ) : user ? (
+            <PlayerDashboard user={user} />
+          ) : (
+            <Redirect to="/" />
+          )}
+        </Route>
         <Route path="/vip-shop">
           {user ? <VipShop /> : <Redirect to="/" />}
         </Route>
