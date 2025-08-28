@@ -118,12 +118,48 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
               setCurrentStep(1); // Need user details
             }
           }
+        } else if (playerResponse.status === 404) {
+          // Player not found - redirect to login page
+          console.error('❌ [KYC] Player not found in database - redirecting to login');
+          
+          toast({
+            title: "Account Not Found",
+            description: "Your account was not found. Please sign in again.",
+            variant: "destructive"
+          });
+
+          // Clear all stored data
+          sessionStorage.removeItem('kyc_redirect');
+          sessionStorage.removeItem('kyc_flow_active');
+          sessionStorage.removeItem('authenticated_user');
+          localStorage.removeItem('player_auth');
+
+          // Redirect to login after a short delay
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 2000);
+          
+          return;
         } else {
           console.warn('Failed to fetch player details, using initial playerData');
         }
       } catch (error) {
         console.error('Error initializing KYC step:', error);
-        setCurrentStep(1);
+        
+        toast({
+          title: "Connection Error",
+          description: "Unable to verify your account. Please try logging in again.",
+          variant: "destructive"
+        });
+
+        // Clear stored data and redirect to login on error
+        setTimeout(() => {
+          sessionStorage.removeItem('kyc_redirect');
+          sessionStorage.removeItem('kyc_flow_active');
+          sessionStorage.removeItem('authenticated_user');
+          localStorage.removeItem('player_auth');
+          window.location.href = '/';
+        }, 2000);
       }
     };
 
