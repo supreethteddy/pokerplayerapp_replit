@@ -71,41 +71,55 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
       try {
         // Use dynamic player ID from props
         const playerId = playerData?.id;
+        
+        // Initialize user details with existing playerData first
+        setUserDetails(prev => ({
+          firstName: playerData.firstName || prev.firstName,
+          lastName: playerData.lastName || prev.lastName,
+          email: playerData.email || prev.email,
+          phone: playerData.phone || prev.phone
+        }));
+
         const playerResponse = await fetch(`/api/players/${playerId}`);
         if (playerResponse.ok) {
           const player = await playerResponse.json();
-          if (player.phone) {
-            setUserDetails(prev => ({
-              ...prev,
-              phone: player.phone || ''
-            }));
-            setPanCardNumber(player.pan_card || '');
+          
+          // Update with complete player data from database
+          setUserDetails(prev => ({
+            firstName: player.firstName || playerData.firstName || prev.firstName,
+            lastName: player.lastName || playerData.lastName || prev.lastName,
+            email: player.email || playerData.email || prev.email,
+            phone: player.phone || playerData.phone || prev.phone
+          }));
+          
+          setPanCardNumber(player.pan_card || '');
 
-            // Check document uploads
-            const docStatus = await refreshDocuments(); // Use refreshDocuments to set state
+          // Check document uploads
+          const docStatus = await refreshDocuments(); // Use refreshDocuments to set state
 
-            // FIXED: Check if this is from a fresh signup (KYC flow active)
-            const kycFlowActive = sessionStorage.getItem('kyc_flow_active');
+          // FIXED: Check if this is from a fresh signup (KYC flow active)
+          const kycFlowActive = sessionStorage.getItem('kyc_flow_active');
 
-            if (kycFlowActive === 'true') {
-              // Fresh signup - always start from step 1 to allow confirmation
-              console.log('🎯 [KYC] Fresh signup detected - starting from step 1 for confirmation');
-              setCurrentStep(1);
+          if (kycFlowActive === 'true') {
+            // Fresh signup - always start from step 1 to allow confirmation
+            console.log('🎯 [KYC] Fresh signup detected - starting from step 1 for confirmation');
+            setCurrentStep(1);
+          } else {
+            // Returning user - determine step based on status
+            if (playerData.kycStatus === 'approved') {
+              setCurrentStep(4); // Already approved
+            } else if (playerData.kycStatus === 'submitted') {
+              setCurrentStep(4); // Waiting for approval
+            } else if (docStatus.governmentId && docStatus.utilityBill && docStatus.panCard) {
+              setCurrentStep(3); // Ready to submit
+            } else if (player.phone || playerData.phone) {
+              setCurrentStep(2); // Ready for document upload
             } else {
-              // Returning user - determine step based on status
-              if (playerData.kycStatus === 'approved') {
-                setCurrentStep(4); // Already approved
-              } else if (playerData.kycStatus === 'submitted') {
-                setCurrentStep(4); // Waiting for approval
-              } else if (docStatus.governmentId && docStatus.utilityBill && docStatus.panCard) {
-                setCurrentStep(3); // Ready to submit
-              } else if (player.phone) {
-                setCurrentStep(2); // Ready for document upload
-              } else {
-                setCurrentStep(1); // Need user details
-              }
+              setCurrentStep(1); // Need user details
             }
           }
+        } else {
+          console.warn('Failed to fetch player details, using initial playerData');
         }
       } catch (error) {
         console.error('Error initializing KYC step:', error);
@@ -114,7 +128,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     };
 
     initializeStep();
-  }, [playerData.id, playerData.kycStatus]);
+  }, [playerData.id, playerData.kycStatus, playerData.firstName, playerData.lastName, playerData.email, playerData.phone]);
 
   // Step 1: Save user details
   const saveUserDetails = async () => {
