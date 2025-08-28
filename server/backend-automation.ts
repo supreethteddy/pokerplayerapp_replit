@@ -69,11 +69,15 @@ export async function handleSignup(req: Request, res: Response) {
 
         const clerkUser = await clerkClient.users.createUser({
           emailAddress: [trimmedEmail],
+          password: req.body.password,
           firstName: trimmedFirstName,
           lastName: trimmedLastName,
           publicMetadata: {
-            role: 'player',
-            source: 'player_portal'
+            role: 'player'
+          },
+          privateMetadata: {
+            source: 'player_portal',
+            created_from: 'signup_endpoint'
           }
         });
 
