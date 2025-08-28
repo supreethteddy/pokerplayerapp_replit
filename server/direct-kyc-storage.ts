@@ -182,10 +182,9 @@ export class DirectKycStorage {
             WHEN pan_card_number IS NULL OR pan_card_number = '' THEN $4
             ELSE pan_card_number 
           END,
-          address = $5,
           kyc_status = 'submitted',
           pan_card_status = 'pending'
-        WHERE id = $6
+        WHERE id = $5
         RETURNING id, email, first_name, last_name, pan_card_number
       `;
 
@@ -194,7 +193,6 @@ export class DirectKycStorage {
         formData.lastName,
         formData.phone,
         formData.panCardNumber,
-        formData.address,
         playerId
       ]);
 
