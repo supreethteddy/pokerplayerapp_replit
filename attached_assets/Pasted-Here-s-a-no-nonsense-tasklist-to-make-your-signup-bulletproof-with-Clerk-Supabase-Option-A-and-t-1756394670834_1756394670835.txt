@@ -1,0 +1,193 @@
+Here’s a no-nonsense tasklist to make your signup bulletproof with Clerk + Supabase (Option A) and to explain why LLM agent API tests pass but UI signups fail—plus the exact step to prompt users for a stronger password when Clerk rejects it.
+
+1) Pre-flight sanity (once per environment)
+
+ ENV keys present: CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY, Supabase service URL/key, app URL.
+
+ Endpoint alignment: frontend uses /api/auth/signup-automation (not some older /api/auth/signup).
+
+ Form fields wired: firstName, lastName, email, password, phone, nickname → passed as individual params (not an object).
+
+ CORS/HTTPS: requests are same-origin or allowed; no mixed-content; production uses HTTPS.
+
+ Whitelabel player_code: generateNextPlayerId() uses playerIdPrefix="POKEPLAYER" and playerIdNumberLength=4; fetch existing codes by prefix before generating.
+
+2) Client-side validation (block obvious failures early)
+
+ Email: trim + lowercase; basic regex; show inline error if invalid.
+
+ Password: enforce stronger rules client-side to avoid Clerk rejection:
+
+min 10 chars, at least 1 upper, 1 lower, 1 digit, 1 symbol.
+
+reject passwords containing email local-part or first/last name.
+
+ Names/phone/nickname: non-empty; trim whitespace.
+
+3) Payload to Clerk (exactly what Clerk expects)
+
+ Send ONLY these (plus metadata):
+
+clerkClient.users.createUser({
+  emailAddress: [email],
+  password,
+  firstName,
+  lastName,
+  privateMetadata: { source: 'player_portal', created_from: 'signup_endpoint' },
+  publicMetadata: { role: 'player' }
+})
+
+
+ No email verification required for user to appear in Clerk; they’re created immediately. (Verification status can be pending; they still show up.)
+
+4) Backend flow (transactional & explicit)
+
+ Order of ops:
+
+Create user in Clerk → get clerk_user_id.
+
+Generate player_code via generateNextPlayerId(existing_by_prefix).
+
+Insert players row (INT id auto, TEXT player_code unique, all defaults set).
+
+ If Clerk fails: do not insert into players; return the mapped error to the UI and ask for a stronger password where applicable.
+
+ If players insert fails (e.g., unique email) after Clerk success: roll back by deleting Clerk user (compensating action).
+
+5) Server-side guards before calling Clerk
+
+ Normalize/protect inputs (trim, lowercase email, strip control chars).
+
+ Enforce minimum password policy server-side too (same as client).
+
+ Rate-limit signup by IP/email to avoid abuse (e.g., 5/min).
+
+6) Error handling: map Clerk errors → actionable UI
+
+Handle these Clerk error codes and message the user (don’t fall back silently):
+
+form_password_pwned → “That password appears in known breaches. Please choose a stronger, unique password.”
+
+form_password_incorrect_length → “Password must meet length requirements (min 10).”
+
+form_password_not_strong_enough → “Add uppercase, lowercase, number, and symbol.”
+
+form_identifier_already_exists → “An account with this email already exists.”
+
+form_email_address_invalid → “Enter a valid email address.”
+
+too_many_requests / rate_limited → “Too many attempts. Please try again in a few minutes.”
+
+network/5xx → “We’re having trouble creating your account. Please try again.”
+
+Example (server) error-mapping stub
+function mapClerkError(e: any) {
+  const code = e?.errors?.[0]?.code || 'unknown';
+  switch (code) {
+    case 'form_password_pwned':
+      return { field: 'password', message: 'Password found in data breaches. Use a unique, stronger password.' };
+    case 'form_password_incorrect_length':
+      return { field: 'password', message: 'Password too short. Use at least 10 characters.' };
+    case 'form_password_not_strong_enough':
+      return { field: 'password', message: 'Add uppercase, lowercase, number, and symbol.' };
+    case 'form_identifier_already_exists':
+      return { field: 'email', message: 'Email already in use.' };
+    case 'form_email_address_invalid':
+      return { field: 'email', message: 'Invalid email address.' };
+    case 'too_many_requests':
+    case 'rate_limited':
+      return { field: '_global', message: 'Rate limited. Try again later.' };
+    default:
+      return { field: '_global', message: 'Signup failed. Please try again.' };
+  }
+}
+
+7) UX step (when password rejected by Clerk)
+
+ If server gets form_password_pwned or strength errors, return 400 with the mapped message.
+
+ UI: keep the form populated, focus the password field, show the specific message, and block submission until user fixes it.
+
+ Re-submit with new password → proceed with Clerk → then DB insert.
+
+8) Why LLM API test passes but UI signup fails (root-cause checklist)
+
+ Different endpoint: UI still hitting /api/auth/signup while tests call /api/auth/signup-automation.
+
+ Missing nickname (if old endpoint required it).
+
+ Parameter mismatch: form sends object { firstName, ... } but hook expects positional params.
+
+ Weak password: manual tests used strong password; UI testers used blocked passwords → Clerk rejects → no user in Clerk.
+
+ CORS/HTTPS issues in browser; cURL bypassed them.
+
+ ENV mismatch: local keys vs prod keys; UI pointing at wrong Clerk project.
+
+ RLS/DB constraint: players insert fails on unique email, but tests used fresh data.
+
+ player_code collision: not fetching existing codes by prefix before generate; test path did, UI path didn’t.
+
+ Error swallowed: UI not surfacing Clerk error → looks like “nothing happened”.
+
+9) Players insert (exact, per your schema)
+
+ Insert with these values (no partials, all defaults explicit):
+
+email (lowercased), password='*', first_name, last_name, phone, nickname
+
+player_code (from whitelabeling.ts)
+
+kyc_status='pending'
+
+balance='0.00', total_deposits='0.00', total_withdrawals='0.00', total_winnings='0.00', total_losses='0.00'
+
+games_played=0, hours_played='0.00'
+
+is_active=true
+
+full_name=first_name + ' ' + last_name
+
+last_login_at=NULL
+
+universal_id default, credit_eligible=false
+
+clerk_user_id from Clerk
+
+current_credit=0, credit_limit=0, email_verified=false, pan_card_number=NULL
+
+10) Login updates
+
+ last_login_at = now() on every login via clerk_user_id.
+
+ If Clerk marks email verified, set email_verified = true.
+
+11) KYC uploads (exactly 3 rows)
+
+ For each: insert into kyc_documents with player_id (INT players.id), document_type in ('government_id','address_proof','pan_card'), file_name, file_url, status='pending', file_size bytes, created_at default, updated_at now().
+
+ On PAN file also set players.pan_card_number.
+
+ After all 3 succeed → players.kyc_status='submitted'.
+
+12) Observability (so you can actually debug)
+
+ Structured logs (server): requestId, endpoint, state (pre-clerk, post-clerk, pre-db, post-db), outcome, Clerk error code (if any), Supabase error code (if any). Never log password.
+
+ Frontend: show exact error message from server mapping; keep inputs; no silent failures.
+
+13) Quick test matrix (run these)
+
+ Strong password path → user appears in Clerk & players row created.
+
+ Pwned password → UI shows “password found in breaches”; fix & retry → success.
+
+ Duplicate email → UI shows “email already in use.”
+
+ Endpoint mismatch → confirm UI hits /api/auth/signup-automation.
+
+ Missing nickname (if using old endpoint) → UI shows field error or switch endpoint.
+
+ Player_code generation under concurrency → 10 parallel signups → unique codes.
+
+ KYC: upload exactly 3 files → 3 rows; then status becomes submitted.

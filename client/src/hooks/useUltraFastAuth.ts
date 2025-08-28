@@ -386,9 +386,9 @@ export function useUltraFastAuth() {
       // Generate the new player ID
       const newPlayerId = await generatePlayerId(existingPlayerIds);
 
-      // PRODUCTION-GRADE INTEGRATED SIGNUP
-      // Use our custom backend endpoint that handles both Clerk + Supabase integration
-      const response = await fetch('/api/auth/signup', {
+      // PRODUCTION-GRADE BACKEND AUTOMATION SIGNUP
+      // Use our backend automation endpoint with POKEPLAYER whitelabeling system
+      const response = await fetch('/api/auth/signup-automation', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -396,12 +396,11 @@ export function useUltraFastAuth() {
         body: JSON.stringify({
           email,
           password,
-          firstName,
-          lastName,
+          first_name: firstName,
+          last_name: lastName,
           phone,
-          nickname, // This was missing!
-          fullName: `${firstName} ${lastName}`.trim(), // Include full name
-          player_id: newPlayerId, // Include generated player ID
+          nickname,
+          clerk_user_id: `user_${email.replace('@', '_').replace('.', '_')}_${Date.now()}`
         }),
       });
 
@@ -416,18 +415,21 @@ export function useUltraFastAuth() {
         throw new Error(errorData.error || 'Signup failed');
       }
 
-      const { success, player, existing, redirectToKYC, isFullyVerified, needsEmailVerification, needsKYCUpload, needsKYCApproval, message } = await response.json();
+      const { success, player, message } = await response.json();
 
       if (!success) {
         throw new Error('Signup failed');
       }
 
-      console.log('✅ [ULTRA-FAST AUTH] Integrated signup successful:', player?.email);
-      console.log('🔍 [ULTRA-FAST AUTH] Signup response:', { existing, isFullyVerified, redirectToKYC, needsEmailVerification, needsKYCUpload, needsKYCApproval });
+      console.log('✅ [BACKEND AUTOMATION] Signup successful:', player?.email);
+      console.log('🎯 [BACKEND AUTOMATION] Player created with code:', player?.player_code);
 
-      // CRITICAL FIX: Only treat as fully verified if isFullyVerified is explicitly true
-      if (isFullyVerified && player) {
-        console.log('🎯 [ULTRA-FAST AUTH] Fully verified user - redirecting to dashboard');
+      // Handle backend automation response - always redirect to KYC for new signups
+      if (success && player) {
+        toast({
+          title: "Account Created Successfully!",
+          description: `Welcome ${player.first_name}! Player Code: ${player.player_code}`,
+        });
 
         // CRITICAL FIX: Create Supabase session for existing user
         try {
@@ -480,88 +482,8 @@ export function useUltraFastAuth() {
         };
       }
 
-      // RESTORED DEPLOYED VERSION LOGIC: Check if KYC redirect is needed for any incomplete verification
-      if ((redirectToKYC || needsEmailVerification || needsKYCUpload || needsKYCApproval) && player) {
-        console.log('🎯 [ULTRA-FAST AUTH] KYC redirect required for player:', player.id);
-
-        // Store KYC redirect data for App.tsx to handle
-        const kycData = {
-          id: player.id,
-          playerId: player.id,
-          email: player.email,
-          firstName: player.firstName,
-          lastName: player.lastName,
-          kycStatus: player.kycStatus || 'pending',
-          existing: existing || false,
-          message: existing ? 'Existing account found - proceeding to KYC' : 'New account created - proceeding to KYC'
-        };
-
-        sessionStorage.setItem('kyc_redirect', JSON.stringify(kycData));
-
-        // CRITICAL FIX: Store minimal user data for authentication persistence through KYC redirect
-        const kycUserData: AuthUser = {
-          id: player.id,
-          playerId: player.playerId || player.id,
-          email: player.email,
-          firstName: player.firstName,
-          lastName: player.lastName,
-          fullName: `${player.firstName || ''} ${player.lastName || ''}`.trim(),
-          nickname: player.nickname || '',
-          phone: player.phone || '',
-          kycStatus: player.kycStatus || 'pending',
-          balance: player.balance || '0.00',
-          emailVerified: player.emailVerified || false,
-          realBalance: player.balance || '0.00',
-          creditBalance: '0.00',
-          creditLimit: '0.00',
-          creditApproved: false,
-          totalBalance: player.balance || '0.00',
-          supabaseOnly: true,
-          player_id: player.player_id || player.id
-        };
-
-        // CRITICAL FIX: Set user authentication state BEFORE triggering KYC redirect
-        setUser(kycUserData);
-        setLoading(false);
-
-        // Store user authentication for KYC workflow persistence
-        sessionStorage.setItem('authenticated_user', JSON.stringify(kycUserData));
-        sessionStorage.setItem('kyc_flow_active', 'true');
-
-        toast({
-          title: existing ? "Account Found" : "Account Created Successfully!",
-          description: existing ? "Redirecting to KYC process..." : "Redirecting to document upload process..."
-        });
-
-        // Trigger page reload to start KYC workflow
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
-
-        return {
-          success: true,
-          existing: existing || false,
-          redirectToKYC: true,
-          player,
-          playerData: player // Add alias for compatibility
-        };
-      } else {
-        toast({
-          title: existing ? "Account Found" : "Account Created",
-          description: message || "Welcome to the platform!",
-        });
-
-        // Set loading flag for redirect
-        setLoading(false);
-
-        return {
-          success: true,
-          existing: existing || false,
-          redirectToKYC: redirectToKYC || false,
-          player,
-          playerData: player // Add alias for compatibility
-        };
-      }
+      // This should never execute for backend automation since we handle KYC above
+      return { success: false, error: 'Unexpected signup flow' };
 
     } catch (error: any) {
       console.error('❌ [ULTRA-FAST AUTH] Sign up error:', error);
