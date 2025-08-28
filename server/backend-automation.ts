@@ -7,7 +7,7 @@ import { generateNextPlayerId, whitelabelConfig } from './whitelabeling';
 // Hard validations according to specifications
 function validateSignupData(data: any) {
   const { email, password, first_name, last_name, phone, nickname, clerk_user_id } = data;
-  
+
   // All fields must be present and non-empty after trimming
   if (!email || !first_name || !last_name || !phone || !nickname || !clerk_user_id) {
     return { valid: false, error: 'Missing required fields: email, first_name, last_name, phone, nickname, clerk_user_id' };
@@ -61,6 +61,32 @@ export async function handleSignup(req: Request, res: Response) {
       clerk_user_id: trimmedClerkUserId.substring(0, 15) + '...'
     });
 
+    // STEP 1: Create Clerk user first (PRIMARY AUTHENTICATION)
+    let clerkUserCreated = false;
+    try {
+      if (process.env.CLERK_SECRET_KEY) {
+        const { clerkClient } = await import('@clerk/clerk-sdk-node');
+
+        const clerkUser = await clerkClient.users.createUser({
+          emailAddress: [trimmedEmail],
+          firstName: trimmedFirstName,
+          lastName: trimmedLastName,
+          publicMetadata: {
+            role: 'player',
+            source: 'player_portal'
+          }
+        });
+
+        console.log('✅ [CLERK] User created successfully:', clerkUser.id);
+        clerkUserCreated = true;
+      } else {
+        console.warn('⚠️ [CLERK] Secret key not configured, skipping Clerk user creation');
+      }
+    } catch (clerkError: any) {
+      console.warn('⚠️ [CLERK] Failed to create user:', clerkError.message);
+      // Continue with Supabase-only signup
+    }
+
     // Connect to SUPABASE PostgreSQL ONLY (never Neon DB)
     const { Client } = await import('pg');
     const pgClient = new Client({ connectionString: process.env.SUPABASE_DATABASE_URL });
@@ -103,7 +129,7 @@ export async function handleSignup(req: Request, res: Response) {
       const insertQuery = `
         INSERT INTO public.players (
           email, password, first_name, last_name, phone, nickname, player_code, kyc_status,
-          balance, total_deposits, total_withdrawals, total_winnings, total_losses,
+          balance, total_deposits, total_withdrawals, total_losses, total_winnings,
           games_played, hours_played, is_active, full_name, last_login_at,
           credit_eligible, clerk_user_id, current_credit, credit_limit, email_verified
         )
@@ -154,7 +180,7 @@ export async function handleSignup(req: Request, res: Response) {
 
       // Handle duplicate email constraint violation
       if (dbError.code === '23505' && dbError.constraint === 'players_email_key') {
-        return res.status(409).json({ 
+        return res.status(409).json({
           error: 'An account with this email already exists.',
           code: 'EMAIL_EXISTS'
         });
@@ -162,7 +188,7 @@ export async function handleSignup(req: Request, res: Response) {
 
       // Handle duplicate clerk_user_id constraint violation
       if (dbError.code === '23505' && dbError.constraint === 'players_clerk_user_id_unique') {
-        return res.status(409).json({ 
+        return res.status(409).json({
           error: 'Clerk user ID already exists.',
           code: 'CLERK_ID_EXISTS'
         });
@@ -199,14 +225,14 @@ export async function handleLogin(req: Request, res: Response) {
     try {
       // Update last_login_at on every login
       const updateQuery = `
-        UPDATE public.players 
+        UPDATE public.players
         SET last_login_at = NOW(), updated_at = NOW()
         WHERE clerk_user_id = $1
         RETURNING *
       `;
-      
+
       const result = await pgClient.query(updateQuery, [clerk_user_id]);
-      
+
       if (result.rows.length === 0) {
         await pgClient.end();
         return res.status(404).json({ error: 'Player not found' });

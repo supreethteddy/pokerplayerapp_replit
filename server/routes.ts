@@ -16,11 +16,19 @@ import { generateNextPlayerId } from '../whitelabeling';
 
 // Validate environment variables
 const requiredEnvVars = ['PUSHER_APP_ID', 'PUSHER_KEY', 'PUSHER_SECRET', 'PUSHER_CLUSTER', 'VITE_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
+const optionalEnvVars = ['CLERK_SECRET_KEY', 'VITE_CLERK_PUBLISHABLE_KEY'];
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
 if (missingEnvVars.length > 0) {
   console.error('❌ [ENVIRONMENT] Missing required environment variables:', missingEnvVars);
   throw new Error(`Missing environment variables: ${missingEnvVars.join(', ')}`);
+}
+
+// Check optional Clerk variables
+const missingClerkVars = optionalEnvVars.filter(envVar => !process.env[envVar]);
+if (missingClerkVars.length > 0) {
+  console.warn('⚠️ [CLERK] Missing optional Clerk environment variables:', missingClerkVars);
+  console.warn('⚠️ [CLERK] Clerk integration will be disabled');
 }
 
 // Initialize Pusher for real-time communication
