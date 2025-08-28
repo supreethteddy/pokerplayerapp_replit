@@ -61,7 +61,7 @@ WHERE players.email = au.email
 
 -- Show results
 SELECT 
-  p.id as player_id,
+  p.id,
   p.email,
   p.supabase_id,
   p.kyc_status,
