@@ -4095,16 +4095,31 @@ export function registerRoutes(app: Express) {
       const pgClient = new Client({ connectionString: process.env.SUPABASE_DATABASE_URL });
       await pgClient.connect();
 
+      // Generate player code in format POKERPLAYR-0001
+      const generatePlayerCode = async () => {
+        const countResult = await pgClient.query('SELECT COUNT(*) FROM players');
+        const count = parseInt(countResult.rows[0].count);
+        const nextNumber = (count + 1).toString().padStart(4, '0');
+        return `POKERPLAYR-${nextNumber}`;
+      };
+
       let newPlayerData;
       try {
+        const playerCode = await generatePlayerCode();
+        console.log(`🏷️ [PLAYER CODE] Generated: ${playerCode}`);
+
         const insertQuery = `
           INSERT INTO players (
             email, password, first_name, last_name, phone, 
             kyc_status, balance, universal_id, 
-            is_active, clerk_user_id
+            is_active, clerk_user_id, full_name, nickname,
+            email_verified, credit_eligible, current_credit, credit_limit,
+            total_deposits, total_withdrawals, total_winnings, total_losses,
+            games_played, hours_played
           ) VALUES (
-            $1, $2, $3, $4, $5, 'pending', '0.00', $6, 
-            true, $7
+            $1, '*', $2, $3, $4, 'pending', '0.00', $5, 
+            true, $6, $7, $8, false, false, '0.00', '0.00',
+            '0.00', '0.00', '0.00', '0.00', 0, '0.00'
           ) RETURNING *
         `;
 
@@ -4113,8 +4128,8 @@ export function registerRoutes(app: Express) {
         const universalId = randomUUID();
 
         const result = await pgClient.query(insertQuery, [
-          email, password, firstName, lastName, phone,
-          universalId, clerkUserId
+          email, firstName, lastName, phone,
+          universalId, clerkUserId, fullName, playerNickname
         ]);
 
         newPlayerData = result.rows[0];
@@ -4139,18 +4154,20 @@ export function registerRoutes(app: Express) {
         return res.status(500).json({ error: 'Database operation failed' });
       }
 
-      // Initialize response data for new player (who needs to complete KYC)
+      // Initialize response data for new player (who needs to complete KYC)  
       const responsePlayer = {
         id: newPlayerData.id,
+        playerCode: `POKERPLAYR-${String(newPlayerData.id).padStart(4, '0')}`, // Generate player code from ID
         email: newPlayerData.email,
         firstName: newPlayerData.first_name,
         lastName: newPlayerData.last_name,
-        fullName: `${newPlayerData.first_name} ${newPlayerData.last_name}`.trim(),
-        nickname: nickname?.trim() || firstName,
+        fullName: newPlayerData.full_name || `${newPlayerData.first_name} ${newPlayerData.last_name}`.trim(),
+        nickname: newPlayerData.nickname || nickname?.trim() || firstName,
         playerId: newPlayerData.id,
         kycStatus: newPlayerData.kyc_status,
         balance: newPlayerData.balance,
-        emailVerified: false
+        emailVerified: newPlayerData.email_verified || false,
+        creditEligible: newPlayerData.credit_eligible || false
       };
 
       return res.json({
@@ -4168,6 +4185,199 @@ export function registerRoutes(app: Express) {
     } catch (error: any) {
       console.error('❌ [POSTGRESQL SIGNUP] Signup error:', error.message);
       return res.status(500).json({ error: 'Signup server error' });
+    }
+  });
+
+  // KYC Document Upload Endpoint - Following the 3-document requirement
+  app.post('/api/kyc/upload', async (req, res) => {
+    try {
+      const { playerId, documentType, fileName, fileUrl, fileSize, panCardNumber } = req.body;
+
+      // Validate required fields
+      if (!playerId || !documentType || !fileName || !fileUrl || !fileSize) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      // Validate document type
+      const validTypes = ['government_id', 'address_proof', 'pan_card'];
+      if (!validTypes.includes(documentType)) {
+        return res.status(400).json({ error: 'Invalid document type' });
+      }
+
+      // Validate PAN card number if this is a PAN card upload
+      if (documentType === 'pan_card') {
+        if (!panCardNumber) {
+          return res.status(400).json({ error: 'PAN card number is required for PAN card uploads' });
+        }
+        // Validate PAN format: ^[A-Z]{5}[0-9]{4}[A-Z]$
+        const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+        if (!panRegex.test(panCardNumber)) {
+          return res.status(400).json({ error: 'Invalid PAN card format. Expected format: ABCDE1234F' });
+        }
+      }
+
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.SUPABASE_DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        // Insert KYC document
+        const insertDocQuery = `
+          INSERT INTO kyc_documents (player_id, document_type, file_name, file_url, file_size, status)
+          VALUES ($1, $2, $3, $4, $5, 'pending')
+          RETURNING *
+        `;
+
+        const docResult = await pgClient.query(insertDocQuery, [
+          playerId, documentType, fileName, fileUrl, fileSize
+        ]);
+
+        // If this is a PAN card, also update the player's PAN card number
+        if (documentType === 'pan_card') {
+          const updatePlayerQuery = `
+            UPDATE players 
+            SET pan_card_number = $1, updated_at = NOW()
+            WHERE id = $2
+          `;
+          await pgClient.query(updatePlayerQuery, [panCardNumber, playerId]);
+        }
+
+        // Check if all 3 required documents have been uploaded
+        const countDocsQuery = `
+          SELECT COUNT(DISTINCT document_type) as doc_count
+          FROM kyc_documents 
+          WHERE player_id = $1 AND document_type IN ('government_id', 'address_proof', 'pan_card')
+        `;
+        const countResult = await pgClient.query(countDocsQuery, [playerId]);
+        const docCount = parseInt(countResult.rows[0].doc_count);
+
+        // If all 3 documents uploaded, update KYC status to 'submitted'
+        if (docCount === 3) {
+          const updateKycQuery = `
+            UPDATE players 
+            SET kyc_status = 'submitted', updated_at = NOW()
+            WHERE id = $1
+            RETURNING kyc_status
+          `;
+          const updateResult = await pgClient.query(updateKycQuery, [playerId]);
+          
+          await pgClient.end();
+          
+          return res.json({
+            success: true,
+            document: docResult.rows[0],
+            kycStatus: 'submitted',
+            message: 'All required documents uploaded. KYC submitted for review.',
+            allDocsUploaded: true
+          });
+        }
+
+        await pgClient.end();
+
+        return res.json({
+          success: true,
+          document: docResult.rows[0],
+          kycStatus: 'pending',
+          message: `${documentType} uploaded successfully. ${3 - docCount} more documents required.`,
+          allDocsUploaded: false,
+          remainingDocs: 3 - docCount
+        });
+
+      } catch (dbError: any) {
+        await pgClient.end();
+        console.error('❌ [KYC UPLOAD] Database error:', dbError);
+        return res.status(500).json({ error: 'Failed to save KYC document' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [KYC UPLOAD] Server error:', error.message);
+      return res.status(500).json({ error: 'KYC upload server error' });
+    }
+  });
+
+  // Login endpoint with last_login_at update
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required' });
+      }
+
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.SUPABASE_DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        // Find player by email
+        const playerQuery = `
+          SELECT * FROM players WHERE email = $1
+        `;
+        const playerResult = await pgClient.query(playerQuery, [email.toLowerCase()]);
+
+        if (playerResult.rows.length === 0) {
+          await pgClient.end();
+          return res.status(401).json({ error: 'Invalid email or password' });
+        }
+
+        const player = playerResult.rows[0];
+
+        // Update last_login_at and email verification status if Clerk shows verified
+        const updateLoginQuery = `
+          UPDATE players 
+          SET last_login_at = NOW(), email_verified = COALESCE(email_verified, true), updated_at = NOW()
+          WHERE id = $1
+          RETURNING *
+        `;
+        const updateResult = await pgClient.query(updateLoginQuery, [player.id]);
+        const updatedPlayer = updateResult.rows[0];
+
+        await pgClient.end();
+
+        console.log(`✅ [LOGIN] Player logged in successfully: ${email} (ID: ${player.id})`);
+
+        // Return player data
+        const responsePlayer = {
+          id: updatedPlayer.id,
+          playerCode: updatedPlayer.player_code,
+          email: updatedPlayer.email,
+          firstName: updatedPlayer.first_name,
+          lastName: updatedPlayer.last_name,
+          fullName: updatedPlayer.full_name,
+          nickname: updatedPlayer.nickname,
+          playerId: updatedPlayer.id,
+          kycStatus: updatedPlayer.kyc_status,
+          balance: updatedPlayer.balance,
+          emailVerified: updatedPlayer.email_verified,
+          creditEligible: updatedPlayer.credit_eligible,
+          lastLoginAt: updatedPlayer.last_login_at
+        };
+
+        // Determine what the user needs to do next
+        const needsEmailVerification = !updatedPlayer.email_verified;
+        const needsKYCUpload = updatedPlayer.kyc_status === 'pending';
+        const needsKYCApproval = updatedPlayer.kyc_status === 'submitted';
+        const isFullyVerified = updatedPlayer.email_verified && updatedPlayer.kyc_status === 'approved';
+
+        return res.json({
+          success: true,
+          player: responsePlayer,
+          needsEmailVerification,
+          needsKYCUpload,
+          needsKYCApproval,
+          isFullyVerified,
+          message: isFullyVerified ? 'Login successful! Welcome back.' : 'Login successful! Please complete verification steps.'
+        });
+
+      } catch (dbError: any) {
+        await pgClient.end();
+        console.error('❌ [LOGIN] Database error:', dbError);
+        return res.status(500).json({ error: 'Login database error' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [LOGIN] Server error:', error.message);
+      return res.status(500).json({ error: 'Login server error' });
     }
   });
 

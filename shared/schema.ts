@@ -4,6 +4,7 @@ import { z } from "zod";
 
 export const players = pgTable("players", {
   id: serial("id").primaryKey(),
+  playerCode: text("player_code").unique(), // Text-based player identifier like POKERPLAYR-0001
   supabaseId: text("supabase_id"), // Link to Supabase auth.users.id (now optional for Clerk users)
   universalId: text("universal_id").unique(), // Enterprise-grade universal ID for cross-portal sync
   clerkUserId: text("clerk_user_id").unique(), // Link to Clerk user ID for new authentication
@@ -21,7 +22,7 @@ export const players = pgTable("players", {
   totalLosses: text("total_losses").notNull().default("0.00"), // Total losses
   gamesPlayed: integer("games_played").notNull().default(0), // Games played
   hoursPlayed: text("hours_played").notNull().default("0.00"), // Hours played
-  creditApproved: boolean("credit_approved").default(false), // Credit system approval
+  creditEligible: boolean("credit_eligible").default(false), // Credit system eligibility
   creditLimit: text("credit_limit").notNull().default("0.00"), // Maximum credit allowed
   currentCredit: text("current_credit").notNull().default("0.00"), // Current credit balance
   panCardNumber: text("pan_card_number"), // PAN card number (10 characters)
@@ -33,7 +34,10 @@ export const players = pgTable("players", {
   emailVerified: boolean("email_verified").default(false), // Email verification status
   lastLoginAt: timestamp("last_login_at"), // Last login timestamp
   clerkSyncedAt: timestamp("clerk_synced_at"), // Last Clerk sync timestamp
+  fullName: text("full_name"), // Computed full name (first_name + last_name)
+  nickname: text("nickname"), // Player nickname
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const playerPrefs = pgTable("player_prefs", {
