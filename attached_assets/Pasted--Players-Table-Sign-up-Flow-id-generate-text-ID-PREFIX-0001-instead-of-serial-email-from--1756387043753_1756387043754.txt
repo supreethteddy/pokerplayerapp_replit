@@ -1,0 +1,127 @@
+✅ Players Table (Sign-up Flow)
+
+id → generate text ID (PREFIX-0001) instead of serial
+
+email → from sign-up form
+
+password → set to "*" (if Clerk manages auth)
+
+first_name → from form
+
+last_name → from form
+
+phone → from form
+
+kyc_status → set to "pending"
+
+created_at → DB default (now)
+
+balance → 0
+
+total_deposits → 0
+
+total_withdrawals → 0
+
+total_winnings → 0
+
+total_losses → 0
+
+games_played → 0
+
+hours_played → 0
+
+is_active → true
+
+updated_at → DB trigger handles it
+
+full_name → first_name + " " + last_name
+
+last_login_at → NULL at signup
+
+universal_id → generate UUID (default)
+
+credit_eligible → false
+
+clerk_user_id → from Clerk (first step in 3-way auth)
+
+nickname → from sign-up form
+
+current_credit → 0
+
+credit_limit → 0
+
+email_verified → false (set true after Clerk verifies)
+
+pan_card_number → NULL until KYC submission
+
+✅ Players Table (Login Flow)
+
+last_login_at → update to now() whenever user logs in
+
+email_verified → set to true if Clerk shows verified
+
+✅ KYC Documents Table (3 required uploads)
+
+1. Government ID (Aadhaar, PAN, or Passport)
+
+player_id → players.id
+
+document_type → "government_id"
+
+file_name → uploaded filename
+
+file_url → stored file URL
+
+status → "pending"
+
+file_size → file size in bytes
+
+created_at → default
+
+updated_at → now()
+
+2. Address Proof (Utility Bill, Bank Statement, or Rental Agreement)
+
+player_id → players.id
+
+document_type → "address_proof"
+
+file_name → uploaded filename
+
+file_url → stored file URL
+
+status → "pending"
+
+file_size → file size in bytes
+
+created_at → default
+
+updated_at → now()
+
+3. PAN Card (file + number field)
+
+player_id → players.id
+
+document_type → "pan_card"
+
+file_name → uploaded filename
+
+file_url → stored file URL
+
+status → "pending"
+
+file_size → file size in bytes
+
+created_at → default
+
+updated_at → now()
+
+Also update → players.pan_card_number = <entered PAN>
+
+✅ Player KYC Status Update
+
+After all 3 KYC files are uploaded + inserted → set players.kyc_status = 'submitted'
+
+On approval by admin/reviewer → set players.kyc_status = 'approved'
+
+On rejection → set players.kyc_status = 'rejected'
