@@ -4381,6 +4381,24 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Backend Automation: Signup (Clerk → Supabase) - Following exact specifications
+  app.post('/api/auth/signup-automation', async (req, res) => {
+    const { handleSignup } = await import('./backend-automation');
+    return handleSignup(req, res);
+  });
+
+  // Backend Automation: Login with last_login_at update
+  app.post('/api/auth/login-automation', async (req, res) => {
+    const { handleLogin } = await import('./backend-automation');
+    return handleLogin(req, res);
+  });
+
+  // Backend Automation: KYC Upload (3 documents → 3 rows)
+  app.post('/api/kyc/upload-automation', async (req, res) => {
+    const { handleKycUpload } = await import('./backend-automation');
+    return handleKycUpload(req, res);
+  });
+
   // DEPRECATED: This endpoint now redirects to /api/auth/signup for consistency
   app.post('/api/players', async (req, res) => {
     console.log('🔄 [DEPRECATED] /api/players endpoint called - redirecting to /api/auth/signup');

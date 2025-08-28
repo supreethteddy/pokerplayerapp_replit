@@ -1,0 +1,376 @@
+You are a backend automation agent for a poker platform running on Supabase + Clerk.
+Follow the exact database schemas and rules below. Do not change columns or types beyond the specified migrations.
+You must implement: Sign-up, Login, and KYC (3 uploads).
+Use Option A (SAFE): keep players.id (serial integer PK) and add player_code (text, unique) generated via whitelabeling.ts.
+
+0) Schemas (DO NOT ALTER TYPES; USE MIGRATIONS BELOW ONLY)
+players
+create table public.players (
+  id serial not null,
+  email text not null,
+  password text not null,
+  first_name text not null,
+  last_name text not null,
+  phone text not null,
+  kyc_status text not null default 'pending'::text,
+  created_at timestamp with time zone null default now(),
+  balance text not null default '0.00'::text,
+  total_deposits text not null default '0.00'::text,
+  total_withdrawals text not null default '0.00'::text,
+  total_winnings text not null default '0.00'::text,
+  total_losses text not null default '0.00'::text,
+  games_played integer not null default 0,
+  hours_played text not null default '0.00'::text,
+  is_active boolean null default true,
+  updated_at timestamp with time zone null default CURRENT_TIMESTAMP,
+  full_name text null,
+  last_login_at timestamp without time zone null,
+  universal_id uuid null default gen_random_uuid (),
+  credit_eligible boolean null default false,
+  clerk_user_id text null,
+  nickname text null,
+  current_credit numeric null default '0'::numeric,
+  credit_limit numeric null default '0'::numeric,
+  email_verified boolean null default false,
+  pan_card_number text null,
+  constraint players_pkey primary key (id),
+  constraint players_clerk_user_id_unique unique (clerk_user_id),
+  constraint players_email_key unique (email)
+) TABLESPACE pg_default;
+
+create index IF not exists idx_players_credit_eligible on public.players using btree (credit_eligible) TABLESPACE pg_default;
+
+create index IF not exists idx_players_clerk_user_id on public.players using btree (clerk_user_id) TABLESPACE pg_default;
+
+create trigger players_updated_at_trigger BEFORE
+update on players for EACH row
+execute FUNCTION update_modified_column ();
+
+create trigger update_players_updated_at BEFORE
+update on players for EACH row
+execute FUNCTION update_updated_at_column ();
+
+kyc_documents
+create table public.kyc_documents (
+  id serial not null,
+  player_id integer null,
+  document_type text not null,
+  file_name text not null,
+  file_url text not null,
+  status text not null default 'pending'::text,
+  created_at timestamp with time zone null default now(),
+  file_size numeric null default '0'::numeric,
+  updated_at timestamp without time zone null,
+  constraint kyc_documents_pkey primary key (id),
+  constraint kyc_documents_player_id_fkey foreign KEY (player_id) references players (id) on delete CASCADE
+) TABLESPACE pg_default;
+
+
+We are keeping kyc_documents.player_id integer → players(id) so each of the 3 files maps to the same player via the existing INT PK.
+
+1) whitelabeling.ts (USE THIS EXACT CODE & BEHAVIOR)
+export interface WhitelabelConfig {
+  // Player ID Configuration
+  playerIdPrefix: string;
+  playerIdNumberLength: number;
+  
+  // Portal Branding
+  portalName: string;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  logoUrl?: string;
+  
+  // Company Information
+  companyName: string;
+  supportEmail: string;
+  supportPhone?: string;
+  
+  // Feature Toggles
+  features: {
+    creditSystem: boolean;
+    kycRequired: boolean;
+    emailVerification: boolean;
+    pushNotifications: boolean;
+  };
+}
+
+export const whitelabelConfig: WhitelabelConfig = {
+  // Player ID Configuration
+  playerIdPrefix: "POKEPLAYER",
+  playerIdNumberLength: 4, // Will generate numbers like 0001, 0002, etc.
+  
+  // Portal Branding
+  portalName: "Poker Club",
+  primaryColor: "#1a1a1a",
+  secondaryColor: "#2d2d2d", 
+  accentColor: "#3b82f6",
+  logoUrl: "/logo.png",
+  
+  // Company Information
+  companyName: "Poker Club",
+  supportEmail: "support@pokerclub.com",
+  supportPhone: "+1-800-POKER-CLUB",
+  
+  // Feature Toggles
+  features: {
+    creditSystem: true,
+    kycRequired: true,
+    emailVerification: true,
+    pushNotifications: true
+  }
+};
+
+// Helper function to generate next available player ID
+export function generateNextPlayerId(existingPlayerIds: string[]): string {
+  const { playerIdPrefix, playerIdNumberLength } = whitelabelConfig;
+  
+  // Extract numbers from existing player IDs with our prefix
+  const existingNumbers = existingPlayerIds
+    .filter(id => id && id.startsWith(playerIdPrefix + "-"))
+    .map(id => {
+      const numberPart = id.replace(playerIdPrefix + "-", "");
+      return parseInt(numberPart, 10);
+    })
+    .filter(num => !isNaN(num))
+    .sort((a, b) => a - b);
+  
+  // Find the next available number
+  let nextNumber = 1;
+  for (const num of existingNumbers) {
+    if (num === nextNumber) {
+      nextNumber++;
+    } else {
+      break;
+    }
+  }
+  
+  // Format with leading zeros
+  const paddedNumber = nextNumber.toString().padStart(playerIdNumberLength, '0');
+  return `${playerIdPrefix}-${paddedNumber}`;
+}
+
+// Helper function to validate player ID format
+export function isValidPlayerId(playerId: string): boolean {
+  const { playerIdPrefix, playerIdNumberLength } = whitelabelConfig;
+  const expectedPattern = new RegExp(`^${playerIdPrefix}-\\d{${playerIdNumberLength}}$`);
+  return expectedPattern.test(playerId);
+}
+
+
+Agent rule: To generate a new player_code, fetch existing player_code values with the same prefix from Supabase, feed into generateNextPlayerId, and set players.player_code to the result.
+
+Example query to fetch existing codes by prefix:
+
+select player_code from public.players
+where player_code like (whitelabel_prefix || '-%');
+
+2) REQUIRED MIGRATIONS (additive; Option A only)
+2.1 Add player_code and unique index
+BEGIN;
+
+ALTER TABLE public.players
+  ADD COLUMN IF NOT EXISTS player_code text;
+
+CREATE UNIQUE INDEX IF NOT EXISTS players_player_code_key
+  ON public.players (player_code);
+
+COMMIT;
+
+2.2 PAN format guard (DB-level check; align with your input rule)
+ALTER TABLE public.players
+  DROP CONSTRAINT IF EXISTS players_pan_format_chk;
+ALTER TABLE public.players
+  ADD CONSTRAINT players_pan_format_chk
+    CHECK (pan_card_number IS NULL OR pan_card_number ~ '^[A-Z]{5}[0-9]{4}[A-Z]$');
+
+
+Do not alter players.id type. Do not drop kyc_documents.player_id. We remain fully compatible with existing rows and FKs.
+
+3) SIGN-UP FLOW (Clerk → Supabase)
+
+Input (from sign-up form & Clerk)
+
+email, password (ignored; set "*"), first_name, last_name, phone, nickname
+
+clerk_user_id from Clerk
+
+Feature toggles: use whitelabelConfig.features only to gate UI/flows; do not change DB schema
+
+Steps (transaction)
+
+Build full_name = first_name + ' ' + last_name (trim extra spaces).
+
+Generate player_code:
+
+Read existing player_codes by prefix whitelabelConfig.playerIdPrefix
+
+Call generateNextPlayerId(existing) → e.g., POKEPLAYER-0007
+
+Insert into public.players with fields:
+
+email (lowercased), password="*", first_name, last_name, phone, nickname
+
+player_code (from step 2)
+
+kyc_status='pending'
+
+created_at (default), updated_at (trigger)
+
+balance=0, total_deposits=0, total_withdrawals=0, total_winnings=0, total_losses=0
+
+games_played=0, hours_played=0
+
+is_active=true
+
+full_name (step 1)
+
+last_login_at=NULL
+
+universal_id (DB default UUID)
+
+credit_eligible=false
+
+clerk_user_id (from Clerk)
+
+current_credit=0, credit_limit=0
+
+email_verified=false
+
+pan_card_number=NULL
+
+Example insert (parameterized)
+
+insert into public.players
+(email, password, first_name, last_name, phone, nickname, player_code, kyc_status,
+ balance, total_deposits, total_withdrawals, total_winnings, total_losses,
+ games_played, hours_played, is_active, full_name, last_login_at,
+ credit_eligible, clerk_user_id, current_credit, credit_limit, email_verified)
+values
+(lower($1), '*', $2, $3, $4, $5, $6, 'pending',
+ '0', '0', '0', '0', '0',
+ 0, '0', true, trim($2 || ' ' || $3), null,
+ false, $7, 0, 0, false)
+returning id, player_code;
+
+4) LOGIN FLOW
+
+On successful login (Clerk session valid):
+
+update public.players set last_login_at = now() where clerk_user_id = $1;
+
+If Clerk says email verified and DB is false:
+
+update public.players set email_verified = true where clerk_user_id = $1;
+
+5) KYC FLOW (EXACTLY 3 uploads → 3 rows)
+
+Required files (exact mapping)
+
+government_id → Aadhaar / PAN / Passport (file)
+
+address_proof → Utility Bill / Bank Statement / Rental Agreement (file)
+
+pan_card → PAN card (file) and players.pan_card_number (text field)
+
+For each file (after storage upload):
+
+player_id = INT players.id returned at signup
+
+document_type = one of 'government_id' | 'address_proof' | 'pan_card'
+
+file_name = sanitized filename
+
+file_url = storage URL
+
+status = 'pending'
+
+file_size = integer bytes
+
+created_at = default
+
+updated_at = now()
+
+Inserts (3 rows)
+
+insert into public.kyc_documents
+(player_id, document_type, file_name, file_url, status, file_size, created_at, updated_at)
+values
+($1, 'government_id', $2, $3, 'pending', $4, now(), now()),
+($1, 'address_proof', $5, $6, 'pending', $7, now(), now()),
+($1, 'pan_card',      $8, $9, 'pending', $10, now(), now());
+
+
+PAN number update
+
+update public.players
+set pan_card_number = $11
+where id = $1;
+
+
+After all 3 rows inserted successfully
+
+update public.players
+set kyc_status = 'submitted'
+where id = $1;
+
+6) STATUS PROGRESSION
+
+At signup: players.kyc_status = 'pending'
+
+After 3 files uploaded: players.kyc_status = 'submitted'
+
+Reviewer sets kyc_documents.status rows → when approved, set:
+
+players.kyc_status = 'approved' or rejected
+
+7) Hard validations (agent MUST enforce)
+
+email: lowercase; must be unique (DB has unique constraint).
+
+clerk_user_id: must be set; must be unique.
+
+player_code: must be set; must be unique; use generateNextPlayerId with prefix POKEPLAYER and number length 4.
+
+first_name, last_name, phone, nickname: non-empty strings (trim).
+
+Monetary/counter fields: set to zeros at signup exactly as listed above.
+
+pan_card_number (when provided): must match ^[A-Z]{5}[0-9]{4}[A-Z]$ (uppercase, no spaces).
+
+KYC: exactly 3 rows in kyc_documents per user (types must be those 3).
+
+last_login_at: update on every login.
+
+Never write partial KYC: insert all 3 rows in a transaction; otherwise abort.
+
+8) Minimal API contracts
+Signup
+
+In: { email, password, first_name, last_name, phone, nickname, clerk_user_id }
+
+Process: generate player_code via whitelabeling.ts; insert row; return INT id + player_code.
+
+Out: { id, player_code, email, first_name, last_name, nickname }
+
+Login
+
+In: { clerk_user_id }
+
+Process: set last_login_at=now(); update email_verified=true if Clerk says verified.
+
+KYC Upload
+
+In: { player_id: number, government_id: FileMeta, address_proof: FileMeta, pan_card: FileMeta, pan_card_number: string }
+
+FileMeta = { file_name: string, file_url: string, file_size: number }
+
+Process: insert 3 rows; set players.pan_card_number; set players.kyc_status='submitted'.
+
+9) Failure modes (agent behavior)
+
+If player_code unique index conflicts → refetch existing codes and re-run generateNextPlayerId.
+
+If any of the 3 files missing → do not insert any KYC rows; return error.
+
+If PAN format invalid → reject with error; do not set submitted.
