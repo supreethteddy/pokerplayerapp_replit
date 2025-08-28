@@ -26,11 +26,7 @@ export default function AuthLayout() {
 
     try {
       if (isSignUp) {
-        const result = await signUp(email, password, {
-          firstName,
-          lastName,
-          phone
-        });
+        const result = await signUp(email, password, firstName, lastName, phone);
         
         if (result.success) {
           toast({
@@ -38,7 +34,7 @@ export default function AuthLayout() {
             description: "Welcome to Tilt Poker!"
           });
         } else {
-          throw new Error(result.error || 'Sign up failed');
+          throw new Error('Sign up failed');
         }
       } else {
         const result = await signIn(email, password);
@@ -50,7 +46,7 @@ export default function AuthLayout() {
             description: "Successfully signed in to your account."
           });
         } else {
-          throw new Error(result.error || 'Sign in failed');
+          throw new Error('Sign in failed');
         }
       }
     } catch (error: any) {

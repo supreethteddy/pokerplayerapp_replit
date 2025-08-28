@@ -180,8 +180,8 @@ export function useAuth() {
       setSignupCooldown(true);
       setTimeout(() => setSignupCooldown(false), 60000);
 
-      // Use our backend signup endpoint that enforces proper workflow
-      const response = await fetch('/api/auth/signup', {
+      // Use our backend automation signup endpoint with whitelabeling system
+      const response = await fetch('/api/auth/signup-automation', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -190,9 +190,11 @@ export function useAuth() {
         body: JSON.stringify({
           email,
           password,
-          firstName,
-          lastName,
-          phone
+          first_name: firstName,
+          last_name: lastName,
+          phone,
+          nickname: `${firstName}${Math.floor(Math.random() * 1000)}`, // Generate simple nickname
+          clerk_user_id: `user_${email.replace('@', '_').replace('.', '_')}_${Date.now()}`
         })
       });
 
@@ -203,53 +205,29 @@ export function useAuth() {
         throw new Error(data.error || data.message || 'Failed to create account');
       }
 
-      console.log('✅ [ULTRA-FAST AUTH] Integrated signup successful:', email);
+      console.log('✅ [BACKEND AUTOMATION] Signup successful:', email);
 
-      // Handle the response based on authentication gates
-      if (data.needsEmailVerification) {
-        // Send verification email automatically
-        try {
-          await fetch('/api/auth/send-verification-email', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              email: data.player.email,
-              playerId: data.player.id
-            })
-          });
-
-          toast({
-            title: "Account Created!",
-            description: "Please check your email and verify your address before continuing.",
-          });
-        } catch (emailError) {
-          console.error('❌ [ULTRA-FAST AUTH] Email verification send failed:', emailError);
-          toast({
-            title: "Account Created!",
-            description: "Please contact support to verify your email address.",
-          });
-        }
-      } else if (data.needsKYCUpload) {
+      // Handle backend automation response structure
+      if (data.success && data.player) {
         toast({
-          title: "Account Ready!",
-          description: "Please upload your KYC documents to complete registration.",
+          title: "Account Created Successfully!",
+          description: `Welcome ${data.player.first_name}! Player Code: ${data.player.player_code}`,
         });
         
-        // Redirect to KYC workflow
+        // Store player data for KYC workflow
         sessionStorage.setItem('kyc_redirect', JSON.stringify({
           id: data.player.id,
           playerId: data.player.id,
           email: data.player.email,
-          firstName: data.player.firstName,
-          lastName: data.player.lastName,
-          kycStatus: data.player.kycStatus
+          firstName: data.player.first_name,
+          lastName: data.player.last_name,
+          playerCode: data.player.player_code,
+          kycStatus: 'pending'
         }));
       } else {
         toast({
-          title: "Welcome Back!",
-          description: "Your account is ready to use.",
+          title: "Account Created!",
+          description: "Please complete your verification process.",
         });
       }
 
