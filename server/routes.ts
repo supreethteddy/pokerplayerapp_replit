@@ -2316,7 +2316,7 @@ export function registerRoutes(app: Express) {
 
       // Step 2: Use proven authentication endpoint pattern with email lookup
       const pgClient = new pg.Client({
-        connectionString: process.env.DATABASE_URL
+        connectionString: process.env.DATABASE_URL,
       });
 
       try {
@@ -2458,7 +2458,6 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // All other existing APIs...
   app.get("/api/tournaments", async (req, res) => {
     try {
       const { createClient } = await import('@supabase/supabase-js');

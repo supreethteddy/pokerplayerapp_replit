@@ -10,6 +10,26 @@ async function getPgClient() {
   return client;
 }
 
+// Helper function to generate the next whitelabel player ID
+function generateNextPlayerId(existingPlayerIds: string[]): string {
+  const prefix = 'POKEPLAYER-';
+  let maxNum = 0;
+
+  existingPlayerIds.forEach(id => {
+    if (id.startsWith(prefix)) {
+      const numStr = id.substring(prefix.length);
+      const num = parseInt(numStr, 10);
+      if (!isNaN(num) && num > maxNum) {
+        maxNum = num;
+      }
+    }
+  });
+
+  const nextNum = maxNum + 1;
+  const paddedNum = nextNum.toString().padStart(4, '0');
+  return `${prefix}${paddedNum}`;
+}
+
 export interface ClerkWebhookEvent {
   type: string;
   data: {
@@ -24,19 +44,19 @@ export interface ClerkWebhookEvent {
 }
 
 export class ClerkPlayerSync {
-  
+
   // Webhook endpoint for Clerk events
   static async handleWebhook(req: Request, res: Response) {
     console.log('🔔 [CLERK WEBHOOK] Received event:', req.body.type);
-    
+
     const pgClient = await getPgClient();
-    
+
     try {
       const event: ClerkWebhookEvent = req.body;
-      
+
       // Log the webhook event
       await ClerkPlayerSync.logWebhookEvent(event);
-      
+
       switch (event.type) {
         case 'user.created':
           await ClerkPlayerSync.handleUserCreated(pgClient, event);
@@ -50,7 +70,7 @@ export class ClerkPlayerSync {
         default:
           console.log(`ℹ️ [CLERK WEBHOOK] Unhandled event type: ${event.type}`);
       }
-      
+
       res.status(200).json({ success: true, message: 'Webhook processed' });
     } catch (error) {
       console.error('❌ [CLERK WEBHOOK] Error processing webhook:', error);
@@ -59,16 +79,16 @@ export class ClerkPlayerSync {
       await pgClient.end();
     }
   }
-  
+
   // Clean Clerk-Supabase sync endpoint for nanosecond-speed authentication
   static async clerkUserSync(req: Request, res: Response) {
     console.log('⚡ [CLERK-SUPABASE SYNC] Processing user sync:', req.body);
-    
+
     const pgClient = await getPgClient();
-    
+
     try {
       const { clerkUserId, email, firstName, lastName, phone, emailVerified } = req.body;
-      
+
       if (!clerkUserId || !email) {
         return res.status(400).json({ error: 'Missing required fields: clerkUserId, email' });
       }
@@ -76,13 +96,13 @@ export class ClerkPlayerSync {
       // Find or create player with direct PostgreSQL for nanosecond speed
       const findQuery = 'SELECT * FROM players WHERE email = $1 OR clerk_user_id = $2';
       const findResult = await pgClient.query(findQuery, [email, clerkUserId]);
-      
+
       let player;
-      
+
       if (findResult.rows.length > 0) {
         // Update existing player
         player = findResult.rows[0];
-        
+
         const updateQuery = `
           UPDATE players 
           SET clerk_user_id = $1, 
@@ -94,11 +114,11 @@ export class ClerkPlayerSync {
           WHERE id = $6
           RETURNING *
         `;
-        
+
         const updateResult = await pgClient.query(updateQuery, [
           clerkUserId, firstName, lastName, phone, emailVerified, player.id
         ]);
-        
+
         player = updateResult.rows[0];
         console.log(`🔄 [CLERK-SUPABASE SYNC] Updated existing player: ${player.id}`);
       } else {
@@ -110,15 +130,15 @@ export class ClerkPlayerSync {
           ) VALUES ($1, $2, $3, $4, $5, $6, 'pending', '0.00', true, NOW())
           RETURNING *
         `;
-        
+
         const insertResult = await pgClient.query(insertQuery, [
           clerkUserId, email, firstName || '', lastName || '', phone || '', emailVerified
         ]);
-        
+
         player = insertResult.rows[0];
         console.log(`✨ [CLERK-SUPABASE SYNC] Created new player: ${player.id}`);
       }
-      
+
       // Return standardized player data
       res.json({
         id: player.id.toString(),
@@ -136,7 +156,7 @@ export class ClerkPlayerSync {
         clerkUserId: player.clerk_user_id,
         isClerkSynced: true
       });
-      
+
     } catch (error) {
       console.error('❌ [CLERK-SUPABASE SYNC] Error:', error);
       res.status(500).json({ error: 'User sync failed' });
@@ -148,9 +168,9 @@ export class ClerkPlayerSync {
   // Sync endpoint for manual synchronization
   static async syncPlayer(req: Request, res: Response) {
     console.log('🔄 [CLERK SYNC] Manual sync request:', req.body);
-    
+
     const pgClient = await getPgClient();
-    
+
     try {
       const { 
         clerkUserId, 
@@ -162,17 +182,17 @@ export class ClerkPlayerSync {
         playerId,
         existingPlayer = false
       } = req.body;
-      
+
       if (!email) {
         return res.status(400).json({ success: false, error: 'Email is required' });
       }
-      
+
       let player;
-      
+
       if (existingPlayer && playerId) {
         // Update existing player with Clerk data using direct PostgreSQL
         console.log(`🔄 [CLERK SYNC] Updating existing player ${playerId} with Clerk data`);
-        
+
         const updateQuery = `
           UPDATE players 
           SET clerk_user_id = $1, 
@@ -182,23 +202,23 @@ export class ClerkPlayerSync {
           WHERE id = $3
           RETURNING *
         `;
-        
+
         const result = await pgClient.query(updateQuery, [clerkUserId, emailVerified, playerId]);
-        
+
         if (result.rows.length === 0) {
           throw new Error(`Player with ID ${playerId} not found`);
         }
-        
+
         player = result.rows[0];
       } else {
         // Find existing player by email or create new one using direct PostgreSQL
         const findQuery = 'SELECT * FROM players WHERE email = $1';
         const findResult = await pgClient.query(findQuery, [email]);
-        
+
         if (findResult.rows.length > 0) {
           // Update existing player
           console.log('🔄 [CLERK SYNC] Updating existing player by email:', email);
-          
+
           const updateQuery = `
             UPDATE players 
             SET clerk_user_id = $1, 
@@ -208,13 +228,13 @@ export class ClerkPlayerSync {
             WHERE email = $3
             RETURNING *
           `;
-          
+
           const updateResult = await pgClient.query(updateQuery, [clerkUserId, emailVerified, email]);
           player = updateResult.rows[0];
         } else {
           // Create new player from Clerk data
           console.log('✨ [CLERK SYNC] Creating new player from Clerk data:', email);
-          
+
           const insertQuery = `
             INSERT INTO players (
               email, first_name, last_name, phone, clerk_user_id, clerk_synced_at,
@@ -228,16 +248,16 @@ export class ClerkPlayerSync {
               '0.00', $7, 'clerk_managed'
             ) RETURNING *
           `;
-          
+
           const universalId = `clerk_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           const insertResult = await pgClient.query(insertQuery, [
             email, firstName, lastName, phone, clerkUserId, emailVerified, universalId
           ]);
-          
+
           player = insertResult.rows[0];
         }
       }
-      
+
       // Log the sync operation
       await ClerkPlayerSync.logSyncOperation(pgClient, {
         playerId: player.id,
@@ -246,9 +266,9 @@ export class ClerkPlayerSync {
         syncData: { email, firstName, lastName, phone, emailVerified },
         success: true
       });
-      
+
       console.log('✅ [CLERK SYNC] Player synced successfully:', player.id);
-      
+
       res.status(200).json({ 
         success: true, 
         player: {
@@ -264,10 +284,10 @@ export class ClerkPlayerSync {
         },
         message: 'Player synced with Clerk successfully' 
       });
-      
+
     } catch (error: any) {
       console.error('❌ [CLERK SYNC] Error syncing player:', error);
-      
+
       // Log failed sync
       await ClerkPlayerSync.logSyncOperation(pgClient, {
         playerId: req.body.playerId,
@@ -277,7 +297,7 @@ export class ClerkPlayerSync {
         success: false,
         errorMessage: error.message
       });
-      
+
       res.status(500).json({ 
         success: false, 
         error: error.message || 'Sync failed' 
@@ -286,23 +306,23 @@ export class ClerkPlayerSync {
       await pgClient.end();
     }
   }
-  
+
   // Handle user.created webhook
   private static async handleUserCreated(pgClient: Client, event: ClerkWebhookEvent) {
     const userData = event.data;
     const email = userData.email_addresses?.[0]?.email_address;
-    
+
     if (!email) {
       console.warn('⚠️ [CLERK WEBHOOK] No email found in user.created event');
       return;
     }
-    
+
     console.log(`👤 [CLERK WEBHOOK] Processing user.created for: ${email}`);
-    
+
     // Check if player already exists
     const findQuery = 'SELECT * FROM players WHERE email = $1';
     const findResult = await pgClient.query(findQuery, [email]);
-      
+
     if (findResult.rows.length > 0) {
       // Update existing player with Clerk ID
       const updateQuery = `
@@ -313,15 +333,23 @@ export class ClerkPlayerSync {
         WHERE email = $3
         RETURNING id
       `;
-      
+
       const updateResult = await pgClient.query(updateQuery, [
         userData.id,
         userData.email_addresses?.[0]?.verification?.status === 'verified',
         email
       ]);
-        
+
       console.log(`🔄 [CLERK WEBHOOK] Updated existing player: ${updateResult.rows[0]?.id}`);
     } else {
+      // Get existing player IDs to generate next whitelabel ID
+      const existingIdsQuery = 'SELECT player_id FROM players WHERE player_id IS NOT NULL';
+      const existingIdsResult = await pgClient.query(existingIdsQuery);
+      const existingPlayerIds = existingIdsResult.rows.map(row => row.player_id);
+
+      // Generate next whitelabel player ID
+      const whitelabelPlayerId = generateNextPlayerId(existingPlayerIds);
+
       // Create new player
       const insertQuery = `
         INSERT INTO players (
@@ -329,14 +357,13 @@ export class ClerkPlayerSync {
           email_verified, kyc_status, balance, is_active, credit_approved,
           credit_limit, current_credit, total_deposits, total_withdrawals,
           total_winnings, total_losses, games_played, hours_played,
-          total_rs_played, current_vip_points, lifetime_vip_points,
-          universal_id, password
+          universal_id, password, player_id
         ) VALUES (
           $1, $2, $3, $4, $5, NOW(), $6, 'pending', '0.00', true, false,
-          0, 0, '0.00', '0.00', '0.00', '0.00', 0, '0', 0, 0, 0, $7, 'clerk_managed'
+          '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', 0, '0.00', $7, 'clerk_managed', $8
         ) RETURNING id
       `;
-      
+
       const universalId = `clerk_${userData.id}_${Date.now()}`;
       const insertResult = await pgClient.query(insertQuery, [
         email,
@@ -345,22 +372,23 @@ export class ClerkPlayerSync {
         userData.phone_numbers?.[0]?.phone_number || '',
         userData.id,
         userData.email_addresses?.[0]?.verification?.status === 'verified',
-        universalId
+        universalId,
+        whitelabelPlayerId
       ]);
-        
+
       console.log(`✅ [CLERK WEBHOOK] Created new player: ${insertResult.rows[0]?.id}`);
     }
   }
-  
+
   // Handle user.updated webhook
   private static async handleUserUpdated(pgClient: Client, event: ClerkWebhookEvent) {
     const userData = event.data;
     const email = userData.email_addresses?.[0]?.email_address;
-    
+
     if (!email) return;
-    
+
     console.log(`🔄 [CLERK WEBHOOK] Processing user.updated for: ${email}`);
-    
+
     const updateQuery = `
       UPDATE players 
       SET first_name = $1, 
@@ -370,7 +398,7 @@ export class ClerkPlayerSync {
           clerk_synced_at = NOW()
       WHERE clerk_user_id = $5
     `;
-    
+
     await pgClient.query(updateQuery, [
       userData.first_name || '',
       userData.last_name || '',
@@ -379,21 +407,21 @@ export class ClerkPlayerSync {
       userData.id
     ]);
   }
-  
+
   // Handle user.deleted webhook
   private static async handleUserDeleted(pgClient: Client, event: ClerkWebhookEvent) {
     console.log(`🗑️ [CLERK WEBHOOK] Processing user.deleted for: ${event.data.id}`);
-    
+
     const updateQuery = `
       UPDATE players 
       SET is_active = false, 
           clerk_synced_at = NOW()
       WHERE clerk_user_id = $1
     `;
-    
+
     await pgClient.query(updateQuery, [event.data.id]);
   }
-  
+
   // Log webhook events
   private static async logWebhookEvent(event: ClerkWebhookEvent) {
     const pgClient = await getPgClient();
@@ -403,7 +431,7 @@ export class ClerkPlayerSync {
           event_type, clerk_user_id, email, webhook_payload, success
         ) VALUES ($1, $2, $3, $4, $5)
       `;
-      
+
       await pgClient.query(logQuery, [
         event.type,
         event.data.id,
@@ -417,7 +445,7 @@ export class ClerkPlayerSync {
       await pgClient.end();
     }
   }
-  
+
   // Log sync operations
   private static async logSyncOperation(pgClient: Client, data: {
     playerId?: number;
@@ -433,7 +461,7 @@ export class ClerkPlayerSync {
           player_id, clerk_user_id, sync_type, sync_data, success, error_message
         ) VALUES ($1, $2, $3, $4, $5, $6)
       `;
-      
+
       await pgClient.query(logQuery, [
         data.playerId,
         data.clerkUserId,
