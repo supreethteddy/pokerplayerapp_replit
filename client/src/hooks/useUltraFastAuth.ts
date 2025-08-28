@@ -424,62 +424,87 @@ export function useUltraFastAuth() {
       console.log('✅ [BACKEND AUTOMATION] Signup successful:', player?.email);
       console.log('🎯 [BACKEND AUTOMATION] Player created with code:', player?.player_code);
 
-      // Handle backend automation response - always redirect to KYC for new signups
+      // Handle backend automation response
       if (success && player) {
-        toast({
-          title: "Account Created Successfully!",
-          description: `Welcome ${player.first_name}! Player Code: ${player.player_code}`,
+        // Check if this is an existing player or new player based on KYC status
+        const isNewPlayer = !player.existing && player.kyc_status === 'pending';
+        const needsKYC = player.kyc_status === 'pending' || player.kyc_status === 'submitted';
+
+        console.log('🎯 [SIGNUP FLOW] Player status:', {
+          isNewPlayer,
+          kycStatus: player.kyc_status,
+          needsKYC,
+          existing: player.existing
         });
 
-        // CRITICAL FIX: Create Supabase session for existing user
-        try {
-          const { data: supabaseAuth, error } = await supabase.auth.signInWithPassword({
-            email: email,
-            password: password
+        if (needsKYC) {
+          // Store KYC redirect data
+          const kycData = {
+            id: player.id,
+            playerId: player.id,
+            email: player.email || email,
+            firstName: player.first_name || player.firstName,
+            lastName: player.last_name || player.lastName,
+            kycStatus: player.kyc_status || 'pending',
+            existing: player.existing || false
+          };
+
+          console.log('🎯 [KYC REDIRECT] Storing KYC data:', kycData);
+          
+          sessionStorage.setItem('kyc_redirect', JSON.stringify(kycData));
+          sessionStorage.setItem('kyc_flow_active', 'true');
+
+          toast({
+            title: isNewPlayer ? "Account Created Successfully!" : "Welcome back!",
+            description: isNewPlayer ? `Welcome! Player Code: ${player.player_code}` : "Please complete your KYC verification.",
           });
 
-          if (error) {
-            console.warn('⚠️ [ULTRA-FAST AUTH] Supabase session creation warning:', error.message);
-            // Continue anyway as our backend authentication was successful
-          } else {
-            console.log('✅ [ULTRA-FAST AUTH] Supabase session established for existing user');
-          }
-        } catch (sessionError) {
-          console.warn('⚠️ [ULTRA-FAST AUTH] Supabase session creation failed, continuing:', sessionError);
+          // Trigger page reload to start KYC workflow
+          setTimeout(() => {
+            console.log('🔄 [KYC REDIRECT] Reloading to start KYC workflow');
+            window.location.reload();
+          }, 1500);
+
+          return {
+            success: true,
+            existing: player.existing || false,
+            redirectToKYC: true,
+            player,
+            playerData: player
+          };
+        } else {
+          // User is fully verified - proceed to dashboard
+          const enhancedUserData: AuthUser = {
+            ...player,
+            fullName: `${player.firstName || player.first_name || ''} ${player.lastName || player.last_name || ''}`.trim(),
+            nickname: player.nickname || '',
+            realBalance: player.balance || '0.00',
+            creditBalance: player.creditBalance || '0.00',
+            creditLimit: player.creditLimit || '0.00',
+            creditApproved: player.creditApproved || false,
+            totalBalance: player.totalBalance || '0.00',
+            isClerkSynced: true,
+            player_id: player.player_id || player.id
+          };
+
+          setUser(enhancedUserData);
+          setLoading(false);
+          sessionStorage.setItem('authenticated_user', JSON.stringify(enhancedUserData));
+          sessionStorage.setItem('just_signed_in', 'true');
+
+          toast({
+            title: "Welcome back!",
+            description: "Successfully signed in to your account.",
+          });
+
+          return {
+            success: true,
+            existing: true,
+            redirectToKYC: false,
+            player,
+            playerData: player
+          };
         }
-
-        // Set user data like a normal sign-in
-        const enhancedUserData: AuthUser = {
-          ...player,
-          fullName: `${player.firstName || ''} ${player.lastName || ''}`.trim(), // Concatenate first and last name
-          nickname: player.nickname || '', // Ensure nickname is set
-          realBalance: player.balance || '0.00',
-          creditBalance: player.creditBalance || '0.00',
-          creditLimit: player.creditLimit || '0.00',
-          creditApproved: player.creditApproved || false,
-          totalBalance: player.totalBalance || '0.00',
-          isClerkSynced: true,
-          player_id: player.player_id // Ensure player_id is included
-        };
-
-        setUser(enhancedUserData);
-        setLoading(false);
-
-        // CRITICAL FIX: Set session storage flag for loading screen
-        sessionStorage.setItem('just_signed_in', 'true');
-
-        toast({
-          title: "Welcome back!",
-          description: "Successfully signed in to your account.",
-        });
-
-        return {
-          success: true,
-          existing: true,
-          redirectToKYC: false,
-          player,
-          playerData: player
-        };
       }
 
       // This should never execute for backend automation since we handle KYC above

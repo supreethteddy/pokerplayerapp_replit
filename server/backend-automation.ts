@@ -170,13 +170,17 @@ export async function handleSignup(req: Request, res: Response) {
         email: trimmedEmail,
         first_name: trimmedFirstName,
         last_name: trimmedLastName,
-        nickname: trimmedNickname
+        nickname: trimmedNickname,
+        kyc_status: 'pending', // New players always need KYC
+        balance: '0.00',
+        existing: false // This is a new player
       };
 
       return res.json({
         success: true,
         player: response,
-        message: 'Account created successfully with whitelabel player code.'
+        message: 'Account created successfully with whitelabel player code.',
+        redirectToKYC: true // Signal that KYC is needed
       });
 
     } catch (dbError: any) {
@@ -185,6 +189,44 @@ export async function handleSignup(req: Request, res: Response) {
 
       // Handle duplicate email constraint violation
       if (dbError.code === '23505' && dbError.constraint === 'players_email_key') {
+        // Check if existing user needs KYC
+        try {
+          const existingUserQuery = `
+            SELECT id, email, first_name, last_name, nickname, kyc_status, balance, player_code
+            FROM public.players 
+            WHERE email = $1
+          `;
+          const existingResult = await pgClient.query(existingUserQuery, [trimmedEmail]);
+          
+          if (existingResult.rows.length > 0) {
+            const existingPlayer = existingResult.rows[0];
+            
+            // If existing user needs KYC, return their data for KYC redirect
+            if (existingPlayer.kyc_status === 'pending' || existingPlayer.kyc_status === 'submitted') {
+              const response = {
+                id: existingPlayer.id,
+                player_code: existingPlayer.player_code,
+                email: existingPlayer.email,
+                first_name: existingPlayer.first_name,
+                last_name: existingPlayer.last_name,
+                nickname: existingPlayer.nickname,
+                kyc_status: existingPlayer.kyc_status,
+                balance: existingPlayer.balance,
+                existing: true
+              };
+
+              return res.json({
+                success: true,
+                player: response,
+                message: 'Existing account found. Please complete KYC verification.',
+                redirectToKYC: true
+              });
+            }
+          }
+        } catch (lookupError) {
+          console.error('❌ [EXISTING USER LOOKUP] Error:', lookupError);
+        }
+
         return res.status(409).json({
           error: 'An account with this email already exists.',
           code: 'EMAIL_EXISTS'
