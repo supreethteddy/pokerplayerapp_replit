@@ -171,6 +171,7 @@ export async function handleSignup(req: Request, res: Response) {
         first_name: trimmedFirstName,
         last_name: trimmedLastName,
         nickname: trimmedNickname,
+        phone: trimmedPhone,
         kyc_status: 'pending', // New players always need KYC
         balance: '0.00',
         existing: false // This is a new player
@@ -179,7 +180,7 @@ export async function handleSignup(req: Request, res: Response) {
       return res.json({
         success: true,
         player: response,
-        message: 'Account created successfully with whitelabel player code.',
+        message: `Welcome ${trimmedNickname}! Your account has been created successfully.`,
         redirectToKYC: true // Signal that KYC is needed
       });
 

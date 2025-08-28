@@ -71,11 +71,11 @@ export function useUltraFastAuth() {
         try {
           const userData = JSON.parse(storedUser);
           console.log('🔄 [SESSION RESTORE] Restoring user from session:', userData.email);
-          
+
           if (kycFlowActive) {
             console.log('🔐 [KYC AUTH] Authentication restored for KYC workflow');
           }
-          
+
           setUser(userData);
           setAuthChecked(true);
           setLoading(false);
@@ -422,7 +422,7 @@ export function useUltraFastAuth() {
       }
 
       console.log('✅ [BACKEND AUTOMATION] Signup successful:', player?.email);
-      console.log('🎯 [BACKEND AUTOMATION] Player created with code:', player?.player_code);
+      console.log('🎯 [BACKEND AUTOMATION] Player created with nickname:', player?.nickname);
 
       // Handle backend automation response
       if (success && player) {
@@ -438,32 +438,55 @@ export function useUltraFastAuth() {
         });
 
         if (needsKYC) {
-          // Store KYC redirect data
+          // Store KYC redirect data with proper field mapping
           const kycData = {
             id: player.id,
             playerId: player.id,
             email: player.email || email,
-            firstName: player.first_name || player.firstName,
-            lastName: player.last_name || player.lastName,
+            firstName: player.first_name || player.firstName || firstName,
+            lastName: player.last_name || player.lastName || lastName,
+            nickname: player.nickname || nickname,
             kycStatus: player.kyc_status || 'pending',
             existing: player.existing || false
           };
 
           console.log('🎯 [KYC REDIRECT] Storing KYC data:', kycData);
-          
+
           sessionStorage.setItem('kyc_redirect', JSON.stringify(kycData));
           sessionStorage.setItem('kyc_flow_active', 'true');
 
+          // Store authenticated user for KYC flow
+          const kycUserData: AuthUser = {
+            id: player.id.toString(),
+            email: player.email || email,
+            firstName: player.first_name || player.firstName || firstName,
+            lastName: player.last_name || player.lastName || lastName,
+            fullName: `${player.first_name || firstName} ${player.last_name || lastName}`.trim(),
+            nickname: player.nickname || nickname,
+            phone: player.phone || phone || '',
+            kycStatus: player.kyc_status || 'pending',
+            balance: '0.00',
+            realBalance: '0.00',
+            creditBalance: '0.00',
+            creditLimit: '0.00',
+            creditApproved: false,
+            totalBalance: '0.00',
+            supabaseOnly: true,
+            player_id: player.id.toString()
+          };
+
+          sessionStorage.setItem('authenticated_user', JSON.stringify(kycUserData));
+
           toast({
             title: isNewPlayer ? "Account Created Successfully!" : "Welcome back!",
-            description: isNewPlayer ? `Welcome! Player Code: ${player.player_code}` : "Please complete your KYC verification.",
+            description: isNewPlayer ? `Welcome ${player.nickname || nickname}! Please complete your verification.` : "Please complete your KYC verification.",
           });
 
-          // Trigger page reload to start KYC workflow
+          // Force immediate redirect to KYC workflow
           setTimeout(() => {
-            console.log('🔄 [KYC REDIRECT] Reloading to start KYC workflow');
+            console.log('🔄 [KYC REDIRECT] Redirecting to KYC workflow');
             window.location.reload();
-          }, 1500);
+          }, 1000);
 
           return {
             success: true,
@@ -477,7 +500,7 @@ export function useUltraFastAuth() {
           const enhancedUserData: AuthUser = {
             ...player,
             fullName: `${player.firstName || player.first_name || ''} ${player.lastName || player.last_name || ''}`.trim(),
-            nickname: player.nickname || '',
+            nickname: player.nickname || nickname,
             realBalance: player.balance || '0.00',
             creditBalance: player.creditBalance || '0.00',
             creditLimit: player.creditLimit || '0.00',

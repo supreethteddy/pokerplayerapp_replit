@@ -26,10 +26,10 @@ import InteractiveThankYouPage from "./components/InteractiveThankYouPage";
 function AppContent() {
   // Use legacy authentication for user interface, but signup will create users in both systems
   const useClerk = false;
-  
+
   // Use legacy authentication for smooth user experience
   const { user, loading, authChecked } = useUltraFastAuth();
-  
+
   // Debug logging for routing
   console.log('🔍 [APP ROUTING] user:', !!user, 'loading:', loading, 'authChecked:', authChecked);
   if (user) {
@@ -49,45 +49,57 @@ function AppContent() {
     }
   }, [user, authChecked, loading]);
 
-  // Check for KYC redirect from signup process
-  useEffect(() => {
-    const kycData = sessionStorage.getItem('kyc_redirect');
-    const kycFlowActive = sessionStorage.getItem('kyc_flow_active');
-    const authenticatedUser = sessionStorage.getItem('authenticated_user');
-    
-    if (kycData && kycFlowActive && authenticatedUser) {
-      try {
-        const parsedData = JSON.parse(kycData);
-        const userData = JSON.parse(authenticatedUser);
-        
-        // Convert playerId to id for KYC component compatibility
-        if (parsedData.playerId && !parsedData.id) {
-          parsedData.id = parsedData.playerId;
-        }
-        
-        setKycRedirectData(parsedData);
-        
-        // CRITICAL FIX: Ensure user is authenticated during KYC flow
-        console.log('🎯 [APP] KYC redirect detected with authenticated user:', parsedData);
-        console.log('🔐 [APP] User data available for KYC:', userData.email);
-        
-      } catch (error) {
-        console.error('Error parsing KYC redirect data:', error);
-        sessionStorage.removeItem('kyc_redirect');
-        sessionStorage.removeItem('kyc_flow_active');
-        sessionStorage.removeItem('authenticated_user');
+  // Check for KYC redirect after signup
+  const kycRedirect = sessionStorage.getItem('kyc_redirect');
+  const kycFlowActive = sessionStorage.getItem('kyc_flow_active');
+
+  if (kycRedirect && kycFlowActive === 'true') {
+    try {
+      const playerData = JSON.parse(kycRedirect);
+      console.log('🎯 [AUTH] Redirecting to KYC process for player:', playerData.nickname || playerData.id);
+
+      // Ensure we have proper authentication for KYC flow
+      if (!user && sessionStorage.getItem('authenticated_user')) {
+        console.log('🔐 [KYC AUTH] Restoring authentication for KYC workflow');
+        // The user state will be restored by useUltraFastAuth hook
       }
+
+      return (
+        <KYCWorkflow 
+          playerData={{
+            id: playerData.id || playerData.playerId,
+            email: playerData.email,
+            firstName: playerData.firstName,
+            lastName: playerData.lastName,
+            nickname: playerData.nickname,
+            kycStatus: playerData.kycStatus || 'pending'
+          }}
+          onComplete={() => {
+            sessionStorage.removeItem('kyc_redirect');
+            sessionStorage.removeItem('kyc_flow_active');
+            sessionStorage.removeItem('authenticated_user');
+            // Force reload to refresh authentication state
+            window.location.reload();
+          }}
+        />
+      );
+    } catch (error) {
+      console.error('❌ [KYC REDIRECT] Error parsing KYC data:', error);
+      // Clear corrupted data and retry
+      sessionStorage.removeItem('kyc_redirect');
+      sessionStorage.removeItem('kyc_flow_active');
+      sessionStorage.removeItem('authenticated_user');
     }
-  }, []);
+  }
 
   // Welcome video for pure Supabase authentication (no Clerk sync needed)
   useEffect(() => {
     if (user && !loading && !hasShownLoadingScreen) {
       const justSignedIn = sessionStorage.getItem('just_signed_in');
       const videoPlayed = sessionStorage.getItem('welcome_video_played');
-      
+
       console.log('🎬 [VIDEO CHECK] justSignedIn:', !!justSignedIn, 'videoPlayed:', videoPlayed, 'hasShownLoadingScreen:', hasShownLoadingScreen);
-      
+
       // Show loading screen if user just signed in and video hasn't been played this session
       if (justSignedIn === 'true' && videoPlayed !== 'true') {
         console.log('🎬 [PURE SUPABASE] Showing welcome video for new login');
@@ -121,24 +133,24 @@ function AppContent() {
     );
   }
 
-  // Show KYC workflow if redirect data exists
-  if (kycRedirectData) {
-    // Store player ID in session storage for KYC workflow
-    if (kycRedirectData.playerId) {
-      sessionStorage.setItem('playerId', kycRedirectData.playerId.toString());
-      localStorage.setItem('playerId', kycRedirectData.playerId.toString());
-      console.log('🔍 [APP] Stored player ID:', kycRedirectData.playerId);
-    }
-    
-    return (
-      <div className="min-h-screen bg-slate-900 dark">
-        <KYCWorkflow 
-          playerData={kycRedirectData} 
-          onComplete={handleKYCComplete}
-        />
-      </div>
-    );
-  }
+  // Show KYC workflow if redirect data exists (this part is now handled above the return statement)
+  // if (kycRedirectData) {
+  //   // Store player ID in session storage for KYC workflow
+  //   if (kycRedirectData.playerId) {
+  //     sessionStorage.setItem('playerId', kycRedirectData.playerId.toString());
+  //     localStorage.setItem('playerId', kycRedirectData.playerId.toString());
+  //     console.log('🔍 [APP] Stored player ID:', kycRedirectData.playerId);
+  //   }
+
+  //   return (
+  //     <div className="min-h-screen bg-slate-900 dark">
+  //       <KYCWorkflow 
+  //         playerData={kycRedirectData} 
+  //         onComplete={handleKYCComplete}
+  //       />
+  //     </div>
+  //   );
+  // }
 
   // Welcome video for pure Supabase authentication
   if (showLoadingScreen) {
@@ -157,7 +169,7 @@ function AppContent() {
     <div className="min-h-screen bg-slate-900 dark">
       {/* Global Push Notification Manager - Active when user is logged in */}
       {user && <NotificationBubbleManager />}
-      
+
       <Switch>
         <Route path="/">
           {user ? <Redirect to="/dashboard" /> : (useClerk ? <ClerkAuthWrapper><div /></ClerkAuthWrapper> : <AuthWrapper />)}
