@@ -16,6 +16,7 @@ interface KYCWorkflowProps {
     firstName: string;
     lastName: string;
     kycStatus: string;
+    phone?: string; // Added optional phone property
   };
   onComplete: () => void;
 }
@@ -71,7 +72,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
       try {
         // Use dynamic player ID from props
         const playerId = playerData?.id;
-        
+
         // Initialize user details with existing playerData first
         setUserDetails(prev => ({
           firstName: playerData.firstName || prev.firstName,
@@ -83,7 +84,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
         const playerResponse = await fetch(`/api/players/${playerId}`);
         if (playerResponse.ok) {
           const player = await playerResponse.json();
-          
+
           // Update with complete player data from database
           setUserDetails(prev => ({
             firstName: player.firstName || playerData.firstName || prev.firstName,
@@ -91,7 +92,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
             email: player.email || playerData.email || prev.email,
             phone: player.phone || playerData.phone || prev.phone
           }));
-          
+
           setPanCardNumber(player.pan_card || '');
 
           // Check document uploads
@@ -100,12 +101,17 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
           // FIXED: Check if this is from a fresh signup (KYC flow active)
           const kycFlowActive = sessionStorage.getItem('kyc_flow_active');
 
-          if (kycFlowActive === 'true') {
-            // Fresh signup - always start from step 1 to allow confirmation
+          // Check if this is a fresh signup or returning user
+          const isFirstTime = kycFlowActive === 'true' && !localStorage.getItem('kyc_step_completed');
+
+          if (isFirstTime) {
+            // Fresh signup - start from step 1 for initial confirmation
             console.log('🎯 [KYC] Fresh signup detected - starting from step 1 for confirmation');
             setCurrentStep(1);
+            // Clear the fresh signup flag to prevent future resets
+            sessionStorage.removeItem('kyc_flow_active');
           } else {
-            // Returning user - determine step based on status
+            // Returning user - determine step based on actual progress
             if (playerData.kycStatus === 'approved') {
               setCurrentStep(4); // Already approved
             } else if (playerData.kycStatus === 'submitted') {
@@ -319,6 +325,18 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     console.log('🔍 [STEP2] Docs status:', uploadedDocs);
     console.log('🔍 [STEP2] PAN number:', panCardNumber);
     return allDocsUploaded && panValid;
+  };
+
+  const handleKYCComplete = () => {
+    console.log('✅ [KYC] KYC process completed successfully');
+    sessionStorage.removeItem('kyc_redirect');
+    sessionStorage.removeItem('kyc_flow_active');
+    sessionStorage.removeItem('authenticated_user');
+    localStorage.removeItem('kyc_step_completed');
+
+    if (onComplete) {
+      onComplete();
+    }
   };
 
   return (
@@ -601,7 +619,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
               </div>
 
               <Button 
-                onClick={onComplete}
+                onClick={handleKYCComplete}
                 className="w-full bg-green-600 hover:bg-green-700 text-white"
               >
                 Complete Registration
