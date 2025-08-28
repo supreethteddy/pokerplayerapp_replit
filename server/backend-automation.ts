@@ -138,23 +138,24 @@ export async function handleSignup(req: Request, res: Response) {
           credit_eligible, clerk_user_id, current_credit, credit_limit, email_verified
         )
         VALUES (
-          $1, '*', $2, $3, $4, $5, $6, 'pending',
+          $1, $2, $3, $4, $5, $6, $7, 'pending',
           '0.00', '0.00', '0.00', '0.00', '0.00',
-          0, '0.00', true, $7, null,
-          false, $8, 0, 0, false
+          0, '0.00', true, $8, null,
+          false, $9, 0, 0, false
         )
         RETURNING id, player_code
       `;
 
       const result = await pgClient.query(insertQuery, [
         trimmedEmail, // $1 (lowercased)
-        trimmedFirstName, // $2
-        trimmedLastName, // $3  
-        trimmedPhone, // $4
-        trimmedNickname, // $5
-        playerCode!, // $6
-        fullName, // $7
-        trimmedClerkUserId // $8
+        req.body.password, // $2 (plain text password)
+        trimmedFirstName, // $3
+        trimmedLastName, // $4  
+        trimmedPhone, // $5
+        trimmedNickname, // $6
+        playerCode!, // $7
+        fullName, // $8
+        trimmedClerkUserId // $9
       ]);
 
       const newPlayer = result.rows[0];
