@@ -644,13 +644,25 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
               </div>
 
               <Button 
-                onComplete={() => {
+                onClick={() => {
+                  console.log('🎯 [KYC] Complete Registration clicked - cleaning up and redirecting');
+                  
+                  // Clear all KYC and authentication data
                   sessionStorage.removeItem('kyc_redirect');
                   sessionStorage.removeItem('kyc_flow_active');
                   sessionStorage.removeItem('kyc_step_progress');
                   sessionStorage.removeItem('authenticated_user');
-                  // Force reload to refresh authentication state
-                  window.location.reload();
+                  sessionStorage.removeItem('just_signed_in');
+                  localStorage.removeItem('player_auth');
+                  
+                  // Call the onComplete callback
+                  onComplete();
+                  
+                  // Force redirect to login page
+                  setTimeout(() => {
+                    console.log('🔄 [KYC] Redirecting to login page');
+                    window.location.href = '/';
+                  }, 500);
                 }}
                 className="w-full bg-green-600 hover:bg-green-700 text-white"
               >
