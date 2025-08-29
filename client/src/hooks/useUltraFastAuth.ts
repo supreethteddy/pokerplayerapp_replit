@@ -231,21 +231,21 @@ export function useUltraFastAuth() {
     }, 100);
   };
 
-  // Helper to generate sequential player ID
-  const generatePlayerId = async (existingPlayerIds: string[]) => {
-    // Use simple player ID generation instead of complex whitelabeling config
-    const player_id_prefix = 'PLAYER';
-    const player_id_number_length = 4;
+  // Helper to generate sequential player code
+  const generatePlayerId = async (existingPlayerCodes: string[]) => {
+    // Use simple player code generation instead of complex whitelabeling config
+    const player_code_prefix = 'PLAYER';
+    const player_code_number_length = 4;
 
-    let playerId: string;
+    let playerCode: string;
     let counter = 1;
 
     while (true) {
-      const paddedCounter = String(counter).padStart(player_id_number_length, '0');
-      playerId = `${player_id_prefix}-${paddedCounter}`;
+      const paddedCounter = String(counter).padStart(player_code_number_length, '0');
+      playerCode = `${player_code_prefix}-${paddedCounter}`;
 
-      if (!existingPlayerIds.includes(playerId)) {
-        return playerId;
+      if (!existingPlayerCodes.includes(playerCode)) {
+        return playerCode;
       }
       counter++;
     }
@@ -368,23 +368,23 @@ export function useUltraFastAuth() {
       setLoading(true);
       console.log('📝 [ULTRA-FAST AUTH] Signing up:', email);
 
-      // Fetch existing player IDs to ensure uniqueness for new player ID generation
-      let existingPlayerIds: string[] = [];
+      // Fetch existing player codes to ensure uniqueness for new player code generation
+      let existingPlayerCodes: string[] = [];
       try {
         const { data: players, error } = await supabase
           .from('players')
-          .select('player_id');
+          .select('player_code');
         if (error) {
-          console.warn('⚠️ [SIGNUP] Could not fetch existing player IDs:', error.message);
+          console.warn('⚠️ [SIGNUP] Could not fetch existing player codes:', error.message);
         } else if (players) {
-          existingPlayerIds = players.map((p: any) => p.player_id).filter(Boolean);
+          existingPlayerCodes = players.map((p: any) => p.player_code).filter(Boolean);
         }
       } catch (fetchError) {
-        console.warn('⚠️ [SIGNUP] Error fetching existing player IDs:', fetchError);
+        console.warn('⚠️ [SIGNUP] Error fetching existing player codes:', fetchError);
       }
 
-      // Generate the new player ID
-      const newPlayerId = await generatePlayerId(existingPlayerIds);
+      // Generate the new player code
+      const newPlayerCode = await generatePlayerId(existingPlayerCodes);
 
       // PRODUCTION-GRADE BACKEND AUTOMATION SIGNUP
       // Use our backend automation endpoint with POKEPLAYER whitelabeling system
