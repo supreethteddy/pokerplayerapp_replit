@@ -192,7 +192,6 @@ export class DirectKycStorage {
         SET 
           first_name = $1,
           last_name = $2,
-          phone = $3,
           pan_card_number = CASE 
             WHEN pan_card_number IS NULL OR pan_card_number = '' THEN $4
             ELSE pan_card_number 
