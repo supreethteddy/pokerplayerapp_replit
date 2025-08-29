@@ -89,6 +89,11 @@ function AppContent() {
       sessionStorage.removeItem('kyc_redirect');
       sessionStorage.removeItem('kyc_flow_active');
       sessionStorage.removeItem('authenticated_user');
+      // Force a reload to clear the bad state and retry the signup flow
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+      return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>;
     }
   }
 
@@ -218,6 +223,9 @@ function AppContent() {
         </Route>
         <Route path="/sign-up">
           {useClerk ? <ClerkAuthWrapper><div /></ClerkAuthWrapper> : <AuthWrapper />}
+        </Route>
+        <Route path="/kyc-docs">
+          {user ? <PlayerDashboard user={user} /> : <Redirect to="/" />}
         </Route>
         <Route component={NotFound} />
       </Switch>
