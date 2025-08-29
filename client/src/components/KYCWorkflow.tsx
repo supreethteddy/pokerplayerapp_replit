@@ -71,7 +71,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
       try {
         // Use dynamic player ID from props
         const playerId = playerData?.id;
-        
+
         // Initialize user details with existing playerData first
         setUserDetails(prev => ({
           firstName: playerData.firstName || prev.firstName,
@@ -83,7 +83,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
         const playerResponse = await fetch(`/api/players/${playerId}`);
         if (playerResponse.ok) {
           const player = await playerResponse.json();
-          
+
           // Update with complete player data from database
           setUserDetails(prev => ({
             firstName: player.firstName || playerData.firstName || prev.firstName,
@@ -91,7 +91,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
             email: player.email || playerData.email || prev.email,
             phone: player.phone || playerData.phone || prev.phone
           }));
-          
+
           setPanCardNumber(player.pan_card || '');
 
           // Check document uploads
@@ -121,7 +121,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
         } else if (playerResponse.status === 404) {
           // Player not found - redirect to login page
           console.error('❌ [KYC] Player not found in database - redirecting to login');
-          
+
           toast({
             title: "Account Not Found",
             description: "Your account was not found. Please sign in again.",
@@ -138,14 +138,14 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
           setTimeout(() => {
             window.location.href = '/';
           }, 2000);
-          
+
           return;
         } else {
           console.warn('Failed to fetch player details, using initial playerData');
         }
       } catch (error) {
         console.error('Error initializing KYC step:', error);
-        
+
         toast({
           title: "Connection Error",
           description: "Unable to verify your account. Please try logging in again.",
@@ -372,7 +372,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
             {currentStep === 4 && "Step 4: Thank You - Awaiting Approval"}
           </CardTitle>
           <div className="space-y-2">
-            <Progress value={getProgressPercentage()} className="w-full" />
+            <Progress value={getProgressPercentage()} className="w-full [&>div]:bg-green-500" />
             <p className="text-sm text-gray-400">
               Step {currentStep} of 4 - Complete KYC verification process
             </p>
