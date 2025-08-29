@@ -193,11 +193,11 @@ export class DirectKycStorage {
           first_name = $1,
           last_name = $2,
           pan_card_number = CASE 
-            WHEN pan_card_number IS NULL OR pan_card_number = '' THEN $4
+            WHEN pan_card_number IS NULL OR pan_card_number = '' THEN $3
             ELSE pan_card_number 
           END,
           kyc_status = 'submitted'
-        WHERE id = $5
+        WHERE id = $4
         RETURNING id, email, first_name, last_name, pan_card_number
       `;
 
