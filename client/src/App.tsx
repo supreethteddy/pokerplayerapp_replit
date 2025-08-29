@@ -30,11 +30,7 @@ function AppContent() {
   // Use legacy authentication for smooth user experience
   const { user, loading, authChecked } = useUltraFastAuth();
 
-  // Debug logging for routing
-  console.log('🔍 [APP ROUTING] user:', !!user, 'loading:', loading, 'authChecked:', authChecked);
-  if (user) {
-    console.log('🔍 [APP ROUTING] User details:', { id: user.id, email: user.email });
-  }
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL LOGIC
   const [showLoadingScreen, setShowLoadingScreen] = useState(false);
   const [hasShownLoadingScreen, setHasShownLoadingScreen] = useState(false);
   const [kycRedirectData, setKycRedirectData] = useState<any>(null);
@@ -48,6 +44,34 @@ function AppContent() {
       console.log('🔄 [APP] States reset after sign out');
     }
   }, [user, authChecked, loading]);
+
+  // Welcome video for pure Supabase authentication (no Clerk sync needed)
+  useEffect(() => {
+    if (user && !loading && !hasShownLoadingScreen) {
+      const justSignedIn = sessionStorage.getItem('just_signed_in');
+      const videoPlayed = sessionStorage.getItem('welcome_video_played');
+
+      console.log('🎬 [VIDEO CHECK] justSignedIn:', !!justSignedIn, 'videoPlayed:', videoPlayed, 'hasShownLoadingScreen:', hasShownLoadingScreen);
+
+      // Show loading screen if user just signed in and video hasn't been played this session
+      if (justSignedIn === 'true' && videoPlayed !== 'true') {
+        console.log('🎬 [PURE SUPABASE] Showing welcome video for new login');
+        setShowLoadingScreen(true);
+        setHasShownLoadingScreen(true); // Mark as shown to prevent re-triggers
+        // Don't remove just_signed_in yet - let LoadingScreen handle cleanup
+        console.log('🎬 [PURE SUPABASE] LoadingScreen will handle video playback');
+      } else {
+        console.log('🎬 [VIDEO SKIP] Conditions not met for video - proceeding to dashboard');
+        setHasShownLoadingScreen(true);
+      }
+    }
+  }, [user, loading, hasShownLoadingScreen]);
+
+  // Debug logging for routing
+  console.log('🔍 [APP ROUTING] user:', !!user, 'loading:', loading, 'authChecked:', authChecked);
+  if (user) {
+    console.log('🔍 [APP ROUTING] User details:', { id: user.id, email: user.email });
+  }
 
   // Check for KYC redirect after signup
   const kycRedirect = sessionStorage.getItem('kyc_redirect');
@@ -96,28 +120,6 @@ function AppContent() {
       return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>;
     }
   }
-
-  // Welcome video for pure Supabase authentication (no Clerk sync needed)
-  useEffect(() => {
-    if (user && !loading && !hasShownLoadingScreen) {
-      const justSignedIn = sessionStorage.getItem('just_signed_in');
-      const videoPlayed = sessionStorage.getItem('welcome_video_played');
-
-      console.log('🎬 [VIDEO CHECK] justSignedIn:', !!justSignedIn, 'videoPlayed:', videoPlayed, 'hasShownLoadingScreen:', hasShownLoadingScreen);
-
-      // Show loading screen if user just signed in and video hasn't been played this session
-      if (justSignedIn === 'true' && videoPlayed !== 'true') {
-        console.log('🎬 [PURE SUPABASE] Showing welcome video for new login');
-        setShowLoadingScreen(true);
-        setHasShownLoadingScreen(true); // Mark as shown to prevent re-triggers
-        // Don't remove just_signed_in yet - let LoadingScreen handle cleanup
-        console.log('🎬 [PURE SUPABASE] LoadingScreen will handle video playback');
-      } else {
-        console.log('🎬 [VIDEO SKIP] Conditions not met for video - proceeding to dashboard');
-        setHasShownLoadingScreen(true);
-      }
-    }
-  }, [user, loading, hasShownLoadingScreen]);
 
   const handleKYCComplete = () => {
     console.log('✅ [APP] KYC process completed');
