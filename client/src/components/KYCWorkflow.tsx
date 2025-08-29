@@ -16,6 +16,7 @@ interface KYCWorkflowProps {
     firstName: string;
     lastName: string;
     kycStatus: string;
+    phone?: string; // Added phone to interface for clarity
   };
   onComplete: () => void;
 }
@@ -428,7 +429,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
               </div>
 
               <Button
-                onClick={() => setCurrentStep(2)}
+                onClick={saveUserDetails} // Changed from setCurrentStep(2) to call saveUserDetails
                 disabled={!isStep1Complete()}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12"
               >
@@ -643,7 +644,14 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
               </div>
 
               <Button 
-                onClick={onComplete}
+                onComplete={() => {
+                  sessionStorage.removeItem('kyc_redirect');
+                  sessionStorage.removeItem('kyc_flow_active');
+                  sessionStorage.removeItem('kyc_step_progress');
+                  sessionStorage.removeItem('authenticated_user');
+                  // Force reload to refresh authentication state
+                  window.location.reload();
+                }}
                 className="w-full bg-green-600 hover:bg-green-700 text-white"
               >
                 Complete Registration
