@@ -443,115 +443,121 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
               <h3 className="text-lg font-semibold text-white mb-4">Upload Required Documents</h3>
 
               {/* Government ID Upload */}
-              <div className={`p-4 rounded-lg border ${uploadedDocs.governmentId ? 'border-green-500 bg-green-900/20' : 'border-gray-600 bg-gray-800'}`}>
-                <div className="flex items-center justify-between mb-3">
+              <div className={`p-6 rounded-lg border ${uploadedDocs.governmentId ? 'border-green-500 bg-green-900/20' : 'border-gray-600 bg-gray-800'}`}>
+                <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center">
                     <CreditCard className="w-5 h-5 mr-2 text-blue-500" />
                     <Label className="text-white font-medium">Government ID</Label>
                   </div>
                   {uploadedDocs.governmentId && <CheckCircle className="w-5 h-5 text-green-500" />}
                 </div>
-                <p className="text-sm text-gray-400 mb-3">
+                <p className="text-sm text-gray-400 mb-4">
                   Upload your Aadhaar Card, PAN Card, or Passport
                 </p>
                 {!uploadedDocs.governmentId ? (
-                  <Input
-                    type="file"
-                    accept="image/*,.pdf"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleFileUpload('government_id', file);
-                    }}
-                    disabled={uploading}
-                    className="bg-gray-700 border-gray-600 text-white"
-                  />
+                  <div className="w-full">
+                    <Input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleFileUpload('government_id', file);
+                      }}
+                      disabled={uploading}
+                      className="bg-gray-700 border-gray-600 text-white w-full h-12"
+                    />
+                  </div>
                 ) : (
-                  <div className="text-green-400 text-sm">✓ Government ID uploaded successfully</div>
+                  <div className="text-green-400 text-sm bg-green-900/20 p-3 rounded">✓ Government ID uploaded successfully</div>
                 )}
               </div>
 
               {/* Utility Bill Upload */}
-              <div className={`p-4 rounded-lg border ${uploadedDocs.utilityBill ? 'border-green-500 bg-green-900/20' : 'border-gray-600 bg-gray-800'}`}>
-                <div className="flex items-center justify-between mb-3">
+              <div className={`p-6 rounded-lg border ${uploadedDocs.utilityBill ? 'border-green-500 bg-green-900/20' : 'border-gray-600 bg-gray-800'}`}>
+                <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center">
                     <FileText className="w-5 h-5 mr-2 text-green-500" />
                     <Label className="text-white font-medium">Address Proof</Label>
                   </div>
                   {uploadedDocs.utilityBill && <CheckCircle className="w-5 h-5 text-green-500" />}
                 </div>
-                <p className="text-sm text-gray-400 mb-3">
+                <p className="text-sm text-gray-400 mb-4">
                   Upload your Utility Bill, Bank Statement, or Rental Agreement
                 </p>
                 {!uploadedDocs.utilityBill ? (
-                  <Input
-                    type="file"
-                    accept="image/*,.pdf"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleFileUpload('utility_bill', file);
-                    }}
-                    disabled={uploading}
-                    className="bg-gray-700 border-gray-600 text-white"
-                  />
+                  <div className="w-full">
+                    <Input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleFileUpload('utility_bill', file);
+                      }}
+                      disabled={uploading}
+                      className="bg-gray-700 border-gray-600 text-white w-full h-12"
+                    />
+                  </div>
                 ) : (
-                  <div className="text-green-400 text-sm">✓ Address proof uploaded successfully</div>
+                  <div className="text-green-400 text-sm bg-green-900/20 p-3 rounded">✓ Address proof uploaded successfully</div>
                 )}
               </div>
 
               {/* PAN Card Upload */}
-              <div className={`p-4 rounded-lg border ${uploadedDocs.panCard ? 'border-green-500 bg-green-900/20' : 'border-gray-600 bg-gray-800'}`}>
-                <div className="flex items-center justify-between mb-3">
+              <div className={`p-6 rounded-lg border ${uploadedDocs.panCard ? 'border-green-500 bg-green-900/20' : 'border-gray-600 bg-gray-800'}`}>
+                <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center">
                     <CreditCard className="w-5 h-5 mr-2 text-yellow-500" />
                     <Label className="text-white font-medium">PAN Card</Label>
                   </div>
                   {uploadedDocs.panCard && <CheckCircle className="w-5 h-5 text-green-500" />}
                 </div>
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <Label className="text-white text-sm">PAN Card Number *</Label>
+                <div className="space-y-5">
+                  <div className="space-y-3">
+                    <Label className="text-white text-sm font-medium">PAN Card Number *</Label>
                     <Input
                       value={panCardNumber}
                       onChange={(e) => setPanCardNumber(e.target.value.toUpperCase())}
-                      className={`bg-gray-700 border-gray-600 text-white ${
+                      className={`bg-gray-700 border-gray-600 text-white h-12 ${
                         panCardNumber && !isValidPAN(panCardNumber) ? 'border-red-500' : ''
                       }`}
                       placeholder="ABCPF1234G"
                       maxLength={10}
                     />
                     {panCardNumber && !isValidPAN(panCardNumber) && (
-                      <p className="text-red-400 text-xs">Invalid PAN format. Format: 3 letters + entity code + 1 letter + 4 digits + 1 letter (e.g. ABCPF1234G)</p>
+                      <p className="text-red-400 text-xs mt-2">Invalid PAN format. Format: 3 letters + entity code + 1 letter + 4 digits + 1 letter (e.g. ABCPF1234G)</p>
                     )}
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-white text-sm">Upload PAN Card Document *</Label>
+                  <div className="space-y-3">
+                    <Label className="text-white text-sm font-medium">Upload PAN Card Document *</Label>
                     {!uploadedDocs.panCard ? (
-                      <Input
-                        type="file"
-                        accept="image/*,.pdf"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleFileUpload('pan_card', file);
-                        }}
-                        disabled={uploading}
-                        className="bg-gray-700 border-gray-600 text-white"
-                      />
+                      <div className="w-full">
+                        <Input
+                          type="file"
+                          accept="image/*,.pdf"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleFileUpload('pan_card', file);
+                          }}
+                          disabled={uploading}
+                          className="bg-gray-700 border-gray-600 text-white w-full h-12"
+                        />
+                      </div>
                     ) : (
-                      <div className="text-green-400 text-sm">✓ PAN card uploaded successfully</div>
+                      <div className="text-green-400 text-sm bg-green-900/20 p-3 rounded">✓ PAN card uploaded successfully</div>
                     )}
                   </div>
                 </div>
               </div>
 
-              <div className="mt-6">
+              <div className="mt-8 pt-4 border-t border-gray-700">
                 <Button 
                   onClick={submitKYC}
                   disabled={submitting || !isStep2Complete()} // Disable if not all docs uploaded or PAN invalid
-                  className="w-full bg-green-600 hover:bg-green-700 text-white h-12 text-lg font-semibold"
+                  className="w-full bg-green-600 hover:bg-green-700 text-white h-14 text-lg font-semibold mb-3"
                 >
                   {submitting ? "Submitting..." : "Submit Documents"}
                 </Button>
-                <p className="text-center text-sm text-green-400 mt-2">
+                <p className="text-center text-sm text-green-400">
                   Ready to submit! Click the button above to submit your documents.
                 </p>
               </div>
