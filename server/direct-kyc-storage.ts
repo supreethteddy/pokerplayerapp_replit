@@ -204,7 +204,6 @@ export class DirectKycStorage {
       const result = await pgClient.query(updateQuery, [
         formData.firstName,
         formData.lastName,
-        formData.phone,
         formData.panCardNumber,
         playerId,
       ]);
