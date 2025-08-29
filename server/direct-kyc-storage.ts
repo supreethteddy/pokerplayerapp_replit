@@ -196,7 +196,8 @@ export class DirectKycStorage {
             WHEN pan_card_number IS NULL OR pan_card_number = '' THEN $3
             ELSE pan_card_number 
           END,
-          kyc_status = 'submitted'
+          kyc_status = 'submitted',
+          updated_at = NOW()
         WHERE id = $4
         RETURNING id, email, first_name, last_name, pan_card_number
       `;

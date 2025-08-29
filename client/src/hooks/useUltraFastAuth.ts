@@ -3,6 +3,26 @@ import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 // REMOVED: useInvisibleClerk for pure Supabase authentication
 
+// Password validation utility
+export const validatePassword = (password: string) => {
+  const requirements = {
+    length: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    lowercase: /[a-z]/.test(password),
+    number: /\d/.test(password),
+    special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+  };
+
+  const score = Object.values(requirements).filter(Boolean).length;
+
+  return {
+    isValid: requirements.length && requirements.uppercase && requirements.lowercase && requirements.number,
+    requirements,
+    strength: score <= 2 ? 'weak' : score <= 4 ? 'medium' : 'strong',
+    score
+  };
+};
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -20,6 +40,7 @@ export interface AuthUser {
   totalBalance: string;
   supabaseOnly: boolean;
   player_id?: string; // Added for player ID
+  isClerkSynced?: boolean; // Added to track Clerk sync status
 }
 
 export interface AuthResult {
@@ -338,13 +359,47 @@ export function useUltraFastAuth() {
       console.error('❌ [ULTRA-FAST AUTH] Sign in error:', error);
       setLoading(false);
 
+      let errorMessage = 'Sign in failed. Please try again.';
+
+      if (error.errors && error.errors.length > 0) {
+        const clerkError = error.errors[0];
+        const code = clerkError.code;
+        const message = clerkError.message;
+
+        switch (code) {
+          case 'form_identifier_not_found':
+            errorMessage = 'No account found with this email address. Please sign up first.';
+            break;
+          case 'form_password_incorrect':
+            errorMessage = 'Incorrect password. Please try again.';
+            break;
+          case 'form_param_format_invalid':
+            errorMessage = 'Please enter a valid email address.';
+            break;
+          case 'too_many_requests':
+            errorMessage = 'Too many failed attempts. Please wait a moment before trying again.';
+            break;
+          default:
+            errorMessage = message || 'Sign in failed. Please check your credentials.';
+        }
+      } else if (error.message) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes('identifier') && msg.includes('not found')) {
+          errorMessage = 'No account found with this email address. Please sign up first.';
+        } else if (msg.includes('password') && msg.includes('incorrect')) {
+          errorMessage = 'Incorrect password. Please try again.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
       toast({
         title: "Sign In Failed",
-        description: error.message || "Please check your credentials and try again.",
+        description: errorMessage,
         variant: "destructive",
       });
 
-      return { success: false, error: error.message };
+      return { success: false, error: errorMessage };
     }
   };
 
@@ -364,6 +419,30 @@ export function useUltraFastAuth() {
       nickname,
       phone
     });
+
+    // Client-side password validation
+    if (password.length < 8) {
+      return {
+        success: false,
+        error: 'Password must be at least 8 characters long.'
+      };
+    }
+
+    if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+      return {
+        success: false,
+        error: 'Password must contain at least one uppercase letter, one lowercase letter, and one number.'
+      };
+    }
+
+    // Basic email validation
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return {
+        success: false,
+        error: 'Please enter a valid email address.'
+      };
+    }
+
     try {
       setLoading(true);
       console.log('📝 [ULTRA-FAST AUTH] Signing up:', email);
@@ -537,13 +616,63 @@ export function useUltraFastAuth() {
       console.error('❌ [ULTRA-FAST AUTH] Sign up error:', error);
       setLoading(false);
 
+      let errorMessage = 'Account creation failed. Please try again.';
+
+      if (error.errors && error.errors.length > 0) {
+        const errorDetail = error.errors[0];
+        const code = errorDetail.code;
+        const message = errorDetail.message;
+
+        // Handle specific error codes
+        switch (code) {
+          case 'form_password_pwned':
+            errorMessage = 'This password has been found in a data breach. Please choose a more secure password.';
+            break;
+          case 'form_password_length_too_short':
+            errorMessage = 'Password must be at least 8 characters long.';
+            break;
+          case 'form_password_validation_failed':
+            errorMessage = 'Password must contain at least 8 characters, including uppercase, lowercase, and a number.';
+            break;
+          case 'form_identifier_exists':
+          case 'form_identifier_not_available':
+            errorMessage = 'An account with this email already exists. Please sign in instead.';
+            break;
+          case 'form_param_format_invalid':
+            if (message?.toLowerCase().includes('email')) {
+              errorMessage = 'Please enter a valid email address.';
+            } else if (message?.toLowerCase().includes('phone')) {
+              errorMessage = 'Please enter a valid phone number.';
+            } else {
+              errorMessage = 'Please check your input format and try again.';
+            }
+            break;
+          case 'form_param_nil':
+            errorMessage = 'Please fill in all required fields.';
+            break;
+          default:
+            // Use the original message for unhandled errors
+            errorMessage = message || 'Account creation failed. Please try again.';
+        }
+      } else if (error.message) {
+        // Handle generic error messages
+        const msg = error.message.toLowerCase();
+        if (msg.includes('password')) {
+          errorMessage = 'Password does not meet requirements. Please use at least 8 characters with uppercase, lowercase, and numbers.';
+        } else if (msg.includes('email') && msg.includes('exists')) {
+          errorMessage = 'An account with this email already exists. Please sign in instead.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
       toast({
         title: "Sign Up Failed",
-        description: error.message || "Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
 
-      return { success: false, error: error.message };
+      return { success: false, error: errorMessage };
     }
   };
 
