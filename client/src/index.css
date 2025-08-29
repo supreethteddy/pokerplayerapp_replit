@@ -134,3 +134,39 @@ html, body {
 .animate-fade-in {
   animation: fade-in 1s ease-out forwards;
 }
+
+/* File input styling */
+input[type="file"] {
+  @apply bg-gray-700 border-gray-600 text-white;
+  color: white !important;
+}
+
+input[type="file"]::-webkit-file-upload-button {
+  @apply bg-gray-600 text-white border-gray-500 px-3 py-1 rounded mr-2;
+  border: 1px solid;
+  color: white !important;
+}
+
+input[type="file"]::-webkit-file-upload-button:hover {
+  @apply bg-gray-500;
+}
+
+/* Firefox file input styling */
+input[type="file"]::-moz-file-upload-button {
+  background-color: #4b5563;
+  color: white !important;
+  border: 1px solid #6b7280;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.25rem;
+  margin-right: 0.5rem;
+}
+
+/* Ensure the "No file chosen" text is also white */
+input[type="file"]::file-selector-button {
+  background-color: #4b5563;
+  color: white !important;
+  border: 1px solid #6b7280;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.25rem;
+  margin-right: 0.5rem;
+}
