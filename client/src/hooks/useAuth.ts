@@ -120,6 +120,19 @@ export function useAuth() {
           setLoading(false);
           return;
         }
+        if (response.status === 403) {
+          console.log('🚫 [AUTH] KYC not approved - access denied');
+          const errorData = await response.json().catch(() => ({}));
+          setUser(null);
+          setLoading(false);
+          toast({
+            title: "KYC Approval Required",
+            description: errorData.message || "Wait for KYC approval from our staff team",
+            variant: "destructive",
+          });
+          await supabase.auth.signOut();
+          return;
+        }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
@@ -297,6 +310,34 @@ export function useAuth() {
       }
 
       console.log('✅ [ULTRA-FAST AUTH] Backend authentication successful');
+      
+      // Check KYC status before allowing login
+      if (data.user && data.user.kycStatus && data.user.kycStatus !== 'approved') {
+        console.log('🚫 [AUTH] KYC not approved:', data.user.kycStatus);
+        setLoading(false);
+        
+        let statusMessage;
+        switch (data.user.kycStatus) {
+          case 'pending':
+            statusMessage = "Your KYC documents are pending review. Please wait for staff approval.";
+            break;
+          case 'submitted':
+            statusMessage = "Your KYC documents have been submitted and are under review. Please wait for staff approval.";
+            break;
+          case 'rejected':
+            statusMessage = "Your KYC documents were rejected. Please contact support for assistance.";
+            break;
+          default:
+            statusMessage = "Wait for KYC approval from our staff team";
+        }
+        
+        toast({
+          title: "KYC Approval Required",
+          description: statusMessage,
+          variant: "destructive",
+        });
+        return { success: false };
+      }
       
       // Now sign in with Supabase using the returned auth token
       if (data.user && data.user.supabaseId) {

@@ -533,7 +533,6 @@ export function registerRoutes(app: Express) {
         requestId,
         playerId,
         playerName: `${player.first_name} ${player.last_name}`,
-        amount,
         newBalance,
         processedBy: approvedBy,
         timestamp: new Date().toISOString()
@@ -541,7 +540,7 @@ export function registerRoutes(app: Express) {
 
       console.log(`✅ [CASHIER PROCESSING] Cash-out approved: Player ${playerId}, Amount: ₹${amount}, New Balance: ₹${newBalance}`);
       res.json({ 
-        success: true,
+        success: true, 
         newBalance,
         transaction: transaction?.id,
         message: `Cash-out processed successfully. New balance: ₹${newBalance.toLocaleString()}`
@@ -1715,359 +1714,6 @@ export function registerRoutes(app: Express) {
   });
 
   // REMOVED: Duplicate endpoint - using unified clear above
-
-  // CLERK AUTHENTICATION INTEGRATION APIS
-  const clerkSync = new ClerkPlayerSync();
-
-  // Create new player (Enterprise-optimized Signup endpoint)
-  app.post("/api/players", async (req, res) => {
-    try {
-      const { email, password, firstName, lastName, phone, supabaseId, clerkUserId } = req.body;
-
-      console.log('🆕 [ENTERPRISE SIGNUP] Creating player:', { email, firstName, lastName, phone });
-
-      // Validate required fields
-      if (!email || !firstName || !lastName || !phone) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      // Use enterprise player system for optimized creation
-      const result = await enterprisePlayerSystem.createSinglePlayer({
-        email,
-        firstName,
-        lastName,
-        phone,
-        clerkUserId,
-        supabaseUserId: supabaseId,
-        password,
-        metadata: { signupSource: 'player_portal' }
-      });
-
-      // Transform to expected frontend format
-      const player = {
-        id: result.playerId,
-        email,
-        firstName,
-        lastName,
-        phone,
-        kycStatus: 'pending',
-        balance: '0.00',
-        createdAt: new Date().toISOString(),
-        clerkUserId,
-        supabaseId,
-        universalId: `enterprise_${result.playerId}_${Date.now()}`
-      };
-
-      console.log(`✅ [ENTERPRISE SIGNUP] Player ${result.status}:`, result.playerId);
-      res.json(player);
-    } catch (error: any) {
-      console.error('❌ [SIGNUP API] Error:', error);
-
-      // Handle duplicate email - redirect to KYC process if player exists
-      if ((error as any).code === '23505' && (error as any).constraint === 'players_email_unique') {
-        console.log('🔄 [SIGNUP API] Player exists - checking KYC status for:', req.body.email);
-
-        try {
-          const { Client } = await import('pg');
-          const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
-          await pgClient.connect();
-
-          const existingPlayerQuery = `
-            SELECT id, first_name, last_name, email, kyc_status, created_at 
-            FROM players 
-            WHERE email = $1
-          `;
-          const existingResult = await pgClient.query(existingPlayerQuery, [req.body.email]);
-          await pgClient.end();
-
-          if (existingResult.rows.length > 0) {
-            const existingPlayer = existingResult.rows[0];
-            console.log('✅ [SIGNUP API] Existing player found - redirecting to KYC:', existingPlayer.kyc_status);
-
-            // Return existing player data for KYC redirect
-            res.json({
-              id: existingPlayer.id,
-              email: existingPlayer.email,
-              firstName: existingPlayer.first_name,
-              lastName: existingPlayer.last_name,
-              kycStatus: existingPlayer.kyc_status,
-              existing: true, // Flag to indicate existing user
-              message: 'Account exists - redirecting to KYC process'
-            });
-            return;
-          }
-        } catch (lookupError) {
-          console.error('❌ [SIGNUP API] Lookup error:', lookupError);
-        }
-      }
-
-      res.status(500).json({ error: (error as Error).message || 'Unknown error' });
-    }
-  });
-
-  // ========== CRITICAL CLERK-SUPABASE CROSS-FUNCTIONALITY SYSTEM ==========
-
-  // Clerk webhook handler for data integrity
-  app.post("/api/clerk/webhooks", async (req, res) => {
-    try {
-      const { type, data } = req.body;
-      console.log(`🔔 [CLERK WEBHOOK] Received event: ${type}`);
-
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      switch (type) {
-        case 'user.created':
-        case 'user.updated':
-          // Auto-sync new Clerk user to Supabase
-          const { email_addresses, first_name, last_name, id: clerkUserId } = data;
-          const email = email_addresses?.[0]?.email_address;
-
-          if (email) {
-            const { error } = await supabase
-              .from('players')
-              .upsert({
-                email,
-                clerk_user_id: clerkUserId,
-                first_name: first_name || '',
-                last_name: last_name || '',
-                kyc_status: 'pending',
-                balance: '0.00',
-                is_active: true,
-                universal_id: `clerk_wh_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                credit_eligible: false,
-                credit_limit: 0,
-                current_credit: 0
-              }, {
-                onConflict: 'email'
-              });
-
-            if (!error) {
-              console.log(`✅ [CLERK WEBHOOK] User synced: ${email}`);
-            }
-          }
-          break;
-
-        case 'user.deleted':
-          // CRITICAL: Prevent data deletion cascade
-          console.log(`🚨 [CLERK WEBHOOK] User deletion blocked to prevent data loss`);
-          // Mark as inactive instead of deleting
-          await supabase
-            .from('players')
-            .update({ 
-              is_active: false,
-              clerk_user_id: null,
-              deactivated_at: new Date().toISOString()
-            })
-            .eq('clerk_user_id', data.id);
-          break;
-
-        case 'user.updated':
-          // Sync profile updates
-          const updateEmail = data.email_addresses?.[0]?.email_address;
-          if (updateEmail) {
-            await supabase
-              .from('players')
-              .update({
-                first_name: data.first_name || '',
-                last_name: data.last_name || '',
-                updated_at: new Date().toISOString()
-              })
-              .eq('clerk_user_id', data.id);
-          }
-          break;
-      }
-
-      res.json({ success: true });
-    } catch (error) {
-      console.error('❌ [CLERK WEBHOOK] Error:', error);
-      res.status(500).json({ error: 'Webhook processing failed' });
-    }
-  });
-
-  // Sync Clerk user with Player database
-  app.post("/api/clerk/sync-player", async (req, res) => {
-    try {
-      const { clerkUserId, email, firstName, lastName } = req.body;
-
-      console.log('🔗 [CLERK API] Syncing player:', email);
-
-      // Use direct database integration for Clerk sync
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      // Check if player exists first
-      const { data: existingPlayer } = await supabase
-        .from('players')
-        .select('*')
-        .eq('email', email)
-        .single();
-
-      let player;
-      if (existingPlayer) {
-        // Update existing player with Clerk ID
-        const { data: updatedPlayer, error } = await supabase
-          .from('players')
-          .update({
-            clerk_user_id: clerkUserId,
-            first_name: firstName,
-            last_name: lastName,
-            updated_at: new Date().toISOString()
-          })
-          .eq('email', email)
-          .select('*')
-          .single();
-
-        if (error) throw error;
-        player = updatedPlayer;
-        console.log('✅ [CLERK SYNC] Updated existing player:', email);
-      } else {
-        // Create new player for Clerk user
-        const { data: newPlayer, error } = await supabase
-          .from('players')
-          .insert({
-            email,
-            clerk_user_id: clerkUserId,
-            first_name: firstName,
-            last_name: lastName,
-            kyc_status: 'pending',
-            balance: '0.00',
-            is_active: true,
-            universal_id: `clerk_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            credit_eligible: false,
-            credit_limit: 0,
-            current_credit: 0
-          })
-          .select('*')
-          .single();
-
-        if (error) throw error;
-        player = newPlayer;
-        console.log('✅ [CLERK SYNC] Created new player for Clerk user:', email);
-      }
-
-      res.json({ success: true, player });
-    } catch (error: any) {
-      console.error('❌ [CLERK API] Sync error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Check KYC status for Clerk user
-  app.get("/api/clerk/kyc-status/:clerkUserId", async (req, res) => {
-    try {
-      const { clerkUserId } = req.params;
-
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      const { data: player, error } = await supabase
-        .from('players')
-        .select('kyc_status, phone')
-        .eq('clerk_user_id', clerkUserId)
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      const requiresKyc = !player || player.kyc_status === 'pending' || !player.phone;
-
-      res.json({ requiresKyc, kycStatus: player?.kyc_status });
-    } catch (error: any) {
-      console.error('❌ [CLERK API] KYC status error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Submit KYC documents for Clerk user
-  app.post("/api/clerk/kyc-submit", async (req, res) => {
-    try {
-      // Handle file uploads and KYC submission
-      const { clerkUserId, phone } = req.body;
-
-      // Update player with phone number directly
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      const { data: updatedPlayer, error } = await supabase
-        .from('players')
-        .update({
-          phone,
-          kyc_status: 'submitted',
-          updated_at: new Date().toISOString()
-        })
-        .eq('clerk_user_id', clerkUserId)
-        .select('*')
-        .single();
-
-      if (error) throw error;
-
-      // In a real implementation, you would:
-      // 1. Upload files to storage
-      // 2. Create KYC document records
-      // 3. Set KYC status to 'pending'
-
-      console.log('📋 [CLERK API] KYC submitted for player:', updatedPlayer.id);
-
-      res.json({ success: true, message: 'KYC documents submitted successfully' });
-    } catch (error: any) {
-      console.error('❌ [CLERK API] KYC submit error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // REMOVED: Using unified core system
-
-  // Get Active (Non-Archived) Chat Messages
-  app.get("/api/unified-chat/messages/:playerId", async (req, res) => {
-    try {
-      const playerId = parseInt(req.params.playerId);
-      console.log(`📋 [FIXED CHAT SYSTEM] Getting messages for player: ${playerId}`);
-
-      // Use direct chat system to get messages (it handles the database correctly)
-      const result = await directChat.getChatHistory(playerId);
-
-      if (!result.success) {
-        console.error('❌ [FIXED CHAT SYSTEM] Error from direct chat system');
-        return res.status(500).json({ error: "Failed to fetch messages" });
-      }
-
-      console.log(`✅ [FIXED CHAT SYSTEM] Retrieved ${result.conversations[0]?.chat_messages?.length || 0} messages for player ${playerId}`);
-
-      // Transform messages to expected frontend format
-      if (result.conversations[0]?.chat_messages) {
-        result.conversations[0].chat_messages = result.conversations[0].chat_messages.map(msg => ({
-          id: msg.id,
-          message: msg.message_text,
-          sender: msg.sender,
-          sender_name: msg.sender_name,
-          timestamp: msg.timestamp,
-          isFromStaff: msg.sender === 'staff' || msg.sender === 'gre'
-        }));
-      }
-
-      res.json(result);
-
-    } catch (error: any) {
-      console.error('❌ [FIXED CHAT SYSTEM] Error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // REMOVED DUPLICATE ENDPOINT - Using unified clear above
 
   // Real-time Chat Connectivity Test - PRODUCTION DIAGNOSTIC
   app.post("/api/unified-chat/test-connection", async (req, res) => {
@@ -3924,6 +3570,7 @@ export function registerRoutes(app: Express) {
       // Return comprehensive user data (compatible with existing frontend)
       const userData = {
         id: player.id,
+        supabaseId: player.supabase_id,
         email: player.email,
         firstName: player.first_name,
         lastName: player.last_name,
@@ -3931,7 +3578,6 @@ export function registerRoutes(app: Express) {
         kycStatus: player.kyc_status,
         balance: player.balance,
         emailVerified: player.email_verified || false,
-        supabaseId: player.supabase_id,
         clerkUserId: player.clerk_user_id,
         universalId: player.universal_id,
         creditBalance: player.current_credit || '0.00',
@@ -4268,9 +3914,9 @@ export function registerRoutes(app: Express) {
             RETURNING kyc_status
           `;
           const updateResult = await pgClient.query(updateKycQuery, [playerId]);
-          
+
           await pgClient.end();
-          
+
           return res.json({
             success: true,
             document: docResult.rows[0],
