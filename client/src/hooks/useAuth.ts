@@ -311,31 +311,38 @@ export function useAuth() {
 
       console.log('✅ [ULTRA-FAST AUTH] Backend authentication successful');
       
-      // Check KYC status before allowing login
-      if (data.user && data.user.kycStatus && data.user.kycStatus !== 'approved') {
-        console.log('🚫 [AUTH] KYC not approved:', data.user.kycStatus);
+      // STRICT KYC verification - block ALL non-approved statuses
+      if (data.user && data.user.kycStatus !== 'approved') {
+        console.log('🚫 [AUTH] KYC not approved - blocking login:', data.user.kycStatus);
         setLoading(false);
         
         let statusMessage;
         switch (data.user.kycStatus) {
           case 'pending':
-            statusMessage = "Your KYC documents are pending review. Please wait for staff approval.";
+            statusMessage = "Wait for KYC approval";
             break;
           case 'submitted':
-            statusMessage = "Your KYC documents have been submitted and are under review. Please wait for staff approval.";
+            statusMessage = "Wait for KYC approval";
             break;
           case 'rejected':
             statusMessage = "Your KYC documents were rejected. Please contact support for assistance.";
             break;
+          case 'incomplete':
+            statusMessage = "Please complete your KYC verification process.";
+            break;
           default:
-            statusMessage = "Wait for KYC approval from our staff team";
+            statusMessage = "Wait for KYC approval";
         }
         
         toast({
-          title: "KYC Approval Required",
+          title: "Access Denied",
           description: statusMessage,
           variant: "destructive",
         });
+        
+        // Force sign out to prevent dashboard access
+        await supabase.auth.signOut();
+        setUser(null);
         return { success: false };
       }
       

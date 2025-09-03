@@ -2020,6 +2020,16 @@ export function registerRoutes(app: Express) {
       console.log(`✅ [ENTERPRISE PLAYER] Found player: ${playerData.email} (ID: ${playerData.id})`);
 
       // Transform data to match frontend expectations (EXACT same format as authentication endpoint)
+      // CRITICAL: Block access for non-approved KYC status
+      if (playerData.kyc_status !== 'approved') {
+        console.log(`🚫 [KYC GATE] Dashboard access blocked - KYC status: ${playerData.kyc_status} for player: ${playerData.email}`);
+        return res.status(403).json({ 
+          error: 'KYC_VERIFICATION_REQUIRED',
+          message: 'Wait for KYC approval',
+          kycStatus: playerData.kyc_status
+        });
+      }
+
       const player = {
         id: playerData.id.toString(),
         email: playerData.email,
@@ -3563,6 +3573,17 @@ export function registerRoutes(app: Express) {
 
       if (updateError) {
         console.warn('⚠️ [PLAYERS TABLE AUTH] Failed to update last login:', updateError);
+      }
+
+      // CRITICAL: Check KYC status before allowing login
+      if (player.kyc_status !== 'approved') {
+        console.log(`🚫 [KYC GATE] Login blocked - KYC status: ${player.kyc_status} for player: ${player.email}`);
+        await pgClient.end();
+        return res.status(403).json({ 
+          error: 'KYC_VERIFICATION_REQUIRED',
+          message: 'Wait for KYC approval',
+          kycStatus: player.kyc_status
+        });
       }
 
       console.log(`✅ [PLAYERS TABLE AUTH] Authentication successful using players table only: ${player.email}`);
