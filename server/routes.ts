@@ -3532,53 +3532,52 @@ export function registerRoutes(app: Express) {
 
       console.log(`🔐 [PLAYERS TABLE AUTH] Login attempt: ${email}`);
 
-      // Use Supabase client with service role to bypass RLS
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
+      // Use direct PostgreSQL connection for reliable authentication
+      const { Client } = await import('pg');
+      const pgClient = new Client({
+        connectionString: process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL,
+        connectionTimeoutMillis: 10000,
+        query_timeout: 10000,
+        statement_timeout: 10000,
+      });
 
-      // Query players table directly (bypasses RLS with service role)
-      const { data: players, error: queryError } = await supabase
-        .from('players')
-        .select('*')
-        .eq('email', email)
-        .eq('password', password);
+      await pgClient.connect();
 
-      if (queryError) {
-        console.error('❌ [PLAYERS TABLE AUTH] Query error:', queryError);
-        return res.status(500).json({ error: 'Database query failed' });
-      }
+      // Query players table directly using PostgreSQL
+      const playerQuery = `
+        SELECT * FROM players 
+        WHERE email = $1 AND password = $2 AND (is_active IS NULL OR is_active = true)
+        LIMIT 1
+      `;
+      
+      const playerResult = await pgClient.query(playerQuery, [email, password]);
 
-      if (!players || players.length === 0) {
+      if (playerResult.rows.length === 0) {
         console.log(`❌ [PLAYERS TABLE AUTH] Invalid credentials for: ${email}`);
+        await pgClient.end();
         return res.status(401).json({ error: 'Invalid credentials' });
       }
 
-      const player = players[0];
+      const player = playerResult.rows[0];
       console.log(`✅ [PLAYERS TABLE AUTH] Player found: ${player.id}`);
 
-      // Update last login with Indian time (IST)
-      const now = new Date();
-      const indianTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000)); // Add 5.5 hours for IST
-      const formattedTime = indianTime.toISOString().slice(0, 19).replace('T', ' '); // Format as YYYY-MM-DD HH:MM:SS
-
-      const { error: updateError } = await supabase
-        .from('players')
-        .update({ 
-          last_login_at: formattedTime 
-        })
-        .eq('id', player.id);
-
-      if (updateError) {
+      // Update last login timestamp
+      try {
+        const updateQuery = `
+          UPDATE players 
+          SET last_login_at = NOW(), updated_at = NOW()
+          WHERE id = $1
+        `;
+        await pgClient.query(updateQuery, [player.id]);
+      } catch (updateError) {
         console.warn('⚠️ [PLAYERS TABLE AUTH] Failed to update last login:', updateError);
       }
+
+      await pgClient.end();
 
       // CRITICAL: Check KYC status before allowing login
       if (player.kyc_status !== 'approved') {
         console.log(`🚫 [KYC GATE] Login blocked - KYC status: ${player.kyc_status} for player: ${player.email}`);
-        await pgClient.end();
         return res.status(403).json({ 
           error: 'KYC_VERIFICATION_REQUIRED',
           message: 'Wait for KYC approval',
