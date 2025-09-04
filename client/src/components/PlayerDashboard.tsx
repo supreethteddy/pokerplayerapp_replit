@@ -164,7 +164,7 @@ const ScrollableOffersDisplay = () => {
                     <Gift className="w-16 h-16 text-white" />
                   </div>
                 )}
-                
+
                 {/* Offer type badge */}
                 <Badge 
                   className={`absolute top-3 right-3 ${
@@ -182,7 +182,7 @@ const ScrollableOffersDisplay = () => {
                 <h3 className="text-xl font-bold text-white mb-3">
                   {offer.title}
                 </h3>
-                
+
                 {/* Dynamic description with responsive sizing */}
                 <div className="text-slate-300 leading-relaxed mb-4">
                   <p className={`${
@@ -361,53 +361,53 @@ interface PlayerDashboardProps {
 
 function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const { user: authUser, signOut } = useUltraFastAuth();
-  
+
   // Use prop user if available, fallback to auth user
   const user = userProp || authUser;
-  const { toast } = useToast();
+  const { toast } = useUseToast();
   const queryClient = useQueryClient();
   const [callTime, setCallTime] = useState("02:45");
   const [location, setLocation] = useLocation();
 
-  
+
   // Feedback system state
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [sendingFeedback, setSendingFeedback] = useState(false);
-  
+
   // GRE Chat state variables
   const [chatMessage, setChatMessage] = useState("");
   const [sendingChatMessage, setSendingChatMessage] = useState(false);
-  
+
   // Tournament state variables
   const [tournamentActionLoading, setTournamentActionLoading] = useState(false);
   const [showTournaments, setShowTournaments] = useState(false);
-  
+
   // Chat Dialog state
   const [chatDialogOpen, setChatDialogOpen] = useState(false);
-  
+
   // Unified Chat messages state (CRITICAL FIX)
   const [unifiedChatMessages, setUnifiedChatMessages] = useState<any[]>([]);
 
-  
+
   // Handle tab navigation from URL parameters
   const getActiveTabFromUrl = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const tab = urlParams.get('tab');
     return tab || 'game';
   };
-  
+
   const [activeTab, setActiveTab] = useState(getActiveTabFromUrl());
-  
+
   // Update tab when URL changes
   useEffect(() => {
     setActiveTab(getActiveTabFromUrl());
   }, [location]);
-  
+
   // Document viewer removed as per requirements
 
   // Email verification notification state
   const [showEmailVerificationBanner, setShowEmailVerificationBanner] = useState(false);
-  
+
   // Check if user needs email verification - integrated with Clerk auth
   useEffect(() => {
     if (user && user.email && !(user as any).emailVerified) {
@@ -462,7 +462,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // Tournament Interest Handler - sends to GRE
   const handleTournamentInterest = async (tournamentId: string) => {
     if (!user?.id) return;
-    
+
     setTournamentActionLoading(true);
     try {
       const response = await apiRequest("POST", "/api/unified-chat/send", {
@@ -492,7 +492,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // Tournament Registration Handler - adds to player management system
   const handleTournamentRegister = async (tournamentId: string) => {
     if (!user?.id) return;
-    
+
     setTournamentActionLoading(true);
     try {
       const response = await apiRequest("POST", "/api/tournaments/register", {
@@ -514,7 +514,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       toast({
         title: "Registration Failed",
         description: error.message || "Failed to register for tournament",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setTournamentActionLoading(false);
@@ -639,7 +639,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     // Navigate to table view first, then seat selection will complete the join
     setLocation(`/table/${tableId}`);
   };
-  
+
   // Simplified direct join functionality - no seat selection dialog
 
   const handleLeaveWaitList = (tableId: string) => {
@@ -701,7 +701,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       toast({
         title: "Error",
         description: error.message || "Failed to send feedback. Please try again.",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setSendingFeedback(false);
@@ -720,7 +720,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     }
 
     setSendingChatMessage(true);
-    
+
     // 🚨 ENTERPRISE-GRADE FRONTEND DEBUG LOGGING - PRODUCTION DATA VALIDATION
     console.log('🛑 FRONTEND DEBUG: === PLAYER MESSAGE SEND START ===');
     console.log('🔍 FRONTEND DEBUG: Sending player message | Details:', {
@@ -732,7 +732,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       websocketConnected: wsConnected,
       validation: 'PRODUCTION_USER_CONTEXT_ONLY'
     });
-    
+
     // PRODUCTION DATA VALIDATION - NO MOCK/TEST DATA ALLOWED
     if (!user.id || typeof user.id === 'string' || chatMessage.includes('test') || chatMessage.includes('demo')) {
       console.error('❌ FRONTEND DEBUG: INVALID USER MESSAGE CONTEXT - Mock/test data detected');
@@ -744,7 +744,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       setSendingChatMessage(false);
       return;
     }
-    
+
     // Try WebSocket first for real-time chat
     if (wsConnection && wsConnected) {
       try {
@@ -754,7 +754,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           messageLength: chatMessage.trim().length,
           validation: 'PRODUCTION_WEBSOCKET_SEND'
         });
-        
+
         // Create the message object for immediate display
         const newMessage = {
           id: Date.now().toString(),
@@ -764,7 +764,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           timestamp: new Date().toISOString(),
           is_read: false
         };
-        
+
         // Add to local state immediately for instant display (optimistic UI update)
         console.log('🔍 FRONTEND DEBUG: Adding optimistic message | Details:', {
           messageId: newMessage.id,
@@ -773,7 +773,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           validation: 'PRODUCTION_OPTIMISTIC_UPDATE'
         });
         setUnifiedChatMessages(prev => [...prev, newMessage]);
-        
+
         // EXACT Staff Portal message format - PRODUCTION DATA ONLY
         const websocketPayload = {
           type: 'player_message',              // EXACT string expected by Staff Portal
@@ -784,7 +784,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           messageText: chatMessage.trim(),     // Duplicate for compatibility
           timestamp: new Date().toISOString()  // ISO timestamp string
         };
-        
+
         console.log('🔍 FRONTEND DEBUG: WebSocket payload transmission | Details:', {
           payloadType: websocketPayload.type,
           playerId: websocketPayload.playerId,
@@ -792,16 +792,16 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           messageLength: websocketPayload.message.length,
           validation: 'PRODUCTION_WEBSOCKET_PAYLOAD'
         });
-        
+
         wsConnection.send(JSON.stringify(websocketPayload));
-        
+
         console.log('✅ FRONTEND DEBUG: WebSocket message sent successfully | Details:', {
           messageLength: chatMessage.trim().length,
           playerId: user.id,
           timestamp: new Date().toISOString(),
           validation: 'PRODUCTION_WEBSOCKET_SUCCESS'
         });
-        
+
         toast({
           title: "Message Sent",
           description: "Your message has been sent to our team via real-time chat",
@@ -819,7 +819,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         console.error('📤 Falling back to REST API for message delivery');
       }
     }
-    
+
     // Fallback to REST API if WebSocket is not available
     try {
       console.log('🔍 FRONTEND DEBUG: REST API fallback initiated | Details:', {
@@ -828,7 +828,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         messageLength: chatMessage.trim().length,
         validation: 'PRODUCTION_REST_FALLBACK'
       });
-      
+
       // Create the message object for immediate display
       const newMessage = {
         id: Date.now().toString(),
@@ -838,10 +838,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         timestamp: new Date().toISOString(),
         is_read: false
       };
-      
+
       // Add to local state immediately for instant display
       setUnifiedChatMessages(prev => [...prev, newMessage]);
-      
+
       const response = await apiRequest("POST", "/api/unified-chat/send", {
         playerId: user.id,
         playerName: `${user.firstName} ${user.lastName}`,
@@ -857,7 +857,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           playerId: user.id,
           validation: 'PRODUCTION_REST_SUCCESS'
         });
-        
+
         toast({
           title: "Message Sent",
           description: "Your message has been sent to our team",
@@ -894,7 +894,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // UNIFIED CHAT MESSAGE MANAGEMENT - Single source of truth
 
   const [chatLoading, setChatLoading] = useState(false);
-  
+
   // WebSocket connection for real-time GRE chat
   const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
@@ -906,14 +906,14 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       setChatLoading(true);
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const wsUrl = `${protocol}//${window.location.host}/chat-ws`;
-      
+
       console.log('🔗 [WEBSOCKET] Connecting to:', wsUrl);
       const ws = new WebSocket(wsUrl);
-      
+
       ws.onopen = () => {
         console.log('✅ [WEBSOCKET] Connected successfully');
         setWsConnected(true);
-        
+
         // Staff Portal authentication format
         ws.send(JSON.stringify({
           type: 'authenticate',
@@ -921,31 +921,31 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           playerName: `${user.firstName} ${user.lastName}`,
           playerEmail: user.email
         }));
-        
+
         // Request chat history
         ws.send(JSON.stringify({
           type: 'get_messages',
           playerId: user.id
         }));
       };
-      
+
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          
+
           // 🛑 CRITICAL DEBUG: COMPLETE MESSAGE PAYLOAD LOGGING
           console.log('🛑 CRITICAL DEBUG === WEBSOCKET RECEIVE START ===');
           console.log('RECV RAW PAYLOAD:', JSON.stringify(data, null, 2));
           console.log('RECV PAYLOAD KEYS:', Object.keys(data));
           console.log('RECV PAYLOAD TYPES:', Object.entries(data).map(([k,v]) => `${k}: ${typeof v}`));
-          
+
           if (data.type === 'authenticated') {
             console.log('🔐 [WEBSOCKET] Authentication successful');
           }
-          
+
           if (data.type === 'chat_history') {
             console.log('📋 [WEBSOCKET] Chat history received:', data.messages.length, 'messages');
-            
+
             // 🛑 GOD-LEVEL DEBUG: COMPLETE CHAT HISTORY ANALYSIS
             console.log('🛑 GOD-LEVEL DEBUG === CHAT HISTORY PROCESSING ===');
             console.log('INCOMING MESSAGES FROM WS/DB:', JSON.stringify(data.messages, null, 2));
@@ -954,7 +954,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               currentUserIdType: typeof user.id,
               totalMessages: data.messages?.length || 0
             });
-            
+
             // Analyze each message for filtering compatibility
             data.messages?.forEach((msg: any, index: number) => {
               console.log(`MESSAGE ${index + 1} ANALYSIS:`, {
@@ -968,14 +968,14 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 filterReason: msg.player_id !== user.id ? `${msg.player_id} !== ${user.id}` : 'ID MATCH'
               });
             });
-            
+
             // Set unified messages - single source of truth
             setUnifiedChatMessages(data.messages || []);
             setChatLoading(false);
-            
+
             console.log('✅ GOD-LEVEL DEBUG: Chat history state updated with', data.messages?.length || 0, 'messages');
           }
-          
+
           // 🛑 CRITICAL: GRE MESSAGE PROCESSING WITH COMPLETE DEBUG
           if (data.type === 'gre_message') {
             console.log('🛑 CRITICAL DEBUG: GRE MESSAGE PROCESSING');
@@ -987,18 +987,18 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               player_idType: typeof data.player_id
             });
             console.log('GRE RECV - Current User ID:', user.id, typeof user.id);
-            
+
             // CRITICAL: COMPREHENSIVE ID STANDARDIZATION
             const normalizedPlayerId = parseInt(data.playerId) || parseInt(data.player_id) || parseInt(data.targetPlayerId) || user.id;
             const messageMatch = normalizedPlayerId === user.id;
-            
+
             console.log('GRE RECV - ID VALIDATION:', {
               normalizedPlayerId,
               currentUserId: user.id,
               messageMatch,
               shouldDisplay: messageMatch
             });
-            
+
             if (messageMatch) {
               const normalizedGreMessage = {
                 id: data.messageId || data.id || Date.now().toString(),
@@ -1010,7 +1010,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 timestamp: data.timestamp || new Date().toISOString(),
                 status: 'sent'
               };
-              
+
               console.log('✅ GRE RECV - ADDING TO UI:', normalizedGreMessage);
               setUnifiedChatMessages(prev => {
                 const updated = [...prev, normalizedGreMessage];
@@ -1025,10 +1025,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               });
             }
           }
-          
+
           if (data.type === 'new_message') {
             console.log('🔍 FRONTEND DEBUG: New message received | Raw payload:', data);
-            
+
             // STANDARDIZED MESSAGE TRANSFORMATION
             const normalizedMessage = {
               id: data.message?.id || data.id || Date.now().toString(),
@@ -1040,14 +1040,14 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               timestamp: data.message?.timestamp || data.timestamp,
               status: data.message?.status || 'sent'
             };
-            
+
             console.log('🔍 FRONTEND DEBUG: Normalized new message | Details:', {
               originalPlayerId: data.message?.player_id || data.playerId,
               normalizedPlayerId: normalizedMessage.player_id,
               currentUserId: user.id,
               validation: 'UNIFIED_ID_MAPPING_APPLIED'
             });
-            
+
             // PRODUCTION DATA VALIDATION - Only add if IDs match exactly
             if (normalizedMessage.player_id === user.id) {
               setUnifiedChatMessages(prev => [...prev, normalizedMessage]);
@@ -1061,7 +1061,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             }
             // Real-time message added via WebSocket - no REST API refresh needed
           }
-          
+
           if (data.type === 'session_started') {
             console.log('✅ [WEBSOCKET] Chat session started with GRE:', data.data?.greStaffName);
             toast({
@@ -1069,7 +1069,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               description: `Connected with ${data.data?.greStaffName || 'Support Staff'}`,
             });
           }
-          
+
           if (data.type === 'session_closed') {
             console.log('🔒 [WEBSOCKET] Chat session closed by GRE:', data.reason);
             toast({
@@ -1077,11 +1077,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               description: data.reason || "Chat session has been closed by support staff",
             });
           }
-          
+
           if (data.type === 'acknowledgment') {
             console.log('✅ [WEBSOCKET] Message delivery confirmed');
           }
-          
+
           if (data.type === 'message_sent') {
             console.log('✅ [WEBSOCKET] Message sent confirmation');
             // Add the sent message to local state immediately for instant display
@@ -1096,7 +1096,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             // Refresh REST API data for consistency
             queryClient.invalidateQueries({ queryKey: [`/api/gre-chat/messages/${user.id}`] });
           }
-          
+
           if (data.type === 'chat_closed') {
             console.log('🔒 [WEBSOCKET] Chat session closed by GRE');
             // Show confirmation dialog
@@ -1109,26 +1109,26 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               });
             }
           }
-          
+
         } catch (error) {
           console.error('❌ [WEBSOCKET] Error parsing message:', error);
         }
       };
-      
+
       ws.onclose = () => {
         console.log('🔌 [WEBSOCKET] Connection closed');
         setWsConnected(false);
         setWsConnection(null);
       };
-      
+
       ws.onerror = (error) => {
         console.error('❌ [WEBSOCKET] Connection error:', error);
         setWsConnected(false);
       };
-      
+
       setWsConnection(ws);
     }
-    
+
     // Cleanup WebSocket on unmount
     return () => {
       if (wsConnection) {
@@ -1214,7 +1214,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   const handleVipRedeem = (rewardType: string, pointsCost: number) => {
     if (!user?.id) return;
-    
+
     vipRedeemMutation.mutate({
       playerId: Number(user.id),
       rewardType,
@@ -1225,7 +1225,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // PAN Card management
   const [panCardNumber, setPanCardNumber] = useState("");
   const [showTransactions, setShowTransactions] = useState(false);
-  
+
   // Seat selection state for waitlist
   const [showSeatDialog, setShowSeatDialog] = useState(false);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
@@ -1321,8 +1321,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     }
   }, [user, callTime]);
 
-  // Preference change handler removed as per requirements
-
   // File type validation
   const validateFileType = (file: File): boolean => {
     const allowedTypes = [
@@ -1331,10 +1329,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       'image/png',
       'application/pdf'
     ];
-    
+
     const allowedExtensions = ['.jpg', '.jpeg', '.png', '.pdf'];
     const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
-    
+
     return allowedTypes.includes(file.type) && allowedExtensions.includes(fileExtension);
   };
 
@@ -1357,9 +1355,35 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     return typeMap[type] || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
+  function formatSubmissionDate(dateString: string) {
+    if (!dateString) return 'No date available';
+
+    try {
+      const date = new Date(dateString);
+
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        return 'No date available';
+      }
+
+      // Format as "Aug 30, 2025 at 6:39 AM"
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      }) + ' at ' + date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch (error) {
+      return 'No date available';
+    }
+  }
+
   const handleKycDocumentUpload = (documentType: string, file: File) => {
     console.log('Starting file upload:', { documentType, fileName: file.name, fileSize: file.size, fileType: file.type });
-    
+
     // Validate file type
     if (!validateFileType(file)) {
       console.log('File type validation failed:', { type: file.type, name: file.name });
@@ -1395,17 +1419,17 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       'utility': 'utility_bill',
       'photo': 'profile_photo'
     };
-    
+
     const actualType = typeMap[documentType] || documentType;
-    
+
     // Find the latest document for this type (by createdAt date), using both Supabase and local URLs
     const docs = kycDocuments?.filter(d => d.documentType === actualType && d.fileUrl);
     if (!docs || docs.length === 0) return 'missing';
-    
+
     const latestDoc = docs.reduce((latest, current) => {
       return new Date(current.createdAt!) > new Date(latest.createdAt!) ? current : latest;
     });
-    
+
     return latestDoc.status;
   };
 
@@ -1455,13 +1479,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           </div>
         </div>
       )}
-      
+
       {/* Push Notification Popup System */}
       <NotificationPopup 
         userId={Number(user.id)} 
         onChatNotificationClick={() => setChatDialogOpen(true)}
       />
-      
+
       <div className="max-w-full px-3 py-2 sm:px-4 sm:py-4 lg:px-6 lg:py-6">
         {/* Header - Responsive */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 space-y-2 sm:space-y-0">
@@ -1550,7 +1574,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 // Navigate directly to offer detail page
                 window.location.href = `/offer/${offerId}`;
               }} />
-              
+
               <div className="w-full max-w-full space-y-3 sm:space-y-4">
                 {/* Toggle State for Cash Tables vs Tournaments - Improved Alignment */}
                 <div className="flex items-center justify-center space-x-2 mb-6 bg-slate-800/50 rounded-xl p-1 max-w-md mx-auto">
@@ -1617,7 +1641,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                               </p>
                             </div>
                           </div>
-                          
+
                           <div className="grid grid-cols-1 gap-4 mb-3">
                             <div className="text-center">
                               <Users className="w-4 h-4 text-slate-400 mx-auto mb-1" />
@@ -1668,7 +1692,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </Button>
                               )}
                             </div>
-                            
+
                             <div className="flex items-center space-x-2">
                               <Badge variant="secondary" className="bg-slate-600 text-slate-300">
                                 {table.isActive ? 'Active' : 'Inactive'}
@@ -1686,7 +1710,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                           </div>
                         </div>
                       ))}
-                      
+
                       {(!(tables as any) || (tables as any)?.length === 0) && (
                         <div className="text-center py-8">
                           <Table className="w-12 h-12 text-slate-600 mx-auto mb-3" />
@@ -1734,7 +1758,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     </p>
                                   </div>
                                 </div>
-                                
+
                                 <div className="grid grid-cols-3 gap-4 mb-3">
                                   <div className="text-center">
                                     <Users className="w-4 h-4 text-slate-400 mx-auto mb-1" />
@@ -1778,7 +1802,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                       {tournament.tournament_type}
                                     </span>
                                   </div>
-                                  
+
                                   <div className="flex items-center space-x-2">
                                     {tournament.status === 'upcoming' && (
                                       <>
@@ -1811,7 +1835,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </div>
                               </div>
                             ))}
-                            
+
                             {(!(tournaments as any) || (tournaments as any)?.length === 0) && (
                               <div className="text-center py-8">
                                 <Trophy className="w-12 h-12 text-slate-600 mx-auto mb-3" />
@@ -1855,7 +1879,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               <div className="max-w-2xl mx-auto">
                 <PlayerBalanceDisplay playerId={user?.id?.toString() || ''} />
               </div>
-              
+
 
               {/* Balance Display Only - All financial operations handled by cashier */}
               <div className="max-w-4xl mx-auto">
@@ -1881,7 +1905,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                     </div>
                   </CardContent>
                 </Card>
-                
+
                 <Card className="bg-slate-800 border-slate-700">
                   <CardHeader>
                     <CardTitle className="text-white flex items-center">
@@ -1896,7 +1920,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   </CardContent>
                 </Card>
               </div>
-              
+
               {/* Cashier Workflow Information */}
               <Card className="bg-emerald-900/20 border border-emerald-500/30 max-w-3xl mx-auto">
                 <CardContent className="p-6">
@@ -2054,7 +2078,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     // Clear browser cache for this specific document and open in new tab
                                     const documentUrl = `/api/documents/view/${doc.id}?v=${Date.now()}`;
                                     console.log('Opening document:', documentUrl);
-                                    
+
                                     const newTab = window.open('about:blank', '_blank');
                                     if (newTab) {
                                       newTab.location.href = documentUrl;
@@ -2077,7 +2101,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                               View Document
                             </Button>
                           )}
-                          
+
                           <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
                             {/* Only show upload/reupload if not approved or if no documents */}
                             {(getKycDocumentStatus('id') !== 'approved' || (kycDocuments as any)?.filter((d: any) => d.documentType === 'government_id' && d.fileUrl).length === 0) && (
@@ -2092,7 +2116,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 {(kycDocuments as any)?.filter((d: any) => d.documentType === 'government_id' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
                               </Button>
                             )}
-                            
+
                             {/* Show request change button if approved */}
                             {getKycDocumentStatus('id') === 'approved' && (
                               <Button
@@ -2159,7 +2183,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     // Clear browser cache for this specific document and open in new tab
                                     const documentUrl = `/api/documents/view/${doc.id}?v=${Date.now()}`;
                                     console.log('Opening document:', documentUrl);
-                                    
+
                                     const newTab = window.open('about:blank', '_blank');
                                     if (newTab) {
                                       newTab.location.href = documentUrl;
@@ -2182,7 +2206,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                               View Document
                             </Button>
                           )}
-                          
+
                           <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
                             {/* Only show upload/reupload if not approved or if no documents */}
                             {(getKycDocumentStatus('utility') !== 'approved' || (kycDocuments as any)?.filter((d: any) => d.documentType === 'utility_bill' && d.fileUrl).length === 0) && (
@@ -2197,7 +2221,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 {(kycDocuments as any)?.filter((d: any) => d.documentType === 'utility_bill' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
                               </Button>
                             )}
-                            
+
                             {/* Show request change button if approved */}
                             {getKycDocumentStatus('utility') === 'approved' && (
                               <Button
@@ -2264,7 +2288,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     // Clear browser cache for this specific document and open in new tab
                                     const documentUrl = `/api/documents/view/${doc.id}?v=${Date.now()}`;
                                     console.log('Opening document:', documentUrl);
-                                    
+
                                     const newTab = window.open('about:blank', '_blank');
                                     if (newTab) {
                                       newTab.location.href = documentUrl;
@@ -2287,7 +2311,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                               View Document
                             </Button>
                           )}
-                          
+
                           <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
                             {/* Only show upload/reupload if not approved or if no documents */}
                             {(getKycDocumentStatus('photo') !== 'approved' || (Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length === 0)) && (
@@ -2302,7 +2326,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
                               </Button>
                             )}
-                            
+
                             {/* Show request change button if approved */}
                             {getKycDocumentStatus('photo') === 'approved' && (
                               <Button
@@ -2358,30 +2382,37 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             </p>
                           </div>
                           <div className="space-y-2">
-                            {kycDocuments.map((doc) => (
-                              <div key={doc.id} className="flex items-center justify-between py-2 border-b border-slate-600 last:border-b-0">
-                                <div className="flex items-center space-x-3 flex-1">
-                                  <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                                  <div className="flex-1">
-                                    <p className="text-xs font-medium text-white">
-                                      {formatDocumentType(doc.document_type || doc.documentType || 'document')}
-                                    </p>
-                                    <p className="text-xs text-slate-400">{doc.fileName}</p>
+                            {kycDocuments.map((doc) => {
+                              // Use updated_at if available, otherwise fall back to created_at
+                              const dateToFormat = doc.updated_at || doc.created_at;
+                              const formattedDate = formatSubmissionDate(dateToFormat);
+
+                              const formattedType = formatDocumentType(doc.document_type || doc.documentType || 'document');
+                              return (
+                                <div key={doc.id} className="flex items-center justify-between py-2 border-b border-slate-600 last:border-b-0">
+                                  <div className="flex items-center space-x-3 flex-1">
+                                    <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                                    <div className="flex-1">
+                                      <p className="text-xs font-medium text-white">
+                                        {formattedType}
+                                      </p>
+                                      <p className="text-xs text-slate-400">{doc.fileName || doc.file_name}</p>
+                                      <p className="text-xs text-slate-500">
+                                        {formattedDate}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <Badge 
+                                      variant={doc.status === 'approved' ? 'default' : doc.status === 'pending' ? 'secondary' : 'destructive'}
+                                      className="text-xs"
+                                    >
+                                      {doc.status}
+                                    </Badge>
                                   </div>
                                 </div>
-                                <div className="flex items-center space-x-2">
-                                  <Badge 
-                                    variant={doc.status === 'approved' ? 'default' : doc.status === 'pending' ? 'secondary' : 'destructive'}
-                                    className="text-xs"
-                                  >
-                                    {doc.status}
-                                  </Badge>
-                                  <span className="text-xs text-slate-500">
-                                    {new Date(doc.createdAt!).toLocaleDateString()}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
+                              )
+                            })}
                           </div>
                         </div>
                       )}
@@ -2409,7 +2440,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         Your PAN card number must be unique and cannot be used by other players
                       </p>
                     </div>
-                    
+
                     <div className="flex flex-col space-y-2">
                       <label htmlFor="pan-number" className="text-sm font-medium text-white">
                         PAN Card Number
@@ -2427,7 +2458,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         }}
                       />
                     </div>
-                    
+
                     <Button 
                       className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                       disabled={updatePanCardMutation.isPending}
@@ -2461,7 +2492,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         Upload
                       </Button>
                     </div>
-                    
+
                     <input
                       id="pan-document-upload"
                       type="file"
@@ -2499,7 +2530,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                       <option value="">Select action...</option>
                       <option value="view">View Last 10 Transactions</option>
                     </select>
-                    
+
                     {/* Transaction List */}
                     {showTransactions && (
                       <div className="bg-slate-700 rounded-lg p-4">
@@ -2535,7 +2566,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         )}
                       </div>
                     )}
-                    
+
                     {!showTransactions && (
                       <div className="bg-slate-700 rounded-lg p-4">
                         <p className="text-sm text-slate-300 text-center">
@@ -2575,7 +2606,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                       </div>
                       <p className="text-xs text-slate-400">Scan QR code to download mobile app</p>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-3">
                       <button className="bg-slate-700 hover:bg-slate-600 p-3 rounded-lg transition-colors">
                         <div className="flex items-center justify-center space-x-2">
@@ -2705,7 +2736,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 Guest Relations Support
               </DialogTitle>
             </DialogHeader>
-            
+
             {/* Chat System Integration - Direct PostgreSQL connection to Staff Portal */}
             {chatDialogOpen && user?.id && (
               <PlayerChatSystem 
@@ -2721,7 +2752,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         {/* Live Session Tracking removed - already in Session tab */}
 
       </div>
-    );
-  };
+    </div>
+  );
+};
 
 export default PlayerDashboard;
