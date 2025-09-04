@@ -364,7 +364,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Use prop user if available, fallback to auth user
   const user = userProp || authUser;
-  const { toast } = useUseToast();
+  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [callTime, setCallTime] = useState("02:45");
   const [location, setLocation] = useLocation();
@@ -1556,7 +1556,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               <Bell className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
               {notifications && Array.isArray(notifications) && notifications.length > 0 && (
                 <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full text-xs flex items-center justify-center text-white" style={{ fontSize: '0.5rem' }}>
-                  {notifications.length > 9 ? '9+' : notifications.length}
+                  {(notifications as any[]).length > 9 ? '9+' : (notifications as any[]).length}
                 </span>
               )}
             </TabsTrigger>
@@ -2383,11 +2383,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                           </div>
                           <div className="space-y-2">
                             {kycDocuments.map((doc) => {
-                              // Use updated_at if available, otherwise fall back to created_at
-                              const dateToFormat = doc.updated_at || doc.created_at;
-                              const formattedDate = formatSubmissionDate(dateToFormat);
+                              // Use createdAt as the timestamp
+                              const dateToFormat = doc.createdAt;
+                              const formattedDate = dateToFormat ? formatSubmissionDate(dateToFormat.toString()) : 'No date';
 
-                              const formattedType = formatDocumentType(doc.document_type || doc.documentType || 'document');
+                              const formattedType = formatDocumentType(doc.documentType || 'document');
                               return (
                                 <div key={doc.id} className="flex items-center justify-between py-2 border-b border-slate-600 last:border-b-0">
                                   <div className="flex items-center space-x-3 flex-1">
@@ -2396,7 +2396,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                       <p className="text-xs font-medium text-white">
                                         {formattedType}
                                       </p>
-                                      <p className="text-xs text-slate-400">{doc.fileName || doc.file_name}</p>
+                                      <p className="text-xs text-slate-400">{doc.fileName}</p>
                                       <p className="text-xs text-slate-500">
                                         {formattedDate}
                                       </p>
@@ -2723,7 +2723,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
           </div>
         </Tabs>
-        </div>
 
 
 
