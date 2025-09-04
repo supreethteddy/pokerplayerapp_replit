@@ -1343,6 +1343,20 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     return file.size <= maxSize;
   };
 
+  // Format document types for display
+  const formatDocumentType = (type: string) => {
+    const typeMap: Record<string, string> = {
+      'government_id': 'Government ID',
+      'id_document': 'Government ID', 
+      'address_proof': 'Address Proof',
+      'utility_bill': 'Address Proof',
+      'pan_card': 'PAN Card',
+      'profile_photo': 'Profile Photo',
+      'photo': 'Profile Photo'
+    };
+    return typeMap[type] || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
   const handleKycDocumentUpload = (documentType: string, file: File) => {
     console.log('Starting file upload:', { documentType, fileName: file.name, fileSize: file.size, fileType: file.type });
     
@@ -2349,7 +2363,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 <div className="flex items-center space-x-3 flex-1">
                                   <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
                                   <div className="flex-1">
-                                    <p className="text-xs font-medium text-white capitalize">{doc.documentType} Document</p>
+                                    <p className="text-xs font-medium text-white">
+                                      {formatDocumentType(doc.document_type || doc.documentType || 'document')}
+                                    </p>
                                     <p className="text-xs text-slate-400">{doc.fileName}</p>
                                   </div>
                                 </div>
