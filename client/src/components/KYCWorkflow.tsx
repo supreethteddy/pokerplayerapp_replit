@@ -69,21 +69,26 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
   // Fetch existing documents with details
   const fetchDocuments = async () => {
     try {
-      // Assuming user.id is available in this scope, or passed as a parameter.
-      // For this example, let's assume playerData.id can be used if `user` is not directly available.
       const userId = playerData?.id;
       if (!userId) {
         console.error('User ID not available to fetch documents.');
         return;
       }
+      
+      // Use the detailed document endpoint that returns formatted types and dates
       const response = await fetch(`/api/kyc/document-details/${userId}`);
+      if (!response.ok) {
+        console.error('Failed to fetch document details:', response.status);
+        return;
+      }
+      
       const docs = await response.json();
       setDocuments(docs || []);
 
       // Log document details to console
       if (docs && docs.length > 0) {
         console.log('📋 [KYC Documents] Found documents:', docs.map(doc => 
-          `${doc.formattedType} uploaded on ${doc.formattedDate} (Status: ${doc.status})`
+          `${doc.formattedType || doc.document_type} uploaded on ${doc.formattedDate || doc.created_at} (Status: ${doc.status})`
         ));
       }
     } catch (error) {
@@ -657,26 +662,66 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                 <h4 className="text-white font-medium mb-3">Document Upload History</h4>
                 {documents && documents.length > 0 ? (
                   <div className="space-y-2">
-                    {documents.map((doc: any) => (
-                      <div key={doc.id} className="flex items-center justify-between py-2 border-b border-gray-600 last:border-b-0">
-                        <div className="flex items-center space-x-3">
-                          <div className={`w-2 h-2 rounded-full ${
-                            doc.status === 'approved' || doc.status === 'verified' ? 'bg-green-500' : 
-                            doc.status === 'rejected' ? 'bg-red-500' : 'bg-yellow-500'
-                          }`}></div>
-                          <span className="text-sm font-medium text-white">{doc.formattedType}</span>
-                        </div>
-                        <div className="text-right">
-                          <div className={`px-2 py-1 text-xs rounded ${
-                            doc.status === 'approved' || doc.status === 'verified' ? 'bg-green-600 text-white' :
-                            doc.status === 'rejected' ? 'bg-red-600 text-white' : 'bg-yellow-600 text-white'
-                          }`}>
-                            {doc.status}
+                    {documents.map((doc: any) => {
+                      // Format document type properly
+                      const formatDocumentType = (type: string) => {
+                        const typeMap = {
+                          'government_id': 'Government ID',
+                          'address_proof': 'Address Proof', 
+                          'utility_bill': 'Utility Bill',
+                          'pan_card': 'PAN Card',
+                          'profile_photo': 'Profile Photo',
+                          'id_document': 'ID Document',
+                          'photo': 'Photo'
+                        };
+                        return typeMap[type] || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                      };
+
+                      // Format submission date properly
+                      const formatSubmissionDate = (dateString: string) => {
+                        if (!dateString) return 'Invalid Date';
+                        
+                        try {
+                          const date = new Date(dateString);
+                          // Format as "Aug 30, 2025 at 6:39 AM"
+                          return date.toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          }) + ' at ' + date.toLocaleTimeString('en-US', {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                          });
+                        } catch (error) {
+                          return 'Invalid Date';
+                        }
+                      };
+
+                      const formattedType = formatDocumentType(doc.document_type || doc.documentType);
+                      const formattedDate = formatSubmissionDate(doc.created_at || doc.submissionDate);
+
+                      return (
+                        <div key={doc.id} className="flex items-center justify-between py-2 border-b border-gray-600 last:border-b-0">
+                          <div className="flex items-center space-x-3">
+                            <div className={`w-2 h-2 rounded-full ${
+                              doc.status === 'approved' || doc.status === 'verified' ? 'bg-green-500' : 
+                              doc.status === 'rejected' ? 'bg-red-500' : 'bg-yellow-500'
+                            }`}></div>
+                            <span className="text-sm font-medium text-white">{formattedType}</span>
                           </div>
-                          <div className="text-xs text-gray-400 mt-1">{doc.formattedDate}</div>
+                          <div className="text-right">
+                            <div className={`px-2 py-1 text-xs rounded ${
+                              doc.status === 'approved' || doc.status === 'verified' ? 'bg-green-600 text-white' :
+                              doc.status === 'rejected' ? 'bg-red-600 text-white' : 'bg-yellow-600 text-white'
+                            }`}>
+                              {doc.status}
+                            </div>
+                            <div className="text-xs text-gray-400 mt-1">{formattedDate}</div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-gray-400 text-sm">No documents uploaded yet</p>
