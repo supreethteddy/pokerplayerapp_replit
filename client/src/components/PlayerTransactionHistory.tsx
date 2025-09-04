@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 interface Transaction {
   id: number;
+  player_id: number;
   type: string;
   amount: string;
   description: string;
@@ -16,8 +17,19 @@ interface PlayerTransactionHistoryProps {
 }
 
 export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransactionHistoryProps) {
+  const [showAll, setShowAll] = useState(false);
+  
   const { data: transactions = [], isLoading } = useQuery<Transaction[]>({
-    queryKey: [`/api/player/${playerId}/transactions`],
+    queryKey: [`/api/player/${playerId}/transactions`, showAll ? 100 : limit],
+    queryFn: async () => {
+      const response = await fetch(`/api/player/${playerId}/transactions?limit=${showAll ? 100 : limit}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch transactions');
+      }
+      const data = await response.json();
+      // Filter transactions for this specific player only
+      return data.filter((transaction: Transaction) => transaction.player_id === parseInt(playerId));
+    },
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
@@ -62,11 +74,19 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white">Recent Transactions</h3>
+      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+          {showAll ? 'All Transactions' : 'Recent Transactions'}
+        </h3>
+        <button
+          onClick={() => setShowAll(!showAll)}
+          className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+        >
+          {showAll ? 'Show Recent' : 'Show All'}
+        </button>
       </div>
       <div className="divide-y divide-gray-200 dark:divide-gray-700">
-        {transactions.slice(0, limit).map((transaction) => (
+        {(showAll ? transactions : transactions.slice(0, limit)).map((transaction) => (
           <div key={transaction.id} className="p-3 hover:bg-gray-50 dark:hover:bg-gray-700">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center space-x-3 flex-1 min-w-0">

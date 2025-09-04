@@ -314,7 +314,7 @@ export function registerRoutes(app: Express) {
 
       const { data: transactions, error } = await supabase
         .from('transactions')
-        .select('id, type, amount, description, staff_id, created_at')
+        .select('id, player_id, type, amount, description, staff_id, created_at')
         .eq('player_id', playerId)
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -324,7 +324,7 @@ export function registerRoutes(app: Express) {
         return res.status(500).json({ error: 'Failed to fetch transactions' });
       }
 
-      console.log(`✅ [TRANSACTIONS API] Retrieved ${transactions?.length || 0} transactions`);
+      console.log(`✅ [TRANSACTIONS API] Retrieved ${transactions?.length || 0} transactions for player ${playerId}`);
       res.json(transactions || []);
 
     } catch (error: any) {
