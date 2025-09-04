@@ -173,7 +173,7 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 dark">
+    <div className="dark">
       {/* Global Push Notification Manager - Active when user is logged in */}
       {user && <NotificationBubbleManager />}
 
