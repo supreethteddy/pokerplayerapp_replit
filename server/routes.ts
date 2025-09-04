@@ -3466,8 +3466,8 @@ export function registerRoutes(app: Express) {
         playerId: newPlayerData.id,
         kycStatus: newPlayerData.kyc_status,
         balance: newPlayerData.balance,
-        emailVerified: newPlayerData.email_verified || false,
-        creditEligible: newPlayerData.credit_eligible || false
+        emailVerified: newPlayerData.email_verified,
+        creditEligible: newPlayerData.credit_eligible,
       };
 
       return res.json({
@@ -3764,6 +3764,196 @@ export function registerRoutes(app: Express) {
         success: false,
         error: error.message
       });
+    }
+  });
+
+  // Get Player Seat Requests (Waitlist) - NANOSECOND SPEED DUAL TABLE SYNC
+  app.get("/api/seat-requests/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      console.log(`🔍 [NANOSECOND WAITLIST] Fetching waitlist for player: ${playerId}`);
+
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        // CRITICAL: Query seat_requests table with your updated schema
+        const seatRequestsResult = await pgClient.query(`
+          SELECT 
+            sr.id, sr.player_id, sr.table_id, sr.status, sr.position,
+            sr.estimated_wait, sr.created_at, sr.game_type, sr.notes,
+            sr.seat_number, sr.session_start_time, sr.universal_id,
+            sr.min_play_time_minutes, sr.call_time_window_minutes,
+            sr.session_buy_in_amount, sr.session_cash_out_amount,
+            pt.name as table_name, pt.game_type as table_game_type,
+            pt.min_buy_in, pt.max_buy_in
+          FROM seat_requests sr
+          LEFT JOIN poker_tables pt ON sr.table_id = pt.id::text
+          WHERE sr.player_id = $1
+          ORDER BY sr.created_at DESC
+        `, [playerId]);
+
+        await pgClient.end();
+
+        // Transform results to match frontend expectations
+        const seatRequests = seatRequestsResult.rows.map(row => ({
+          id: row.id,
+          playerId: row.player_id,
+          tableId: row.table_id,
+          tableName: row.table_name || `Table ${row.table_id}`,
+          gameType: row.table_game_type || row.game_type || 'Texas Hold\'em',
+          status: row.status,
+          position: row.position || 1,
+          estimatedWait: row.estimated_wait || 15,
+          minBuyIn: row.min_buy_in || 1000,
+          maxBuyIn: row.max_buy_in || 10000,
+          notes: row.notes,
+          seatNumber: row.seat_number,
+          sessionStartTime: row.session_start_time,
+          universalId: row.universal_id,
+          minPlayTime: row.min_play_time_minutes || 30,
+          callTimeWindow: row.call_time_window_minutes || 10,
+          sessionBuyIn: row.session_buy_in_amount || '0.00',
+          sessionCashOut: row.session_cash_out_amount || '0.00',
+          createdAt: row.created_at
+        }));
+
+        console.log(`✅ [NANOSECOND WAITLIST] Found ${seatRequests.length} waitlist entries for player ${playerId}`);
+        res.json(seatRequests);
+
+      } catch (dbError: any) {
+        await pgClient.end();
+        console.error('❌ [NANOSECOND WAITLIST] Database error:', dbError);
+        return res.status(500).json({ error: 'Database query failed' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [NANOSECOND WAITLIST] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Join Table Waitlist API - Using Updated Schema
+  app.post("/api/seat-requests", async (req, res) => {
+    try {
+      const { playerId, tableId, gameType, notes, seatNumber, minPlayTime, callTimeWindow } = req.body;
+
+      if (!playerId || !tableId) {
+        return res.status(400).json({ error: 'playerId and tableId are required' });
+      }
+
+      console.log(`🎯 [WAITLIST] Player ${playerId} joining waitlist for table: ${tableId}`);
+
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        // Check if player already on waitlist for this table
+        const existingCheck = await pgClient.query(
+          'SELECT id FROM seat_requests WHERE player_id = $1 AND table_id = $2',
+          [playerId, tableId]
+        );
+
+        if (existingCheck.rows.length > 0) {
+          await pgClient.end();
+          return res.status(409).json({ 
+            error: 'Already on waitlist for this table',
+            existing: true 
+          });
+        }
+
+        // Get table info for context
+        const tableInfo = await pgClient.query(
+          'SELECT name, game_type, min_buy_in, max_buy_in FROM poker_tables WHERE id = $1',
+          [tableId]
+        );
+
+        const table = tableInfo.rows[0];
+        const finalGameType = gameType || table?.game_type || 'Texas Hold\'em';
+
+        // Calculate position (next in line)
+        const positionResult = await pgClient.query(
+          'SELECT COALESCE(MAX(position), 0) + 1 as next_position FROM seat_requests WHERE table_id = $1',
+          [tableId]
+        );
+        const position = positionResult.rows[0]?.next_position || 1;
+
+        // Generate unique universal_id for cross-portal tracking
+        const { randomUUID } = await import('crypto');
+        const universalId = randomUUID();
+
+        // Insert into seat_requests with all new schema fields
+        const seatRequestResult = await pgClient.query(`
+          INSERT INTO seat_requests (
+            player_id, table_id, status, position, estimated_wait, game_type, 
+            notes, seat_number, universal_id, min_play_time_minutes, 
+            call_time_window_minutes, call_time_play_period_minutes, 
+            cashout_window_minutes, session_buy_in_amount, session_cash_out_amount,
+            session_rake_amount, session_tip_amount
+          ) VALUES ($1, $2, 'waiting', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+          RETURNING *
+        `, [
+          playerId, tableId, position, position * 10, finalGameType, 
+          notes || null, seatNumber || null, universalId, minPlayTime || 30,
+          callTimeWindow || 10, 5, 3, '0.00', '0.00', '0.00', '0.00'
+        ]);
+
+        const newRequest = seatRequestResult.rows[0];
+
+        // Send real-time notification to staff portal via Pusher
+        try {
+          await pusher.trigger('staff-portal', 'new_waitlist_entry', {
+            playerId: playerId,
+            tableId: tableId,
+            tableName: table?.name || `Table ${tableId}`,
+            gameType: finalGameType,
+            position: position,
+            seatNumber: seatNumber,
+            timestamp: new Date().toISOString(),
+            universalId: universalId
+          });
+          console.log(`📡 [PUSHER] Staff portal notified of new waitlist entry`);
+        } catch (pusherError: any) {
+          console.warn(`⚠️ [PUSHER] Notification failed:`, pusherError.message);
+        }
+
+        await pgClient.end();
+
+        // Return comprehensive response with table context
+        res.json({
+          success: true,
+          seatRequest: {
+            id: newRequest.id,
+            playerId: playerId,
+            tableId: tableId,
+            tableName: table?.name || `Table ${tableId}`,
+            gameType: finalGameType,
+            status: 'waiting',
+            position: position,
+            estimatedWait: position * 10,
+            minBuyIn: table?.min_buy_in || 1000,
+            maxBuyIn: table?.max_buy_in || 10000,
+            notes: notes,
+            seatNumber: seatNumber,
+            universalId: universalId,
+            minPlayTime: minPlayTime || 30,
+            callTimeWindow: callTimeWindow || 10,
+            createdAt: newRequest.created_at
+          },
+          message: `Successfully joined waitlist for ${table?.name || 'table'}. Position: ${position}`
+        });
+
+      } catch (dbError: any) {
+        await pgClient.end();
+        console.error('❌ [WAITLIST] Database error:', dbError);
+        return res.status(500).json({ error: 'Failed to join waitlist' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [WAITLIST] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
