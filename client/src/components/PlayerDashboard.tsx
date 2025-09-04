@@ -1949,8 +1949,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               </Card>
             </div>
 
-            {/* Table Operations removed - players only view balance, all operations handled by managers/cashiers */}
-
             {/* VIP Club Loyalty Program */}
             <Card className="bg-gradient-to-r from-yellow-900/20 to-yellow-800/20 border-yellow-600/30">
               <CardHeader>

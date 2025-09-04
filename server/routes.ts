@@ -156,7 +156,21 @@ export function registerRoutes(app: Express) {
           [playerId]
         );
 
-        const documents = result.rows;
+        const documents = result.rows.map(row => ({
+        id: row.id,
+        document_type: row.document_type,  // Keep SQL field name
+        documentType: row.document_type,   // Also provide camelCase version
+        file_name: row.file_name,         // Keep SQL field name
+        fileName: row.file_name,          // Also provide camelCase version
+        fileUrl: row.file_url,
+        status: row.status,
+        fileSize: row.file_size || 0,
+        created_at: row.created_at,       // Keep SQL field name
+        createdAt: row.created_at,        // Also provide camelCase version
+        updated_at: row.updated_at,       // Keep SQL field name
+        updatedAt: row.updated_at         // Also provide camelCase version
+      }));
+
         await pgClient.end();
 
         console.log(`✅ [KYC DOCS] Found ${documents.length} documents for player ${playerId}`);
@@ -4140,7 +4154,7 @@ export function registerRoutes(app: Express) {
         if (docCount === 3) {
           const updateKycQuery = `
             UPDATE players 
-            SET kyc_status = 'submitted', updated_at = NOW()
+            SETkyc_status = 'submitted', updated_at = NOW()
             WHERE id = $1
             RETURNING kyc_status
           `;
@@ -4152,7 +4166,7 @@ export function registerRoutes(app: Express) {
             success: true,
             document: docResult.rows[0],
             kycStatus: 'submitted',
-            message: 'All required documents uploaded. KYC submitted for review.',
+            message: `${documentType} uploaded successfully. All required documents uploaded. KYC submitted for review.`,
             allDocsUploaded: true
           });
         }
