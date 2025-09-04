@@ -2021,7 +2021,8 @@ export function registerRoutes(app: Express) {
 
       // Transform data to match frontend expectations (EXACT same format as authentication endpoint)
       // CRITICAL: Block access for non-approved KYC status
-      if (playerData.kyc_status !== 'approved') {
+      const allowedKycStatuses = ['approved', 'verified'];
+      if (!allowedKycStatuses.includes(playerData.kyc_status)) {
         console.log(`🚫 [KYC GATE] Dashboard access blocked - KYC status: ${playerData.kyc_status} for player: ${playerData.email}`);
         return res.status(403).json({ 
           error: 'KYC_VERIFICATION_REQUIRED',
@@ -3576,7 +3577,8 @@ export function registerRoutes(app: Express) {
       await pgClient.end();
 
       // CRITICAL: Check KYC status before allowing login
-      if (player.kyc_status !== 'approved') {
+      const allowedKycStatuses = ['approved', 'verified'];
+      if (!allowedKycStatuses.includes(player.kyc_status)) {
         console.log(`🚫 [KYC GATE] Login blocked - KYC status: ${player.kyc_status} for player: ${player.email}`);
         return res.status(403).json({ 
           error: 'KYC_VERIFICATION_REQUIRED',
