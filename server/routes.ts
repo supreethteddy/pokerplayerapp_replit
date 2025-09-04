@@ -71,6 +71,58 @@ export function registerRoutes(app: Express) {
   // ========== LEGACY ENDPOINT REMOVED - USE /api/balance/:playerId INSTEAD ==========
   // REMOVED: Duplicate /api/player/:playerId/balance endpoint - redirecting to main endpoint
 
+  // Get player balance endpoint - Direct PostgreSQL
+  app.get("/api/balance/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+
+      if (isNaN(playerId)) {
+        return res.status(400).json({ error: 'Invalid player ID' });
+      }
+
+      console.log(`💰 [BALANCE API] Fetching balance for player: ${playerId}`);
+
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        const result = await pgClient.query(
+          'SELECT balance, current_credit, credit_limit, credit_eligible FROM players WHERE id = $1',
+          [playerId]
+        );
+
+        if (result.rows.length === 0) {
+          await pgClient.end();
+          console.error('❌ [BALANCE API] Player not found');
+          return res.status(404).json({ error: 'Player not found' });
+        }
+
+        const player = result.rows[0];
+        const balanceData = {
+          cashBalance: player.balance || '0.00',
+          creditBalance: player.current_credit || '0.00',
+          creditLimit: player.credit_limit || '0.00',
+          creditEligible: player.credit_eligible || false,
+          totalBalance: (parseFloat(player.balance || '0.00') + parseFloat(player.current_credit || '0.00')).toFixed(2)
+        };
+
+        await pgClient.end();
+        console.log(`✅ [BALANCE API] Balance retrieved for player ${playerId}:`, balanceData.cashBalance);
+        res.json(balanceData);
+
+      } catch (dbError: any) {
+        await pgClient.end();
+        console.error('❌ [BALANCE API] Database error:', dbError);
+        return res.status(500).json({ error: 'Database query failed' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [BALANCE API] Server error:', error);
+      res.status(500).json({ error: 'Failed to fetch balance' });
+    }
+  });
+
   // Get Player Data by ID (for KYC workflow initialization) - PostgreSQL Direct
   app.get("/api/players/:playerId", async (req, res) => {
     try {

@@ -84,7 +84,7 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
           </div>
         </div>
       </div>
-      
+
       {/* Real-time indicator */}
       <div className="flex items-center justify-center text-xs opacity-70 text-slate-400">
         <div className="w-2 h-2 bg-green-300 rounded-full animate-pulse mr-2"></div>
