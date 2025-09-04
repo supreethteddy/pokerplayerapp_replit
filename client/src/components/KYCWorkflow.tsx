@@ -66,6 +66,32 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     return { governmentId: null, utilityBill: null, panCard: null };
   };
 
+  // Fetch existing documents with details
+  const fetchDocuments = async () => {
+    try {
+      // Assuming user.id is available in this scope, or passed as a parameter.
+      // For this example, let's assume playerData.id can be used if `user` is not directly available.
+      const userId = playerData?.id;
+      if (!userId) {
+        console.error('User ID not available to fetch documents.');
+        return;
+      }
+      const response = await fetch(`/api/kyc/document-details/${userId}`);
+      const docs = await response.json();
+      setDocuments(docs || []);
+
+      // Log document details to console
+      if (docs && docs.length > 0) {
+        console.log('📋 [KYC Documents] Found documents:', docs.map(doc => 
+          `${doc.formattedType} uploaded on ${doc.formattedDate} (Status: ${doc.status})`
+        ));
+      }
+    } catch (error) {
+      console.error('Failed to fetch documents:', error);
+    }
+  };
+
+
   useEffect(() => {
     // Determine the correct step based on KYC status and existing data
     const initializeStep = async () => {
@@ -81,68 +107,32 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
           phone: playerData.phone || prev.phone
         }));
 
-        const playerResponse = await fetch(`/api/players/${playerId}`);
-        if (playerResponse.ok) {
-          const player = await playerResponse.json();
+        setPanCardNumber(playerData.pan_card || ''); // Assuming pan_card might be available in playerData
 
-          // Update with complete player data from database
-          setUserDetails(prev => ({
-            firstName: player.firstName || playerData.firstName || prev.firstName,
-            lastName: player.lastName || playerData.lastName || prev.lastName,
-            email: player.email || playerData.email || prev.email,
-            phone: player.phone || playerData.phone || prev.phone
-          }));
+        // Check document uploads
+        await refreshDocuments(); // Use refreshDocuments to set state
+        await fetchDocuments(); // Fetch detailed document info
 
-          setPanCardNumber(player.pan_card || '');
+        // FIXED: Check if this is from a fresh signup (KYC flow active)
+        const kycFlowActive = sessionStorage.getItem('kyc_flow_active');
 
-          // Check document uploads
-          const docStatus = await refreshDocuments(); // Use refreshDocuments to set state
-
-          // FIXED: Check if this is from a fresh signup (KYC flow active)
-          const kycFlowActive = sessionStorage.getItem('kyc_flow_active');
-
-          if (kycFlowActive === 'true') {
-            // Fresh signup - always start from step 1 to allow confirmation
-            console.log('🎯 [KYC] Fresh signup detected - starting from step 1 for confirmation');
-            setCurrentStep(1);
-          } else {
-            // Returning user - determine step based on status
-            if (playerData.kycStatus === 'approved') {
-              setCurrentStep(4); // Already approved
-            } else if (playerData.kycStatus === 'submitted') {
-              setCurrentStep(4); // Waiting for approval
-            } else if (docStatus.governmentId && docStatus.utilityBill && docStatus.panCard) {
-              setCurrentStep(3); // Ready to submit
-            } else if (player.phone || playerData.phone) {
-              setCurrentStep(2); // Ready for document upload
-            } else {
-              setCurrentStep(1); // Need user details
-            }
-          }
-        } else if (playerResponse.status === 404) {
-          // Player not found - redirect to login page
-          console.error('❌ [KYC] Player not found in database - redirecting to login');
-
-          toast({
-            title: "Account Not Found",
-            description: "Your account was not found. Please sign in again.",
-            variant: "destructive"
-          });
-
-          // Clear all stored data
-          sessionStorage.removeItem('kyc_redirect');
-          sessionStorage.removeItem('kyc_flow_active');
-          sessionStorage.removeItem('authenticated_user');
-          localStorage.removeItem('player_auth');
-
-          // Redirect to login after a short delay
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 2000);
-
-          return;
+        if (kycFlowActive === 'true') {
+          // Fresh signup - always start from step 1 to allow confirmation
+          console.log('🎯 [KYC] Fresh signup detected - starting from step 1 for confirmation');
+          setCurrentStep(1);
         } else {
-          console.warn('Failed to fetch player details, using initial playerData');
+          // Returning user - determine step based on status
+          if (playerData.kycStatus === 'approved') {
+            setCurrentStep(4); // Already approved
+          } else if (playerData.kycStatus === 'submitted') {
+            setCurrentStep(4); // Waiting for approval
+          } else if (uploadedDocs.governmentId && uploadedDocs.utilityBill && uploadedDocs.panCard && isValidPAN(panCardNumber)) {
+            setCurrentStep(3); // Ready to submit
+          } else if (playerData.phone || userDetails.phone) { // Check both initial and potentially updated userDetails
+            setCurrentStep(2); // Ready for document upload
+          } else {
+            setCurrentStep(1); // Need user details
+          }
         }
       } catch (error) {
         console.error('Error initializing KYC step:', error);
@@ -165,7 +155,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     };
 
     initializeStep();
-  }, [playerData.id, playerData.kycStatus, playerData.firstName, playerData.lastName, playerData.email, playerData.phone]);
+  }, [playerData.id, playerData.kycStatus, playerData.firstName, playerData.lastName, playerData.email, playerData.phone, playerData.pan_card]); // Added pan_card to dependency array
 
   // Step 1: Save user details
   const saveUserDetails = async () => {
@@ -235,8 +225,12 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
 
           setUploadedDocs(prev => ({
             ...prev,
-            [docKey]: 'uploaded'
+            [docKey]: 'uploaded' // Indicate that the upload process for this type has started/completed
           }));
+
+          // After successful upload, refresh the detailed documents list
+          await refreshDocuments();
+          await fetchDocuments(); // Fetch detailed document info to update UI immediately
 
           toast({
             title: "Document Uploaded",
@@ -244,8 +238,9 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
           });
 
           // Check if all required documents are now uploaded and advance to step 3
-          const updatedDocs = { ...uploadedDocs, [docKey]: 'uploaded' };
-          if (updatedDocs.governmentId && updatedDocs.utilityBill && updatedDocs.panCard && isValidPAN(panCardNumber)) {
+          // We need to re-evaluate uploadedDocs based on the latest fetched data
+          const currentDocStatus = await refreshDocuments(); // Re-fetch to get accurate status
+          if (currentDocStatus.governmentId && currentDocStatus.utilityBill && currentDocStatus.panCard && isValidPAN(panCardNumber)) {
             console.log('🎯 [KYC] All documents uploaded and PAN valid - advancing to step 3');
             setCurrentStep(3);
           }
@@ -328,7 +323,8 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
   };
 
   const getProgressPercentage = () => {
-    return (currentStep / 4) * 100;
+    // Ensure we don't go beyond 100% if logic allows currentStep to be > 4
+    return Math.min((currentStep / 4) * 100, 100);
   };
 
   const isStep1Complete = () => {
@@ -351,11 +347,18 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
 
   const isStep2Complete = () => {
     const panValid = isValidPAN(panCardNumber);
-    const allDocsUploaded = uploadedDocs.governmentId && uploadedDocs.utilityBill && uploadedDocs.panCard;
-    console.log('🔍 [STEP2] All docs uploaded:', allDocsUploaded, 'PAN valid:', panValid);
-    console.log('🔍 [STEP2] Docs status:', uploadedDocs);
+    // Check against the actual fetched documents, not just the temporary 'uploadedDocs' state
+    const docStatus = documents.reduce((acc, doc: any) => {
+      if (doc.document_type === 'government_id') acc.governmentId = true;
+      if (doc.document_type === 'utility_bill') acc.utilityBill = true;
+      if (doc.document_type === 'pan_card') acc.panCard = true;
+      return acc;
+    }, { governmentId: false, utilityBill: false, panCard: false });
+
+    console.log('🔍 [STEP2] All docs uploaded:', docStatus.governmentId && docStatus.utilityBill && docStatus.panCard, 'PAN valid:', panValid);
+    console.log('🔍 [STEP2] Docs status:', docStatus);
     console.log('🔍 [STEP2] PAN number:', panCardNumber);
-    return allDocsUploaded && panValid;
+    return docStatus.governmentId && docStatus.utilityBill && docStatus.panCard && panValid;
   };
 
   return (
@@ -450,12 +453,13 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                     <CreditCard className="w-5 h-5 mr-2 text-blue-500" />
                     <Label className="text-white font-medium">Government ID</Label>
                   </div>
-                  {uploadedDocs.governmentId && <CheckCircle className="w-5 h-5 text-green-500" />}
+                  {/* Check against actual documents state */}
+                  {documents.some((doc: any) => doc.document_type === 'government_id') && <CheckCircle className="w-5 h-5 text-green-500" />}
                 </div>
                 <p className="text-sm text-gray-400 mb-4">
                   Upload your Aadhaar Card, PAN Card, or Passport
                 </p>
-                {!uploadedDocs.governmentId ? (
+                {!uploadedDocs.governmentId ? ( // Keep uploadedDocs for UI feedback of current upload state
                   <div className="w-full">
                     <Input
                       type="file"
@@ -480,7 +484,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                     <FileText className="w-5 h-5 mr-2 text-green-500" />
                     <Label className="text-white font-medium">Address Proof</Label>
                   </div>
-                  {uploadedDocs.utilityBill && <CheckCircle className="w-5 h-5 text-green-500" />}
+                  {documents.some((doc: any) => doc.document_type === 'utility_bill') && <CheckCircle className="w-5 h-5 text-green-500" />}
                 </div>
                 <p className="text-sm text-gray-400 mb-4">
                   Upload your Utility Bill, Bank Statement, or Rental Agreement
@@ -510,7 +514,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                     <CreditCard className="w-5 h-5 mr-2 text-yellow-500" />
                     <Label className="text-white font-medium">PAN Card</Label>
                   </div>
-                  {uploadedDocs.panCard && <CheckCircle className="w-5 h-5 text-green-500" />}
+                  {documents.some((doc: any) => doc.document_type === 'pan_card') && <CheckCircle className="w-5 h-5 text-green-500" />}
                 </div>
                 <div className="space-y-5">
                   <div className="space-y-3">
@@ -583,20 +587,36 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
               <div className="bg-gray-800 p-6 rounded-lg space-y-4">
                 <h4 className="text-white font-medium">Uploaded Documents</h4>
                 <div className="space-y-2 text-sm">
-                  <div className="flex items-center">
-                    <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
-                    <span className="text-white">Government ID Document</span>
-                  </div>
-                  <div className="flex items-center">
-                    <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
-                    <span className="text-white">Address Proof Document</span>
-                  </div>
-                  <div className="flex items-center">
-                    <CheckCircle className="w-4 h-4 mr-2 text-green-500" />
-                    <span className="text-white">PAN Card Document</span>
-                  </div>
+                  {/* Render dynamically based on fetched documents */}
+                  {documents.length > 0 ? (
+                    documents.map((doc: any, index) => (
+                      <div key={doc.id || index} className="flex items-center justify-between p-2 bg-gray-700 rounded">
+                        <div className="flex items-center space-x-2">
+                          <div className={`w-2 h-2 rounded-full ${
+                            doc.status === 'approved' || doc.status === 'verified' ? 'bg-green-500' : 
+                            doc.status === 'rejected' ? 'bg-red-500' : 'bg-yellow-500'
+                          }`}></div>
+                          <span className="text-sm font-medium text-white">{doc.formattedType}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className={`px-2 py-1 text-white text-xs rounded ${
+                            doc.status === 'approved' || doc.status === 'verified' ? 'bg-green-600' :
+                            doc.status === 'rejected' ? 'bg-red-600' : 'bg-yellow-600'
+                          }`}>
+                            {doc.status}
+                          </span>
+                          <span className="text-sm text-gray-400">{doc.formattedDate}</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-4 text-gray-500">
+                      No documents uploaded yet
+                    </div>
+                  )}
                 </div>
               </div>
+
 
               <div className="bg-blue-900/20 border border-blue-500 p-4 rounded-lg">
                 <p className="text-blue-400 text-sm">
@@ -646,7 +666,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
               <Button 
                 onClick={() => {
                   console.log('🎯 [KYC] Complete Registration clicked - cleaning up and redirecting');
-                  
+
                   // Clear all KYC and authentication data
                   sessionStorage.removeItem('kyc_redirect');
                   sessionStorage.removeItem('kyc_flow_active');
@@ -654,10 +674,10 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                   sessionStorage.removeItem('authenticated_user');
                   sessionStorage.removeItem('just_signed_in');
                   localStorage.removeItem('player_auth');
-                  
+
                   // Call the onComplete callback
                   onComplete();
-                  
+
                   // Force redirect to login page
                   setTimeout(() => {
                     console.log('🔄 [KYC] Redirecting to login page');

@@ -3165,6 +3165,90 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // KYC Document details with types and submission dates
+  app.get('/api/kyc/document-details/:playerId', async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      console.log(`📋 [KYC DETAILS] Getting document details for player:`, playerId);
+
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      const query = `
+        SELECT 
+          id,
+          document_type,
+          file_name,
+          file_url,
+          status,
+          file_size,
+          created_at,
+          updated_at
+        FROM kyc_documents 
+        WHERE player_id = $1 
+        ORDER BY created_at DESC
+      `;
+
+      const result = await pool.query(query, [parseInt(playerId)]);
+      await pool.end();
+
+      const documentDetails = result.rows.map(doc => ({
+        id: doc.id,
+        documentType: doc.document_type,
+        fileName: doc.file_name,
+        fileUrl: doc.file_url,
+        status: doc.status,
+        fileSize: doc.file_size,
+        submissionDate: doc.created_at,
+        lastUpdated: doc.updated_at,
+        formattedType: formatDocumentType(doc.document_type),
+        formattedDate: formatSubmissionDate(doc.created_at)
+      }));
+
+      console.log(`✅ [KYC DETAILS] Document details for player ${playerId}:`, 
+        documentDetails.map(d => `${d.formattedType} - ${d.formattedDate}`));
+
+      res.json(documentDetails);
+    } catch (error) {
+      console.error('❌ [KYC DETAILS] Error:', error);
+      res.status(500).json({ error: 'Failed to fetch document details' });
+    }
+  });
+
+  // Helper functions for document formatting
+  function formatDocumentType(type) {
+    const typeMap = {
+      'government_id': 'Government ID',
+      'address_proof': 'Address Proof', 
+      'utility_bill': 'Utility Bill',
+      'pan_card': 'PAN Card',
+      'profile_photo': 'Profile Photo',
+      'id_document': 'ID Document',
+      'photo': 'Photo'
+    };
+    return typeMap[type] || type.replace('_', ' ').toUpperCase();
+  }
+
+  function formatSubmissionDate(dateString) {
+    if (!dateString) return 'Invalid Date';
+    
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      return 'Invalid Date';
+    }
+  }
+
   // ========== EMAIL VERIFICATION SYSTEM ==========
 
   // Send email verification
