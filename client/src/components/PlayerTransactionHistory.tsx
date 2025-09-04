@@ -39,6 +39,8 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
       case 'cash_out': return '💳';
       case 'table_buy_in': return '🎯';
       case 'table_cash_out': return '🏆';
+      case 'add_credit': return '💳';
+      case 'clear_credit': return '🔄';
       default: return '💸';
     }
   };
@@ -49,18 +51,30 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
       case 'cash_out': return 'Cash Withdrawal';
       case 'table_buy_in': return 'Table Buy-in';
       case 'table_cash_out': return 'Table Cash-out';
-      default: return type;
+      case 'add_credit': return 'Add Credit';
+      case 'clear_credit': return 'Clear Credit';
+      default: return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
   };
 
   const getAmountColor = (type: string) => {
-    return ['cash_in', 'table_cash_out'].includes(type) 
-      ? 'text-emerald-400' 
-      : 'text-red-400';
+    switch (type) {
+      case 'add_credit': return 'text-blue-400';
+      case 'clear_credit': return 'text-orange-400';
+      case 'cash_in':
+      case 'table_cash_out': return 'text-emerald-400';
+      default: return 'text-red-400';
+    }
   };
 
   const getAmountPrefix = (type: string) => {
-    return ['cash_in', 'table_cash_out'].includes(type) ? '+' : '-';
+    switch (type) {
+      case 'add_credit': return '+';
+      case 'clear_credit': return '';
+      case 'cash_in':
+      case 'table_cash_out': return '+';
+      default: return '-';
+    }
   };
 
   if (isLoading) {
