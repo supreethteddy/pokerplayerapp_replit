@@ -174,21 +174,21 @@ function AppContent() {
 
   return (
     <div className="dark">
-      {/* Global Push Notification Manager - Active when user is logged in */}
-      {user && <NotificationBubbleManager />}
+      {/* Global Push Notification Manager - Temporarily disabled for debugging */}
+      {/* {user && <NotificationBubbleManager />} */}
 
       <Switch>
         <Route path="/">
           {user ? <Redirect to="/dashboard" /> : (useClerk ? <ClerkAuthWrapper><div /></ClerkAuthWrapper> : <AuthWrapper />)}
         </Route>
         <Route path="/dashboard">
-          {user ? <PlayerDashboard user={user} /> : <Redirect to="/" />}
+          {user ? <PlayerDashboard key={`dashboard-${user.id}`} user={user} /> : <Redirect to="/" />}
         </Route>
         <Route path="/thank-you">
           <ThankYou />
         </Route>
         <Route path="/kyc-upload">
-          {user ? <PlayerDashboard user={user} /> : <Redirect to="/thank-you" />}
+          {user ? <Redirect to="/dashboard" /> : <Redirect to="/thank-you" />}
         </Route>
         <Route path="/kyc">
           {/* Handle direct KYC redirect from signup - check for KYC data first, then user auth */}
@@ -200,7 +200,7 @@ function AppContent() {
               />
             </div>
           ) : user ? (
-            <PlayerDashboard user={user} />
+            <Redirect to="/dashboard" />
           ) : (
             <Redirect to="/" />
           )}
@@ -227,7 +227,7 @@ function AppContent() {
           {useClerk ? <ClerkAuthWrapper><div /></ClerkAuthWrapper> : <AuthWrapper />}
         </Route>
         <Route path="/kyc-docs">
-          {user ? <PlayerDashboard user={user} /> : <Redirect to="/" />}
+          {user ? <Redirect to="/dashboard" /> : <Redirect to="/" />}
         </Route>
         <Route component={NotFound} />
       </Switch>
