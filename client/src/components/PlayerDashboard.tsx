@@ -1886,7 +1886,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 <PlayerBalanceDisplay playerId={user?.id?.toString() || ''} />
               </div>
 
-
               {/* Balance Display Only - All financial operations handled by cashier */}
               <div className="max-w-4xl mx-auto">
                 <Card className="bg-slate-800 border-slate-700">
@@ -2747,7 +2746,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               <div className="max-w-2xl mx-auto">
                 <PlayerBalanceDisplay playerId={user?.id?.toString() || ''} />
               </div>
-
 
               {/* Balance Display Only - All financial operations handled by cashier */}
               <div className="max-w-4xl mx-auto">

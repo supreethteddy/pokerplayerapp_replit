@@ -174,8 +174,8 @@ function AppContent() {
 
   return (
     <div className="dark">
-      {/* Global Push Notification Manager - Temporarily disabled for debugging */}
-      {/* {user && <NotificationBubbleManager />} */}
+      {/* Global Push Notification Manager - Active when user is logged in */}
+      {user && <NotificationBubbleManager />}
 
       <Switch>
         <Route path="/">
