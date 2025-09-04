@@ -40,7 +40,7 @@ const pusher = new Pusher({
   useTLS: true,
 });
 
-// Initialize OneSignal for push notifications  
+// Initialize OneSignal for push notifications
 const oneSignalClient = new OneSignal.Client(
   process.env.ONESIGNAL_APP_ID!,
   process.env.ONESIGNAL_API_KEY!
@@ -276,7 +276,7 @@ export function registerRoutes(app: Express) {
       // Update player balances
       const { data: updatedPlayer, error: updateError } = await supabase
         .from('players')
-        .update({ 
+        .update({
           balance: newCashBalance.toFixed(2),
           current_credit: newCreditBalance.toFixed(2)
         })
@@ -301,8 +301,8 @@ export function registerRoutes(app: Express) {
         });
 
       console.log(`✅ [CREDIT TRANSFER] Player ${playerId} transferred ₹${transferAmount} from credit to cash`);
-      res.json({ 
-        message: 'Credit transferred successfully', 
+      res.json({
+        message: 'Credit transferred successfully',
         newCashBalance: newCashBalance.toFixed(2),
         newCreditBalance: newCreditBalance.toFixed(2)
       });
@@ -373,8 +373,8 @@ export function registerRoutes(app: Express) {
       const availableBalance = parseFloat(player.balance || '0');
 
       if (amount > availableBalance) {
-        return res.status(400).json({ 
-          error: `Insufficient balance. Available: ₹${availableBalance.toLocaleString()}` 
+        return res.status(400).json({
+          error: `Insufficient balance. Available: ₹${availableBalance.toLocaleString()}`
         });
       }
 
@@ -422,7 +422,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // CRITICAL MISSING ENDPOINT: Cashier Cash-Out Processing 
+  // CRITICAL MISSING ENDPOINT: Cashier Cash-Out Processing
   app.post("/api/cashier/process-cash-out", async (req, res) => {
     try {
       const { requestId, approvedBy, notes } = req.body;
@@ -474,7 +474,7 @@ export function registerRoutes(app: Express) {
           })
           .eq('id', requestId);
 
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: `Insufficient balance. Available: ₹${currentBalance.toLocaleString()}`
         });
       }
@@ -553,8 +553,8 @@ export function registerRoutes(app: Express) {
       });
 
       console.log(`✅ [CASHIER PROCESSING] Cash-out approved: Player ${playerId}, Amount: ₹${amount}, New Balance: ₹${newBalance}`);
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         newBalance,
         transaction: transaction?.id,
         message: `Cash-out processed successfully. New balance: ₹${newBalance.toLocaleString()}`
@@ -591,8 +591,8 @@ export function registerRoutes(app: Express) {
 
       const currentBalance = parseFloat(player.balance || '0');
       if (amount > currentBalance) {
-        return res.status(400).json({ 
-          error: `Insufficient balance. Available: ₹${currentBalance.toLocaleString()}` 
+        return res.status(400).json({
+          error: `Insufficient balance. Available: ₹${currentBalance.toLocaleString()}`
         });
       }
 
@@ -644,8 +644,8 @@ export function registerRoutes(app: Express) {
       });
 
       console.log(`✅ [TABLE BUY-IN] Successful: Player ${playerId} new balance: ₹${newBalance}`);
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         newBalance,
         transaction: transaction?.id,
         message: `Buy-in successful. New balance: ₹${newBalance.toLocaleString()}`
@@ -657,7 +657,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Table Cash-out API - Add balance from table operations  
+  // Table Cash-out API - Add balance from table operations
   app.post("/api/table/cash-out", async (req, res) => {
     try {
       const { playerId, tableId, amount, staffId } = req.body;
@@ -729,8 +729,8 @@ export function registerRoutes(app: Express) {
       });
 
       console.log(`✅ [TABLE CASH-OUT] Successful: Player ${playerId} new balance: ₹${newBalance}`);
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         newBalance,
         transaction: transaction?.id,
         message: `Cash-out successful. New balance: ₹${newBalance.toLocaleString()}`
@@ -1021,7 +1021,7 @@ export function registerRoutes(app: Express) {
       try {
         // Direct SQL query to get chat requests
         const requestsQuery = `
-          SELECT cr.*, 
+          SELECT cr.*,
                  json_agg(
                    json_build_object(
                      'id', cm.id,
@@ -1041,10 +1041,10 @@ export function registerRoutes(app: Express) {
         const result = await pool.query(requestsQuery, [playerId]);
         const requests = result.rows;
 
-        console.log(`🔍 [CHAT HISTORY FIXED] Direct PostgreSQL result:`, { 
+        console.log(`🔍 [CHAT HISTORY FIXED] Direct PostgreSQL result:`, {
           query: `chat_requests WHERE player_id = ${playerId}`,
-          result: requests, 
-          count: requests.length 
+          result: requests,
+          count: requests.length
         });
 
         // Transform data to match expected format
@@ -1074,16 +1074,16 @@ export function registerRoutes(app: Express) {
         .eq('player_id', playerId)
         .order('created_at', { ascending: false });
 
-      console.log(`🔍 [CHAT HISTORY FIXED] Supabase fallback result:`, { 
+      console.log(`🔍 [CHAT HISTORY FIXED] Supabase fallback result:`, {
         query: `chat_requests WHERE player_id = ${playerId}`,
-        result: requests, 
-        error: requestsError 
+        result: requests,
+        error: requestsError
       });
 
-      console.log(`🔍 [CHAT HISTORY FIXED] Raw requests result:`, { 
-        requests: requests, 
-        error: requestsError, 
-        length: (requests || []).length 
+      console.log(`🔍 [CHAT HISTORY FIXED] Raw requests result:`, {
+        requests: requests,
+        error: requestsError,
+        length: (requests || []).length
       });
 
       if (requestsError) {
@@ -1112,10 +1112,10 @@ export function registerRoutes(app: Express) {
           .eq('request_id', request.id)
           .order('timestamp', { ascending: true });
 
-        console.log(`🔍 [CHAT HISTORY FIXED] Messages for ${request.id}:`, { 
-          messages: messages, 
-          error: messagesError, 
-          count: (messages || []).length 
+        console.log(`🔍 [CHAT HISTORY FIXED] Messages for ${request.id}:`, {
+          messages: messages,
+          error: messagesError,
+          count: (messages || []).length
         });
 
         requestsWithMessages.push({
@@ -1190,8 +1190,8 @@ export function registerRoutes(app: Express) {
       if (existingPlayer) {
         // Update existing player with Clerk ID
         const updateQuery = `
-          UPDATE players 
-          SET 
+          UPDATE players
+          SET
             clerk_user_id = $1,
             clerk_synced_at = NOW(),
             first_name = COALESCE($2, first_name),
@@ -1240,8 +1240,8 @@ export function registerRoutes(app: Express) {
         console.log('✅ [CLERK SYNC] Created new player:', playerData.id);
 
         await pgClient.end();
-        return res.json({ 
-          success: true, 
+        return res.json({
+          success: true,
           player: {
             id: playerData.id,
             email: playerData.email,
@@ -1388,8 +1388,8 @@ export function registerRoutes(app: Express) {
     if (findResult.rows.length > 0) {
       // Update existing player
       await pgClient.query(`
-        UPDATE players 
-        SET 
+        UPDATE players
+        SET
           clerk_user_id = $1,
           email = $2,
           first_name = COALESCE($3, first_name),
@@ -1428,8 +1428,8 @@ export function registerRoutes(app: Express) {
 
     // Mark user as inactive instead of deleting
     await pgClient.query(`
-      UPDATE players 
-      SET 
+      UPDATE players
+      SET
         is_active = false,
         clerk_user_id = NULL,
         clerk_synced_at = NOW()
@@ -1635,7 +1635,7 @@ export function registerRoutes(app: Express) {
           app_id: process.env.ONESIGNAL_APP_ID!,
           included_segments: ['Staff'],
           headings: { en: 'New Food Order' },
-          contents: { 
+          contents: {
             en: `${playerName} ordered ${items.length} items${tableNumber ? ` for table ${tableNumber}` : ''}`
           },
           data: {
@@ -1734,7 +1734,7 @@ export function registerRoutes(app: Express) {
       try {
         // Direct SQL query to get chat requests
         const requestsQuery = `
-          SELECT cr.*, 
+          SELECT cr.*,
                  json_agg(
                    json_build_object(
                      'id', cm.id,
@@ -1754,10 +1754,10 @@ export function registerRoutes(app: Express) {
         const result = await pool.query(requestsQuery, [playerId]);
         const requests = result.rows;
 
-        console.log(`🔍 [CHAT HISTORY FIXED] Direct PostgreSQL result:`, { 
+        console.log(`🔍 [CHAT HISTORY FIXED] Direct PostgreSQL result:`, {
           query: `chat_requests WHERE player_id = ${playerId}`,
-          result: requests, 
-          count: requests.length 
+          result: requests,
+          count: requests.length
         });
 
         // Transform data to match expected format
@@ -1787,16 +1787,16 @@ export function registerRoutes(app: Express) {
         .eq('player_id', playerId)
         .order('created_at', { ascending: false });
 
-      console.log(`🔍 [CHAT HISTORY FIXED] Supabase fallback result:`, { 
+      console.log(`🔍 [CHAT HISTORY FIXED] Supabase fallback result:`, {
         query: `chat_requests WHERE player_id = ${playerId}`,
-        result: requests, 
-        error: requestsError 
+        result: requests,
+        error: requestsError
       });
 
-      console.log(`🔍 [CHAT HISTORY FIXED] Raw requests result:`, { 
-        requests: requests, 
-        error: requestsError, 
-        length: (requests || []).length 
+      console.log(`🔍 [CHAT HISTORY FIXED] Raw requests result:`, {
+        requests: requests,
+        error: requestsError,
+        length: (requests || []).length
       });
 
       if (requestsError) {
@@ -1825,10 +1825,10 @@ export function registerRoutes(app: Express) {
           .eq('request_id', request.id)
           .order('timestamp', { ascending: true });
 
-        console.log(`🔍 [CHAT HISTORY FIXED] Messages for ${request.id}:`, { 
-          messages: messages, 
-          error: messagesError, 
-          count: (messages || []).length 
+        console.log(`🔍 [CHAT HISTORY FIXED] Messages for ${request.id}:`, {
+          messages: messages,
+          error: messagesError,
+          count: (messages || []).length
         });
 
         requestsWithMessages.push({
@@ -1886,8 +1886,8 @@ export function registerRoutes(app: Express) {
 
       } catch (pusherError: any) {
         console.error('❌ [CHAT TEST] Pusher test failed:', pusherError);
-        res.status(500).json({ 
-          success: false, 
+        res.status(500).json({
+          success: false,
           error: 'Pusher connectivity failed',
           details: pusherError.message
         });
@@ -1895,8 +1895,8 @@ export function registerRoutes(app: Express) {
 
     } catch (error: any) {
       console.error('❌ [CHAT TEST] Connectivity test failed:', error);
-      res.status(500).json({ 
-        success: false, 
+      res.status(500).json({
+        success: false,
         error: 'Connectivity test failed',
         details: error.message
       });
@@ -1906,20 +1906,20 @@ export function registerRoutes(app: Express) {
   // Clerk signup verification and sync endpoint
   app.post("/api/auth/clerk-sync", async (req, res) => {
     try {
-      const { 
-        clerkUserId, 
-        email, 
-        firstName, 
-        lastName, 
-        phone, 
-        emailVerified 
+      const {
+        clerkUserId,
+        email,
+        firstName,
+        lastName,
+        phone,
+        emailVerified
       } = req.body;
 
       console.log(`🔄 [CLERK SYNC] Processing signup sync for: ${email}`);
 
       if (!clerkUserId || !email) {
-        return res.status(400).json({ 
-          error: "clerkUserId and email are required" 
+        return res.status(400).json({
+          error: "clerkUserId and email are required"
         });
       }
 
@@ -1977,9 +1977,9 @@ export function registerRoutes(app: Express) {
 
     } catch (error: any) {
       console.error('❌ [CLERK SYNC] Sync failed:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Clerk sync failed",
-        details: error.message 
+        details: error.message
       });
     }
   });
@@ -2009,17 +2009,17 @@ export function registerRoutes(app: Express) {
         });
       } else {
         console.log(`❌ [PLAYER CHECK] No existing player found for: ${email}`);
-        return res.status(404).json({ 
-          exists: false, 
-          message: "Player not found" 
+        return res.status(404).json({
+          exists: false,
+          message: "Player not found"
         });
       }
 
     } catch (error: any) {
       console.error('❌ [PLAYER CHECK] Error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Failed to check player existence",
-        details: error.message 
+        details: error.message
       });
     }
   });
@@ -2036,15 +2036,15 @@ export function registerRoutes(app: Express) {
 
       console.log(`🔍 [CLERK SYNC] Syncing Clerk user: ${email} (${clerk_user_id})`);
 
-      // Check if player already exists by Clerk ID  
+      // Check if player already exists by Clerk ID
       const existingPlayer = await storage.getPlayerByClerkId(clerk_user_id);
 
       if (existingPlayer) {
         console.log(`✅ [CLERK SYNC] Existing player found: ${existingPlayer.email} (ID: ${existingPlayer.id})`);
-        return res.json({ 
-          success: true, 
+        return res.json({
+          success: true,
           player: existingPlayer,
-          message: "Clerk user already synchronized" 
+          message: "Clerk user already synchronized"
         });
       }
 
@@ -2061,10 +2061,10 @@ export function registerRoutes(app: Express) {
       });
 
       console.log(`✅ [CLERK SYNC] New player created: ${newPlayer.email} (ID: ${newPlayer.id})`);
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         player: newPlayer,
-        message: "Clerk user synchronized successfully" 
+        message: "Clerk user synchronized successfully"
       });
     } catch (error) {
       console.error("❌ [CLERK SYNC] Error syncing Clerk user:", error);
@@ -2121,11 +2121,11 @@ export function registerRoutes(app: Express) {
         // Use email lookup (proven to work in authentication endpoint)
         console.log(`🔧 [ENTERPRISE PLAYER] Using proven email lookup for: ${userEmail}`);
         playerQuery = `
-          SELECT id, email, password, first_name, last_name, phone, kyc_status, balance, 
+          SELECT id, email, password, first_name, last_name, phone, kyc_status, balance,
                  current_credit, credit_limit, credit_eligible, total_deposits, total_withdrawals,
-                 total_winnings, total_losses, games_played, hours_played, clerk_user_id, 
+                 total_winnings, total_losses, games_played, hours_played, clerk_user_id,
                  supabase_id, is_active
-          FROM players 
+          FROM players
           WHERE email = $1 AND (is_active IS NULL OR is_active = true)
         `;
         queryParams = [userEmail];
@@ -2133,11 +2133,11 @@ export function registerRoutes(app: Express) {
         // Fallback: Direct Supabase ID lookup
         console.log(`🔧 [ENTERPRISE PLAYER] Using direct Supabase ID lookup for: ${supabaseId}`);
         playerQuery = `
-          SELECT id, email, password, first_name, last_name, phone, kyc_status, balance, 
+          SELECT id, email, password, first_name, last_name, phone, kyc_status, balance,
                  current_credit, credit_limit, credit_eligible, total_deposits, total_withdrawals,
-                 total_winnings, total_losses, games_played, hours_played, clerk_user_id, 
+                 total_winnings, total_losses, games_played, hours_played, clerk_user_id,
                  supabase_id, is_active
-          FROM players 
+          FROM players
           WHERE supabase_id = $1 AND (is_active IS NULL OR is_active = true)
         `;
         queryParams = [supabaseId];
@@ -2159,7 +2159,7 @@ export function registerRoutes(app: Express) {
       const allowedKycStatuses = ['approved', 'verified'];
       if (!allowedKycStatuses.includes(playerData.kyc_status)) {
         console.log(`🚫 [KYC GATE] Dashboard access blocked - KYC status: ${playerData.kyc_status} for player: ${playerData.email}`);
-        return res.status(403).json({ 
+        return res.status(403).json({
           error: 'KYC_VERIFICATION_REQUIRED',
           message: 'Wait for KYC approval',
           kycStatus: playerData.kyc_status
@@ -2306,10 +2306,10 @@ export function registerRoutes(app: Express) {
       await client.connect();
 
       const result = await client.query(`
-        SELECT id, title, description, image_url, video_url, offer_type, 
+        SELECT id, title, description, image_url, video_url, offer_type,
                is_active, start_date, end_date, created_at, updated_at
-        FROM staff_offers 
-        WHERE is_active = true 
+        FROM staff_offers
+        WHERE is_active = true
         ORDER BY created_at DESC
       `);
 
@@ -2413,8 +2413,8 @@ export function registerRoutes(app: Express) {
 
       // Validate required fields
       if (!playerId || !tableId || !seatNumber) {
-        return res.status(400).json({ 
-          error: 'Missing required fields: playerId, tableId, or seatNumber' 
+        return res.status(400).json({
+          error: 'Missing required fields: playerId, tableId, or seatNumber'
         });
       }
 
@@ -2432,10 +2432,10 @@ export function registerRoutes(app: Express) {
 
       // STEP 1: Check if player already has an active seat request
       const existingRequestQuery = `
-        SELECT id, table_id, seat_number, status 
-        FROM seat_requests 
+        SELECT id, table_id, seat_number, status
+        FROM seat_requests
         WHERE player_id = $1 AND status = 'waiting'
-        ORDER BY created_at DESC 
+        ORDER BY created_at DESC
         LIMIT 1
       `;
 
@@ -2449,8 +2449,8 @@ export function registerRoutes(app: Express) {
         if (existingRequest.table_id === tableId && existingRequest.seat_number === seatNumber) {
           await pgClient.end();
           console.log('✅ [SEAT REQUEST] Same request already exists');
-          return res.json({ 
-            success: true, 
+          return res.json({
+            success: true,
             request: existingRequest,
             message: "Already waiting for this seat"
           });
@@ -2460,7 +2460,7 @@ export function registerRoutes(app: Express) {
         console.log('🔄 [SEAT REQUEST] Updating existing request to new table/seat');
 
         const updateRequestQuery = `
-          UPDATE seat_requests 
+          UPDATE seat_requests
           SET table_id = $1, seat_number = $2, notes = $3, created_at = NOW()
           WHERE id = $4
           RETURNING *
@@ -2474,7 +2474,7 @@ export function registerRoutes(app: Express) {
 
         // Also update waitlist table for staff portal sync
         const updateWaitlistQuery = `
-          UPDATE waitlist 
+          UPDATE waitlist
           SET table_id = $1, seat_number = $2, updated_at = NOW()
           WHERE player_id = $3 AND status = 'waiting'
         `;
@@ -2498,8 +2498,8 @@ export function registerRoutes(app: Express) {
         }
 
         console.log(`✅ [SEAT REQUEST] Updated existing request for player ${playerId}`);
-        return res.json({ 
-          success: true, 
+        return res.json({
+          success: true,
           request: updatedRequest,
           message: "Seat request updated"
         });
@@ -2522,7 +2522,7 @@ export function registerRoutes(app: Express) {
       // Get next position for waitlist table
       const nextPositionQuery = `
         SELECT COALESCE(MAX(position), 0) + 1 as next_position
-        FROM waitlist 
+        FROM waitlist
         WHERE table_id = $1 AND status IN ('waiting', 'active')
       `;
 
@@ -2532,13 +2532,13 @@ export function registerRoutes(app: Express) {
       // Insert into waitlist table for staff portal sync
       const waitlistQuery = `
         INSERT INTO waitlist (
-          player_id, 
-          table_id, 
-          game_type, 
-          min_buy_in, 
-          max_buy_in, 
-          position, 
-          status, 
+          player_id,
+          table_id,
+          game_type,
+          min_buy_in,
+          max_buy_in,
+          position,
+          status,
           seat_number,
           requested_at,
           created_at,
@@ -2582,11 +2582,11 @@ export function registerRoutes(app: Express) {
       }
 
       console.log(`✅ [SEAT REQUEST] Player ${playerId} added to waitlist - seat_requests: ${requestData.id}, waitlist: ${waitlistData?.id || 'failed'}`);
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         request: requestData,
         waitlistPosition: nextPosition,
-        staffPortalSync: true 
+        staffPortalSync: true
       });
 
     } catch (error: any) {
@@ -2627,8 +2627,7 @@ export function registerRoutes(app: Express) {
   app.get("/api/seat-requests/:playerId", async (req, res) => {
     try {
       const { playerId } = req.params;
-
-      console.log(`🔍 [NANOSECOND WAITLIST] Fetching waitlist for player: ${playerId}`);
+      console.log('🔍 [NANOSECOND WAITLIST] Fetching waitlist for player:', playerId);
 
       // CRITICAL: Query BOTH tables for complete waitlist visibility
       const { Pool } = await import('pg');
@@ -2639,35 +2638,34 @@ export function registerRoutes(app: Express) {
 
       // Get from unified waitlist table (staff portal table) for nanosecond sync
       const waitlistQuery = `
-        SELECT 
+        SELECT
           w.id,
           w.player_id,
           w.table_id,
           w.position,
           w.status,
-          1 as seat_number,
+          w.seat_number,
           w.requested_at as created_at,
           'waitlist' as source_table
         FROM waitlist w
-        WHERE w.player_id = $1 
+        WHERE w.player_id = $1
         AND w.status IN ('waiting', 'active')
         ORDER BY w.requested_at DESC
       `;
 
       // Also get from seat_requests for legacy compatibility
       const seatRequestsQuery = `
-        SELECT 
+        SELECT
           sr.id,
           sr.player_id,
           sr.table_id,
-          1 as position,
+          sr.seat_number,
           sr.status,
           sr.seat_number,
           sr.created_at,
           'seat_requests' as source_table
         FROM seat_requests sr
-        WHERE sr.player_id = $1 
-        AND sr.status IN ('waiting', 'active')
+        WHERE sr.player_id = $1 AND sr.status IN ('pending', 'active')
         ORDER BY sr.created_at DESC
       `;
 
@@ -2693,7 +2691,7 @@ export function registerRoutes(app: Express) {
           process.env.SUPABASE_SERVICE_ROLE_KEY!
         );
 
-        const tablesResponse = await supabase.from('tables').select('id, name, game_type');
+        const tablesResponse = await supabase.from('poker_tables').select('id, name, game_type');
         staffPortalTables = tablesResponse.data || [];
         console.log(`🔍 [WAITLIST TABLE LOOKUP] Found ${staffPortalTables.length} Staff Portal tables`);
       } catch (error) {
@@ -2848,11 +2846,11 @@ export function registerRoutes(app: Express) {
       });
 
       console.log(`✅ [NANOSECOND SYNC] Balance update triggered: ₹${cashBalance}`);
-      res.json({ 
-        success: true, 
-        cashBalance, 
+      res.json({
+        success: true,
+        cashBalance,
         creditBalance,
-        message: 'Balance sync triggered successfully with database consistency' 
+        message: 'Balance sync triggered successfully with database consistency'
       });
 
     } catch (error) {
@@ -2879,7 +2877,7 @@ export function registerRoutes(app: Express) {
       const query = `
         SELECT balance, current_credit, credit_limit, credit_eligible, total_deposits, total_withdrawals,
                first_name, last_name, email, last_login_at
-        FROM players 
+        FROM players
         WHERE id = $1
       `;
 
@@ -2949,17 +2947,17 @@ export function registerRoutes(app: Express) {
       });
 
       const auditQuery = `
-        SELECT 
-          id, email, first_name, last_name, 
-          COALESCE(balance, 0) as balance, 
+        SELECT
+          id, email, first_name, last_name,
+          COALESCE(balance, 0) as balance,
           COALESCE(current_credit, 0) as current_credit,
-          COALESCE(total_deposits, 0) as total_deposits, 
-          COALESCE(total_withdrawals, 0) as total_withdrawals, 
+          COALESCE(total_deposits, 0) as total_deposits,
+          COALESCE(total_withdrawals, 0) as total_withdrawals,
           last_login_at,
           (COALESCE(total_deposits, 0)::decimal - COALESCE(total_withdrawals, 0)::decimal) as expected_balance,
           ABS(COALESCE(balance, 0)::decimal - (COALESCE(total_deposits, 0)::decimal - COALESCE(total_withdrawals, 0)::decimal)) as discrepancy
-        FROM players 
-        WHERE COALESCE(is_active, true) = true 
+        FROM players
+        WHERE COALESCE(is_active, true) = true
         AND (COALESCE(total_deposits, 0) > 0 OR COALESCE(balance, 0) > 0)
         ORDER BY discrepancy DESC, last_login_at DESC NULLS LAST
         LIMIT 50
@@ -3033,7 +3031,7 @@ export function registerRoutes(app: Express) {
 
       if (scanResult.isInfected) {
         console.log(`🚨 [MALWARE DETECTED] File ${fileName} contains malware:`, scanResult.viruses);
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: 'Malware detected in uploaded file',
           malware: true,
           viruses: scanResult.viruses,
@@ -3058,8 +3056,8 @@ export function registerRoutes(app: Express) {
       );
 
       console.log(`✅ [DIRECT KYC UPLOAD] Document uploaded successfully:`, uploadedDoc.id);
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         document: uploadedDoc,
         malwareScan: {
           scanned: !scanResult.error,
@@ -3107,7 +3105,7 @@ export function registerRoutes(app: Express) {
 
       const query = `
         SELECT id, player_id, document_type, file_name, file_url, file_size, status, created_at
-        FROM kyc_documents 
+        FROM kyc_documents
         WHERE id = $1
       `;
 
@@ -3161,7 +3159,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // KYC submission endpoint - Direct PostgreSQL (bypasses Supabase cache) 
+  // KYC submission endpoint - Direct PostgreSQL (bypasses Supabase cache)
   app.post('/api/kyc/submit', async (req, res) => {
     try {
       const { playerId, email, firstName, lastName, panCardNumber, phone, address } = req.body;
@@ -3194,7 +3192,7 @@ export function registerRoutes(app: Express) {
 
         // Send confirmation email using Supabase's built-in email service
         const { error: emailError } = await supabaseServiceClient.auth.admin.generateLink({
-          type: 'signup', 
+          type: 'signup',
           email: email,
           password: 'temp-password-123' // Required parameter for Supabase
         });
@@ -3218,7 +3216,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // KYC Status endpoint - Direct PostgreSQL 
+  // KYC Status endpoint - Direct PostgreSQL
   app.get('/api/kyc/status/:playerId', async (req, res) => {
     try {
       const { playerId } = req.params;
@@ -3232,7 +3230,7 @@ export function registerRoutes(app: Express) {
 
       const playerQuery = `
         SELECT id, email, kyc_status, pan_card_status, first_name, last_name
-        FROM players 
+        FROM players
         WHERE id = $1
       `;
 
@@ -3247,11 +3245,11 @@ export function registerRoutes(app: Express) {
 
       // Get document counts
       const docQuery = `
-        SELECT 
+        SELECT
           document_type,
           status,
           COUNT(*) as count
-        FROM kyc_documents 
+        FROM kyc_documents
         WHERE player_id = $1
         GROUP BY document_type, status
       `;
@@ -3314,7 +3312,7 @@ export function registerRoutes(app: Express) {
       });
 
       const query = `
-        SELECT 
+        SELECT
           id,
           document_type,
           file_name,
@@ -3323,8 +3321,8 @@ export function registerRoutes(app: Express) {
           file_size,
           created_at,
           updated_at
-        FROM kyc_documents 
-        WHERE player_id = $1 
+        FROM kyc_documents
+        WHERE player_id = $1
         ORDER BY created_at DESC
       `;
 
@@ -3344,7 +3342,7 @@ export function registerRoutes(app: Express) {
         formattedDate: formatSubmissionDate(doc.created_at)
       }));
 
-      console.log(`✅ [KYC DETAILS] Document details for player ${playerId}:`, 
+      console.log(`✅ [KYC DETAILS] Document details for player ${playerId}:`,
         documentDetails.map(d => `${d.formattedType} - ${d.formattedDate}`));
 
       res.json(documentDetails);
@@ -3358,7 +3356,7 @@ export function registerRoutes(app: Express) {
   function formatDocumentType(type) {
     const typeMap = {
       'government_id': 'Government ID',
-      'address_proof': 'Address Proof', 
+      'address_proof': 'Address Proof',
       'utility_bill': 'Utility Bill',
       'pan_card': 'PAN Card',
       'profile_photo': 'Profile Photo',
@@ -3413,7 +3411,7 @@ export function registerRoutes(app: Express) {
       });
 
       await pool.query(`
-        UPDATE players 
+        UPDATE players
         SET verification_token = $1, token_expiry = $2
         WHERE email = $3
       `, [verificationToken, tokenExpiry, email]);
@@ -3444,7 +3442,7 @@ export function registerRoutes(app: Express) {
         // Try to send email via Supabase with our custom verification link
         try {
           const { error: emailError } = await supabaseAdmin.auth.admin.generateLink({
-            type: 'signup', 
+            type: 'signup',
             email: email,
             password: 'temp-password-for-verification',
             options: {
@@ -3465,8 +3463,8 @@ export function registerRoutes(app: Express) {
         console.log(`⚠️ [EMAIL VERIFICATION] Supabase initialization error:`, supabaseError);
       }
 
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         message: 'Verification email sent',
         verificationUrl: verificationUrl,
         token: verificationToken
@@ -3497,7 +3495,7 @@ export function registerRoutes(app: Express) {
 
       const result = await pool.query(`
         SELECT id, email, verification_token, token_expiry, email_verified
-        FROM players 
+        FROM players
         WHERE email = $1 AND verification_token = $2
       `, [email, token]);
 
@@ -3516,7 +3514,7 @@ export function registerRoutes(app: Express) {
 
       // Update email verification status
       await pool.query(`
-        UPDATE players 
+        UPDATE players
         SET email_verified = true, verification_token = NULL, token_expiry = NULL
         WHERE id = $1
       `, [player.id]);
@@ -3623,7 +3621,7 @@ export function registerRoutes(app: Express) {
       });
 
       await pool.query(`
-        UPDATE players 
+        UPDATE players
         SET email_verified = true, verification_token = NULL, token_expiry = NULL
         WHERE email = $1
       `, [email]);
@@ -3660,9 +3658,9 @@ export function registerRoutes(app: Express) {
 
     } catch (error: any) {
       console.error('❌ [ENTERPRISE CREATE] Error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false,
-        error: error.message || 'Failed to create player' 
+        error: error.message || 'Failed to create player'
       });
     }
   });
@@ -3688,9 +3686,9 @@ export function registerRoutes(app: Express) {
 
     } catch (error: any) {
       console.error('❌ [ENTERPRISE BULK] Error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false,
-        error: error.message || 'Bulk creation failed' 
+        error: error.message || 'Bulk creation failed'
       });
     }
   });
@@ -3736,9 +3734,9 @@ export function registerRoutes(app: Express) {
 
     } catch (error: any) {
       console.error('❌ [ENTERPRISE HEALTH] Error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         status: 'unhealthy',
-        error: error.message 
+        error: error.message
       });
     }
   });
@@ -3769,7 +3767,7 @@ export function registerRoutes(app: Express) {
 
       // Query players table directly using PostgreSQL
       const playerQuery = `
-        SELECT * FROM players 
+        SELECT * FROM players
         WHERE email = $1 AND password = $2 AND (is_active IS NULL OR is_active = true)
         LIMIT 1
       `;
@@ -3788,7 +3786,7 @@ export function registerRoutes(app: Express) {
       // Update last login timestamp
       try {
         const updateQuery = `
-          UPDATE players 
+          UPDATE players
           SET last_login_at = NOW(), updated_at = NOW()
           WHERE id = $1
         `;
@@ -3803,7 +3801,7 @@ export function registerRoutes(app: Express) {
       const allowedKycStatuses = ['approved', 'verified'];
       if (!allowedKycStatuses.includes(player.kyc_status)) {
         console.log(`🚫 [KYC GATE] Login blocked - KYC status: ${player.kyc_status} for player: ${player.email}`);
-        return res.status(403).json({ 
+        return res.status(403).json({
           error: 'KYC_VERIFICATION_REQUIRED',
           message: 'Wait for KYC approval',
           kycStatus: player.kyc_status
@@ -3851,23 +3849,23 @@ export function registerRoutes(app: Express) {
       const { email, password, firstName, lastName, phone, nickname } = req.body;
 
       // Log received data for debugging
-      console.log('🔐 [SIGNUP VALIDATION] Received data:', { 
-        email: !!email, 
-        password: !!password, 
-        firstName: !!firstName, 
-        lastName: !!lastName, 
-        phone: !!phone, 
-        nickname: !!nickname 
+      console.log('🔐 [SIGNUP VALIDATION] Received data:', {
+        email: !!email,
+        password: !!password,
+        firstName: !!firstName,
+        lastName: !!lastName,
+        phone: !!phone,
+        nickname: !!nickname
       });
 
       if (!email || !password || !firstName || !lastName || !phone || !nickname) {
-        console.log('❌ [SIGNUP VALIDATION] Missing fields:', { 
-          email: !email ? 'MISSING' : 'OK', 
-          password: !password ? 'MISSING' : 'OK', 
-          firstName: !firstName ? 'MISSING' : 'OK', 
-          lastName: !lastName ? 'MISSING' : 'OK', 
-          phone: !phone ? 'MISSING' : 'OK', 
-          nickname: !nickname ? 'MISSING' : 'OK' 
+        console.log('❌ [SIGNUP VALIDATION] Missing fields:', {
+          email: !email ? 'MISSING' : 'OK',
+          password: !password ? 'MISSING' : 'OK',
+          firstName: !firstName ? 'MISSING' : 'OK',
+          lastName: !lastName ? 'MISSING' : 'OK',
+          phone: !phone ? 'MISSING' : 'OK',
+          nickname: !nickname ? 'MISSING' : 'OK'
         });
         return res.status(400).json({ error: 'All required fields must be provided: email, password, firstName, lastName, phone, and nickname' });
       }
@@ -3900,9 +3898,9 @@ export function registerRoutes(app: Express) {
         if (existingPlayer.password !== password) {
           const { error: updateError } = await supabase
             .from('players')
-            .update({ 
-              password: password, 
-              last_login_at: new Date().toISOString() 
+            .update({
+              password: password,
+              last_login_at: new Date().toISOString()
             })
             .eq('email', email);
 
@@ -4009,14 +4007,14 @@ export function registerRoutes(app: Express) {
 
         const insertQuery = `
           INSERT INTO players (
-            email, password, first_name, last_name, phone, 
-            kyc_status, balance, universal_id, 
+            email, password, first_name, last_name, phone,
+            kyc_status, balance, universal_id,
             is_active, clerk_user_id, full_name, nickname,
             email_verified, credit_eligible, current_credit, credit_limit,
             total_deposits, total_withdrawals, total_winnings, total_losses,
             games_played, hours_played
           ) VALUES (
-            $1, '*', $2, $3, $4, 'pending', '0.00', $5, 
+            $1, '*', $2, $3, $4, 'pending', '0.00', $5,
             true, $6, $7, $8, false, false, '0.00', '0.00',
             '0.00', '0.00', '0.00', '0.00', 0, '0.00'
           ) RETURNING *
@@ -4043,7 +4041,7 @@ export function registerRoutes(app: Express) {
         // Handle duplicate email constraint violation
         if (dbError.code === '23505' && dbError.constraint === 'players_email_unique') {
           console.log('🔍 [DUPLICATE EMAIL] Email already exists, checking if user can log in:', email);
-          return res.status(409).json({ 
+          return res.status(409).json({
             error: 'An account with this email already exists. Please try logging in instead.',
             code: 'EMAIL_EXISTS',
             suggestLogin: true
@@ -4053,7 +4051,7 @@ export function registerRoutes(app: Express) {
         return res.status(500).json({ error: 'Database operation failed' });
       }
 
-      // Initialize response data for new player (who needs to complete KYC)  
+      // Initialize response data for new player (who needs to complete KYC)
       const responsePlayer = {
         id: newPlayerData.id,
         playerCode: `POKERPLAYR-${String(newPlayerData.id).padStart(4, '0')}`, // Generate player code from ID
@@ -4134,7 +4132,7 @@ export function registerRoutes(app: Express) {
         // If this is a PAN card, also update the player's PAN card number
         if (documentType === 'pan_card') {
           const updatePlayerQuery = `
-            UPDATE players 
+            UPDATE players
             SET pan_card_number = $1, updated_at = NOW()
             WHERE id = $2
           `;
@@ -4144,7 +4142,7 @@ export function registerRoutes(app: Express) {
         // Check if all 3 required documents have been uploaded
         const countDocsQuery = `
           SELECT COUNT(DISTINCT document_type) as doc_count
-          FROM kyc_documents 
+          FROM kyc_documents
           WHERE player_id = $1 AND document_type IN ('government_id', 'address_proof', 'pan_card')
         `;
         const countResult = await pgClient.query(countDocsQuery, [playerId]);
@@ -4153,8 +4151,8 @@ export function registerRoutes(app: Express) {
         // If all 3 documents uploaded, update KYC status to 'submitted'
         if (docCount === 3) {
           const updateKycQuery = `
-            UPDATE players 
-            SETkyc_status = 'submitted', updated_at = NOW()
+            UPDATE players
+            SET kyc_status = 'submitted', updated_at = NOW()
             WHERE id = $1
             RETURNING kyc_status
           `;
@@ -4223,7 +4221,7 @@ export function registerRoutes(app: Express) {
 
         // Update last_login_at and email verification status if Clerk shows verified
         const updateLoginQuery = `
-          UPDATE players 
+          UPDATE players
           SET last_login_at = NOW(), email_verified = COALESCE(email_verified, true), updated_at = NOW()
           WHERE id = $1
           RETURNING *
@@ -4301,7 +4299,7 @@ export function registerRoutes(app: Express) {
   // DEPRECATED: This endpoint now redirects to /api/auth/signup for consistency
   app.post('/api/players', async (req, res) => {
     console.log('🔄 [DEPRECATED] /api/players endpoint called - redirecting to /api/auth/signup');
-    return res.status(301).json({ 
+    return res.status(301).json({
       error: 'This endpoint is deprecated. Please use /api/auth/signup for all new registrations.',
       redirectTo: '/api/auth/signup'
     });
