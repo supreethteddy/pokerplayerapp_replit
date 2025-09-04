@@ -1297,7 +1297,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     if (!isValidPAN(panCardNumber)) {
       toast({
         title: "Invalid PAN Card Format",
-        description: "PAN card format should be 3 letters + entity code + 1 letter + 4 digits + 1 letter (e.g. ABCPF1234G)",
+        description: "Please enter a valid PAN card number",
         variant: "destructive",
       });
       return;
@@ -2432,9 +2432,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   {/* PAN Card Number Input */}
                   <div className="space-y-3">
                     <div className="p-3 bg-slate-700 rounded-lg">
-                      <p className="text-xs text-slate-300 mb-2">
-                        <strong>PAN Card Format:</strong> 3 letters + entity code + 1 letter + 4 digits + 1 letter (e.g. ABCPF1234G)
-                      </p>
                       <p className="text-xs text-slate-400">
                         Your PAN card number must be unique and cannot be used by other players
                       </p>
@@ -2455,7 +2452,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                       />
                       {panCardNumber && !isValidPAN(panCardNumber) && (
                         <p className="text-red-400 text-xs mt-2">
-                          Invalid PAN format. Format: 3 letters + entity code + 1 letter + 4 digits + 1 letter (e.g. ABCPF1234G)
+                          Invalid PAN card format. Please enter a valid PAN card number.
                         </p>
                       )}
                     </div>
