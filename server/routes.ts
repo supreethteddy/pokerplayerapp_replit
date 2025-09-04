@@ -2510,7 +2510,7 @@ export function registerRoutes(app: Express) {
           w.table_id,
           w.position,
           w.status,
-          w.seat_number,
+          1 as seat_number,
           w.requested_at as created_at,
           'waitlist' as source_table
         FROM waitlist w
@@ -2742,7 +2742,7 @@ export function registerRoutes(app: Express) {
       });
 
       const query = `
-        SELECT balance, current_credit, credit_limit, credit_approved, total_deposits, total_withdrawals,
+        SELECT balance, current_credit, credit_limit, credit_eligible, total_deposits, total_withdrawals,
                first_name, last_name, email, last_login_at
         FROM players 
         WHERE id = $1
@@ -2765,7 +2765,7 @@ export function registerRoutes(app: Express) {
         cashBalance,
         creditBalance,
         creditLimit: parseFloat(player.credit_limit || '0'),
-        creditEligible: Boolean(player.credit_approved),
+        creditEligible: Boolean(player.credit_eligible),
         totalBalance
       };
 
