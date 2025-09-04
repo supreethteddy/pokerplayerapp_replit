@@ -1224,7 +1224,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // PAN Card management
   const [panCardNumber, setPanCardNumber] = useState("");
-  const [showTransactions, setShowTransactions] = useState(false);
+  const [showTransactions, setShowTransactions] = useState(false); // Changed from boolean to string to accommodate 'all' and 'last10'
 
   // Seat selection state for waitlist
   const [showSeatDialog, setShowSeatDialog] = useState(false);
@@ -1259,16 +1259,22 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Transaction history query
   const { data: transactions, isLoading: transactionsLoading } = useQuery({
-    queryKey: ["/api/players", user?.id, "transactions"],
+    queryKey: ['transactions', user?.id, showTransactions], // Added showTransactions to query key
     queryFn: async () => {
       if (!user?.id) return [];
-      const response = await fetch(`/api/players/${user.id}/transactions?limit=10`);
+
+      const limit = showTransactions === 'all' ? 100 : 10; // Fetch 100 if 'all', otherwise 10
+      const response = await fetch(`/api/player/${user.id}/transactions?limit=${limit}`, {
+        credentials: 'include',
+      });
+
       if (!response.ok) {
         throw new Error('Failed to fetch transactions');
       }
+
       return response.json();
     },
-    enabled: !!user?.id && showTransactions,
+    enabled: !!user?.id && !!showTransactions, // Enable query only if user and showTransactions are set
   });
 
   const handlePanCardUpdate = () => {
@@ -2594,13 +2600,14 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   <div className="space-y-3">
                     <select 
                       className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                      value={showTransactions ? 'view' : ''}
+                      value={showTransactions || ''} // Use '' for initial empty value
                       onChange={(e) => {
-                        setShowTransactions(e.target.value === 'view');
+                        setShowTransactions(e.target.value as any); // Cast to any to allow string values
                       }}
                     >
                       <option value="">Select action...</option>
-                      <option value="view">View Last 10 Transactions</option>
+                      <option value="last10">View Last 10 Transactions</option>
+                      <option value="all">View All Transactions</option>
                     </select>
 
                     {/* Transaction List */}
@@ -2613,23 +2620,33 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                           </div>
                         ) : transactions && transactions.length > 0 ? (
                           <div className="space-y-2">
-                            <h4 className="text-sm font-medium text-white mb-3">Recent Transactions</h4>
-                            {transactions.map((transaction: any, index: number) => (
-                              <div key={index} className="flex justify-between items-center py-2 border-b border-slate-600 last:border-b-0">
-                                <div>
-                                  <p className="text-sm text-white">{transaction.type}</p>
-                                  <p className="text-xs text-slate-400">
-                                    {new Date(transaction.created_at).toLocaleDateString()} at {new Date(transaction.created_at).toLocaleTimeString()}
-                                  </p>
+                            <h4 className="text-sm font-medium text-white mb-3">
+                              {showTransactions === 'last10' ? 'Last 10 Transactions' : 'All Transactions'}
+                            </h4>
+                            <div className="max-h-80 overflow-y-auto space-y-2">
+                              {(showTransactions === 'last10' ? transactions.slice(0, 10) : transactions).map((transaction: any, index: number) => (
+                                <div key={index} className="flex justify-between items-center py-2 border-b border-slate-600 last:border-b-0">
+                                  <div>
+                                    <p className="text-sm text-white">{transaction.type}</p>
+                                    <p className="text-xs text-slate-400">
+                                      {new Date(transaction.created_at).toLocaleDateString()} at{' '}
+                                      {new Date(transaction.created_at).toLocaleTimeString()}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className={`text-sm font-medium ${transaction.amount >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                      {transaction.amount >= 0 ? '+' : ''}₹{Math.abs(transaction.amount)}
+                                    </p>
+                                    <p className="text-xs text-slate-400">{transaction.status}</p>
+                                  </div>
                                 </div>
-                                <div className="text-right">
-                                  <p className={`text-sm font-medium ${transaction.amount >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                    {transaction.amount >= 0 ? '+' : ''}₹{Math.abs(transaction.amount)}
-                                  </p>
-                                  <p className="text-xs text-slate-400">{transaction.status}</p>
-                                </div>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
+                            {showTransactions === 'last10' && transactions.length > 10 && (
+                              <p className="text-xs text-slate-400 text-center mt-2">
+                                Showing 10 of {transactions.length} transactions
+                              </p>
+                            )}
                           </div>
                         ) : (
                           <p className="text-sm text-slate-300 text-center">
@@ -2642,7 +2659,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                     {!showTransactions && (
                       <div className="bg-slate-700 rounded-lg p-4">
                         <p className="text-sm text-slate-300 text-center">
-                          Select "View Last 10 Transactions" to see your recent activity
+                          Select an option above to see your recent activity
                         </p>
                       </div>
                     )}
@@ -2703,639 +2720,211 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               </div>
             </TabsContent>
 
-            {/* Offers Tab - Staff Managed */}
-            <TabsContent value="offers" className="space-y-4">
-              <ScrollableOffersDisplay />
-            </TabsContent>
+          {/* Offers Tab - Staff Managed */}
+          <TabsContent value="offers" className="space-y-4">
+            <ScrollableOffersDisplay />
+          </TabsContent>
 
-            {/* Food & Beverage Tab */}
-            <TabsContent value="food" className="space-y-4">
-              <FoodBeverageTab user={user} />
-            </TabsContent>
+          {/* Food & Beverage Tab */}
+          <TabsContent value="food" className="space-y-4">
+            <FoodBeverageTab user={user} />
+          </TabsContent>
 
-            {/* Session Tab - Advanced Playtime Tracking */}
-            <TabsContent value="session" className="space-y-4">
+          {/* Session Tab - Advanced Playtime Tracking */}
+          <TabsContent value="session" className="space-y-4">
+            <div className="max-w-4xl mx-auto">
+              <PlaytimeTracker 
+                playerId={user?.id?.toString() || ''} 
+              />
+            </div>
+          </TabsContent>
+
+          {/* Balance Tab - Simplified Cash Balance System */}
+          <TabsContent value="balance" className="space-y-4">
+            {/* Simplified Balance Display - Single Cash Balance Only */}
+            <div className="space-y-6">
+              {/* Main Balance Card */}
+              <div className="max-w-2xl mx-auto">
+                <PlayerBalanceDisplay playerId={user?.id?.toString() || ''} />
+              </div>
+
+
+              {/* Balance Display Only - All financial operations handled by cashier */}
               <div className="max-w-4xl mx-auto">
-                <PlaytimeTracker 
-                  playerId={user?.id?.toString() || ''} 
-                />
-              </div>
-            </TabsContent>
-
-            {/* Balance Tab - Simplified Cash Balance System */}
-            <TabsContent value="balance" className="space-y-4">
-              {/* Simplified Balance Display - Single Cash Balance Only */}
-              <div className="space-y-6">
-                {/* Main Balance Card */}
-                <div className="max-w-2xl mx-auto">
-                  <PlayerBalanceDisplay playerId={user?.id?.toString() || ''} />
-                </div>
-
-
-                {/* Balance Display Only - All financial operations handled by cashier */}
-                <div className="max-w-4xl mx-auto">
-                  <Card className="bg-slate-800 border-slate-700">
-                    <CardHeader>
-                      <CardTitle className="text-white flex items-center">
-                        <Info className="w-5 h-5 mr-2 text-blue-500" />
-                        Financial Operations Notice
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-center p-6 bg-blue-950/50 rounded-lg border border-blue-800">
-                        <CreditCard className="w-12 h-12 mx-auto mb-4 text-blue-400" />
-                        <h3 className="text-lg font-semibold text-white mb-2">Visit Cashier Counter</h3>
-                        <p className="text-slate-300 mb-4">
-                          All cash-out and credit operations are handled exclusively by our cashier team.
-                        </p>
-                        <div className="space-y-2 text-sm text-slate-400">
-                          <p>• Cash withdrawals: Visit cashier with your player ID</p>
-                          <p>• Credit transfers: Managed by cashier staff only</p>
-                          <p>• Balance updates: Real-time after cashier transactions</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="bg-slate-800 border-slate-700">
-                    <CardHeader>
-                      <CardTitle className="text-white flex items-center">
-                        <BarChart3 className="w-5 h-5 mr-2 text-emerald-500" />
-                        Recent Transactions
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="max-h-60 overflow-y-auto">
-                        <PlayerTransactionHistory playerId={user?.id?.toString() || ''} limit={5} />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Cashier Workflow Information */}
-                <Card className="bg-emerald-900/20 border border-emerald-500/30 max-w-3xl mx-auto">
-                  <CardContent className="p-6">
-                    <div className="text-center">
-                      <h3 className="text-emerald-300 font-semibold text-lg mb-4">Dual Balance System</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-                        <div className="bg-slate-800/50 rounded-lg p-4">
-                          <div className="text-emerald-400 font-medium mb-2">1. Load Cash/Credit</div>
-                          <div className="text-slate-300">Cashier loads cash balance or approved credit</div>
-                        </div>
-                        <div className="bg-slate-800/50 rounded-lg p-4">
-                          <div className="text-blue-400 font-medium mb-2">2. Transfer Credit</div>
-                          <div className="text-slate-300">Move approved credit to available cash</div>
-                        </div>
-                        <div className="bg-slate-800/50 rounded-lg p-4">
-                          <div className="text-emerald-400 font-medium mb-2">3. Play</div>
-                          <div className="text-slate-300">Manager handles table operations</div>
-                        </div>
-                        <div className="bg-slate-800/50 rounded-lg p-4">
-                          <div className="text-emerald-400 font-medium mb-2">4. Cash Out</div>
-                          <div className="text-slate-300">Request withdrawal with cashier</div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* VIP Club Loyalty Program */}
-              <Card className="bg-gradient-to-r from-yellow-900/20 to-yellow-800/20 border-yellow-600/30">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <Star className="w-5 h-5 mr-2 text-yellow-500" />
-                    VIP Club - Loyalty Program
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="flex items-center justify-center py-12">
-                  {/* VIP Shop Button Only */}
-                  <Link href="/vip-shop">
-                    <Button 
-                      className="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white font-bold py-6 px-12 text-xl rounded-xl transition-all transform hover:scale-105 shadow-lg"
-                      size="lg"
-                    >
-                      <Star className="w-8 h-8 mr-3" />
-                      Open VIP Shop
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Profile Tab */}
-            <TabsContent value="profile" className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 sm:gap-6">
-                {/* Profile Summary */}
                 <Card className="bg-slate-800 border-slate-700">
                   <CardHeader>
                     <CardTitle className="text-white flex items-center">
-                      <User className="w-5 h-5 mr-2 text-emerald-500" />
-                      Profile
+                      <Info className="w-5 h-5 mr-2 text-blue-500" />
+                      Financial Operations Notice
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {/* Profile Details */}
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
-                        <span className="text-sm text-slate-300">Name</span>
-                        <span className="text-sm text-white font-medium">{user?.firstName} {user?.lastName}</span>
-                      </div>
-                      <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
-                        <span className="text-sm text-slate-300">Email</span>
-                        <span className="text-sm text-white font-medium">{user?.email}</span>
-                      </div>
-                      <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
-                        <span className="text-sm text-slate-300">Phone</span>
-                        <span className="text-sm text-white font-medium">{user?.phone}</span>
-                      </div>
-                      <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
-                        <span className="text-sm text-slate-300">KYC Status</span>
-                        <div className="flex items-center">
-                          {user?.kycStatus === 'approved' ? (
-                            <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">Verified</Badge>
-                          ) : user?.kycStatus === 'verified' ? (
-                            <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">Verified</Badge>
-                          ) : user?.kycStatus === 'pending' ? (
-                            <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30">Pending</Badge>
-                          ) : (
-                            <Badge variant="destructive">Not Verified</Badge>
-                          )}
-                        </div>
+                    <div className="text-center p-6 bg-blue-950/50 rounded-lg border border-blue-800">
+                      <CreditCard className="w-12 h-12 mx-auto mb-4 text-blue-400" />
+                      <h3 className="text-lg font-semibold text-white mb-2">Visit Cashier Counter</h3>
+                      <p className="text-slate-300 mb-4">
+                        All cash-out and credit operations are handled exclusively by our cashier team.
+                      </p>
+                      <div className="space-y-2 text-sm text-slate-400">
+                        <p>• Cash withdrawals: Visit cashier with your player ID</p>
+                        <p>• Credit transfers: Managed by cashier staff only</p>
+                        <p>• Balance updates: Real-time after cashier transactions</p>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* KYC Documents Management */}
                 <Card className="bg-slate-800 border-slate-700">
                   <CardHeader>
                     <CardTitle className="text-white flex items-center">
-                      <FileText className="w-5 h-5 mr-2 text-emerald-500" />
-                      KYC Documents
+                      <BarChart3 className="w-5 h-5 mr-2 text-emerald-500" />
+                      Recent Transactions
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    {kycLoading ? (
-                      <div className="space-y-3">
-                        {[1, 2, 3].map((i) => (
-                          <Skeleton key={i} className="h-12 bg-slate-700" />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {/* File type information */}
-                        <div className="mb-4 p-3 bg-slate-700 rounded-lg">
-                          <p className="text-xs text-slate-300 mb-1">
-                            <strong>Supported file types:</strong> JPG, PNG, PDF (max 5MB each)
-                          </p>
-                          <p className="text-xs text-slate-400">
-                            Upload clear, high-quality images of your documents for faster verification
-                          </p>
-                        </div>
-                        {/* Debug: Show KYC documents count */}
-                        <div className="text-xs text-slate-500 mb-2">
-                          {kycDocuments ? `Found ${kycDocuments.length} documents` : 'No documents found'}
-                        </div>
-                        {/* ID Document */}
-                        <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
-                          <div className="flex items-center space-x-3 flex-1">
-                            {getKycStatusIcon(getKycDocumentStatus('id'))}
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-white">ID Document</p>
-                              <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('id')}</p>
-                              {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl).length > 0 && (
-                                <div className="flex items-center space-x-2 mt-1">
-                                  <p className="text-xs text-emerald-500">
-                                    {Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0]?.fileName : ''}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-stretch space-y-2">
-                            {/* View button positioned above other buttons */}
-                            {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl).length > 0 && (
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
-                                onClick={() => {
-                                  const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0] : null;
-                                  if (doc && doc.fileUrl) {
-                                    try {
-                                      // Clear browser cache for this specific document and open in new tab
-                                      const documentUrl = `/api/documents/view/${doc.id}?v=${Date.now()}`;
-                                      console.log('Opening document:', documentUrl);
-
-                                      const newTab = window.open('about:blank', '_blank');
-                                      if (newTab) {
-                                        newTab.location.href = documentUrl;
-                                      } else {
-                                        // Fallback if popup blocked
-                                        window.location.href = documentUrl;
-                                      }
-                                    } catch (error) {
-                                      console.error('Error opening document:', error);
-                                      toast({
-                                        title: "Error",
-                                        description: "Unable to open document",
-                                        variant: "destructive",
-                                      });
-                                    }
-                                  }
-                                }}
-                              >
-                                <Eye className="w-3 h-3 mr-1" />
-                                View Document
-                              </Button>
-                            )}
-
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                              {/* Only show upload/reupload if not approved or if no documents */}
-                              {(getKycDocumentStatus('id') !== 'approved' || (kycDocuments as any)?.filter((d: any) => d.documentType === 'government_id' && d.fileUrl).length === 0) && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => document.getElementById('id-document-upload')?.click()}
-                                  disabled={uploadKycDocumentMutation.isPending}
-                                  className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
-                                >
-                                  <Upload className="w-4 h-4 mr-1" />
-                                  {(kycDocuments as any)?.filter((d: any) => d.documentType === 'government_id' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
-                                </Button>
-                              )}
-
-                              {/* Show request change button if approved */}
-                              {getKycDocumentStatus('id') === 'approved' && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    toast({
-                                      title: "Request Change",
-                                      description: "Change request functionality will be available in the next update",
-                                    });
-                                  }}
-                                  className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                                >
-                                  <AlertTriangle className="w-4 h-4 mr-1" />
-                                  <span className="text-xs sm:text-sm">Request Change</span>
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                          <input
-                            id="id-document-upload"
-                            type="file"
-                            accept=".jpg,.jpeg,.png,.pdf"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              console.log('File input changed for ID:', { file: file?.name, hasFile: !!file });
-                              if (file) {
-                                handleKycDocumentUpload('government_id', file);
-                                // Reset the input value to allow re-uploading same file
-                                e.target.value = '';
-                              }
-                            }}
-                          />
-                        </div>
-
-                        {/* Address Document */}
-                        <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
-                          <div className="flex items-center space-x-3 flex-1">
-                            {getKycStatusIcon(getKycDocumentStatus('utility'))}
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-white">Address Proof</p>
-                              <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('utility')}</p>
-                              {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl).length > 0 && (
-                                <div className="flex items-center space-x-2 mt-1">
-                                  <p className="text-xs text-emerald-500">
-                                    {Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl)[0]?.fileName : ''}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-stretch space-y-2">
-                            {/* View button positioned above other buttons */}
-                            {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl).length > 0 && (
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
-                                onClick={() => {
-                                  const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl)[0] : null;
-                                  if (doc && doc.fileUrl) {
-                                    try {
-                                      // Clear browser cache for this specific document and open in new tab
-                                      const documentUrl = `/api/documents/view/${doc.id}?v=${Date.now()}`;
-                                      console.log('Opening document:', documentUrl);
-
-                                      const newTab = window.open('about:blank', '_blank');
-                                      if (newTab) {
-                                        newTab.location.href = documentUrl;
-                                      } else {
-                                        // Fallback if popup blocked
-                                        window.location.href = documentUrl;
-                                      }
-                                    } catch (error) {
-                                      console.error('Error opening document:', error);
-                                      toast({
-                                        title: "Error",
-                                        description: "Unable to open document",
-                                        variant: "destructive",
-                                      });
-                                    }
-                                  }
-                                }}
-                              >
-                                <Eye className="w-3 h-3 mr-1" />
-                                View Document
-                              </Button>
-                            )}
-
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                              {/* Only show upload/reupload if not approved or if no documents */}
-                              {(getKycDocumentStatus('utility') !== 'approved' || (kycDocuments as any)?.filter((d: any) => d.documentType === 'utility_bill' && d.fileUrl).length === 0) && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => document.getElementById('utility-document-upload')?.click()}
-                                  disabled={uploadKycDocumentMutation.isPending}
-                                  className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
-                                >
-                                  <Upload className="w-4 h-4 mr-1" />
-                                  {(kycDocuments as any)?.filter((d: any) => d.documentType === 'utility_bill' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
-                                </Button>
-                              )}
-
-                              {/* Show request change button if approved */}
-                              {getKycDocumentStatus('utility') === 'approved' && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    toast({
-                                      title: "Request Change",
-                                      description: "Change request functionality will be available in the next update",
-                                    });
-                                  }}
-                                  className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                                >
-                                  <AlertTriangle className="w-4 h-4 mr-1" />
-                                  <span className="text-xs sm:text-sm">Request Change</span>
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                          <input
-                            id="utility-document-upload"
-                            type="file"
-                            accept=".jpg,.jpeg,.png,.pdf"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              console.log('File input changed for Utility Bill:', { file: file?.name, hasFile: !!file });
-                              if (file) {
-                                handleKycDocumentUpload('utility_bill', file);
-                                // Reset the input value to allow re-uploading same file
-                                e.target.value = '';
-                              }
-                            }}
-                          />
-                        </div>
-
-                        {/* Photo Document */}
-                        <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
-                          <div className="flex items-center space-x-3 flex-1">
-                            {getKycStatusIcon(getKycDocumentStatus('photo'))}
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-white">Photo</p>
-                              <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('photo')}</p>
-                              {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 && (
-                                <div className="flex items-center space-x-2 mt-1">
-                                  <p className="text-xs text-emerald-500">
-                                    {Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0]?.fileName : ''}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-stretch space-y-2">
-                            {/* View button positioned above other buttons */}
-                            {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 && (
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
-                                onClick={() => {
-                                  const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0] : null;
-                                  if (doc && doc.fileUrl) {
-                                    try {
-                                      // Clear browser cache for this specific document and open in new tab
-                                      const documentUrl = `/api/documents/view/${doc.id}?v=${Date.now()}`;
-                                      console.log('Opening document:', documentUrl);
-
-                                      const newTab = window.open('about:blank', '_blank');
-                                      if (newTab) {
-                                        newTab.location.href = documentUrl;
-                                      } else {
-                                        // Fallback if popup blocked
-                                        window.location.href = documentUrl;
-                                      }
-                                    } catch (error) {
-                                      console.error('Error opening document:', error);
-                                      toast({
-                                        title: "Error",
-                                        description: "Unable to open document",
-                                        variant: "destructive",
-                                      });
-                                    }
-                                  }
-                                }}
-                              >
-                                <Eye className="w-3 h-3 mr-1" />
-                                View Document
-                              </Button>
-                            )}
-
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                              {/* Only show upload/reupload if not approved or if no documents */}
-                              {(getKycDocumentStatus('photo') !== 'approved' || (Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length === 0)) && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => document.getElementById('photo-document-upload')?.click()}
-                                  disabled={uploadKycDocumentMutation.isPending}
-                                  className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
-                                >
-                                  <Upload className="w-4 h-4 mr-1" />
-                                  {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
-                                </Button>
-                              )}
-
-                              {/* Show request change button if approved */}
-                              {getKycDocumentStatus('photo') === 'approved' && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    toast({
-                                      title: "Request Change",
-                                      description: "Change request functionality will be available in the next update",
-                                    });
-                                  }}
-                                  className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                                >
-                                  <AlertTriangle className="w-4 h-4 mr-1" />
-                                  <span className="text-xs sm:text-sm">Request Change</span>
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                          <input
-                            id="photo-document-upload"
-                            type="file"
-                            accept=".jpg,.jpeg,.png,.pdf"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              console.log('File input changed for Photo:', { file: file?.name, hasFile: !!file });
-                              if (file) {
-                                handleKycDocumentUpload('profile_photo', file);
-                                // Reset the input value to allow re-uploading same file
-                                e.target.value = '';
-                              }
-                            }}
-                          />
-                        </div>
-
-                        {/* Upload status */}
-                        {uploadKycDocumentMutation.isPending && (
-                          <div className="flex items-center space-x-2 p-3 bg-slate-700 rounded-lg">
-                            <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                            <span className="text-sm text-slate-300">Uploading document...</span>
-                          </div>
-                        )}
-
-                        {/* Document Summary */}
-                        {kycDocuments && kycDocuments.length > 0 && (
-                          <div className="mt-4 p-4 bg-slate-700 rounded-lg">
-                            <h4 className="text-sm font-medium text-white mb-3">Document Upload History</h4>
-                            <div className="mb-3 p-2 bg-slate-800 rounded border border-slate-600">
-                              <p className="text-xs text-slate-300">
-                                <strong>Note:</strong> Some older documents may need to be re-uploaded to view them. 
-                                New uploads will be viewable immediately.
-                              </p>
-                            </div>
-                            <div className="space-y-2">
-                              {kycDocuments.map((doc) => {
-                                // Use createdAt as the timestamp
-                                const dateToFormat = doc.createdAt;
-                                const formattedDate = dateToFormat ? formatSubmissionDate(dateToFormat.toString()) : 'No date';
-
-                                const formattedType = formatDocumentType(doc.documentType || 'document');
-                                return (
-                                  <div key={doc.id} className="flex items-center justify-between py-2 border-b border-slate-600 last:border-b-0">
-                                    <div className="flex items-center space-x-3 flex-1">
-                                      <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                                      <div className="flex-1">
-                                        <p className="text-xs font-medium text-white">
-                                          {formattedType}
-                                        </p>
-                                        <p className="text-xs text-slate-400">{doc.fileName}</p>
-                                        <p className="text-xs text-slate-500">
-                                          {formattedDate}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                      <Badge 
-                                        variant={doc.status === 'approved' ? 'default' : doc.status === 'pending' ? 'secondary' : 'destructive'}
-                                        className="text-xs"
-                                      >
-                                        {doc.status}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                  <CardContent>
+                    <div className="max-h-60 overflow-y-auto">
+                      <PlayerTransactionHistory playerId={user?.id?.toString() || ''} limit={5} />
+                    </div>
                   </CardContent>
                 </Card>
+              </div>
 
-                {/* PAN Card Management */}
-                <Card className="bg-slate-800 border-slate-700">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center">
-                      <CreditCard className="w-5 h-5 mr-2 text-emerald-500" />
-                      PAN Card Verification
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* PAN Card Number Input */}
+              {/* Cashier Workflow Information */}
+              <Card className="bg-emerald-900/20 border border-emerald-500/30 max-w-3xl mx-auto">
+                <CardContent className="p-6">
+                  <div className="text-center">
+                    <h3 className="text-emerald-300 font-semibold text-lg mb-4">Dual Balance System</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                      <div className="bg-slate-800/50 rounded-lg p-4">
+                        <div className="text-emerald-400 font-medium mb-2">1. Load Cash/Credit</div>
+                        <div className="text-slate-300">Cashier loads cash balance or approved credit</div>
+                      </div>
+                      <div className="bg-slate-800/50 rounded-lg p-4">
+                        <div className="text-blue-400 font-medium mb-2">2. Transfer Credit</div>
+                        <div className="text-slate-300">Move approved credit to available cash</div>
+                      </div>
+                      <div className="bg-slate-800/50 rounded-lg p-4">
+                        <div className="text-emerald-400 font-medium mb-2">3. Play</div>
+                        <div className="text-slate-300">Manager handles table operations</div>
+                      </div>
+                      <div className="bg-slate-800/50 rounded-lg p-4">
+                        <div className="text-emerald-400 font-medium mb-2">4. Cash Out</div>
+                        <div className="text-slate-300">Request withdrawal with cashier</div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* VIP Club Loyalty Program */}
+            <Card className="bg-gradient-to-r from-yellow-900/20 to-yellow-800/20 border-yellow-600/30">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center">
+                  <Star className="w-5 h-5 mr-2 text-yellow-500" />
+                  VIP Club - Loyalty Program
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center justify-center py-12">
+                {/* VIP Shop Button Only */}
+                <Link href="/vip-shop">
+                  <Button 
+                    className="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white font-bold py-6 px-12 text-xl rounded-xl transition-all transform hover:scale-105 shadow-lg"
+                    size="lg"
+                  >
+                    <Star className="w-8 h-8 mr-3" />
+                    Open VIP Shop
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Profile Tab */}
+          <TabsContent value="profile" className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:gap-6">
+              {/* Profile Summary */}
+              <Card className="bg-slate-800 border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <User className="w-5 h-5 mr-2 text-emerald-500" />
+                    Profile
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {/* Profile Details */}
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+                      <span className="text-sm text-slate-300">Name</span>
+                      <span className="text-sm text-white font-medium">{user?.firstName} {user?.lastName}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+                      <span className="text-sm text-slate-300">Email</span>
+                      <span className="text-sm text-white font-medium">{user?.email}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+                      <span className="text-sm text-slate-300">Phone</span>
+                      <span className="text-sm text-white font-medium">{user?.phone}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+                      <span className="text-sm text-slate-300">KYC Status</span>
+                      <div className="flex items-center">
+                        {user?.kycStatus === 'approved' ? (
+                          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">Verified</Badge>
+                        ) : user?.kycStatus === 'verified' ? (
+                          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">Verified</Badge>
+                        ) : user?.kycStatus === 'pending' ? (
+                          <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30">Pending</Badge>
+                        ) : (
+                          <Badge variant="destructive">Not Verified</Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* KYC Documents Management */}
+              <Card className="bg-slate-800 border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <FileText className="w-5 h-5 mr-2 text-emerald-500" />
+                    KYC Documents
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {kycLoading ? (
                     <div className="space-y-3">
-                      <div className="p-3 bg-slate-700 rounded-lg">
-                        <p className="text-xs text-slate-300 mb-2">
-                          <strong>PAN Card Format:</strong> AAAAA9999A (5 letters, 4 numbers, 1 letter)
+                      {[1, 2, 3].map((i) => (
+                        <Skeleton key={i} className="h-12 bg-slate-700" />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {/* File type information */}
+                      <div className="mb-4 p-3 bg-slate-700 rounded-lg">
+                        <p className="text-xs text-slate-300 mb-1">
+                          <strong>Supported file types:</strong> JPG, PNG, PDF (max 5MB each)
                         </p>
                         <p className="text-xs text-slate-400">
-                          Your PAN card number must be unique and cannot be used by other players
+                          Upload clear, high-quality images of your documents for faster verification
                         </p>
                       </div>
-
-                      <div className="flex flex-col space-y-2">
-                        <label htmlFor="pan-number" className="text-sm font-medium text-white">
-                          PAN Card Number
-                        </label>
-                        <input
-                          id="pan-number"
-                          type="text"
-                          placeholder="AAAAA9999A"
-                          maxLength={10}
-                          value={panCardNumber}
-                          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                          style={{ textTransform: 'uppercase' }}
-                          onChange={(e) => {
-                            setPanCardNumber((e.target.value || '').toUpperCase());
-                          }}
-                        />
+                      {/* Debug: Show KYC documents count */}
+                      <div className="text-xs text-slate-500 mb-2">
+                        {kycDocuments ? `Found ${kycDocuments.length} documents` : 'No documents found'}
                       </div>
-
-                      <Button 
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-                        disabled={updatePanCardMutation.isPending}
-                        onClick={handlePanCardUpdate}
-                      >
-                        {updatePanCardMutation.isPending ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                            Updating...
-                          </>
-                        ) : (
-                          'Update PAN Card Number'
-                        )}
-                      </Button>
-                    </div>
-
-                    {/* PAN Card Document Upload - Now with full functionality like other KYC docs */}
-                    <div className="space-y-3 pt-4 border-t border-slate-600">
+                      {/* ID Document */}
                       <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
                         <div className="flex items-center space-x-3 flex-1">
-                          {getKycStatusIcon(getKycDocumentStatus('pan_card'))}
+                          {getKycStatusIcon(getKycDocumentStatus('id'))}
                           <div className="flex-1">
-                            <p className="text-sm font-medium text-white">PAN Card Document</p>
-                            <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('pan_card')}</p>
-                            {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl).length > 0 && (
+                            <p className="text-sm font-medium text-white">ID Document</p>
+                            <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('id')}</p>
+                            {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl).length > 0 && (
                               <div className="flex items-center space-x-2 mt-1">
                                 <p className="text-xs text-emerald-500">
-                                  {Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl)[0]?.fileName : ''}
+                                  {Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0]?.fileName : ''}
                                 </p>
                               </div>
                             )}
@@ -3343,13 +2932,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         </div>
                         <div className="flex flex-col items-stretch space-y-2">
                           {/* View button positioned above other buttons */}
-                          {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl).length > 0 && (
+                          {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl).length > 0 && (
                             <Button 
                               size="sm" 
                               variant="outline" 
                               className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
                               onClick={() => {
-                                const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl)[0] : null;
+                                const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0] : null;
                                 if (doc && doc.fileUrl) {
                                   try {
                                     // Clear browser cache for this specific document and open in new tab
@@ -3381,21 +2970,21 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
                           <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
                             {/* Only show upload/reupload if not approved or if no documents */}
-                            {(getKycDocumentStatus('pan_card') !== 'approved' || (Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl).length === 0)) && (
+                            {(getKycDocumentStatus('id') !== 'approved' || (kycDocuments as any)?.filter((d: any) => d.documentType === 'government_id' && d.fileUrl).length === 0) && (
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => document.getElementById('pan-document-upload')?.click()}
+                                onClick={() => document.getElementById('id-document-upload')?.click()}
                                 disabled={uploadKycDocumentMutation.isPending}
                                 className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
                               >
                                 <Upload className="w-4 h-4 mr-1" />
-                                {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
+                                {(kycDocuments as any)?.filter((d: any) => d.documentType === 'government_id' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
                               </Button>
                             )}
 
                             {/* Show request change button if approved */}
-                            {getKycDocumentStatus('pan_card') === 'approved' && (
+                            {getKycDocumentStatus('id') === 'approved' && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -3414,63 +3003,496 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                           </div>
                         </div>
                         <input
-                          id="pan-document-upload"
+                          id="id-document-upload"
                           type="file"
                           accept=".jpg,.jpeg,.png,.pdf"
                           className="hidden"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
-                            console.log('File input changed for PAN Card:', { file: file?.name, hasFile: !!file });
+                            console.log('File input changed for ID:', { file: file?.name, hasFile: !!file });
                             if (file) {
-                              handleKycDocumentUpload('pan_card', file);
+                              handleKycDocumentUpload('government_id', file);
                               // Reset the input value to allow re-uploading same file
                               e.target.value = '';
                             }
                           }}
                         />
                       </div>
+
+                      {/* Address Document */}
+                      <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
+                        <div className="flex items-center space-x-3 flex-1">
+                          {getKycStatusIcon(getKycDocumentStatus('utility'))}
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-white">Address Proof</p>
+                            <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('utility')}</p>
+                            {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl).length > 0 && (
+                              <div className="flex items-center space-x-2 mt-1">
+                                <p className="text-xs text-emerald-500">
+                                  {Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl)[0]?.fileName : ''}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-stretch space-y-2">
+                          {/* View button positioned above other buttons */}
+                          {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl).length > 0 && (
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
+                              onClick={() => {
+                                const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl)[0] : null;
+                                if (doc && doc.fileUrl) {
+                                  try {
+                                    // Clear browser cache for this specific document and open in new tab
+                                    const documentUrl = `/api/documents/view/${doc.id}?v=${Date.now()}`;
+                                    console.log('Opening document:', documentUrl);
+
+                                    const newTab = window.open('about:blank', '_blank');
+                                    if (newTab) {
+                                      newTab.location.href = documentUrl;
+                                    } else {
+                                      // Fallback if popup blocked
+                                      window.location.href = documentUrl;
+                                    }
+                                  } catch (error) {
+                                    console.error('Error opening document:', error);
+                                    toast({
+                                      title: "Error",
+                                      description: "Unable to open document",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }
+                              }}
+                            >
+                              <Eye className="w-3 h-3 mr-1" />
+                              View Document
+                            </Button>
+                          )}
+
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                            {/* Only show upload/reupload if not approved or if no documents */}
+                            {(getKycDocumentStatus('utility') !== 'approved' || (kycDocuments as any)?.filter((d: any) => d.documentType === 'utility_bill' && d.fileUrl).length === 0) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => document.getElementById('utility-document-upload')?.click()}
+                                disabled={uploadKycDocumentMutation.isPending}
+                                className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
+                              >
+                                <Upload className="w-4 h-4 mr-1" />
+                                {(kycDocuments as any)?.filter((d: any) => d.documentType === 'utility_bill' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
+                              </Button>
+                            )}
+
+                            {/* Show request change button if approved */}
+                            {getKycDocumentStatus('utility') === 'approved' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  toast({
+                                    title: "Request Change",
+                                    description: "Change request functionality will be available in the next update",
+                                  });
+                                }}
+                                className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
+                              >
+                                <AlertTriangle className="w-4 h-4 mr-1" />
+                                <span className="text-xs sm:text-sm">Request Change</span>
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        <input
+                          id="utility-document-upload"
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            console.log('File input changed for Utility Bill:', { file: file?.name, hasFile: !!file });
+                            if (file) {
+                              handleKycDocumentUpload('utility_bill', file);
+                              // Reset the input value to allow re-uploading same file
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {/* Photo Document */}
+                      <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
+                        <div className="flex items-center space-x-3 flex-1">
+                          {getKycStatusIcon(getKycDocumentStatus('photo'))}
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-white">Photo</p>
+                            <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('photo')}</p>
+                            {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 && (
+                              <div className="flex items-center space-x-2 mt-1">
+                                <p className="text-xs text-emerald-500">
+                                  {Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0]?.fileName : ''}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-stretch space-y-2">
+                          {/* View button positioned above other buttons */}
+                          {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 && (
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
+                              onClick={() => {
+                                const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0] : null;
+                                if (doc && doc.fileUrl) {
+                                  try {
+                                    // Clear browser cache for this specific document and open in new tab
+                                    const documentUrl = `/api/documents/view/${doc.id}?v=${Date.now()}`;
+                                    console.log('Opening document:', documentUrl);
+
+                                    const newTab = window.open('about:blank', '_blank');
+                                    if (newTab) {
+                                      newTab.location.href = documentUrl;
+                                    } else {
+                                      // Fallback if popup blocked
+                                      window.location.href = documentUrl;
+                                    }
+                                  } catch (error) {
+                                    console.error('Error opening document:', error);
+                                    toast({
+                                      title: "Error",
+                                      description: "Unable to open document",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }
+                              }}
+                            >
+                              <Eye className="w-3 h-3 mr-1" />
+                              View Document
+                            </Button>
+                          )}
+
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                            {/* Only show upload/reupload if not approved or if no documents */}
+                            {(getKycDocumentStatus('photo') !== 'approved' || (Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length === 0)) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => document.getElementById('photo-document-upload')?.click()}
+                                disabled={uploadKycDocumentMutation.isPending}
+                                className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
+                              >
+                                <Upload className="w-4 h-4 mr-1" />
+                                {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
+                              </Button>
+                            )}
+
+                            {/* Show request change button if approved */}
+                            {getKycDocumentStatus('photo') === 'approved' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  toast({
+                                    title: "Request Change",
+                                    description: "Change request functionality will be available in the next update",
+                                  });
+                                }}
+                                className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
+                              >
+                                <AlertTriangle className="w-4 h-4 mr-1" />
+                                <span className="text-xs sm:text-sm">Request Change</span>
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        <input
+                          id="photo-document-upload"
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            console.log('File input changed for Photo:', { file: file?.name, hasFile: !!file });
+                            if (file) {
+                              handleKycDocumentUpload('profile_photo', file);
+                              // Reset the input value to allow re-uploading same file
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {/* Upload status */}
+                      {uploadKycDocumentMutation.isPending && (
+                        <div className="flex items-center space-x-2 p-3 bg-slate-700 rounded-lg">
+                          <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                          <span className="text-sm text-slate-300">Uploading document...</span>
+                        </div>
+                      )}
+
+                      {/* Document Summary */}
+                      {kycDocuments && kycDocuments.length > 0 && (
+                        <div className="mt-4 p-4 bg-slate-700 rounded-lg">
+                          <h4 className="text-sm font-medium text-white mb-3">Document Upload History</h4>
+                          <div className="mb-3 p-2 bg-slate-800 rounded border border-slate-600">
+                            <p className="text-xs text-slate-300">
+                              <strong>Note:</strong> Some older documents may need to be re-uploaded to view them. 
+                              New uploads will be viewable immediately.
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            {kycDocuments.map((doc) => {
+                              // Use createdAt as the timestamp
+                              const dateToFormat = doc.createdAt;
+                              const formattedDate = dateToFormat ? formatSubmissionDate(dateToFormat.toString()) : 'No date';
+
+                              const formattedType = formatDocumentType(doc.documentType || 'document');
+                              return (
+                                <div key={doc.id} className="flex items-center justify-between py-2 border-b border-slate-600 last:border-b-0">
+                                  <div className="flex items-center space-x-3 flex-1">
+                                    <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                                    <div className="flex-1">
+                                      <p className="text-xs font-medium text-white">
+                                        {formattedType}
+                                      </p>
+                                      <p className="text-xs text-slate-400">{doc.fileName}</p>
+                                      <p className="text-xs text-slate-500">
+                                        {formattedDate}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <Badge 
+                                      variant={doc.status === 'approved' ? 'default' : doc.status === 'pending' ? 'secondary' : 'destructive'}
+                                      className="text-xs"
+                                    >
+                                      {doc.status}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </CardContent>
-                </Card>
+                  )}
+                </CardContent>
+              </Card>
 
-                {/* Transaction History */}
-                <Card className="bg-slate-800 border-slate-700">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center">
-                      <FileText className="w-5 h-5 mr-2 text-emerald-500" />
-                      Transaction History
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <select 
-                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                        value={showTransactions ? 'view' : ''}
+              {/* PAN Card Management */}
+              <Card className="bg-slate-800 border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <CreditCard className="w-5 h-5 mr-2 text-emerald-500" />
+                    PAN Card Verification
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* PAN Card Number Input */}
+                  <div className="space-y-3">
+                    <div className="p-3 bg-slate-700 rounded-lg">
+                      <p className="text-xs text-slate-300 mb-2">
+                        <strong>PAN Card Format:</strong> AAAAA9999A (5 letters, 4 numbers, 1 letter)
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        Your PAN card number must be unique and cannot be used by other players
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col space-y-2">
+                      <label htmlFor="pan-number" className="text-sm font-medium text-white">
+                        PAN Card Number
+                      </label>
+                      <input
+                        id="pan-number"
+                        type="text"
+                        placeholder="AAAAA9999A"
+                        maxLength={10}
+                        value={panCardNumber}
+                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        style={{ textTransform: 'uppercase' }}
                         onChange={(e) => {
-                          setShowTransactions(e.target.value === 'view');
+                          setPanCardNumber((e.target.value || '').toUpperCase());
                         }}
-                      >
-                        <option value="">Select action...</option>
-                        <option value="view">View Last 10 Transactions</option>
-                      </select>
+                      />
+                    </div>
 
-                      {/* Transaction List */}
-                      {showTransactions && (
-                        <div className="bg-slate-700 rounded-lg p-4">
-                          {transactionsLoading ? (
-                            <div className="flex items-center justify-center py-4">
-                              <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                              <span className="ml-2 text-sm text-slate-300">Loading transactions...</span>
+                    <Button 
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                      disabled={updatePanCardMutation.isPending}
+                      onClick={handlePanCardUpdate}
+                    >
+                      {updatePanCardMutation.isPending ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                          Updating...
+                        </>
+                      ) : (
+                        'Update PAN Card Number'
+                      )}
+                    </Button>
+                  </div>
+
+                  {/* PAN Card Document Upload - Now with full functionality like other KYC docs */}
+                  <div className="space-y-3 pt-4 border-t border-slate-600">
+                    <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
+                      <div className="flex items-center space-x-3 flex-1">
+                        {getKycStatusIcon(getKycDocumentStatus('pan_card'))}
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-white">PAN Card Document</p>
+                          <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('pan_card')}</p>
+                          {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl).length > 0 && (
+                            <div className="flex items-center space-x-2 mt-1">
+                              <p className="text-xs text-emerald-500">
+                                {Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl)[0]?.fileName : ''}
+                              </p>
                             </div>
-                          ) : transactions && transactions.length > 0 ? (
-                            <div className="space-y-2">
-                              <h4 className="text-sm font-medium text-white mb-3">Recent Transactions</h4>
-                              {transactions.map((transaction: any, index: number) => (
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-stretch space-y-2">
+                        {/* View button positioned above other buttons */}
+                        {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl).length > 0 && (
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
+                            onClick={() => {
+                              const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl)[0] : null;
+                              if (doc && doc.fileUrl) {
+                                try {
+                                  // Clear browser cache for this specific document and open in new tab
+                                  const documentUrl = `/api/documents/view/${doc.id}?v=${Date.now()}`;
+                                  console.log('Opening document:', documentUrl);
+
+                                  const newTab = window.open('about:blank', '_blank');
+                                  if (newTab) {
+                                    newTab.location.href = documentUrl;
+                                  } else {
+                                    // Fallback if popup blocked
+                                    window.location.href = documentUrl;
+                                  }
+                                } catch (error) {
+                                  console.error('Error opening document:', error);
+                                  toast({
+                                    title: "Error",
+                                    description: "Unable to open document",
+                                    variant: "destructive",
+                                  });
+                                }
+                              }
+                            }}
+                          >
+                            <Eye className="w-3 h-3 mr-1" />
+                            View Document
+                          </Button>
+                        )}
+
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                          {/* Only show upload/reupload if not approved or if no documents */}
+                          {(getKycDocumentStatus('pan_card') !== 'approved' || (Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl).length === 0)) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => document.getElementById('pan-document-upload')?.click()}
+                              disabled={uploadKycDocumentMutation.isPending}
+                              className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
+                            >
+                              <Upload className="w-4 h-4 mr-1" />
+                              {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
+                            </Button>
+                          )}
+
+                          {/* Show request change button if approved */}
+                          {getKycDocumentStatus('pan_card') === 'approved' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                toast({
+                                  title: "Request Change",
+                                  description: "Change request functionality will be available in the next update",
+                                });
+                              }}
+                              className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
+                            >
+                              <AlertTriangle className="w-4 h-4 mr-1" />
+                              <span className="text-xs sm:text-sm">Request Change</span>
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      <input
+                        id="pan-document-upload"
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          console.log('File input changed for PAN Card:', { file: file?.name, hasFile: !!file });
+                          if (file) {
+                            handleKycDocumentUpload('pan_card', file);
+                            // Reset the input value to allow re-uploading same file
+                            e.target.value = '';
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Transaction History */}
+              <Card className="bg-slate-800 border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <FileText className="w-5 h-5 mr-2 text-emerald-500" />
+                    Transaction History
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <select 
+                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                      value={showTransactions || ''} // Use '' for initial empty value
+                      onChange={(e) => {
+                        setShowTransactions(e.target.value as any); // Cast to any to allow string values
+                      }}
+                    >
+                      <option value="">Select action...</option>
+                      <option value="last10">View Last 10 Transactions</option>
+                      <option value="all">View All Transactions</option>
+                    </select>
+
+                    {/* Transaction List */}
+                    {showTransactions && (
+                      <div className="bg-slate-700 rounded-lg p-4">
+                        {transactionsLoading ? (
+                          <div className="flex items-center justify-center py-4">
+                            <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                            <span className="ml-2 text-sm text-slate-300">Loading transactions...</span>
+                          </div>
+                        ) : transactions && transactions.length > 0 ? (
+                          <div className="space-y-2">
+                            <h4 className="text-sm font-medium text-white mb-3">
+                              {showTransactions === 'last10' ? 'Last 10 Transactions' : 'All Transactions'}
+                            </h4>
+                            <div className="max-h-80 overflow-y-auto space-y-2">
+                              {(showTransactions === 'last10' ? transactions.slice(0, 10) : transactions).map((transaction: any, index: number) => (
                                 <div key={index} className="flex justify-between items-center py-2 border-b border-slate-600 last:border-b-0">
                                   <div>
                                     <p className="text-sm text-white">{transaction.type}</p>
                                     <p className="text-xs text-slate-400">
-                                      {new Date(transaction.created_at).toLocaleDateString()} at {new Date(transaction.created_at).toLocaleTimeString()}
+                                      {new Date(transaction.created_at).toLocaleDateString()} at{' '}
+                                      {new Date(transaction.created_at).toLocaleTimeString()}
                                     </p>
                                   </div>
                                   <div className="text-right">
@@ -3482,200 +3504,206 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </div>
                               ))}
                             </div>
-                          ) : (
-                            <p className="text-sm text-slate-300 text-center">
-                              No transactions found
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      {!showTransactions && (
-                        <div className="bg-slate-700 rounded-lg p-4">
+                            {showTransactions === 'last10' && transactions.length > 10 && (
+                              <p className="text-xs text-slate-400 text-center mt-2">
+                                Showing 10 of {transactions.length} transactions
+                              </p>
+                            )}
+                          </div>
+                        ) : (
                           <p className="text-sm text-slate-300 text-center">
-                            Select "View Last 10 Transactions" to see your recent activity
+                            No transactions found
                           </p>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                        )}
+                      </div>
+                    )}
 
-                {/* Mobile App Connection */}
+                    {!showTransactions && (
+                      <div className="bg-slate-700 rounded-lg p-4">
+                        <p className="text-sm text-slate-300 text-center">
+                          Select an option above to see your recent activity
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Mobile App Connection */}
+              <Card className="bg-slate-800 border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <svg className="w-5 h-5 mr-2 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    Mobile App
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="text-center">
+                    <div className="w-20 h-20 bg-slate-700 rounded-xl flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-10 h-10 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <p className="text-sm text-slate-300 mb-4">Connect your mobile device for the best gaming experience</p>
+                  </div>
+
+                  {/* QR Code or App Links */}
+                  <div className="space-y-3">
+                    <div className="bg-slate-700 p-4 rounded-lg text-center">
+                      <div className="w-32 h-32 bg-white rounded-lg mx-auto mb-3 flex items-center justify-center">
+                        <span className="text-2xl">📱</span>
+                      </div>
+                      <p className="text-xs text-slate-400">Scan QR code to download mobile app</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <button className="bg-slate-700 hover:bg-slate-600 p-3 rounded-lg transition-colors">
+                        <div className="flex items-center justify-center space-x-2">
+                          <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                          </svg>
+                          <span className="text-xs text-white">iOS</span>
+                        </div>
+                      </button>
+                      <button className="bg-slate-700 hover:bg-slate-600 p-3 rounded-lg transition-colors">
+                        <div className="flex items-center justify-center space-x-2">
+                          <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 01-.61-.92V2.734a1 1 0 01.609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.198l2.807 1.626a1 1 0 010 1.73l-2.808 1.626L15.699 12l1.999-2.491zM5.864 2.658L16.802 8.99l-2.303 2.303-8.635-8.635z"/>
+                          </svg>
+                          <span className="text-xs text-white">Android</span>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              </div>
+            </TabsContent>
+
+            {/* Feedback Tab */}
+            <TabsContent value="feedback" className="flex-1 overflow-y-auto">
+              <div className="space-y-4">
+                {/* Feedback to Management */}
                 <Card className="bg-slate-800 border-slate-700">
                   <CardHeader>
                     <CardTitle className="text-white flex items-center">
-                      <svg className="w-5 h-5 mr-2 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                      </svg>
-                      Mobile App
+                      <MessageCircle className="w-5 h-5 mr-2 text-emerald-500" />
+                      Send Feedback to Management
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="text-center">
-                      <div className="w-20 h-20 bg-slate-700 rounded-xl flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-10 h-10 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                      <p className="text-sm text-slate-300 mb-4">Connect your mobile device for the best gaming experience</p>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-white">Message</label>
+                      <textarea
+                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
+                        rows={5}
+                        value={feedbackMessage}
+                        onChange={(e) => setFeedbackMessage(e.target.value)}
+                        placeholder="Share your feedback, suggestions, or concerns with our management team..."
+                        disabled={sendingFeedback}
+                      />
                     </div>
+                    <Button 
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
+                      onClick={submitFeedback}
+                      disabled={sendingFeedback || !feedbackMessage.trim()}
+                    >
+                      {sendingFeedback ? (
+                        <div className="animate-spin w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full" />
+                      ) : (
+                        <Send className="w-4 h-4 mr-2" />
+                      )}
+                      {sendingFeedback ? "Sending..." : "Send Feedback"}
+                    </Button>
+                  </CardContent>
+                </Card>
 
-                    {/* QR Code or App Links */}
-                    <div className="space-y-3">
-                      <div className="bg-slate-700 p-4 rounded-lg text-center">
-                        <div className="w-32 h-32 bg-white rounded-lg mx-auto mb-3 flex items-center justify-center">
-                          <span className="text-2xl">📱</span>
+                {/* Guest Relations Support - Unified Chat System */}
+                <Card className="bg-slate-800 border-slate-700">
+                  <CardHeader className="pb-4 border-b border-slate-700">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-emerald-500/20 rounded-full">
+                          <MessageCircle className="w-5 h-5 text-emerald-400" />
                         </div>
-                        <p className="text-xs text-slate-400">Scan QR code to download mobile app</p>
+                        <div>
+                          <CardTitle className="text-white text-lg">
+                            Guest Relations Support
+                          </CardTitle>
+                          <div className="flex items-center space-x-2 text-sm text-slate-400">
+                            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                            <span>Unified Chat System Active</span>
+                          </div>
+                        </div>
                       </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <button className="bg-slate-700 hover:bg-slate-600 p-3 rounded-lg transition-colors">
-                          <div className="flex items-center justify-center space-x-2">
-                            <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-                            </svg>
-                            <span className="text-xs text-white">iOS</span>
-                          </div>
-                        </button>
-                        <button className="bg-slate-700 hover:bg-slate-600 p-3 rounded-lg transition-colors">
-                          <div className="flex items-center justify-center space-x-2">
-                            <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 01-.61-.92V2.734a1 1 0 01.609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.198l2.807 1.626a1 1 0 010 1.73l-2.808 1.626L15.699 12l1.999-2.491zM5.864 2.658L16.802 8.99l-2.303 2.303-8.635-8.635z"/>
-                            </svg>
-                            <span className="text-xs text-white">Android</span>
-                          </div>
-                        </button>
+                      <Button
+                        onClick={() => setChatDialogOpen(true)}
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                        size="sm"
+                      >
+                        <MessageCircle className="w-4 h-4 mr-2" />
+                        Open Chat
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="text-center py-8">
+                      <MessageCircle className="w-12 h-12 mx-auto mb-4 text-emerald-400" />
+                      <h3 className="text-lg font-semibold text-white mb-2">
+                        Professional Support Available
+                      </h3>
+                      <p className="text-slate-400 mb-4">
+                        Connect with our Guest Relations team for immediate assistance with any questions or concerns.
+                      </p>
+                      <div className="text-emerald-400 text-sm font-medium">
+                        <MessageCircle className="w-5 h-5 mr-2 inline" />
+                        Real-time support available
                       </div>
                     </div>
                   </CardContent>
                 </Card>
-                </div>
-              </TabsContent>
+              </div>
+            </TabsContent>
 
-              {/* Feedback Tab */}
-              <TabsContent value="feedback" className="flex-1 overflow-y-auto">
-                <div className="space-y-4">
-                  {/* Feedback to Management */}
-                  <Card className="bg-slate-800 border-slate-700">
-                    <CardHeader>
-                      <CardTitle className="text-white flex items-center">
-                        <MessageCircle className="w-5 h-5 mr-2 text-emerald-500" />
-                        Send Feedback to Management
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-white">Message</label>
-                        <textarea
-                          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
-                          rows={5}
-                          value={feedbackMessage}
-                          onChange={(e) => setFeedbackMessage(e.target.value)}
-                          placeholder="Share your feedback, suggestions, or concerns with our management team..."
-                          disabled={sendingFeedback}
-                        />
-                      </div>
-                      <Button 
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
-                        onClick={submitFeedback}
-                        disabled={sendingFeedback || !feedbackMessage.trim()}
-                      >
-                        {sendingFeedback ? (
-                          <div className="animate-spin w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full" />
-                        ) : (
-                          <Send className="w-4 h-4 mr-2" />
-                        )}
-                        {sendingFeedback ? "Sending..." : "Send Feedback"}
-                      </Button>
-                    </CardContent>
-                  </Card>
+            {/* Notifications Tab */}
+            <TabsContent value="notifications" className="space-y-3 sm:space-y-4 w-full max-w-full">
+              <NotificationHistoryTab />
+            </TabsContent>
 
-                  {/* Guest Relations Support - Unified Chat System */}
-                  <Card className="bg-slate-800 border-slate-700">
-                    <CardHeader className="pb-4 border-b border-slate-700">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="p-2 bg-emerald-500/20 rounded-full">
-                            <MessageCircle className="w-5 h-5 text-emerald-400" />
-                          </div>
-                          <div>
-                            <CardTitle className="text-white text-lg">
-                              Guest Relations Support
-                            </CardTitle>
-                            <div className="flex items-center space-x-2 text-sm text-slate-400">
-                              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
-                              <span>Unified Chat System Active</span>
-                            </div>
-                          </div>
-                        </div>
-                        <Button
-                          onClick={() => setChatDialogOpen(true)}
-                          className="bg-emerald-600 hover:bg-emerald-700"
-                          size="sm"
-                        >
-                          <MessageCircle className="w-4 h-4 mr-2" />
-                          Open Chat
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="text-center py-8">
-                        <MessageCircle className="w-12 h-12 mx-auto mb-4 text-emerald-400" />
-                        <h3 className="text-lg font-semibold text-white mb-2">
-                          Professional Support Available
-                        </h3>
-                        <p className="text-slate-400 mb-4">
-                          Connect with our Guest Relations team for immediate assistance with any questions or concerns.
-                        </p>
-                        <div className="text-emerald-400 text-sm font-medium">
-                          <MessageCircle className="w-5 h-5 mr-2 inline" />
-                          Real-time support available
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </TabsContent>
-
-              {/* Notifications Tab */}
-              <TabsContent value="notifications" className="space-y-3 sm:space-y-4 w-full max-w-full">
-                <NotificationHistoryTab />
-              </TabsContent>
-
-            </div>
-          </Tabs>
+          </div>
+        </Tabs>
 
 
 
-          {/* Full Chat Dialog that opens from "Open Chat" button */}
-          <Dialog open={chatDialogOpen} onOpenChange={setChatDialogOpen}>
-            <DialogContent className="sm:max-w-2xl max-h-[80vh] bg-slate-800 border-slate-700">
-              <DialogHeader>
-                <DialogTitle className="text-white flex items-center">
-                  <MessageCircle className="w-5 h-5 mr-2 text-emerald-400" />
-                  Guest Relations Support
-                </DialogTitle>
-              </DialogHeader>
+        {/* Full Chat Dialog that opens from "Open Chat" button */}
+        <Dialog open={chatDialogOpen} onOpenChange={setChatDialogOpen}>
+          <DialogContent className="sm:max-w-2xl max-h-[80vh] bg-slate-800 border-slate-700">
+            <DialogHeader>
+              <DialogTitle className="text-white flex items-center">
+                <MessageCircle className="w-5 h-5 mr-2 text-emerald-400" />
+                Guest Relations Support
+              </DialogTitle>
+            </DialogHeader>
 
-              {/* Chat System Integration - Direct PostgreSQL connection to Staff Portal */}
-              {chatDialogOpen && user?.id && (
-                <PlayerChatSystem 
-                  playerId={Number(user.id)}
-                  playerName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email || 'Player'}
-                  isInDialog={true}
-                  onClose={() => setChatDialogOpen(false)}
-                />
-              )}
-            </DialogContent>
-          </Dialog>
+            {/* Chat System Integration - Direct PostgreSQL connection to Staff Portal */}
+            {chatDialogOpen && user?.id && (
+              <PlayerChatSystem 
+                playerId={Number(user.id)}
+                playerName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email || 'Player'}
+                isInDialog={true}
+                onClose={() => setChatDialogOpen(false)}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
 
-          {/* Live Session Tracking removed - already in Session tab */}
+        {/* Live Session Tracking removed - already in Session tab */}
 
-        </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
-  export default PlayerDashboard;
+export default PlayerDashboard;
