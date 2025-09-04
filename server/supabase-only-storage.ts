@@ -487,7 +487,7 @@ export class SupabaseOnlyStorage {
     const insertData = {
       player_id: request.playerId,
       table_id: request.tableId, // This is now a UUID string from poker_tables
-      position: request.position || 0,
+      position: request.position,
       status: request.status || 'waiting'
     };
 
@@ -524,32 +524,23 @@ export class SupabaseOnlyStorage {
   }
 
   // KYC document operations
-  async createKycDocument(document: InsertKycDocument): Promise<KycDocument> {
-    // Ensure player exists first - use more robust checking
-    const { data: playerCheck, error: playerError } = await supabase
-      .from('players')
-      .select('id, email')
-      .eq('id', document.playerId)
-      .single();
-
-    console.log(`🔍 [STORAGE] Player check for ID ${document.playerId}:`, playerCheck, playerError);
-
-    if (playerError || !playerCheck) {
-      console.error(`❌ [STORAGE] Player lookup failed:`, playerError);
-      // Don't throw error - allow document creation to proceed
-      console.log(`⚠️ [STORAGE] Proceeding with document creation despite player check failure`);
-    }
-
-    // Insert document with proper handling
-    const { data, error } = await supabase
+  async createKycDocument(data: {
+    playerId: number;
+    documentType: string;
+    fileName: string;
+    fileUrl: string;
+    status: string;
+  }): Promise<any> {
+    const { data: document, error } = await this.supabase
       .from('kyc_documents')
       .insert({
-        player_id: document.playerId,
-        document_type: document.documentType,
-        file_name: document.fileName,
-        file_url: document.fileUrl,
-        file_size: 0,
-        status: document.status || 'pending'
+        player_id: data.playerId,
+        document_type: data.documentType,
+        file_name: data.fileName,
+        file_url: data.fileUrl,
+        status: data.status,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
       .select()
       .single();
@@ -558,7 +549,16 @@ export class SupabaseOnlyStorage {
       throw new Error(`Failed to create KYC document: ${error.message}`);
     }
 
-    return this.transformKycDocumentFromSupabase(data);
+    return {
+      id: document.id,
+      playerId: document.player_id,
+      documentType: document.document_type,
+      fileName: document.file_name,
+      fileUrl: document.file_url,
+      status: document.status,
+      createdAt: new Date(document.created_at),
+      updatedAt: new Date(document.updated_at)
+    };
   }
 
   async getKycDocumentsByPlayer(playerId: number): Promise<KycDocument[]> {

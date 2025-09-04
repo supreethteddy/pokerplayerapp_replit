@@ -972,31 +972,152 @@ export function registerRoutes(app: Express) {
   // LEGACY ENDPOINT COMPATIBILITY - Retrieve All Messages for Player (EXACT MATCH)
   app.get("/api/player-chat-integration/messages/:playerId", async (req, res) => {
     try {
-      const playerId = parseInt(req.params.playerId);
-      const historyResult = await directChat.getChatHistory(playerId);
+      const playerId = parseInt(req.params.playerId); // CRITICAL FIX: Convert string to integer
 
-      if (!historyResult.success || !historyResult.conversations[0]) {
-        return res.json({ success: true, messages: [] });
+      console.log(`🔍 [CHAT HISTORY FIXED] Fetching history for player ID: ${playerId} (type: ${typeof playerId})`);
+
+      // Verify environment variables
+      console.log(`🔍 [CHAT HISTORY FIXED] Supabase URL exists: ${!!process.env.VITE_SUPABASE_URL}`);
+      console.log(`🔍 [CHAT HISTORY FIXED] Service key exists: ${!!process.env.SUPABASE_SERVICE_ROLE_KEY}`);
+
+      const { createClient } = await import('@supabase/supabase-js');
+
+      // Direct environment variable check for debugging
+      const supabaseUrl = process.env.VITE_SUPABASE_URL;
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+      console.log(`🔍 [CHAT HISTORY FIXED] Environment check:`);
+      console.log(`   - Supabase URL: ${supabaseUrl?.substring(0, 30)}...`);
+      console.log(`   - Service Key: ${serviceKey ? 'EXISTS' : 'MISSING'}`);
+
+      const supabase = createClient(supabaseUrl!, serviceKey!);
+
+      console.log(`🔍 [CHAT HISTORY FIXED] Supabase client created successfully`);
+
+      // DIRECT POSTGRESQL QUERY - Bypass Supabase client issue
+      console.log(`🔍 [CHAT HISTORY FIXED] Using direct PostgreSQL query for player_id: ${playerId}`);
+
+      // Import postgres client
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      try {
+        // Direct SQL query to get chat requests
+        const requestsQuery = `
+          SELECT cr.*, 
+                 json_agg(
+                   json_build_object(
+                     'id', cm.id,
+                     'sender', cm.sender,
+                     'sender_name', cm.sender_name,
+                     'message_text', cm.message_text,
+                     'timestamp', cm.timestamp
+                   ) ORDER BY cm.timestamp ASC
+                 ) FILTER (WHERE cm.id IS NOT NULL) as chat_messages
+          FROM chat_requests cr
+          LEFT JOIN chat_messages cm ON cr.id = cm.request_id
+          WHERE cr.player_id = $1
+          GROUP BY cr.id
+          ORDER BY cr.created_at DESC
+        `;
+
+        const result = await pool.query(requestsQuery, [playerId]);
+        const requests = result.rows;
+
+        console.log(`🔍 [CHAT HISTORY FIXED] Direct PostgreSQL result:`, { 
+          query: `chat_requests WHERE player_id = ${playerId}`,
+          result: requests, 
+          count: requests.length 
+        });
+
+        // Transform data to match expected format
+        const requestsWithMessages = requests.map(row => ({
+          ...row,
+          chat_messages: row.chat_messages || []
+        }));
+
+        await pool.end();
+
+        console.log(`✅ [CHAT HISTORY FIXED] Direct query result: ${requestsWithMessages.length} conversations`);
+        res.json({ success: true, conversations: requestsWithMessages });
+        return;
+
+      } catch (pgError) {
+        console.error('❌ [CHAT HISTORY FIXED] PostgreSQL error:', pgError);
+        await pool.end();
+        // Fall back to Supabase if PostgreSQL fails
       }
 
-      // Transform to staff portal format
-      const messages = historyResult.conversations[0].chat_messages.map(msg => ({
-        id: msg.id,
-        message: msg.message_text,
-        messageText: msg.message_text,
-        sender_name: msg.sender_name,
-        timestamp: msg.timestamp,
-        isFromPlayer: msg.sender === 'player',
-        senderType: msg.sender
-      }));
+      // Fallback: Original Supabase query
+      console.log(`🔍 [CHAT HISTORY FIXED] Fallback to Supabase query for player_id: ${playerId}`);
 
-      res.json({
-        success: true,
-        messages: messages
+      const { data: requests, error: requestsError } = await supabase
+        .from('chat_requests')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false });
+
+      console.log(`🔍 [CHAT HISTORY FIXED] Supabase fallback result:`, { 
+        query: `chat_requests WHERE player_id = ${playerId}`,
+        result: requests, 
+        error: requestsError 
       });
-    } catch (error: any) {
-      console.error('❌ [STAFF PORTAL INTEGRATION] Messages error:', error);
-      res.status(500).json({ error: error.message });
+
+      console.log(`🔍 [CHAT HISTORY FIXED] Raw requests result:`, { 
+        requests: requests, 
+        error: requestsError, 
+        length: (requests || []).length 
+      });
+
+      if (requestsError) {
+        console.error('❌ [CHAT HISTORY FIXED] Requests error:', requestsError);
+        return res.status(500).json({ error: "Failed to fetch chat requests" });
+      }
+
+      // If no requests found, let's try a broader query to debug
+      if (!requests || requests.length === 0) {
+        console.log(`🔍 [CHAT HISTORY DEBUG] No requests found for player ${playerId}, checking all players...`);
+        const { data: allRequests } = await supabase
+          .from('chat_requests')
+          .select('player_id')
+          .limit(10);
+        console.log(`🔍 [CHAT HISTORY DEBUG] Sample player_ids in database:`, allRequests?.map(r => r.player_id));
+      }
+
+      // Get messages for each request separately with debug logging
+      const requestsWithMessages = [];
+      for (const request of requests || []) {
+        console.log(`🔍 [CHAT HISTORY FIXED] Processing request:`, request.id);
+
+        const { data: messages, error: messagesError } = await supabase
+          .from('chat_messages')
+          .select('id, sender, sender_name, message_text, timestamp')
+          .eq('request_id', request.id)
+          .order('timestamp', { ascending: true });
+
+        console.log(`🔍 [CHAT HISTORY FIXED] Messages for ${request.id}:`, { 
+          messages: messages, 
+          error: messagesError, 
+          count: (messages || []).length 
+        });
+
+        requestsWithMessages.push({
+          ...request,
+          chat_messages: messages || []
+        });
+      }
+
+      console.log(`✅ [CHAT HISTORY FIXED] Final result: ${requestsWithMessages.length} conversations for player ${playerId}`);
+      console.log(`✅ [CHAT HISTORY FIXED] Complete response:`, JSON.stringify(requestsWithMessages, null, 2));
+
+      res.json({ success: true, conversations: requestsWithMessages });
+
+    } catch (error) {
+      console.error('❌ [CHAT HISTORY] Error:', error);
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -1114,7 +1235,7 @@ export function registerRoutes(app: Express) {
             lastName: playerData.last_name,
             phone: playerData.phone,
             kycStatus: playerData.kyc_status,
-            balance: playerData.balance || '0.00',
+            balance: playerData.balance,
             current_credit: playerData.current_credit || '0.00',
             credit_limit: playerData.credit_limit || '0.00',
             credit_eligible: playerData.credit_eligible || false,
@@ -1136,7 +1257,7 @@ export function registerRoutes(app: Express) {
           lastName: playerData.last_name,
           phone: playerData.phone,
           kycStatus: playerData.kyc_status,
-          balance: playerData.balance || '0.00',
+          balance: playerData.balance,
           current_credit: playerData.current_credit || '0.00',
           credit_limit: playerData.credit_limit || '0.00',
           credit_eligible: playerData.credit_eligible || false,
@@ -2038,7 +2159,7 @@ export function registerRoutes(app: Express) {
         lastName: playerData.last_name,
         phone: playerData.phone || '',
         kycStatus: playerData.kyc_status,
-        balance: playerData.balance || '0.00',
+        balance: playerData.balance,
         realBalance: playerData.balance || '0.00',
         creditBalance: playerData.current_credit ? String(playerData.current_credit) : '0.00',
         creditLimit: playerData.credit_limit ? String(playerData.credit_limit) : '0.00',
@@ -2266,7 +2387,7 @@ export function registerRoutes(app: Express) {
   });
 
   // ========== DUPLICATE ENDPOINT REMOVED - USE MAIN: /api/balance/:playerId ==========
-  // REMOVED: First duplicate /api/account-balance/:playerId endpoint - redirecting to main
+  // REMOVED: Duplicate /api/account-balance/:playerId endpoint - use main endpoint instead
 
   // POST endpoint for joining waitlist - updated to use seat_requests table properly
   app.post("/api/seat-requests", async (req, res) => {
@@ -2913,7 +3034,8 @@ export function registerRoutes(app: Express) {
         console.log(`✅ [MALWARE SCAN] File ${fileName} is clean - proceeding with upload`);
       }
 
-      // Use direct PostgreSQL to bypass Supabase cache issues
+      // Use direct KYC storage for reliable uploads with replacement logic
+      console.log(`🔄 [DOCUMENT UPLOAD] Replacing existing ${documentType} for player ${playerId}`);
       const uploadedDoc = await directKycStorage.uploadDocument(
         parseInt(playerId),
         documentType,
@@ -3234,7 +3356,7 @@ export function registerRoutes(app: Express) {
 
   function formatSubmissionDate(dateString) {
     if (!dateString) return 'Invalid Date';
-    
+
     try {
       const date = new Date(dateString);
       // Format as "Aug 30, 2025 at 6:39 AM"

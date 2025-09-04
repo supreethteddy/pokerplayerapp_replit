@@ -236,6 +236,8 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
           // After successful upload, refresh the detailed documents list
           await refreshDocuments();
           await fetchDocuments(); // Fetch detailed document info to update UI immediately
+          
+          console.log(`✅ [KYC] Document ${documentType} uploaded and replaced successfully`);
 
           toast({
             title: "Document Uploaded",

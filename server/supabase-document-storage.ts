@@ -187,6 +187,17 @@ export class SupabaseDocumentStorage {
       console.log('📤 [SupabaseDocumentStorage] Using working database storage backend...');
       
       try {
+        // First delete any existing document of the same type to replace it
+        const { error: deleteError } = await supabase
+          .from('kyc_documents')
+          .delete()
+          .eq('player_id', playerId)
+          .eq('document_type', documentType);
+
+        if (deleteError) {
+          console.log('📤 [SupabaseDocumentStorage] Delete existing document (if any):', deleteError);
+        }
+
         // Use the database storage that's already working
         // SUPABASE EXCLUSIVE MODE - No legacy database imports needed
         

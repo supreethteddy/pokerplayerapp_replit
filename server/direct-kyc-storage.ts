@@ -116,7 +116,7 @@ export class DirectKycStorage {
         INSERT INTO kyc_documents (
           player_id, document_type, file_name, file_url, file_size, status, created_at, updated_at
         ) VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-        RETURNING id, player_id, document_type, file_name, file_url, file_size, status, created_at
+        RETURNING id, player_id, document_type, file_name, file_url, file_size, status, created_at, updated_at
       `;
 
       const result = await pgClient.query(insertQuery, [
