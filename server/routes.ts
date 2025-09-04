@@ -1002,7 +1002,7 @@ export function registerRoutes(app: Express) {
 
 
 
-  // REMOVED: Duplicate endpoint - consolidated into staff-chat-integration/send
+  // REMOVED: Duplicate endpoint - using unified clear above
 
   app.delete("/api/unified-chat/clear/:playerId", async (req, res) => {
     try {
@@ -1167,7 +1167,7 @@ export function registerRoutes(app: Express) {
 
       const { Client } = await import('pg');
       const pgClient = new Client({
-        connectionString: process.env.DATABASE_URL
+        connectionString: process.env.DATABASE_URL,
       });
 
       await pgClient.connect();
@@ -2032,7 +2032,7 @@ export function registerRoutes(app: Express) {
       }
 
       const player = {
-        id: playerData.id.toString(),
+        id: playerData.id,
         email: playerData.email,
         firstName: playerData.first_name,
         lastName: playerData.last_name,
@@ -2732,7 +2732,7 @@ export function registerRoutes(app: Express) {
   app.get('/api/balance/:playerId', async (req, res) => {
     try {
       const { playerId } = req.params;
-      console.log(`💰 [DUAL BALANCE] Getting balance for player:`, playerId);
+      console.log('💰 [DUAL BALANCE] Getting balance for player:', playerId);
 
       // Use direct PostgreSQL query to get balance data
       const { Pool } = await import('pg');
@@ -3550,7 +3550,7 @@ export function registerRoutes(app: Express) {
         WHERE email = $1 AND password = $2 AND (is_active IS NULL OR is_active = true)
         LIMIT 1
       `;
-      
+
       const playerResult = await pgClient.query(playerQuery, [email, password]);
 
       if (playerResult.rows.length === 0) {

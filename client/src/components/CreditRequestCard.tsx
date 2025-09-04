@@ -143,8 +143,8 @@ export default function CreditRequestCard() {
     });
   };
 
-  // Don't show credit card if user is not credit approved
-  if (!isCreditApproved) {
+  // Don't show credit card if user is not credit eligible
+  if (!user?.creditEligible) {
     return null;
   }
 

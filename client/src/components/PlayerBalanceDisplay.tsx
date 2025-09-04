@@ -59,25 +59,29 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
         </div>
       </div>
 
-      {/* Credit Balance */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-700 rounded-lg p-6 text-white shadow-lg">
-        <div className="text-center">
-          <h2 className="text-lg font-medium opacity-90 mb-2">Available Credit Balance</h2>
-          <div className="text-4xl font-bold mb-2">₹{creditBalance.toLocaleString()}</div>
-          <div className="text-sm opacity-75 mb-4">
-            Credit Limit: ₹{creditLimit.toLocaleString()}
-          </div>
-          <div className="text-sm opacity-75 bg-black/20 rounded-full px-4 py-2 inline-block">
-            Credit only - Cannot be withdrawn
+      {/* Credit Balance - Only show if player is credit eligible */}
+      {(balance as any)?.creditEligible && (
+        <div className="bg-gradient-to-r from-blue-600 to-purple-700 rounded-lg p-6 text-white shadow-lg">
+          <div className="text-center">
+            <h2 className="text-lg font-medium opacity-90 mb-2">Available Credit Balance</h2>
+            <div className="text-4xl font-bold mb-2">₹{creditBalance.toLocaleString()}</div>
+            <div className="text-sm opacity-75 mb-4">
+              Credit Limit: ₹{creditLimit.toLocaleString()}
+            </div>
+            <div className="text-sm opacity-75 bg-black/20 rounded-full px-4 py-2 inline-block">
+              Credit only - Cannot be withdrawn
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Total Balance Summary */}
       <div className="bg-gradient-to-r from-slate-700 to-slate-800 rounded-lg p-4 text-white shadow-lg border border-slate-600">
         <div className="text-center">
           <h3 className="text-md font-medium opacity-90 mb-2">Total Available</h3>
-          <div className="text-2xl font-bold">₹{(currentCashBalance + creditBalance).toLocaleString()}</div>
+          <div className="text-2xl font-bold">
+            ₹{(currentCashBalance + ((balance as any)?.creditEligible ? creditBalance : 0)).toLocaleString()}
+          </div>
         </div>
       </div>
       
