@@ -3252,35 +3252,109 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
                     {/* PAN Card Document Upload */}
                     <div className="space-y-3 pt-4 border-t border-slate-600">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="text-sm font-medium text-white">PAN Card Document</h4>
-                          <p className="text-xs text-slate-400">Upload clear image of your PAN card</p>
+                      <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
+                        <div className="flex items-center space-x-3 flex-1">
+                          {getKycStatusIcon(getKycDocumentStatus('pan_card'))}
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-white">PAN Card Document</p>
+                            <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('pan_card')}</p>
+                            {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl).length > 0 && (
+                              <div className="flex items-center space-x-2 mt-1">
+                                <p className="text-xs text-emerald-500">
+                                  {Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl)[0]?.fileName : ''}
+                                </p>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => document.getElementById('pan-document-upload')?.click()}
-                          className="border-slate-600 hover:bg-slate-600"
-                        >
-                          <Upload className="w-4 h-4 mr-1" />
-                          Upload
-                        </Button>
-                      </div>
+                        <div className="flex flex-col items-stretch space-y-2">
+                          {/* View button positioned above other buttons */}
+                          {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl).length > 0 && (
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
+                              onClick={() => {
+                                const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl)[0] : null;
+                                if (doc && doc.fileUrl) {
+                                  try {
+                                    // Clear browser cache for this specific document and open in new tab
+                                    const documentUrl = `/api/documents/view/${doc.id}?v=${Date.now()}`;
+                                    console.log('Opening document:', documentUrl);
 
-                      <input
-                        id="pan-document-upload"
-                        type="file"
-                        accept=".jpg,.jpeg,.png,.pdf"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            // TODO: Add PAN card document upload
-                            console.log('PAN Card Document:', file.name);
-                          }
-                        }}
-                      />
+                                    const newTab = window.open('about:blank', '_blank');
+                                    if (newTab) {
+                                      newTab.location.href = documentUrl;
+                                    } else {
+                                      // Fallback if popup blocked
+                                      window.location.href = documentUrl;
+                                    }
+                                  } catch (error) {
+                                    console.error('Error opening document:', error);
+                                    toast({
+                                      title: "Error",
+                                      description: "Unable to open document",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }
+                              }}
+                            >
+                              <Eye className="w-3 h-3 mr-1" />
+                              View Document
+                            </Button>
+                          )}
+
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                            {/* Only show upload/reupload if not approved or if no documents */}
+                            {(getKycDocumentStatus('pan_card') !== 'approved' || (Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl).length === 0)) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => document.getElementById('pan-document-upload')?.click()}
+                                disabled={uploadKycDocumentMutation.isPending}
+                                className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
+                              >
+                                <Upload className="w-4 h-4 mr-1" />
+                                {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
+                              </Button>
+                            )}
+
+                            {/* Show request change button if approved */}
+                            {getKycDocumentStatus('pan_card') === 'approved' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  toast({
+                                    title: "Request Change",
+                                    description: "Change request functionality will be available in the next update",
+                                  });
+                                }}
+                                className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
+                              >
+                                <AlertTriangle className="w-4 h-4 mr-1" />
+                                <span className="text-xs sm:text-sm">Request Change</span>
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        <input
+                          id="pan-document-upload"
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            console.log('File input changed for PAN Card:', { file: file?.name, hasFile: !!file });
+                            if (file) {
+                              handleKycDocumentUpload('pan_card', file);
+                              // Reset the input value to allow re-uploading same file
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
