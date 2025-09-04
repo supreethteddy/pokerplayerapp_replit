@@ -3229,7 +3229,7 @@ export function registerRoutes(app: Express) {
       'id_document': 'ID Document',
       'photo': 'Photo'
     };
-    return typeMap[type] || type.replace('_', ' ').toUpperCase();
+    return typeMap[type] || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   }
 
   function formatSubmissionDate(dateString) {
@@ -3237,12 +3237,15 @@ export function registerRoutes(app: Express) {
     
     try {
       const date = new Date(dateString);
+      // Format as "Aug 30, 2025 at 6:39 AM"
       return date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+        day: 'numeric'
+      }) + ' at ' + date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
       });
     } catch (error) {
       return 'Invalid Date';

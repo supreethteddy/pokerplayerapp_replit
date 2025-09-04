@@ -654,6 +654,36 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
               </div>
 
               <div className="bg-gray-800 p-4 rounded-lg">
+                <h4 className="text-white font-medium mb-3">Document Upload History</h4>
+                {documents && documents.length > 0 ? (
+                  <div className="space-y-2">
+                    {documents.map((doc: any) => (
+                      <div key={doc.id} className="flex items-center justify-between py-2 border-b border-gray-600 last:border-b-0">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-2 h-2 rounded-full ${
+                            doc.status === 'approved' || doc.status === 'verified' ? 'bg-green-500' : 
+                            doc.status === 'rejected' ? 'bg-red-500' : 'bg-yellow-500'
+                          }`}></div>
+                          <span className="text-sm font-medium text-white">{doc.formattedType}</span>
+                        </div>
+                        <div className="text-right">
+                          <div className={`px-2 py-1 text-xs rounded ${
+                            doc.status === 'approved' || doc.status === 'verified' ? 'bg-green-600 text-white' :
+                            doc.status === 'rejected' ? 'bg-red-600 text-white' : 'bg-yellow-600 text-white'
+                          }`}>
+                            {doc.status}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1">{doc.formattedDate}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-400 text-sm">No documents uploaded yet</p>
+                )}
+              </div>
+
+              <div className="bg-gray-800 p-4 rounded-lg">
                 <p className="text-white font-medium mb-2">What happens next?</p>
                 <ul className="text-gray-300 text-sm space-y-1 text-left">
                   <li>• Our team will review your submitted documents</li>
