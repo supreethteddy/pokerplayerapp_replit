@@ -562,17 +562,38 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // Leave wait-list mutation
   const leaveWaitListMutation = useMutation({
     mutationFn: async (tableId: string) => {
+      console.log(`🚪 [LEAVE WAITLIST] Attempting to leave waitlist for table: ${tableId}`);
+      
       const response = await apiRequest('DELETE', `/api/seat-requests/${user?.id}/${tableId}`);
-      return response.json();
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ [LEAVE WAITLIST] API Error response:`, errorText);
+        
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: errorText || `HTTP ${response.status}` };
+        }
+        
+        throw new Error(errorData.error || errorData.message || `Server Error: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log(`✅ [LEAVE WAITLIST] Success:`, result);
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/seat-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tables'] });
       toast({
         title: "Left Wait-List",
-        description: "You've been removed from the table wait-list",
+        description: data.message || "You've been removed from the table wait-list",
       });
     },
     onError: (error: any) => {
+      console.error('❌ [LEAVE WAITLIST] Mutation error:', error);
       toast({
         title: "Failed to Leave",
         description: error.message || "Could not leave wait-list",

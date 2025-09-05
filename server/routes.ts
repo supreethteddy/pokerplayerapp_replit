@@ -3294,6 +3294,103 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Leave Table Waitlist API - Delete seat request
+  app.delete("/api/seat-requests/:playerId/:tableId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const tableId = req.params.tableId;
+
+      if (!playerId || !tableId) {
+        return res.status(400).json({ error: 'playerId and tableId are required' });
+      }
+
+      console.log(`🚪 [LEAVE WAITLIST] Player ${playerId} leaving waitlist for table: ${tableId}`);
+
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        // Check if seat request exists
+        const checkResult = await pgClient.query(
+          'SELECT id, status FROM seat_requests WHERE player_id = $1 AND table_id = $2',
+          [playerId, tableId]
+        );
+
+        if (checkResult.rows.length === 0) {
+          await pgClient.end();
+          return res.status(404).json({ 
+            error: 'Waitlist entry not found',
+            message: 'You are not on the waitlist for this table'
+          });
+        }
+
+        const seatRequest = checkResult.rows[0];
+
+        // Only allow leaving if game hasn't started (status is 'waiting')
+        if (seatRequest.status !== 'waiting') {
+          await pgClient.end();
+          return res.status(400).json({
+            error: 'Cannot leave waitlist',
+            message: `Cannot leave waitlist when status is '${seatRequest.status}'. You can only leave while waiting.`
+          });
+        }
+
+        // Delete the seat request
+        const deleteResult = await pgClient.query(
+          'DELETE FROM seat_requests WHERE player_id = $1 AND table_id = $2 RETURNING *',
+          [playerId, tableId]
+        );
+
+        const deletedRequest = deleteResult.rows[0];
+
+        // Update positions for remaining waitlist entries
+        await pgClient.query(`
+          UPDATE seat_requests 
+          SET position = position - 1, 
+              estimated_wait = (position - 1) * 10
+          WHERE table_id = $1 AND position > $2
+        `, [tableId, seatRequest.position || 0]);
+
+        await pgClient.end();
+
+        // Send real-time notification to staff portal via Pusher
+        try {
+          await pusher.trigger('staff-portal', 'waitlist-left', {
+            playerId: playerId,
+            tableId: tableId,
+            timestamp: new Date().toISOString()
+          });
+          console.log(`📡 [PUSHER] Staff portal notified of waitlist departure`);
+        } catch (pusherError: any) {
+          console.warn(`⚠️ [PUSHER] Notification failed:`, pusherError.message);
+        }
+
+        console.log(`✅ [LEAVE WAITLIST] Player ${playerId} successfully left waitlist for table ${tableId}`);
+
+        res.json({
+          success: true,
+          removed: {
+            id: deletedRequest.id,
+            playerId: playerId,
+            tableId: tableId,
+            status: deletedRequest.status
+          },
+          message: 'Successfully left the waitlist'
+        });
+
+      } catch (dbError: any) {
+        await pgClient.end();
+        console.error('❌ [LEAVE WAITLIST] Database error:', dbError);
+        return res.status(500).json({ error: 'Failed to leave waitlist' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [LEAVE WAITLIST] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Push Notifications API - Get notifications for player
   app.get("/api/push-notifications/:playerId", async (req, res) => {
     try {
