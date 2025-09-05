@@ -415,38 +415,44 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     }
   }, [user]);
 
-  // Fetch live tables with optimized settings
+  // Fetch live tables with smart background refresh
   const { data: tables, isLoading: tablesLoading } = useQuery<TableType[]>({
     queryKey: ['/api/tables'],
-    refetchInterval: 500, // NANOSECOND SPEED: 0.5 second refresh for ultimate performance
-    refetchOnWindowFocus: true, // Refresh when window gains focus
-    refetchOnMount: true, // Always refetch on mount
-    refetchOnReconnect: true, // Refresh on reconnect
-    staleTime: 0, // Always consider data stale for fresh updates
-    gcTime: 0, // Don't cache old data (renamed from cacheTime)
+    refetchInterval: 3000, // Background refresh every 3 seconds
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    staleTime: 2000, // Consider data fresh for 2 seconds to prevent unnecessary re-renders
+    gcTime: 5000, // Keep cached data for 5 seconds
     retry: 3,
-    retryDelay: 500,
+    retryDelay: 1000,
+    // Smart update strategy - only trigger re-render if data actually changed
+    structuralSharing: true,
   });
 
-  // Fetch seat requests with reduced frequency
+  // Fetch seat requests with smart refresh
   const { data: seatRequests, isLoading: requestsLoading } = useQuery<SeatRequest[]>({
     queryKey: ['/api/seat-requests', user?.id],
     enabled: !!user?.id,
-    refetchInterval: 750, // NANOSECOND SPEED: 0.75 second refresh for seat requests
+    refetchInterval: 5000, // Background refresh every 5 seconds
     refetchOnWindowFocus: true,
-    staleTime: 0, // Always get fresh data
+    staleTime: 3000, // Consider data fresh for 3 seconds
+    gcTime: 10000, // Keep cached for 10 seconds
+    structuralSharing: true, // Only re-render if data structure changed
   });
 
-  // Fetch active seated sessions
+  // Fetch active seated sessions with smart refresh
   const { data: seatedSessions, isLoading: seatedLoading } = useQuery({
     queryKey: ['/api/table-seats', user?.id],
     enabled: !!user?.id,
-    refetchInterval: 2000, // Check every 2 seconds for active sessions
+    refetchInterval: 8000, // Check every 8 seconds for active sessions
     refetchOnWindowFocus: true,
-    staleTime: 0,
+    staleTime: 5000, // Consider fresh for 5 seconds
+    gcTime: 15000, // Keep cached for 15 seconds
+    structuralSharing: true,
   });
 
-  // Check table status for waitlisted players
+  // Check table status with intelligent refresh
   const { data: tableStatuses } = useQuery({
     queryKey: ['/api/table-statuses', seatRequests?.map(req => req.tableId)],
     queryFn: async () => {
@@ -469,8 +475,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       return statusResults.reduce((acc, curr) => ({ ...acc, ...curr }), {});
     },
     enabled: !!seatRequests && seatRequests.length > 0,
-    refetchInterval: 1000, // Check table statuses every second for waitlisted players
-    staleTime: 0,
+    refetchInterval: 10000, // Check every 10 seconds - less aggressive
+    staleTime: 8000, // Consider fresh for 8 seconds
+    gcTime: 20000, // Keep cached for 20 seconds
+    structuralSharing: true, // Only update if actual changes detected
   });
 
   // Find current active session for playtime tracking
@@ -486,13 +494,15 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     staleTime: 0,
   });
 
-  // Fetch dual balance system data (regular balance + credit limit)
+  // Fetch dual balance system data with smart refresh
   const { data: accountBalance, isLoading: balanceLoading } = useQuery({
     queryKey: ['/api/balance', user?.id],
     enabled: !!user?.id,
-    refetchInterval: 3000, // Refresh every 3 seconds for real-time balance updates
+    refetchInterval: 15000, // Refresh every 15 seconds - balance changes are less frequent
     refetchOnWindowFocus: true,
-    staleTime: 0,
+    staleTime: 10000, // Consider fresh for 10 seconds
+    gcTime: 30000, // Keep cached for 30 seconds
+    structuralSharing: true, // Only update UI if balance actually changed
   });
 
   // Tournament Interest Handler - sends to GRE
@@ -717,13 +727,15 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     refetchInterval: 2000, // Refresh every 2 seconds
   });
 
-  // Fetch push notifications for the current player
+  // Fetch push notifications with smart background refresh
   const { data: notifications, isLoading: notificationsLoading } = useQuery({
     queryKey: [`/api/push-notifications/${user?.id}`],
     enabled: !!user?.id,
-    refetchInterval: 2000, // Real-time notifications
+    refetchInterval: 30000, // Check every 30 seconds - notifications are handled via push system
     refetchOnWindowFocus: true,
-    staleTime: 0
+    staleTime: 20000, // Consider fresh for 20 seconds
+    gcTime: 60000, // Keep cached for 1 minute
+    structuralSharing: true, // Only update if new notifications
   });
 
   // Submit feedback function
