@@ -2751,8 +2751,10 @@ export function registerRoutes(app: Express) {
             total_deposits, total_withdrawals, total_winnings, total_losses,
             games_played, hours_played
           ) VALUES (
-            $1, '*', $2, $3, $4, 'pending', '0.00', $5,
-            true, $6, $7, $8, false, false, '0.00', '0.00',
+            $1, '*', $2, $3, $4,
+            'pending', '0.00', $5,
+            true, $6, $7, $8,
+            false, false, '0.00', '0.00',
             '0.00', '0.00', '0.00', '0.00', 0, '0.00'
           ) RETURNING *
         `;
@@ -3288,6 +3290,84 @@ export function registerRoutes(app: Express) {
 
     } catch (error: any) {
       console.error('❌ [WAITLIST] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Push Notifications API - Get notifications for player
+  app.get("/api/push-notifications/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+
+      console.log(`📬 [PUSH NOTIFICATIONS] Fetching notifications for player: ${playerId}`);
+
+      // Use direct PostgreSQL query to avoid Supabase issues
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      try {
+        // Query for notifications using actual schema structure
+        const query = `
+          SELECT id, title, message, target_audience, sent_by, sent_by_name, 
+                 sent_by_role, media_type, media_url, media_description,
+                 recipients_count, delivery_status, created_at, sent_at,
+                 scheduled_for, expires_at
+          FROM push_notifications
+          WHERE (target_audience = 'all_players' OR target_audience = $1::text)
+            AND created_at >= NOW() - INTERVAL '7 days'
+            AND (expires_at IS NULL OR expires_at > NOW())
+          ORDER BY created_at DESC
+          LIMIT 50
+        `;
+
+        const result = await pool.query(query, [playerId.toString()]);
+        await pool.end();
+
+        const notifications = result.rows.map(row => ({
+          id: row.id,
+          title: row.title,
+          message: row.message,
+          targetAudience: row.target_audience,
+          sentBy: row.sent_by,
+          sentByName: row.sent_by_name,
+          sentByRole: row.sent_by_role,
+          mediaType: row.media_type,
+          mediaUrl: row.media_url,
+          mediaDescription: row.media_description,
+          recipientsCount: row.recipients_count,
+          deliveryStatus: row.delivery_status,
+          createdAt: row.created_at,
+          sentAt: row.sent_at,
+          scheduledFor: row.scheduled_for,
+          expiresAt: row.expires_at,
+          // Legacy compatibility fields for frontend
+          senderName: row.sent_by_name || 'Staff',
+          senderRole: row.sent_by_role || 'admin',
+          priority: 'normal',
+          status: row.delivery_status || 'sent'
+        }));
+
+        console.log(`✅ [PUSH NOTIFICATIONS] Found ${notifications.length} notifications for player ${playerId}`);
+        res.json(notifications);
+
+      } catch (dbError: any) {
+        await pool.end();
+        console.error('❌ [PUSH NOTIFICATIONS] Database error:', dbError);
+
+        // If table doesn't exist, return empty array instead of error
+        if (dbError.code === '42P01') {
+          console.log('📬 [PUSH NOTIFICATIONS] Table not found, returning empty array');
+          return res.json([]);
+        }
+
+        return res.status(500).json({ error: 'Failed to fetch notifications' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [PUSH NOTIFICATIONS] Error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
