@@ -1548,17 +1548,28 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      const { data: tablesData, error } = await supabase
-        .from('poker_tables')
-        .select(`
-          *,
-          game_status,
-          game_started,
-          game_start_time,
-          is_active,
-          last_updated
-        `)
-        .order('name');
+      // First try poker_tables, then fallback to tables
+      let tablesData, error;
+      
+      try {
+        const result = await supabase
+          .from('poker_tables')
+          .select('*')
+          .order('name');
+        
+        tablesData = result.data;
+        error = result.error;
+      } catch (pokerTablesError) {
+        console.log('⚠️ [TABLES API] poker_tables not found, trying tables...');
+        
+        const result = await supabase
+          .from('tables')
+          .select('*')
+          .order('name');
+        
+        tablesData = result.data;
+        error = result.error;
+      }
 
       console.log('🔍 [TABLES API PRODUCTION] Live poker tables from staff portal:', {
         total: tablesData?.length || 0,
@@ -1579,16 +1590,16 @@ export function registerRoutes(app: Express) {
         id: table.id,
         name: table.name,
         gameType: table.game_type || 'Texas Hold\'em',
-        stakes: `₹${table.min_buy_in || 1000}/${table.max_buy_in || 10000}`,
-        maxPlayers: table.max_players || 9, // Use actual max from staff portal
-        currentPlayers: table.current_players || 0, // Use actual data from staff portal
+        stakes: table.stakes || `₹${table.min_buy_in || 1000}/${table.max_buy_in || 10000}`,
+        maxPlayers: table.max_players || 9,
+        currentPlayers: table.current_players || 0,
         waitingList: 0,
-        status: table.game_status || "active", // Use actual game status from staff portal
-        gameStarted: table.game_started || false, // Track if game has started
-        gameStartTime: table.game_start_time || null, // When the game started
-        isActive: table.is_active !== false, // Table availability
-        pot: table.current_pot || 0, // Use actual pot from staff portal
-        avgStack: table.avg_stack || 0 // Use actual data from staff portal - hidden in UI
+        status: "active",
+        gameStarted: false,
+        gameStartTime: null,
+        isActive: table.is_active !== false,
+        pot: table.pot || table.current_pot || 0,
+        avgStack: table.avg_stack || 0
       }));
 
       console.log(`✅ [TABLES API PRODUCTION] Returning ${transformedTables.length} live staff portal tables`);
@@ -3141,15 +3152,28 @@ export function registerRoutes(app: Express) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      // Get table status and player count
-      const { data: tableData, error } = await supabase
-        .from('poker_tables')
-        .select(`
-          id, name, game_type, game_status, game_started, game_start_time,
-          current_players, max_players, is_active, last_updated
-        `)
-        .eq('id', tableId)
-        .single();
+      // Get table status and player count with schema compatibility
+      let tableData, error;
+      
+      try {
+        const result = await supabase
+          .from('poker_tables')
+          .select('*')
+          .eq('id', tableId)
+          .single();
+        
+        tableData = result.data;
+        error = result.error;
+      } catch (pokerTablesError) {
+        const result = await supabase
+          .from('tables')
+          .select('*')
+          .eq('id', tableId)
+          .single();
+        
+        tableData = result.data;
+        error = result.error;
+      }
 
       if (error || !tableData) {
         console.error('❌ [TABLE STATUS] Table not found:', error);
@@ -3171,16 +3195,16 @@ export function registerRoutes(app: Express) {
       const tableStatus = {
         id: tableData.id,
         name: tableData.name,
-        gameType: tableData.game_type,
-        gameStatus: tableData.game_status || 'waiting',
-        gameStarted: tableData.game_started || false,
-        gameStartTime: tableData.game_start_time,
+        gameType: tableData.game_type || 'Texas Hold\'em',
+        gameStatus: 'waiting',
+        gameStarted: false,
+        gameStartTime: null,
         currentPlayers: tableData.current_players || 0,
         maxPlayers: tableData.max_players || 9,
         waitlistCount: parseInt(waitlistResult.rows[0]?.waitlist_count || '0'),
         isActive: tableData.is_active !== false,
-        canJoinNow: !tableData.game_started && tableData.current_players < tableData.max_players,
-        lastUpdated: tableData.last_updated || new Date().toISOString()
+        canJoinNow: tableData.current_players < tableData.max_players,
+        lastUpdated: new Date().toISOString()
       };
 
       console.log(`✅ [TABLE STATUS] Table ${tableId} status:`, {
