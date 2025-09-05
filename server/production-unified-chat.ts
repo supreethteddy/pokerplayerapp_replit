@@ -38,6 +38,37 @@ export class ProductionUnifiedChat {
     console.log(`🚀 [PRODUCTION CHAT] Sending ${senderType} message from ${playerName}`);
 
     try {
+      // Get player email if this is a player message
+      let playerEmail = '';
+      if (senderType === 'player') {
+        const { data: playerData } = await this.supabase
+          .from('players')
+          .select('email')
+          .eq('id', playerId)
+          .single();
+        
+        playerEmail = playerData?.email || '';
+        console.log(`📧 [PRODUCTION CHAT] Retrieved player email: ${playerEmail}`);
+
+        // Create or update chat session with email
+        const sessionId = `session-${playerId}-${Date.now()}`;
+        await this.supabase
+          .from('chat_sessions')
+          .upsert({
+            id: sessionId,
+            player_id: playerId,
+            player_name: playerName,
+            player_email: playerEmail,
+            initial_message: message,
+            status: 'waiting',
+            priority: 'normal',
+            last_activity: timestamp,
+            created_at: timestamp
+          });
+
+        console.log(`✅ [PRODUCTION CHAT] Created/updated session with email: ${playerEmail}`);
+      }
+
       // Store message directly in chat_messages table (bypass chat_requests constraints)
       const { data: savedMessage, error: messageError } = await this.supabase
         .from('chat_messages')
@@ -71,7 +102,8 @@ export class ProductionUnifiedChat {
           playerId,
           message,
           senderType,
-          timestamp
+          timestamp,
+          playerEmail
         }
       };
 

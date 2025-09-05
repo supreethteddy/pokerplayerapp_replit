@@ -877,8 +877,22 @@ export function registerRoutes(app: Express) {
             process.env.SUPABASE_SERVICE_ROLE_KEY!
           );
 
-          // Parallel processing: Session check, Message insert, Pusher broadcast
-          const [sessionResult, messageResult, pusherResult] = await Promise.allSettled([
+          // Get player email from players table
+          const { data: playerData } = await supabase
+            .from('players')
+            .select('email, first_name, last_name')
+            .eq('id', playerId)
+            .single();
+
+          const playerEmail = playerData?.email || '';
+          const fullPlayerName = playerData ? 
+            `${playerData.first_name || ''} ${playerData.last_name || ''}`.trim() || playerName : 
+            playerName || `Player ${playerId}`;
+
+          console.log(`📧 [CHAT SESSION] Retrieved player email: ${playerEmail} for player ${playerId}`);
+
+          // Execute all operations in parallel for microsecond performance
+          const results = await Promise.allSettled([
             // Session management (parallel)
             (async () => {
               let sessionId = requestId;
@@ -895,22 +909,28 @@ export function registerRoutes(app: Express) {
                 return existingSession[0].id;
               }
 
-              // Create new session if none exists
+              // Create new session if none exists with player email
               sessionId = requestId || `session-${playerId}-${Date.now()}`;
-              await supabase
+              const { error: sessionError } = await supabase
                 .from('chat_sessions')
                 .upsert({
                   id: sessionId,
                   player_id: playerId,
-                  player_name: playerName || `Player ${playerId}`,
-                  player_email: '',
+                  player_name: fullPlayerName,
+                  player_email: playerEmail,
                   initial_message: message,
                   status: 'waiting',
                   priority: 'normal',
-                  created_at: timestamp,
-                  updated_at: timestamp
-                }, { onConflict: 'id' });
+                  created_at: new Date().toISOString(),
+                  last_activity: new Date().toISOString()
+                });
 
+              if (sessionError) {
+                console.error('❌ [CHAT SESSION] Error creating session:', sessionError);
+                throw sessionError;
+              }
+
+              console.log(`✅ [CHAT SESSION] Created session ${sessionId} with email: ${playerEmail}`);
               return sessionId;
             })(),
 
@@ -918,7 +938,7 @@ export function registerRoutes(app: Express) {
             supabase.from('chat_messages').insert({
               player_id: parseInt(playerId.toString()),
               sender: 'player',
-              sender_name: playerName || `Player ${playerId}`,
+              sender_name: fullPlayerName,
               message_text: message,
               timestamp: timestamp,
               status: 'sent',
@@ -931,7 +951,7 @@ export function registerRoutes(app: Express) {
               pusher.trigger('staff-portal', 'new-player-message', {
                 sessionId: requestId || `session-${playerId}-${Date.now()}`,
                 playerId: playerId,
-                playerName: playerName || `Player ${playerId}`,
+                playerName: fullPlayerName,
                 message: message,
                 messageId: messageId,
                 timestamp: timestamp,
@@ -950,9 +970,9 @@ export function registerRoutes(app: Express) {
           console.log(`⚡ [OPTIMIZED V1.2] Background processing completed in ${processingTime.toFixed(2)}ms`);
 
           // Log any background errors (doesn't affect user experience)
-          if (sessionResult.status === 'rejected') console.error('Session error:', sessionResult.reason);
-          if (messageResult.status === 'rejected') console.error('Message error:', messageResult.reason);
-          if (pusherResult.status === 'rejected') console.error('Pusher error:', pusherResult.reason);
+          if (results[0].status === 'rejected') console.error('Session error:', results[0].reason);
+          if (results[1].status === 'rejected') console.error('Message error:', results[1].reason);
+          if (results[2].status === 'rejected') console.error('Pusher error:', results[2].reason);
 
         } catch (backgroundError) {
           console.error('❌ [OPTIMIZED V1.2] Background error:', backgroundError);
@@ -2452,9 +2472,6 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // ========== DUPLICATE ENDPOINT REMOVED - USE MAIN: /api/balance/:playerId ==========
-  // REMOVED: Duplicate /api/account-balance/:playerId endpoint - use main endpoint instead
-
   // ========== KYC DOCUMENT UPLOAD AND MANAGEMENT SYSTEM ==========
 
   // Document upload endpoint - Direct PostgreSQL with ClamAV malware scanning
@@ -3838,6 +3855,7 @@ export function registerRoutes(app: Express) {
             sr.seat_number, sr.session_start_time, sr.universal_id,
             sr.min_play_time_minutes, sr.call_time_window_minutes,
             sr.session_buy_in_amount, sr.session_cash_out_amount,
+            sr.session_rake_amount, sr.session_tip_amount,
             pt.name as table_name, pt.game_type as table_game_type,
             pt.min_buy_in, pt.max_buy_in
           FROM seat_requests sr
@@ -3956,7 +3974,7 @@ export function registerRoutes(app: Express) {
 
         // Send real-time notification to staff portal via Pusher
         try {
-          await pusher.trigger('staff-portal', 'new_waitlist_entry', {
+          await pusher.trigger('staff-portal', 'new-waitlist-entry', {
             playerId: playerId,
             tableId: tableId,
             tableName: table?.name || `Table ${tableId}`,

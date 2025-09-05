@@ -198,7 +198,21 @@ export class UnifiedChatCore {
       return existingRequest.id;
     }
 
-    // Create new request with proper UUID
+    // Get player email from players table
+    const { data: playerData } = await this.supabase
+      .from('players')
+      .select('email, first_name, last_name')
+      .eq('id', playerId)
+      .single();
+
+    const playerEmail = playerData?.email || '';
+    const fullPlayerName = playerData ? 
+      `${playerData.first_name || ''} ${playerData.last_name || ''}`.trim() || playerName : 
+      playerName;
+
+    console.log(`📧 [UNIFIED CHAT] Retrieved player email: ${playerEmail} for player ${playerId}`);
+
+    // Create new request with proper UUID and email
     const { v4: uuidv4 } = await import('uuid');
     const requestId = uuidv4();
     const { data: newRequest, error: requestError } = await this.supabase
@@ -206,8 +220,9 @@ export class UnifiedChatCore {
       .insert({
         id: requestId,
         player_id: playerId,
-        player_name: playerName,
-        subject: `Chat with ${playerName}`,
+        player_name: fullPlayerName,
+        player_email: playerEmail,
+        subject: `Chat with ${fullPlayerName}`,
         initial_message: initialMessage,
         status: 'pending',
         priority: 'medium'
@@ -220,7 +235,7 @@ export class UnifiedChatCore {
       throw new Error('Failed to create chat request');
     }
 
-    console.log('✅ [UNIFIED CHAT] Created new request:', requestId);
+    console.log('✅ [UNIFIED CHAT] Created new request with email:', requestId, playerEmail);
     return requestId;
   }
 
