@@ -19,10 +19,11 @@ export default function TableView() {
 
   console.log('🎯 TableView render - selectedSeat:', selectedSeat, 'showJoinDialog:', showJoinDialog);
 
-  // Fetch table data from API
+  // Fetch table data from API with reduced refresh rate
   const { data: tables } = useQuery({
     queryKey: ['/api/tables'],
-    refetchInterval: 2000,
+    refetchInterval: 30000, // Refresh every 30 seconds
+    staleTime: 15000, // Consider data fresh for 15 seconds
   });
 
   // Add type safety for tables array
@@ -46,7 +47,8 @@ export default function TableView() {
   const { data: seatedPlayers } = useQuery({
     queryKey: ['/api/table-seats', tableId],
     enabled: !!tableId,
-    refetchInterval: 2000, // Refresh every 2 seconds to show real-time seat assignments
+    refetchInterval: 15000, // Refresh every 15 seconds instead of 2 seconds
+    staleTime: 10000, // Consider data fresh for 10 seconds
   });
 
   // Add type safety for seatedPlayers array

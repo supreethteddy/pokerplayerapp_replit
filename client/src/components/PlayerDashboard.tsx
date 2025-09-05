@@ -416,13 +416,14 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   }, [user]);
 
   // Fetch live tables with smart background refresh
+  // Fetch tables data from API with reduced refresh rate
   const { data: tables, isLoading: tablesLoading } = useQuery<TableType[]>({
     queryKey: ['/api/tables'],
-    refetchInterval: 3000, // Background refresh every 3 seconds
+    refetchInterval: 30000, // Refresh every 30 seconds instead of 2 seconds
     refetchOnWindowFocus: true,
     refetchOnMount: true,
     refetchOnReconnect: true,
-    staleTime: 2000, // Consider data fresh for 2 seconds to prevent unnecessary re-renders
+    staleTime: 15000, // Consider data fresh for 15 seconds
     gcTime: 5000, // Keep cached data for 5 seconds
     retry: 3,
     retryDelay: 1000,
@@ -457,7 +458,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     queryKey: ['/api/table-statuses', seatRequests?.map(req => req.tableId)],
     queryFn: async () => {
       if (!seatRequests || seatRequests.length === 0) return {};
-      
+
       const statusPromises = seatRequests.map(async (req: any) => {
         try {
           const response = await fetch(`/api/table-status/${req.tableId}`);
@@ -609,23 +610,23 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const leaveWaitListMutation = useMutation({
     mutationFn: async (tableId: string) => {
       console.log(`🚪 [LEAVE WAITLIST] Attempting to leave waitlist for table: ${tableId}`);
-      
+
       const response = await apiRequest('DELETE', `/api/seat-requests/${user?.id}/${tableId}`);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`❌ [LEAVE WAITLIST] API Error response:`, errorText);
-        
+
         let errorData;
         try {
           errorData = JSON.parse(errorText);
         } catch {
           errorData = { error: errorText || `HTTP ${response.status}` };
         }
-        
+
         throw new Error(errorData.error || errorData.message || `Server Error: ${response.status}`);
       }
-      
+
       const result = await response.json();
       console.log(`✅ [LEAVE WAITLIST] Success:`, result);
       return result;
@@ -1699,7 +1700,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                               </p>
                             </div>
                           </div>
-                          
+
                           <div className="grid grid-cols-2 gap-4 mb-3">
                             <div className="text-center bg-emerald-800/50 rounded-lg p-3">
                               <p className="text-xs text-emerald-200">Buy-in</p>
