@@ -437,6 +437,15 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     staleTime: 0, // Always get fresh data
   });
 
+  // Fetch active seated sessions
+  const { data: seatedSessions, isLoading: seatedLoading } = useQuery({
+    queryKey: ['/api/table-seats', user?.id],
+    enabled: !!user?.id,
+    refetchInterval: 2000, // Check every 2 seconds for active sessions
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  });
+
   // Find current active session for playtime tracking
   const currentActiveSession = seatRequests?.find(req => 
     req.status === 'active' && req.sessionStartTime
@@ -1622,6 +1631,67 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
             {/* Game Tab */}
             <TabsContent value="game" className="space-y-3 sm:space-y-4 w-full max-w-full">
+              {/* Active Table Sessions - Show where player is currently seated */}
+              {seatedSessions && Array.isArray(seatedSessions) && seatedSessions.length > 0 && (
+                <Card className="bg-gradient-to-r from-emerald-800 to-emerald-900 border-emerald-500 w-full max-w-full">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-white flex items-center justify-center text-lg">
+                      <Play className="w-5 h-5 mr-2 text-emerald-400" />
+                      🪑 You Are Seated!
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {seatedSessions.map((session: any) => (
+                        <div key={session.id} className="bg-emerald-700/30 p-4 rounded-lg border border-emerald-500/30">
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <h3 className="font-semibold text-white text-lg">{session.tableName}</h3>
+                              <p className="text-emerald-200">{session.gameType}</p>
+                              <p className="text-emerald-300 text-sm">Seat {session.seatNumber}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm text-emerald-200">Session Started</p>
+                              <p className="text-sm font-medium text-white">
+                                {session.sessionStartTime ? 
+                                  new Date(session.sessionStartTime).toLocaleTimeString() : 
+                                  'Just now'
+                                }
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4 mb-3">
+                            <div className="text-center bg-emerald-800/50 rounded-lg p-3">
+                              <p className="text-xs text-emerald-200">Buy-in</p>
+                              <p className="text-lg font-semibold text-emerald-300">
+                                ₹{parseFloat(session.sessionBuyIn || '0').toLocaleString()}
+                              </p>
+                            </div>
+                            <div className="text-center bg-emerald-800/50 rounded-lg p-3">
+                              <p className="text-xs text-emerald-200">Stakes</p>
+                              <p className="text-lg font-semibold text-emerald-300">
+                                ₹{session.minBuyIn?.toLocaleString()}/{session.maxBuyIn?.toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex justify-center">
+                            <Button
+                              onClick={() => setLocation(`/table/${session.tableId}`)}
+                              className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                            >
+                              <Eye className="w-4 h-4 mr-2" />
+                              View Table
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Staff-Managed Offer Carousel */}
               <OfferCarousel onOfferClick={(offerId) => {
                 console.log('🎯 [OFFER CLICK] Navigating to offer detail:', offerId);

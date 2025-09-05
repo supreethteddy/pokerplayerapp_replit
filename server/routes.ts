@@ -1642,6 +1642,21 @@ export function registerRoutes(app: Express) {
 
       await client.connect();
 
+      // Check if staff_offers table exists first
+      const tableCheckResult = await client.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'staff_offers'
+        );
+      `);
+
+      if (!tableCheckResult.rows[0].exists) {
+        console.log('⚠️ [OFFERS API] staff_offers table does not exist, returning empty array');
+        await client.end();
+        return res.json([]);
+      }
+
       const result = await client.query(`
         SELECT id, title, description, image_url, video_url, offer_type,
                is_active, start_date, end_date, created_at, updated_at
@@ -1675,7 +1690,8 @@ export function registerRoutes(app: Express) {
       res.json(transformedOffers);
     } catch (error) {
       console.error('❌ [OFFERS API] Error:', error);
-      res.status(500).json({ error: "Internal server error" });
+      // Return empty array instead of 500 error to prevent UI crashes
+      res.json([]);
     }
   });
 
@@ -3100,6 +3116,66 @@ export function registerRoutes(app: Express) {
         success: false,
         error: error.message
       });
+    }
+  });
+
+  // Get Seated Player Table Information - Shows where player is currently seated
+  app.get("/api/table-seats/:playerId", async (req, res) => {
+    try {
+      const playerId = parseInt(req.params.playerId);
+      console.log(`🪑 [SEATED PLAYER] Getting seated table info for player: ${playerId}`);
+
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        // Query for active seated sessions
+        const seatedResult = await pgClient.query(`
+          SELECT
+            sr.id, sr.player_id, sr.table_id, sr.status, sr.position,
+            sr.seat_number, sr.session_start_time, sr.session_buy_in_amount,
+            sr.session_cash_out_amount, sr.created_at,
+            pt.name as table_name, pt.game_type, pt.min_buy_in, pt.max_buy_in,
+            p.first_name, p.last_name
+          FROM seat_requests sr
+          LEFT JOIN poker_tables pt ON sr.table_id = pt.id::text
+          LEFT JOIN players p ON sr.player_id = p.id
+          WHERE sr.player_id = $1 AND sr.status = 'active'
+          ORDER BY sr.session_start_time DESC
+        `, [playerId]);
+
+        await pgClient.end();
+
+        const seatedSessions = seatedResult.rows.map(row => ({
+          id: row.id,
+          playerId: row.player_id,
+          tableId: row.table_id,
+          tableName: row.table_name || `Table ${row.table_id}`,
+          gameType: row.game_type || 'Texas Hold\'em',
+          status: row.status,
+          seatNumber: row.seat_number,
+          sessionStartTime: row.session_start_time,
+          sessionBuyIn: row.session_buy_in_amount || '0.00',
+          sessionCashOut: row.session_cash_out_amount || '0.00',
+          minBuyIn: row.min_buy_in || 1000,
+          maxBuyIn: row.max_buy_in || 10000,
+          playerName: `${row.first_name} ${row.last_name}`,
+          createdAt: row.created_at
+        }));
+
+        console.log(`✅ [SEATED PLAYER] Found ${seatedSessions.length} active sessions for player ${playerId}`);
+        res.json(seatedSessions);
+
+      } catch (dbError: any) {
+        await pgClient.end();
+        console.error('❌ [SEATED PLAYER] Database error:', dbError);
+        return res.status(500).json({ error: 'Database query failed' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [SEATED PLAYER] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
