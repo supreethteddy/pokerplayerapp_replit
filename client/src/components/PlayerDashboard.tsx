@@ -1586,7 +1586,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             >
               <Bell className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
               {notifications && Array.isArray(notifications) && notifications.length > 0 ? (
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full text-xs flex items-center justify-center text-white" style={{ fontSize: '0.5rem' }}>
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-xs flex items-center justify-center text-white font-bold" style={{ fontSize: '0.6rem' }}>
                   {(notifications as any[]).length > 9 ? '9+' : (notifications as any[]).length}
                 </span>
               ) : null}

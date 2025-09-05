@@ -185,15 +185,17 @@ export const PushNotificationManager: React.FC = () => {
 
     const fetchNotifications = async () => {
       try {
+        console.log(`🔔 [NOTIFICATION DEBUG] Fetching notifications for user ${user.id}`);
         const response = await fetch(`/api/push-notifications/${user.id}`);
         if (response.ok) {
           const data = await response.json();
+          console.log(`🔔 [NOTIFICATION DEBUG] Received ${data.length} notifications:`, data);
 
-          // Only show notifications from the last 5 minutes
+          // Show notifications from the last 24 hours (more reasonable timeframe)
           const recentNotifications = data.filter((notif: any) => {
             const notifTime = new Date(notif.created_at).getTime();
             const now = Date.now();
-            return (now - notifTime) < 5 * 60 * 1000; // 5 minutes
+            return (now - notifTime) < 24 * 60 * 60 * 1000; // 24 hours
           });
 
           // Show new notifications as popups
@@ -254,8 +256,8 @@ export const PushNotificationManager: React.FC = () => {
     // Initial fetch
     fetchNotifications();
 
-    // Poll every 2 seconds for real-time updates
-    const interval = setInterval(fetchNotifications, 2000);
+    // Poll every 5 seconds for real-time updates (better balance of performance and responsiveness)
+    const interval = setInterval(fetchNotifications, 5000);
 
     return () => clearInterval(interval);
   }, [user?.id, permission, notifications]);

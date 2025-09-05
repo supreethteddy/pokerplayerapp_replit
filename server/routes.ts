@@ -3309,16 +3309,22 @@ export function registerRoutes(app: Express) {
       });
 
       try {
-        // Query for notifications using actual schema structure
+        // Query for notifications using actual schema structure - handle all target audience types
         const query = `
           SELECT id, title, message, target_audience, sent_by, sent_by_name, 
                  sent_by_role, media_type, media_url, media_description,
                  recipients_count, delivery_status, created_at, sent_at,
                  scheduled_for, expires_at
           FROM push_notifications
-          WHERE (target_audience = 'all_players' OR target_audience = $1::text)
+          WHERE (
+            target_audience = 'all_players' 
+            OR target_audience = 'registered_players'
+            OR target_audience = $1::text
+            OR target_audience IS NULL
+          )
             AND created_at >= NOW() - INTERVAL '7 days'
             AND (expires_at IS NULL OR expires_at > NOW())
+            AND delivery_status = 'sent'
           ORDER BY created_at DESC
           LIMIT 50
         `;
