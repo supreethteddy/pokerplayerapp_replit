@@ -14,7 +14,6 @@ import {
   Clock, 
   Trophy, 
   CreditCard, 
-  Trash2,
   RotateCcw,
   Calendar
 } from 'lucide-react';
@@ -122,15 +121,7 @@ export const NotificationHistoryTab: React.FC = () => {
     }
   };
 
-  const clearNotification = async (notificationId: number) => {
-    try {
-      // For now, just remove locally since the backend doesn't have this endpoint yet
-      console.log('Clearing notification:', notificationId);
-      refetch();
-    } catch (error) {
-      console.error('❌ [NOTIFICATION HISTORY] Failed to clear:', error);
-    }
-  };
+  
 
   if (isLoading) {
     return (
@@ -224,17 +215,6 @@ export const NotificationHistoryTab: React.FC = () => {
                             <span>
                               {notification.sentByName || notification.senderName || 'System'} ({notification.sentByRole || notification.senderRole || 'admin'})
                             </span>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 w-6 p-0 hover:bg-red-600/20"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                clearNotification(notification.id);
-                              }}
-                            >
-                              <Trash2 className="h-3 w-3 text-red-400" />
-                            </Button>
                           </span>
                         </div>
                         
