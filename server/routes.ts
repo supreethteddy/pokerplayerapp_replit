@@ -558,7 +558,7 @@ export function registerRoutes(app: Express) {
         console.error('❌ [CASHIER PROCESSING] Status update error:', statusError);
       }
 
-      // Record transaction for the cash-out
+      // Record the cash-out as a transaction
       const { data: transaction, error: transactionError } = await supabase
         .from('transactions')
         .insert({
@@ -885,8 +885,8 @@ export function registerRoutes(app: Express) {
             .single();
 
           const playerEmail = playerData?.email || '';
-          const fullPlayerName = playerData ? 
-            `${playerData.first_name || ''} ${playerData.last_name || ''}`.trim() || playerName : 
+          const fullPlayerName = playerData ?
+            `${playerData.first_name || ''} ${playerData.last_name || ''}`.trim() || playerName :
             playerName || `Player ${playerId}`;
 
           console.log(`📧 [CHAT SESSION] Retrieved player email: ${playerEmail} for player ${playerId}`);
@@ -1072,7 +1072,7 @@ export function registerRoutes(app: Express) {
       try {
         // Step 1: Find unresolved chat sessions for the player
         const sessionsQuery = `
-          SELECT cs.id, cs.player_id, cs.player_name, cs.player_email, 
+          SELECT cs.id, cs.player_id, cs.player_name, cs.player_email,
                  cs.initial_message, cs.status, cs.priority, cs.category,
                  cs.gre_staff_id, cs.gre_staff_name, cs.created_at, cs.updated_at
           FROM chat_sessions cs
@@ -1091,15 +1091,12 @@ export function registerRoutes(app: Express) {
           return res.json({ success: true, conversations: [] });
         }
 
-        // Step 2: Get messages for each unresolved session
+        // Step 2: Get messages for each session using proper relationship
         const conversationsWithMessages = [];
-
         for (const session of sessions) {
-          console.log(`🔍 [CHAT MESSAGES] Getting messages for session: ${session.id}`);
-
           const messagesQuery = `
-            SELECT cm.id, cm.chat_session_id, cm.sender_id, cm.sender_type, 
-                   cm.sender_name, cm.message_text, cm.message_type, 
+            SELECT cm.id, cm.chat_session_id, cm.sender_id, cm.sender_type,
+                   cm.sender_name, cm.message_text, cm.message_type,
                    cm.metadata, cm.created_at
             FROM chat_messages cm
             WHERE cm.chat_session_id = $1
@@ -1120,19 +1117,22 @@ export function registerRoutes(app: Express) {
             timestamp: msg.created_at
           }));
 
-          conversationsWithMessages.push({
-            id: session.id,
-            subject: `Chat with ${session.player_name}`,
-            status: session.status,
-            created_at: session.created_at,
-            chat_messages: formattedMessages
-          });
+          // Only include conversations that have messages OR are new waiting sessions
+          if (formattedMessages.length > 0 || session.status === 'waiting') {
+            conversationsWithMessages.push({
+              id: session.id,
+              subject: `Chat with ${session.player_name}`,
+              status: session.status,
+              created_at: session.created_at,
+              chat_messages: formattedMessages
+            });
+          }
         }
 
         await pool.end();
 
         console.log(`✅ [CHAT SESSIONS] Returning ${conversationsWithMessages.length} conversations with ${conversationsWithMessages.reduce((total, conv) => total + conv.chat_messages.length, 0)} total messages`);
-        
+
         res.json({ success: true, conversations: conversationsWithMessages });
 
       } catch (dbError) {
@@ -1146,8 +1146,6 @@ export function registerRoutes(app: Express) {
       res.status(500).json({ error: "Internal server error" });
     }
   });
-
-
 
   // REMOVED: Duplicate endpoint - using unified clear above
 
@@ -1166,7 +1164,7 @@ export function registerRoutes(app: Express) {
     try {
       const playerId = parseInt(req.params.playerId);
       console.log(`📚 [CHAT HISTORY] Loading for player ${playerId} using proper chat_sessions relationship`);
-      
+
       // Use direct PostgreSQL query with proper table relationship
       const { Pool } = await import('pg');
       const pool = new Pool({
@@ -1182,7 +1180,7 @@ export function registerRoutes(app: Express) {
           WHERE cs.player_id = $1 AND cs.status != 'resolved'
           ORDER BY cs.created_at DESC
         `;
-        
+
         const sessionsResult = await pool.query(sessionsQuery, [playerId]);
         const sessions = sessionsResult.rows;
 
@@ -1194,10 +1192,10 @@ export function registerRoutes(app: Express) {
           const messagesQuery = `
             SELECT cm.id, cm.sender_type, cm.sender_name, cm.message_text, cm.created_at
             FROM chat_messages cm
-            WHERE cm.chat_session_id = $1 
+            WHERE cm.chat_session_id = $1
             ORDER BY cm.created_at ASC
           `;
-          
+
           const messagesResult = await pool.query(messagesQuery, [session.id]);
           const messages = messagesResult.rows;
 
@@ -1224,10 +1222,10 @@ export function registerRoutes(app: Express) {
         await pool.end();
 
         console.log(`✅ [CHAT HISTORY] Found ${conversations.length} active conversations with ${conversations.reduce((total, conv) => total + conv.chat_messages.length, 0)} total messages`);
-        
-        res.json({ 
-          success: true, 
-          conversations: conversations 
+
+        res.json({
+          success: true,
+          conversations: conversations
         });
 
       } catch (dbError: any) {
@@ -1235,817 +1233,10 @@ export function registerRoutes(app: Express) {
         console.error('❌ [CHAT HISTORY] Database error:', dbError);
         res.status(500).json({ error: 'Database query failed' });
       }
-      
+
     } catch (error: any) {
       console.error('❌ [CHAT HISTORY] Error:', error);
       res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Clerk sync endpoint for unified authentication
-  app.post('/api/auth/clerk-sync', async (req, res) => {
-    console.log('🔐 [CLERK SYNC] Received sync request:', req.body);
-
-    try {
-      const { clerkUserId, email, firstName, lastName, phone, emailVerified } = req.body;
-
-      if (!clerkUserId || !email) {
-        return res.status(400).json({ error: 'Missing required fields' });
-      }
-
-      // Use direct PostgreSQL connection to bypass schema cache issues
-      const { Client } = await import('pg');
-      const pgClient = new Client({
-        connectionString: process.env.SUPABASE_DATABASE_URL
-      });
-
-      await pgClient.connect();
-
-      // Check if player already exists by email
-      const findQuery = 'SELECT * FROM players WHERE email = $1 LIMIT 1';
-      const findResult = await pgClient.query(findQuery, [email]);
-      const existingPlayer = findResult.rows[0];
-
-      let playerData;
-
-      if (existingPlayer) {
-        // Update existing player with Clerk ID
-        const updateQuery = `
-          UPDATE players
-          SET
-            clerk_user_id = $1,
-            clerk_synced_at = NOW(),
-            first_name = COALESCE($2, first_name),
-            last_name = COALESCE($3, last_name),
-            phone = COALESCE($4, phone)
-          WHERE id = $5
-          RETURNING *
-        `;
-
-        const updateResult = await pgClient.query(updateQuery, [
-          clerkUserId,
-          firstName,
-          lastName,
-          phone,
-          existingPlayer.id
-        ]);
-
-        playerData = updateResult.rows[0];
-        console.log('✅ [CLERK SYNC] Updated existing player:', existingPlayer.id);
-
-      } else {
-        // Create new player with Clerk ID
-        const insertQuery = `
-          INSERT INTO players (
-            email, first_name, last_name, phone, clerk_user_id, clerk_synced_at,
-            kyc_status, password, universal_id, balance, is_active
-          ) VALUES (
-            $1, $2, $3, $4, $5, NOW(), $6, 'clerk_managed', $7, '0.00', true
-          )
-          RETURNING *
-        `;
-
-        const universalId = `unified_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-        const createResult = await pgClient.query(insertQuery, [
-          email,
-          firstName,
-          lastName,
-          phone,
-          clerkUserId,
-          emailVerified ? 'pending' : 'incomplete',
-          universalId
-        ]);
-
-        playerData = createResult.rows[0];
-        console.log('✅ [CLERK SYNC] Created new player:', playerData.id);
-
-        await pgClient.end();
-        return res.json({
-          success: true,
-          player: {
-            id: playerData.id,
-            email: playerData.email,
-            firstName: playerData.first_name,
-            lastName: playerData.last_name,
-            phone: playerData.phone,
-            kycStatus: playerData.kyc_status,
-            balance: playerData.balance,
-            current_credit: playerData.current_credit || '0.00',
-            credit_limit: playerData.credit_limit || '0.00',
-            credit_eligible: playerData.credit_eligible || false,
-            clerkUserId: playerData.clerk_user_id
-          },
-          message: 'New player created and synced successfully',
-          existingPlayer: false
-        });
-      }
-
-      await pgClient.end();
-
-      res.json({
-        success: true,
-        player: {
-          id: playerData.id,
-          email: playerData.email,
-          firstName: playerData.first_name,
-          lastName: playerData.last_name,
-          phone: playerData.phone,
-          kycStatus: playerData.kyc_status,
-          balance: playerData.balance,
-          current_credit: playerData.current_credit || '0.00',
-          credit_limit: playerData.credit_limit || '0.00',
-          credit_eligible: playerData.credit_eligible || false,
-          clerkUserId: playerData.clerk_user_id
-        },
-        message: 'Existing player updated successfully',
-        existingPlayer: true
-      });
-
-    } catch (error: any) {
-      console.error('❌ [CLERK SYNC] Error:', error);
-      res.status(500).json({ error: error.message || 'Sync failed' });
-    }
-  });
-
-  // ========== PRODUCTION-READY CLERK WEBHOOK ENDPOINT ==========
-
-  // Clerk webhook endpoint for production integration
-  app.post('/api/clerk/webhook', async (req, res) => {
-    console.log('🪝 [CLERK WEBHOOK] Received event:', req.body?.type);
-
-    try {
-      const { type, data } = req.body;
-
-      if (!type || !data) {
-        return res.status(400).json({ error: 'Invalid webhook payload' });
-      }
-
-      const { Client } = await import('pg');
-      const pgClient = new Client({
-        connectionString: process.env.DATABASE_URL,
-      });
-
-      await pgClient.connect();
-
-      // Log webhook event
-      await pgClient.query(`
-        INSERT INTO clerk_webhook_events (event_type, clerk_user_id, email, webhook_payload, success)
-        VALUES ($1, $2, $3, $4, $5)
-      `, [
-        type,
-        data.id || null,
-        data.email_addresses?.[0]?.email_address || null,
-        JSON.stringify(req.body),
-        true
-      ]);
-
-      // Handle different webhook events
-      switch (type) {
-        case 'user.created':
-        case 'user.updated':
-          await handleUserWebhook(pgClient, data, type);
-          break;
-
-        case 'user.deleted':
-          await handleUserDeletion(pgClient, data);
-          break;
-
-        default:
-          console.log(`ℹ️ [CLERK WEBHOOK] Unhandled event type: ${type}`);
-      }
-
-      await pgClient.end();
-
-      console.log(`✅ [CLERK WEBHOOK] Successfully processed ${type} event`);
-      res.json({ success: true, processed: type });
-
-    } catch (error: any) {
-      console.error('❌ [CLERK WEBHOOK] Error:', error);
-
-      // Log webhook error
-      try {
-        const { Client } = await import('pg');
-        const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
-        await pgClient.connect();
-
-        await pgClient.query(`
-          INSERT INTO clerk_webhook_events (event_type, webhook_payload, success, error_message)
-          VALUES ($1, $2, $3, $4)
-        `, [
-          req.body?.type || 'unknown',
-          JSON.stringify(req.body),
-          false,
-          error.message
-        ]);
-
-        await pgClient.end();
-      } catch (logError: any) {
-        console.warn('⚠️ [CLERK WEBHOOK] Could not log error:', logError.message);
-      }
-
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  async function handleUserWebhook(pgClient: any, userData: any, eventType: string) {
-    const clerkUserId = userData.id;
-    const email = userData.email_addresses?.[0]?.email_address;
-    const firstName = userData.first_name;
-    const lastName = userData.last_name;
-    const phone = userData.phone_numbers?.[0]?.phone_number;
-
-    if (!clerkUserId || !email) {
-      console.warn('⚠️ [CLERK WEBHOOK] Missing required user data');
-      return;
-    }
-
-    // Check if player exists
-    const findResult = await pgClient.query(
-      'SELECT * FROM players WHERE clerk_user_id = $1 OR email = $2 LIMIT 1',
-      [clerkUserId, email]
-    );
-
-    if (findResult.rows.length > 0) {
-      // Update existing player
-      await pgClient.query(`
-        UPDATE players
-        SET
-          clerk_user_id = $1,
-          email = $2,
-          first_name = COALESCE($3, first_name),
-          last_name = COALESCE($4, last_name),
-          phone = COALESCE($5, phone),
-          clerk_synced_at = NOW(),
-          last_login_at = NOW()
-        WHERE id = $6
-      `, [clerkUserId, email, firstName, lastName, phone, findResult.rows[0].id]);
-
-      console.log(`✅ [CLERK WEBHOOK] Updated player ${findResult.rows[0].id} from ${eventType}`);
-    } else {
-      // Create new player
-      const universalId = `unified_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-      await pgClient.query(`
-        INSERT INTO players (
-          email, first_name, last_name, phone, clerk_user_id, clerk_synced_at,
-          kyc_status, password, universal_id, balance, is_active, last_login_at
-        ) VALUES (
-          $1, $2, $3, $4, $5, NOW(), 'pending', 'clerk_managed', $6, '0.00', true, NOW()
-        )
-      `, [email, firstName, lastName, phone, clerkUserId, universalId]);
-
-      console.log(`✅ [CLERK WEBHOOK] Created new player from ${eventType}`);
-    }
-  }
-
-  async function handleUserDeletion(pgClient: any, userData: any) {
-    const clerkUserId = userData.id;
-
-    if (!clerkUserId) {
-      console.warn('⚠️ [CLERK WEBHOOK] Missing user ID for deletion');
-      return;
-    }
-
-    // Mark user as inactive instead of deleting
-    await pgClient.query(`
-      UPDATE players
-      SET
-        is_active = false,
-        clerk_user_id = NULL,
-        clerk_synced_at = NOW()
-      WHERE clerk_user_id = $1
-    `, [clerkUserId]);
-
-    console.log(`✅ [CLERK WEBHOOK] Deactivated player with Clerk ID: ${clerkUserId}`);
-  }
-
-  // Dynamic user endpoint for authenticated users (replaces hardcoded player IDs)
-  app.get('/api/auth/user', async (req, res) => {
-    try {
-      console.log('🔍 [AUTH USER] Dynamic user endpoint called');
-
-      // Check for Supabase session token in Authorization header
-      const authHeader = req.headers.authorization;
-      let supabaseToken = null;
-
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        supabaseToken = authHeader.split(' ')[1];
-      }
-
-      // If we have a Supabase token, verify and get user data
-      if (supabaseToken) {
-        try {
-          const { createClient } = await import('@supabase/supabase-js');
-          const supabase = createClient(
-            process.env.VITE_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!
-          );
-
-          // Verify the token and get user
-          const { data: { user }, error } = await supabase.auth.getUser(supabaseToken);
-
-          if (error || !user) {
-            return res.status(401).json({ error: 'Invalid token' });
-          }
-
-          // Fetch player data from our database
-          const { data: playerData, error: playerError } = await supabase
-            .from('players')
-            .select('*')
-            .eq('supabase_id', user.id)
-            .single();
-
-          if (playerError || !playerData) {
-            return res.status(404).json({ error: 'Player not found' });
-          }
-
-          // Return formatted player data
-          res.json({
-            id: playerData.id,
-            email: playerData.email,
-            firstName: playerData.first_name,
-            lastName: playerData.last_name,
-            phone: playerData.phone,
-            kycStatus: playerData.kyc_status,
-            balance: playerData.balance,
-            authenticated: true,
-            supabaseId: user.id
-          });
-
-        } catch (authError: any) {
-          console.error('❌ [AUTH USER] Supabase auth error:', authError);
-          return res.status(401).json({ error: 'Authentication failed' });
-        }
-      } else {
-        // No authentication provided
-        return res.status(401).json({ error: 'No authentication provided' });
-      }
-
-    } catch (error: any) {
-      console.error('❌ [AUTH USER] Error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // === FOOD & BEVERAGE API ENDPOINTS ===
-
-  // Get all menu items - shared with staff portal
-  app.get("/api/food-beverage/items", async (req, res) => {
-    try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      const { data: items, error } = await supabase
-        .from('food_beverage_items')
-        .select('*')
-        .eq('is_available', true)
-        .order('display_order', { ascending: true });
-
-      if (error) {
-        console.error('❌ [F&B ITEMS] Error:', error);
-        return res.status(500).json({ error: error.message });
-      }
-
-      res.json({
-        success: true,
-        items: items || []
-      });
-
-    } catch (error: any) {
-      console.error('❌ [F&B ITEMS] Critical error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Get all active ads/offers - shared with staff portal
-  app.get("/api/food-beverage/ads", async (req, res) => {
-    try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      const now = new Date().toISOString();
-
-      const { data: ads, error } = await supabase
-        .from('ads_offers')
-        .select('*')
-        .eq('is_active', true)
-        .or(`start_date.is.null,start_date.lte.${now}`)
-        .or(`end_date.is.null,end_date.gte.${now}`)
-        .order('display_order', { ascending: true });
-
-      if (error) {
-        console.error('❌ [F&B ADS] Error:', error);
-        return res.status(500).json({ error: error.message });
-      }
-
-      res.json({
-        success: true,
-        ads: ads || []
-      });
-
-    } catch (error: any) {
-      console.error('❌ [F&B ADS] Critical error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Place order - instant notification to staff via Pusher/OneSignal
-  app.post("/api/food-beverage/orders", async (req, res) => {
-    try {
-      const { playerId, playerName, items, totalAmount, notes, tableNumber } = req.body;
-
-      if (!playerId || !playerName || !items || !Array.isArray(items)) {
-        return res.status(400).json({ error: 'Missing required fields' });
-      }
-
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      // Insert order into database
-      const { data: order, error } = await supabase
-        .from('orders')
-        .insert({
-          player_id: playerId,
-          player_name: playerName,
-          items: items,
-          total_amount: totalAmount || '0.00',
-          notes: notes || null,
-          table_number: tableNumber || null,
-          status: 'pending',
-          order_source: 'player_portal'
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('❌ [F&B ORDER] Database error:', error);
-        return res.status(500).json({ error: error.message });
-      }
-
-      console.log('✅ [F&B ORDER] Order placed:', order);
-
-      // Send real-time notification to staff via Pusher
-      try {
-        await pusher.trigger('staff-portal', 'new-food-order', {
-          orderId: order.id,
-          playerId: playerId,
-          playerName: playerName,
-          items: items,
-          totalAmount: totalAmount,
-          tableNumber: tableNumber,
-          timestamp: new Date().toISOString()
-        });
-        console.log('✅ [F&B ORDER] Pusher notification sent to staff');
-      } catch (pusherError) {
-        console.error('❌ [F&B ORDER] Pusher error:', pusherError);
-      }
-
-      // Send OneSignal notification to staff
-      try {
-        const notification = {
-          app_id: process.env.ONESIGNAL_APP_ID!,
-          included_segments: ['Staff'],
-          headings: { en: 'New Food Order' },
-          contents: {
-            en: `${playerName} ordered ${items.length} items${tableNumber ? ` for table ${tableNumber}` : ''}`
-          },
-          data: {
-            type: 'food_order',
-            orderId: order.id,
-            playerId: playerId
-          }
-        };
-
-        await oneSignalClient.createNotification(notification);
-        console.log('✅ [F&B ORDER] OneSignal notification sent to staff');
-      } catch (oneSignalError) {
-        console.error('❌ [F&B ORDER] OneSignal error:', oneSignalError);
-      }
-
-      res.json({
-        success: true,
-        orderId: order.id,
-        message: 'Order placed successfully'
-      });
-
-    } catch (error: any) {
-      console.error('❌ [F&B ORDER] Critical error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Get player's order history
-  app.get("/api/food-beverage/orders/:playerId", async (req, res) => {
-    try {
-      const playerId = parseInt(req.params.playerId);
-
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      const { data: orders, error } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('player_id', playerId)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('❌ [F&B ORDER HISTORY] Error:', error);
-        return res.status(500).json({ error: error.message });
-      }
-
-      res.json({
-        success: true,
-        orders: orders || []
-      });
-
-    } catch (error: any) {
-      console.error('❌ [F&B ORDER HISTORY] Critical error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // LEGACY ENDPOINT - TO BE REMOVED
-  app.get("/api/OLD-chat-history/:playerId", async (req, res) => {
-    try {
-      const playerId = parseInt(req.params.playerId); // CRITICAL FIX: Convert string to integer
-
-      console.log(`🔍 [CHAT HISTORY FIXED] Fetching history for player ID: ${playerId} (type: ${typeof playerId})`);
-
-      // Verify environment variables
-      console.log(`🔍 [CHAT HISTORY FIXED] Supabase URL exists: ${!!process.env.VITE_SUPABASE_URL}`);
-      console.log(`🔍 [CHAT HISTORY FIXED] Service key exists: ${!!process.env.SUPABASE_SERVICE_ROLE_KEY}`);
-
-      const { createClient } = await import('@supabase/supabase-js');
-
-      // Direct environment variable check for debugging
-      const supabaseUrl = process.env.VITE_SUPABASE_URL;
-      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-      console.log(`🔍 [CHAT HISTORY FIXED] Environment check:`);
-      console.log(`   - Supabase URL: ${supabaseUrl?.substring(0, 30)}...`);
-      console.log(`   - Service Key: ${serviceKey ? 'EXISTS' : 'MISSING'}`);
-
-      const supabase = createClient(supabaseUrl!, serviceKey!);
-
-      console.log(`🔍 [CHAT HISTORY FIXED] Supabase client created successfully`);
-
-      // DIRECT POSTGRESQL QUERY - Bypass Supabase client issue
-      console.log(`🔍 [CHAT HISTORY FIXED] Using direct PostgreSQL query for player_id: ${playerId}`);
-
-      // Import postgres client
-      const { Pool } = await import('pg');
-      const pool = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false }
-      });
-
-      try {
-        // Direct SQL query to get chat requests
-        const requestsQuery = `
-          SELECT cr.*,
-                 json_agg(
-                   json_build_object(
-                     'id', cm.id,
-                     'sender', cm.sender,
-                     'sender_name', cm.sender_name,
-                     'message_text', cm.message_text,
-                     'timestamp', cm.timestamp
-                   ) ORDER BY cm.timestamp ASC
-                 ) FILTER (WHERE cm.id IS NOT NULL) as chat_messages
-          FROM chat_requests cr
-          LEFT JOIN chat_messages cm ON cr.id = cm.request_id
-          WHERE cr.player_id = $1
-          GROUP BY cr.id
-          ORDER BY cr.created_at DESC
-        `;
-
-        const result = await pool.query(requestsQuery, [playerId]);
-        const requests = result.rows;
-
-        console.log(`🔍 [CHAT HISTORY FIXED] Direct PostgreSQL result:`, {
-          query: `chat_requests WHERE player_id = ${playerId}`,
-          result: requests,
-          count: requests.length
-        });
-
-        // Transform data to match expected format
-        const requestsWithMessages = requests.map(row => ({
-          ...row,
-          chat_messages: row.chat_messages || []
-        }));
-
-        await pool.end();
-
-        console.log(`✅ [CHAT HISTORY FIXED] Direct query result: ${requestsWithMessages.length} conversations`);
-        res.json({ success: true, conversations: requestsWithMessages });
-        return;
-
-      } catch (pgError) {
-        console.error('❌ [CHAT HISTORY FIXED] PostgreSQL error:', pgError);
-        await pool.end();
-        // Fall back to Supabase if PostgreSQL fails
-      }
-
-      // Fallback: Original Supabase query
-      console.log(`🔍 [CHAT HISTORY FIXED] Fallback to Supabase query for player_id: ${playerId}`);
-
-      const { data: requests, error: requestsError } = await supabase
-        .from('chat_requests')
-        .select('*')
-        .eq('player_id', playerId)
-        .order('created_at', { ascending: false });
-
-      console.log(`🔍 [CHAT HISTORY FIXED] Supabase fallback result:`, {
-        query: `chat_requests WHERE player_id = ${playerId}`,
-        result: requests,
-        error: requestsError
-      });
-
-      console.log(`🔍 [CHAT HISTORY FIXED] Raw requests result:`, {
-        requests: requests,
-        error: requestsError,
-        length: (requests || []).length
-      });
-
-      if (requestsError) {
-        console.error('❌ [CHAT HISTORY FIXED] Requests error:', requestsError);
-        return res.status(500).json({ error: "Failed to fetch chat requests" });
-      }
-
-      // If no requests found, let's try a broader query to debug
-      if (!requests || requests.length === 0) {
-        console.log(`🔍 [CHAT HISTORY DEBUG] No requests found for player ${playerId}, checking all players...`);
-        const { data: allRequests } = await supabase
-          .from('chat_requests')
-          .select('player_id')
-          .limit(10);
-        console.log(`🔍 [CHAT HISTORY DEBUG] Sample player_ids in database:`, allRequests?.map(r => r.player_id));
-      }
-
-      // Get messages for each request separately with debug logging
-      const requestsWithMessages = [];
-      for (const request of requests || []) {
-        console.log(`🔍 [CHAT HISTORY FIXED] Processing request:`, request.id);
-
-        const { data: messages, error: messagesError } = await supabase
-          .from('chat_messages')
-          .select('id, sender, sender_name, message_text, timestamp')
-          .eq('request_id', request.id)
-          .order('timestamp', { ascending: true });
-
-        console.log(`🔍 [CHAT HISTORY FIXED] Messages for ${request.id}:`, {
-          messages: messages,
-          error: messagesError,
-          count: (messages || []).length
-        });
-
-        requestsWithMessages.push({
-          ...request,
-          chat_messages: messages || []
-        });
-      }
-
-      console.log(`✅ [CHAT HISTORY FIXED] Final result: ${requestsWithMessages.length} conversations for player ${playerId}`);
-      console.log(`✅ [CHAT HISTORY FIXED] Complete response:`, JSON.stringify(requestsWithMessages, null, 2));
-
-      res.json({ success: true, conversations: requestsWithMessages });
-
-    } catch (error) {
-      console.error('❌ [CHAT HISTORY] Error:', error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  // REMOVED: Duplicate endpoint - using unified clear above
-
-  // Mark chat conversation as resolved
-  app.post("/api/chat/resolve-conversation", async (req, res) => {
-    try {
-      const { playerId, sessionId, resolvedBy, notes } = req.body;
-      console.log(`✅ [CHAT RESOLVE] Resolving conversation for player ${playerId}`);
-
-      const { Pool } = await import('pg');
-      const pool = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false }
-      });
-
-      try {
-        // Update chat session status to resolved
-        const updateSessionQuery = `
-          UPDATE chat_sessions 
-          SET status = 'resolved', 
-              resolved_at = NOW(),
-              updated_at = NOW()
-          WHERE player_id = $1 AND (status != 'resolved' OR status IS NULL)
-        `;
-        
-        await pool.query(updateSessionQuery, [playerId]);
-
-        // Also update any chat_requests if they exist
-        const updateRequestsQuery = `
-          UPDATE chat_requests 
-          SET status = 'resolved',
-              updated_at = NOW()
-          WHERE player_id = $1 AND (status != 'resolved' OR status IS NULL)
-        `;
-        
-        await pool.query(updateRequestsQuery, [playerId]);
-
-        await pool.end();
-
-        // Notify player via Pusher that conversation is resolved
-        await pusher.trigger(`player-${playerId}`, 'chat-status-updated', {
-          playerId: playerId,
-          status: 'resolved',
-          resolvedBy: resolvedBy || 'Staff',
-          notes: notes || 'Conversation resolved',
-          timestamp: new Date().toISOString()
-        });
-
-        console.log(`✅ [CHAT RESOLVE] Conversation resolved for player ${playerId}`);
-        res.json({
-          success: true,
-          message: 'Conversation marked as resolved',
-          playerId: playerId,
-          status: 'resolved'
-        });
-
-      } catch (dbError: any) {
-        await pool.end();
-        console.error('❌ [CHAT RESOLVE] Database error:', dbError);
-        res.status(500).json({ error: 'Failed to resolve conversation' });
-      }
-
-    } catch (error: any) {
-      console.error('❌ [CHAT RESOLVE] Error:', error);
-      res.status(500).json({ error: 'Failed to resolve conversation' });
-    }
-  });
-
-  // Real-time Chat Connectivity Test - PRODUCTION DIAGNOSTIC
-  app.post("/api/unified-chat/test-connection", async (req, res) => {
-    try {
-      const { playerId } = req.body;
-      console.log(`🧪 [CHAT TEST] Testing real-time connectivity for player ${playerId}`);
-
-      // Test Pusher trigger
-      try {
-        await pusher.trigger(`player-${playerId}`, 'connection-test', {
-          message: 'Connection test successful',
-          timestamp: new Date().toISOString(),
-          testId: Date.now()
-        });
-
-        await pusher.trigger('staff-portal', 'connection-test', {
-          playerId: playerId,
-          message: 'Staff portal connection test',
-          timestamp: new Date().toISOString(),
-          testId: Date.now()
-        });
-
-        console.log(`✅ [CHAT TEST] Pusher triggers sent successfully`);
-
-        res.json({
-          success: true,
-          message: 'Real-time connectivity test completed',
-          pusher: {
-            playerChannel: `player-${playerId}`,
-            staffChannel: 'staff-portal',
-            cluster: process.env.PUSHER_CLUSTER,
-            timestamp: new Date().toISOString()
-          }
-        });
-
-      } catch (pusherError: any) {
-        console.error('❌ [CHAT TEST] Pusher test failed:', pusherError);
-        res.status(500).json({
-          success: false,
-          error: 'Pusher connectivity failed',
-          details: pusherError.message
-        });
-      }
-
-    } catch (error: any) {
-      console.error('❌ [CHAT TEST] Connectivity test failed:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Connectivity test failed',
-        details: error.message
-      });
     }
   });
 
@@ -3923,7 +3114,7 @@ export function registerRoutes(app: Express) {
       try {
         // CRITICAL: Query seat_requests table with your updated schema
         const seatRequestsResult = await pgClient.query(`
-          SELECT 
+          SELECT
             sr.id, sr.player_id, sr.table_id, sr.status, sr.position,
             sr.estimated_wait, sr.created_at, sr.game_type, sr.notes,
             sr.seat_number, sr.session_start_time, sr.universal_id,
@@ -4002,9 +3193,9 @@ export function registerRoutes(app: Express) {
 
         if (existingCheck.rows.length > 0) {
           await pgClient.end();
-          return res.status(409).json({ 
+          return res.status(409).json({
             error: 'Already on waitlist for this table',
-            existing: true 
+            existing: true
           });
         }
 
@@ -4031,15 +3222,15 @@ export function registerRoutes(app: Express) {
         // Insert into seat_requests with all new schema fields
         const seatRequestResult = await pgClient.query(`
           INSERT INTO seat_requests (
-            player_id, table_id, status, position, estimated_wait, game_type, 
-            notes, seat_number, universal_id, min_play_time_minutes, 
-            call_time_window_minutes, call_time_play_period_minutes, 
+            player_id, table_id, status, position, estimated_wait, game_type,
+            notes, seat_number, universal_id, min_play_time_minutes,
+            call_time_window_minutes, call_time_play_period_minutes,
             cashout_window_minutes, session_buy_in_amount, session_cash_out_amount,
             session_rake_amount, session_tip_amount
           ) VALUES ($1, $2, 'waiting', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
           RETURNING *
         `, [
-          playerId, tableId, position, position * 10, finalGameType, 
+          playerId, tableId, position, position * 10, finalGameType,
           notes || null, seatNumber || null, universalId, minPlayTime || 30,
           callTimeWindow || 10, 5, 3, '0.00', '0.00', '0.00', '0.00'
         ]);
