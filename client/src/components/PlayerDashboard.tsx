@@ -970,6 +970,51 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const [wsConnected, setWsConnected] = useState(false);
 
 
+  // Table assignment notification state
+  const [showAssignmentNotification, setShowAssignmentNotification] = useState(false);
+  const [assignmentDetails, setAssignmentDetails] = useState<any>(null);
+
+  // Listen for table assignment notifications via Pusher
+  useEffect(() => {
+    if (user?.id) {
+      // Import Pusher client for real-time notifications
+      const initializePusher = async () => {
+        const PusherJS = (await import('pusher-js')).default;
+        const pusher = new PusherJS(process.env.VITE_PUSHER_KEY!, {
+          cluster: process.env.VITE_PUSHER_CLUSTER!,
+        });
+
+        const channel = pusher.subscribe(`player-${user.id}`);
+        
+        // Listen for table assignment notifications
+        channel.bind('table_assigned', (data: any) => {
+          console.log('🪑 [TABLE ASSIGNMENT] Assignment notification received:', data);
+          
+          setAssignmentDetails(data);
+          setShowAssignmentNotification(true);
+          
+          // Show toast notification
+          toast({
+            title: "Table Assignment!",
+            description: `You've been assigned to ${data.tableName} - Seat ${data.seatNumber}`,
+            className: "bg-emerald-600 text-white border-emerald-500",
+          });
+
+          // Refresh waitlist and seated sessions
+          queryClient.invalidateQueries({ queryKey: ['/api/seat-requests'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/table-seats'] });
+        });
+
+        return () => {
+          channel.unbind_all();
+          pusher.unsubscribe(`player-${user.id}`);
+        };
+      };
+
+      initializePusher();
+    }
+  }, [user?.id, toast, queryClient]);
+
   // Initialize WebSocket connection for real-time chat
   useEffect(() => {
     if (user?.id && !wsConnection) {
@@ -1586,6 +1631,64 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         userId={Number(user.id)} 
         onChatNotificationClick={() => setChatDialogOpen(true)}
       />
+
+      {/* Table Assignment Notification Dialog */}
+      <Dialog open={showAssignmentNotification} onOpenChange={setShowAssignmentNotification}>
+        <DialogContent className="bg-emerald-800 border-emerald-600 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-emerald-300 text-xl flex items-center">
+              <CheckCircle className="w-6 h-6 mr-2 text-emerald-400" />
+              Table Assignment Confirmed!
+            </DialogTitle>
+          </DialogHeader>
+
+          {assignmentDetails && (
+            <div className="space-y-4">
+              <div className="bg-emerald-900/50 rounded-lg p-4 border border-emerald-500/30">
+                <h3 className="font-semibold text-emerald-300 mb-3">You've been assigned to:</h3>
+                <div className="space-y-2 text-emerald-100">
+                  <div className="flex justify-between">
+                    <span>Table:</span>
+                    <span className="font-semibold">{assignmentDetails.tableName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Seat Number:</span>
+                    <span className="font-semibold">#{assignmentDetails.seatNumber}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Assigned by:</span>
+                    <span className="font-semibold">{assignmentDetails.staffName}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-amber-900/20 border border-amber-600/50 rounded-lg p-3">
+                <p className="text-amber-200 text-sm">
+                  🎯 <strong>Please proceed to your assigned table immediately.</strong> Your seat is now reserved and the game may be starting soon.
+                </p>
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <Button
+                  onClick={() => setLocation(`/table/${assignmentDetails.tableId}`)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  View Table
+                </Button>
+                
+                <Button
+                  onClick={() => setShowAssignmentNotification(false)}
+                  variant="outline"
+                  className="border-emerald-600 text-emerald-300 hover:bg-emerald-700"
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <div className="max-w-full px-3 py-2 sm:px-4 sm:py-4 lg:px-6 lg:py-6">
         {/* Header - Responsive */}

@@ -3595,10 +3595,10 @@ export function registerRoutes(app: Express) {
           FROM players 
           WHERE id = $1
         `;
-        
+
         const playerResult = await pool.query(playerCheckQuery, [playerId]);
         const player = playerResult.rows[0];
-        
+
         if (!player) {
           await pool.end();
           return res.status(404).json({ error: 'Player not found' });
@@ -3608,13 +3608,13 @@ export function registerRoutes(app: Express) {
         const isActivePlayer = player.last_login_at && 
           new Date(player.last_login_at) > new Date(Date.now() - 15 * 60 * 1000); // Active within last 15 minutes
 
-        // Build audience filter based on player qualifications
+        // Build audience conditions based on player qualifications
         let audienceConditions = ['target_audience = \'all_players\''];
-        
+
         if (isRegisteredPlayer) {
           audienceConditions.push('target_audience = \'registered_players\'');
         }
-        
+
         if (isActivePlayer) {
           audienceConditions.push('target_audience = \'active_players\'');
         }
@@ -3685,6 +3685,53 @@ export function registerRoutes(app: Express) {
     } catch (error: any) {
       console.error('❌ [PUSH NOTIFICATIONS] Error:', error);
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Table assignment notification system
+  app.post("/api/table-assignment/notify", async (req, res) => {
+    try {
+      const { playerId, tableId, tableName, seatNumber, staffName } = req.body;
+
+      console.log(`🪑 [TABLE ASSIGNMENT] Notifying player ${playerId} of assignment to ${tableName}`);
+
+      // Send real-time notification via Pusher
+      await pusher.trigger(`player-${playerId}`, 'table_assigned', {
+        tableId,
+        tableName,
+        seatNumber,
+        staffName: staffName || 'Staff',
+        assignedAt: new Date().toISOString(),
+        message: `You have been assigned to ${tableName} - Seat ${seatNumber}`
+      });
+
+      // Create push notification record
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      await supabase.from('push_notifications').insert({
+        player_id: playerId,
+        title: 'Table Assignment',
+        message: `You have been assigned to ${tableName} - Seat ${seatNumber}. Please proceed to your table.`,
+        type: 'table_assignment',
+        data: {
+          tableId,
+          tableName,
+          seatNumber,
+          staffName
+        },
+        is_read: false
+      });
+
+      console.log(`✅ [TABLE ASSIGNMENT] Player ${playerId} notified successfully`);
+      res.json({ success: true, message: 'Assignment notification sent' });
+
+    } catch (error: any) {
+      console.error('❌ [TABLE ASSIGNMENT] Notification error:', error);
+      res.status(500).json({ error: 'Failed to send assignment notification' });
     }
   });
 
