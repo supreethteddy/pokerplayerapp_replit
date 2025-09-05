@@ -980,8 +980,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       // Import Pusher client for real-time notifications
       const initializePusher = async () => {
         const PusherJS = (await import('pusher-js')).default;
-        const pusher = new PusherJS(process.env.VITE_PUSHER_KEY!, {
-          cluster: process.env.VITE_PUSHER_CLUSTER!,
+        const pusher = new PusherJS(import.meta.env.VITE_PUSHER_KEY!, {
+          cluster: import.meta.env.VITE_PUSHER_CLUSTER!,
         });
 
         const channel = pusher.subscribe(`player-${user.id}`);
