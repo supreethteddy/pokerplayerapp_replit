@@ -47,8 +47,10 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
 
   const getTransactionLabel = (type: string) => {
     switch (type) {
-      case 'cash_in': return 'Funds Added';
-      case 'cash_out': return 'Cash Withdrawal';
+      case 'cash_in': 
+      case 'funds_added': return 'Funds Added';
+      case 'cash_out': 
+      case 'cashier_withdrawal': return 'Cash Withdrawal';
       case 'table_buy_in': return 'Table Buy-in';
       case 'table_cash_out': return 'Table Cash-out';
       case 'add_credit': return 'Add Credit';
@@ -59,21 +61,29 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
 
   const getAmountColor = (type: string) => {
     switch (type) {
-      case 'add_credit': return 'text-blue-400';
-      case 'clear_credit': return 'text-orange-400';
+      case 'add_credit': return 'text-blue-400'; // Blue for add credit
+      case 'clear_credit': return 'text-orange-400'; // Orange for clear credit
       case 'cash_in':
-      case 'table_cash_out': return 'text-emerald-400';
-      default: return 'text-red-400';
+      case 'table_cash_out': 
+      case 'funds_added': return 'text-emerald-400'; // Green for cash in/funds added
+      case 'cash_out':
+      case 'cashier_withdrawal':
+      case 'table_buy_in': return 'text-red-400'; // Red for cash out/withdrawals
+      default: return 'text-slate-400';
     }
   };
 
   const getAmountPrefix = (type: string) => {
     switch (type) {
-      case 'add_credit': return '+';
-      case 'clear_credit': return '';
+      case 'add_credit': return '+'; // Positive for add credit
+      case 'clear_credit': return '-'; // Negative for clear credit
       case 'cash_in':
-      case 'table_cash_out': return '+';
-      default: return '-';
+      case 'table_cash_out':
+      case 'funds_added': return '+'; // Positive for funds added
+      case 'cash_out':
+      case 'cashier_withdrawal':
+      case 'table_buy_in': return '-'; // Negative for withdrawals
+      default: return '';
     }
   };
 

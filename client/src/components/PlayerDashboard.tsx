@@ -1224,7 +1224,38 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // PAN Card management
   const [panCardNumber, setPanCardNumber] = useState("");
-  const [showTransactions, setShowTransactions] = useState(false); // Changed from boolean to string to accommodate 'all' and 'last10'
+  const [showTransactions, setShowTransactions] = useState<'last10' | 'all' | null>(null);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
+
+  // Transaction color helpers
+  const getTransactionAmountColor = (type: string) => {
+    switch (type) {
+      case 'add_credit': return 'text-blue-400'; // Blue for add credit
+      case 'clear_credit': return 'text-orange-400'; // Orange for clear credit
+      case 'cash_in':
+      case 'table_cash_out': 
+      case 'funds_added': return 'text-emerald-400'; // Green for cash in/funds added
+      case 'cash_out':
+      case 'cashier_withdrawal':
+      case 'table_buy_in': return 'text-red-400'; // Red for cash out/withdrawals
+      default: return 'text-slate-400';
+    }
+  };
+
+  const getTransactionAmountPrefix = (type: string) => {
+    switch (type) {
+      case 'add_credit': return '+'; // Positive for add credit
+      case 'clear_credit': return '-'; // Negative for clear credit
+      case 'cash_in':
+      case 'table_cash_out':
+      case 'funds_added': return '+'; // Positive for funds added
+      case 'cash_out':
+      case 'cashier_withdrawal':
+      case 'table_buy_in': return '-'; // Negative for withdrawals
+      default: return '';
+    }
+  };
 
   // Seat selection state for waitlist
   const [showSeatDialog, setShowSeatDialog] = useState(false);
@@ -2458,7 +2489,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                     </div>
 
                     <Button 
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
                       onClick={handlePanCardUpdate}
                       disabled={updatePanCardMutation.isPending || !isValidPAN(panCardNumber)}
                     >
@@ -2628,8 +2659,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     </p>
                                   </div>
                                   <div className="text-right">
-                                    <p className={`text-sm font-medium ${transaction.amount >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                      {transaction.amount >= 0 ? '+' : ''}₹{Math.abs(transaction.amount)}
+                                    <p className={`text-sm font-medium ${getTransactionAmountColor(transaction.type)}`}>
+                                      {getTransactionAmountPrefix(transaction.type)}₹{Math.abs(transaction.amount)}
                                     </p>
                                     <p className="text-xs text-slate-400">{transaction.status}</p>
                                   </div>
