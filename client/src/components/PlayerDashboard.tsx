@@ -446,6 +446,33 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     staleTime: 0,
   });
 
+  // Check table status for waitlisted players
+  const { data: tableStatuses } = useQuery({
+    queryKey: ['/api/table-statuses', seatRequests?.map(req => req.tableId)],
+    queryFn: async () => {
+      if (!seatRequests || seatRequests.length === 0) return {};
+      
+      const statusPromises = seatRequests.map(async (req: any) => {
+        try {
+          const response = await fetch(`/api/table-status/${req.tableId}`);
+          if (response.ok) {
+            const status = await response.json();
+            return { [req.tableId]: status };
+          }
+        } catch (error) {
+          console.warn(`Failed to fetch status for table ${req.tableId}`);
+        }
+        return { [req.tableId]: null };
+      });
+
+      const statusResults = await Promise.all(statusPromises);
+      return statusResults.reduce((acc, curr) => ({ ...acc, ...curr }), {});
+    },
+    enabled: !!seatRequests && seatRequests.length > 0,
+    refetchInterval: 1000, // Check table statuses every second for waitlisted players
+    staleTime: 0,
+  });
+
   // Find current active session for playtime tracking
   const currentActiveSession = seatRequests?.find(req => 
     req.status === 'active' && req.sessionStartTime
@@ -1757,6 +1784,17 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             <div>
                               <h3 className="font-semibold text-white">{table.name}</h3>
                               <p className="text-sm text-slate-400">{table.gameType}</p>
+                              {/* Game Status Indicator */}
+                              <div className="flex items-center space-x-2 mt-1">
+                                <div className={`w-2 h-2 rounded-full ${
+                                  table.gameStarted ? 'bg-red-500' : 'bg-green-500'
+                                }`}></div>
+                                <span className={`text-xs ${
+                                  table.gameStarted ? 'text-red-400' : 'text-green-400'
+                                }`}>
+                                  {table.gameStarted ? 'Game In Progress' : 'Accepting Players'}
+                                </span>
+                              </div>
                             </div>
                             <div className="text-right">
                               <p className="text-sm text-slate-400">Stakes</p>
@@ -1787,6 +1825,16 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                   <span className="text-sm text-slate-400">
                                     Position: {getWaitListPosition(String(table.id))}
                                   </span>
+                                  {/* Show game status for waitlisted players */}
+                                  {tableStatuses?.[String(table.id)] && (
+                                    <div className="flex items-center space-x-1">
+                                      {tableStatuses[String(table.id)].gameStarted ? (
+                                        <span className="text-xs text-amber-400">⚠️ Game started</span>
+                                      ) : (
+                                        <span className="text-xs text-green-400">✅ Can join now</span>
+                                      )}
+                                    </div>
+                                  )}
                                   <Button
                                     onClick={() => handleLeaveWaitList(String(table.id))}
                                     disabled={leaveWaitListMutation.isPending}

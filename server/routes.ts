@@ -1550,7 +1550,14 @@ export function registerRoutes(app: Express) {
 
       const { data: tablesData, error } = await supabase
         .from('poker_tables')
-        .select('*')
+        .select(`
+          *,
+          game_status,
+          game_started,
+          game_start_time,
+          is_active,
+          last_updated
+        `)
         .order('name');
 
       console.log('🔍 [TABLES API PRODUCTION] Live poker tables from staff portal:', {
@@ -1576,7 +1583,10 @@ export function registerRoutes(app: Express) {
         maxPlayers: table.max_players || 9, // Use actual max from staff portal
         currentPlayers: table.current_players || 0, // Use actual data from staff portal
         waitingList: 0,
-        status: "active",
+        status: table.game_status || "active", // Use actual game status from staff portal
+        gameStarted: table.game_started || false, // Track if game has started
+        gameStartTime: table.game_start_time || null, // When the game started
+        isActive: table.is_active !== false, // Table availability
         pot: table.current_pot || 0, // Use actual pot from staff portal
         avgStack: table.avg_stack || 0 // Use actual data from staff portal - hidden in UI
       }));
@@ -3116,6 +3126,74 @@ export function registerRoutes(app: Express) {
         success: false,
         error: error.message
       });
+    }
+  });
+
+  // Check Table Game Status for Waitlisted Players
+  app.get("/api/table-status/:tableId", async (req, res) => {
+    try {
+      const { tableId } = req.params;
+      console.log(`🎮 [TABLE STATUS] Checking game status for table: ${tableId}`);
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Get table status and player count
+      const { data: tableData, error } = await supabase
+        .from('poker_tables')
+        .select(`
+          id, name, game_type, game_status, game_started, game_start_time,
+          current_players, max_players, is_active, last_updated
+        `)
+        .eq('id', tableId)
+        .single();
+
+      if (error || !tableData) {
+        console.error('❌ [TABLE STATUS] Table not found:', error);
+        return res.status(404).json({ error: 'Table not found' });
+      }
+
+      // Check waitlist count for this table
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+
+      const waitlistResult = await pgClient.query(
+        'SELECT COUNT(*) as waitlist_count FROM seat_requests WHERE table_id = $1 AND status = $2',
+        [tableId, 'waiting']
+      );
+
+      await pgClient.end();
+
+      const tableStatus = {
+        id: tableData.id,
+        name: tableData.name,
+        gameType: tableData.game_type,
+        gameStatus: tableData.game_status || 'waiting',
+        gameStarted: tableData.game_started || false,
+        gameStartTime: tableData.game_start_time,
+        currentPlayers: tableData.current_players || 0,
+        maxPlayers: tableData.max_players || 9,
+        waitlistCount: parseInt(waitlistResult.rows[0]?.waitlist_count || '0'),
+        isActive: tableData.is_active !== false,
+        canJoinNow: !tableData.game_started && tableData.current_players < tableData.max_players,
+        lastUpdated: tableData.last_updated || new Date().toISOString()
+      };
+
+      console.log(`✅ [TABLE STATUS] Table ${tableId} status:`, {
+        gameStarted: tableStatus.gameStarted,
+        canJoinNow: tableStatus.canJoinNow,
+        waitlistCount: tableStatus.waitlistCount
+      });
+
+      res.json(tableStatus);
+
+    } catch (error: any) {
+      console.error('❌ [TABLE STATUS] Error:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
 
