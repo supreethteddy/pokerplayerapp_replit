@@ -1091,7 +1091,7 @@ export function registerRoutes(app: Express) {
       });
 
       try {
-        // Direct SQL query to get chat requests
+        // Direct SQL query to get NON-RESOLVED chat requests only
         const requestsQuery = `
           SELECT cr.*,
                  json_agg(
@@ -1105,7 +1105,7 @@ export function registerRoutes(app: Express) {
                  ) FILTER (WHERE cm.id IS NOT NULL) as chat_messages
           FROM chat_requests cr
           LEFT JOIN chat_messages cm ON cr.id = cm.request_id
-          WHERE cr.player_id = $1
+          WHERE cr.player_id = $1 AND (cr.status != 'resolved' OR cr.status IS NULL)
           GROUP BY cr.id
           ORDER BY cr.created_at DESC
         `;
@@ -1114,7 +1114,7 @@ export function registerRoutes(app: Express) {
         const requests = result.rows;
 
         console.log(`🔍 [CHAT HISTORY FIXED] Direct PostgreSQL result:`, {
-          query: `chat_requests WHERE player_id = ${playerId}`,
+          query: `chat_requests WHERE player_id = ${playerId} AND status != 'resolved'`,
           result: requests,
           count: requests.length
         });
@@ -1127,7 +1127,7 @@ export function registerRoutes(app: Express) {
 
         await pool.end();
 
-        console.log(`✅ [CHAT HISTORY FIXED] Direct query result: ${requestsWithMessages.length} conversations`);
+        console.log(`✅ [CHAT HISTORY FIXED] Direct query result: ${requestsWithMessages.length} active conversations`);
         res.json({ success: true, conversations: requestsWithMessages });
         return;
 
@@ -1137,17 +1137,18 @@ export function registerRoutes(app: Express) {
         // Fall back to Supabase if PostgreSQL fails
       }
 
-      // Fallback: Original Supabase query
+      // Fallback: Original Supabase query with status filter
       console.log(`🔍 [CHAT HISTORY FIXED] Fallback to Supabase query for player_id: ${playerId}`);
 
       const { data: requests, error: requestsError } = await supabase
         .from('chat_requests')
         .select('*')
         .eq('player_id', playerId)
+        .neq('status', 'resolved') // Exclude resolved conversations
         .order('created_at', { ascending: false });
 
       console.log(`🔍 [CHAT HISTORY FIXED] Supabase fallback result:`, {
-        query: `chat_requests WHERE player_id = ${playerId}`,
+        query: `chat_requests WHERE player_id = ${playerId} AND status != 'resolved'`,
         result: requests,
         error: requestsError
       });
@@ -1165,18 +1166,18 @@ export function registerRoutes(app: Express) {
 
       // If no requests found, let's try a broader query to debug
       if (!requests || requests.length === 0) {
-        console.log(`🔍 [CHAT HISTORY DEBUG] No requests found for player ${playerId}, checking all players...`);
+        console.log(`🔍 [CHAT HISTORY DEBUG] No active requests found for player ${playerId}, checking all players...`);
         const { data: allRequests } = await supabase
           .from('chat_requests')
-          .select('player_id')
+          .select('player_id, status')
           .limit(10);
-        console.log(`🔍 [CHAT HISTORY DEBUG] Sample player_ids in database:`, allRequests?.map(r => r.player_id));
+        console.log(`🔍 [CHAT HISTORY DEBUG] Sample player_ids in database:`, allRequests?.map(r => ({ id: r.player_id, status: r.status })));
       }
 
       // Get messages for each request separately with debug logging
       const requestsWithMessages = [];
       for (const request of requests || []) {
-        console.log(`🔍 [CHAT HISTORY FIXED] Processing request:`, request.id);
+        console.log(`🔍 [CHAT HISTORY FIXED] Processing request:`, request.id, 'status:', request.status);
 
         const { data: messages, error: messagesError } = await supabase
           .from('chat_messages')
@@ -1196,7 +1197,7 @@ export function registerRoutes(app: Express) {
         });
       }
 
-      console.log(`✅ [CHAT HISTORY FIXED] Final result: ${requestsWithMessages.length} conversations for player ${playerId}`);
+      console.log(`✅ [CHAT HISTORY FIXED] Final result: ${requestsWithMessages.length} active conversations for player ${playerId}`);
       console.log(`✅ [CHAT HISTORY FIXED] Complete response:`, JSON.stringify(requestsWithMessages, null, 2));
 
       res.json({ success: true, conversations: requestsWithMessages });
@@ -1225,8 +1226,67 @@ export function registerRoutes(app: Express) {
   app.get("/api/chat-history/:playerId", async (req, res) => {
     try {
       const playerId = parseInt(req.params.playerId);
-      const result = await directChat.getChatHistory(playerId);
-      res.json(result);
+      console.log(`📚 [CHAT HISTORY] Loading for player ${playerId} - filtering active conversations only`);
+      
+      // Use direct PostgreSQL query to get only active (non-resolved) conversations
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      try {
+        // Get active chat sessions (not resolved)
+        const sessionsQuery = `
+          SELECT * FROM chat_sessions 
+          WHERE player_id = $1 AND (status != 'resolved' OR status IS NULL)
+          ORDER BY created_at DESC
+        `;
+        
+        const sessionsResult = await pool.query(sessionsQuery, [playerId]);
+        const sessions = sessionsResult.rows;
+
+        // Get messages for active sessions
+        const conversations = [];
+        for (const session of sessions) {
+          const messagesQuery = `
+            SELECT * FROM chat_messages 
+            WHERE player_id = $1 
+            ORDER BY timestamp ASC
+          `;
+          
+          const messagesResult = await pool.query(messagesQuery, [playerId]);
+          const messages = messagesResult.rows;
+
+          if (messages.length > 0) {
+            conversations.push({
+              id: session.id,
+              subject: `Chat with ${session.player_name}`,
+              status: session.status || 'pending',
+              created_at: session.created_at,
+              chat_messages: messages
+            });
+          }
+        }
+
+        await pool.end();
+
+        console.log(`✅ [CHAT HISTORY] Found ${conversations.length} active conversations with ${conversations.reduce((total, conv) => total + conv.chat_messages.length, 0)} total messages`);
+        
+        res.json({ 
+          success: true, 
+          conversations: conversations 
+        });
+
+      } catch (dbError: any) {
+        await pool.end();
+        console.error('❌ [CHAT HISTORY] Database error:', dbError);
+        
+        // Fallback to directChat if PostgreSQL fails
+        const result = await directChat.getChatHistory(playerId);
+        res.json(result);
+      }
+      
     } catch (error: any) {
       console.error('❌ [DIRECT HISTORY] Error:', error);
       res.status(500).json({ error: error.message });
@@ -1921,6 +1981,71 @@ export function registerRoutes(app: Express) {
   });
 
   // REMOVED: Duplicate endpoint - using unified clear above
+
+  // Mark chat conversation as resolved
+  app.post("/api/chat/resolve-conversation", async (req, res) => {
+    try {
+      const { playerId, sessionId, resolvedBy, notes } = req.body;
+      console.log(`✅ [CHAT RESOLVE] Resolving conversation for player ${playerId}`);
+
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      try {
+        // Update chat session status to resolved
+        const updateSessionQuery = `
+          UPDATE chat_sessions 
+          SET status = 'resolved', 
+              resolved_at = NOW(),
+              updated_at = NOW()
+          WHERE player_id = $1 AND (status != 'resolved' OR status IS NULL)
+        `;
+        
+        await pool.query(updateSessionQuery, [playerId]);
+
+        // Also update any chat_requests if they exist
+        const updateRequestsQuery = `
+          UPDATE chat_requests 
+          SET status = 'resolved',
+              updated_at = NOW()
+          WHERE player_id = $1 AND (status != 'resolved' OR status IS NULL)
+        `;
+        
+        await pool.query(updateRequestsQuery, [playerId]);
+
+        await pool.end();
+
+        // Notify player via Pusher that conversation is resolved
+        await pusher.trigger(`player-${playerId}`, 'chat-status-updated', {
+          playerId: playerId,
+          status: 'resolved',
+          resolvedBy: resolvedBy || 'Staff',
+          notes: notes || 'Conversation resolved',
+          timestamp: new Date().toISOString()
+        });
+
+        console.log(`✅ [CHAT RESOLVE] Conversation resolved for player ${playerId}`);
+        res.json({
+          success: true,
+          message: 'Conversation marked as resolved',
+          playerId: playerId,
+          status: 'resolved'
+        });
+
+      } catch (dbError: any) {
+        await pool.end();
+        console.error('❌ [CHAT RESOLVE] Database error:', dbError);
+        res.status(500).json({ error: 'Failed to resolve conversation' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [CHAT RESOLVE] Error:', error);
+      res.status(500).json({ error: 'Failed to resolve conversation' });
+    }
+  });
 
   // Real-time Chat Connectivity Test - PRODUCTION DIAGNOSTIC
   app.post("/api/unified-chat/test-connection", async (req, res) => {

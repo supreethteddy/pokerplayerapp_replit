@@ -36,6 +36,53 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
     scrollToBottom();
   }, [messages]);
 
+  // Load messages function that can be called whenever chat opens
+  const loadChatHistory = async () => {
+    try {
+      console.log('📚 [PLAYER CHAT] Loading chat history for player:', playerId);
+      const response = await fetch(`/api/chat-history/${playerId}`);
+      const data = await response.json();
+      
+      if (data.success && data.conversations && data.conversations.length > 0) {
+        // Get all messages from all active conversations (not resolved)
+        const allMessages: ChatMessage[] = [];
+        
+        data.conversations.forEach((conversation: any) => {
+          if (conversation.status !== 'resolved') { // Only load non-resolved conversations
+            const conversationMessages = conversation.chat_messages?.map((msg: any) => ({
+              id: msg.id,
+              message: msg.message_text,
+              sender: msg.sender as 'player' | 'staff',
+              sender_name: msg.sender_name,
+              timestamp: msg.timestamp,
+              isFromStaff: msg.sender === 'staff'
+            })) || [];
+            
+            allMessages.push(...conversationMessages);
+          }
+        });
+        
+        // Sort messages by timestamp
+        allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        
+        setMessages(allMessages);
+        console.log('✅ [PLAYER CHAT] Loaded', allMessages.length, 'messages from active conversations');
+        
+        // Update session status based on latest conversation
+        const latestConversation = data.conversations[0];
+        if (latestConversation && latestConversation.status !== 'resolved') {
+          setSessionStatus(latestConversation.status || 'pending');
+        }
+      } else {
+        console.log('📚 [PLAYER CHAT] No active conversations found');
+        setMessages([]);
+        setSessionStatus('none');
+      }
+    } catch (error) {
+      console.error('❌ [PLAYER CHAT] Failed to load messages:', error);
+    }
+  };
+
   useEffect(() => {
     if (!playerId || !playerName) return;
     
@@ -136,34 +183,18 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
       console.log('📊 [PLAYER CHAT] Status updated:', data);
       if (data.playerId == playerId) {
         setSessionStatus(data.status || 'active');
+        
+        // If conversation is resolved, clear messages
+        if (data.status === 'resolved') {
+          console.log('✅ [PLAYER CHAT] Conversation resolved, clearing messages');
+          setMessages([]);
+          setSessionStatus('none');
+        }
       }
     });
 
-    // Load existing messages
-    const loadExistingMessages = async () => {
-      try {
-        console.log('📚 [PLAYER CHAT] Loading existing messages for player:', playerId);
-        const response = await fetch(`/api/chat-history/${playerId}`);
-        const data = await response.json();
-        
-        if (data.success && data.conversations && data.conversations[0]) {
-          const formattedMessages: ChatMessage[] = data.conversations[0].chat_messages.map((msg: any) => ({
-            id: msg.id,
-            message: msg.message_text,
-            sender: msg.sender as 'player' | 'staff',
-            sender_name: msg.sender_name,
-            timestamp: msg.timestamp,
-            isFromStaff: msg.sender === 'staff'
-          }));
-          setMessages(formattedMessages);
-          console.log('✅ [PLAYER CHAT] Loaded', formattedMessages.length, 'messages');
-        }
-      } catch (error) {
-        console.error('❌ [PLAYER CHAT] Failed to load messages:', error);
-      }
-    };
-    
-    loadExistingMessages();
+    // Load existing messages on initialization
+    loadChatHistory();
     
     return () => {
       pusher.unsubscribe(`player-${playerId}`);
@@ -171,6 +202,13 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
       pusher.disconnect();
     };
   }, [playerId, playerName]);
+
+  // Load messages whenever dialog opens (if in dialog mode)
+  useEffect(() => {
+    if (isInDialog && playerId) {
+      loadChatHistory();
+    }
+  }, [isInDialog, playerId]);
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !isConnected) return;
