@@ -3309,19 +3309,44 @@ export function registerRoutes(app: Express) {
       });
 
       try {
-        // Query for notifications using actual schema structure - handle all target audience types
+        // First, check if current player qualifies for "registered_players" audience
+        const playerCheckQuery = `
+          SELECT kyc_status, last_login_at
+          FROM players 
+          WHERE id = $1
+        `;
+        
+        const playerResult = await pool.query(playerCheckQuery, [playerId]);
+        const player = playerResult.rows[0];
+        
+        if (!player) {
+          await pool.end();
+          return res.status(404).json({ error: 'Player not found' });
+        }
+
+        const isRegisteredPlayer = player.kyc_status === 'verified';
+        const isActivePlayer = player.last_login_at && 
+          new Date(player.last_login_at) > new Date(Date.now() - 15 * 60 * 1000); // Active within last 15 minutes
+
+        // Build audience filter based on player qualifications
+        let audienceConditions = ['target_audience = \'all_players\''];
+        
+        if (isRegisteredPlayer) {
+          audienceConditions.push('target_audience = \'registered_players\'');
+        }
+        
+        if (isActivePlayer) {
+          audienceConditions.push('target_audience = \'active_players\'');
+        }
+
+        // Query for notifications using actual schema structure
         const query = `
           SELECT id, title, message, target_audience, sent_by, sent_by_name, 
                  sent_by_role, media_type, media_url, media_description,
                  recipients_count, delivery_status, created_at, sent_at,
                  scheduled_for, expires_at
           FROM push_notifications
-          WHERE (
-            target_audience = 'all_players' 
-            OR target_audience = 'registered_players'
-            OR target_audience = $1::text
-            OR target_audience IS NULL
-          )
+          WHERE (${audienceConditions.join(' OR ')})
             AND created_at >= NOW() - INTERVAL '7 days'
             AND (expires_at IS NULL OR expires_at > NOW())
             AND delivery_status = 'sent'
@@ -3329,7 +3354,7 @@ export function registerRoutes(app: Express) {
           LIMIT 50
         `;
 
-        const result = await pool.query(query, [playerId.toString()]);
+        const result = await pool.query(query);
         await pool.end();
 
         const notifications = result.rows.map(row => ({
@@ -3356,7 +3381,12 @@ export function registerRoutes(app: Express) {
           status: row.delivery_status || 'sent'
         }));
 
-        console.log(`✅ [PUSH NOTIFICATIONS] Found ${notifications.length} notifications for player ${playerId}`);
+        console.log(`✅ [PUSH NOTIFICATIONS] Found ${notifications.length} notifications for player ${playerId}`, {
+          isRegisteredPlayer,
+          isActivePlayer,
+          kycStatus: player.kyc_status,
+          lastLogin: player.last_login_at
+        });
         res.json(notifications);
 
       } catch (dbError: any) {

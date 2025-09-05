@@ -122,9 +122,14 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onD
                     <span className="font-medium">
                       {notification.senderName || 'Unknown'} ({notification.senderRole || 'System'})
                     </span>
-                    <span className="uppercase font-bold text-xs">
-                      {priority.toUpperCase()}
-                    </span>
+                    <div className="text-right">
+                      <div className="uppercase font-bold text-xs">
+                        {priority.toUpperCase()}
+                      </div>
+                      <div className="text-xs opacity-75">
+                        {((notification as any).targetAudience || 'all').replace('_', ' ')}
+                      </div>
+                    </div>
                   </div>
                   {notification.mediaUrl && (
                     <div className="mt-2">
@@ -189,7 +194,20 @@ export const PushNotificationManager: React.FC = () => {
         const response = await fetch(`/api/push-notifications/${user.id}`);
         if (response.ok) {
           const data = await response.json();
-          console.log(`🔔 [NOTIFICATION DEBUG] Received ${data.length} notifications:`, data);
+          console.log(`🔔 [NOTIFICATION DEBUG] Received ${data.length} notifications for user ${user.id}:`, {
+          total: data.length,
+          byAudience: data.reduce((acc: any, notif: any) => {
+            const audience = notif.targetAudience || 'unknown';
+            acc[audience] = (acc[audience] || 0) + 1;
+            return acc;
+          }, {}),
+          notifications: data.map((n: any) => ({
+            id: n.id,
+            title: n.title,
+            audience: n.targetAudience,
+            priority: n.priority
+          }))
+        });
 
           // Show notifications from the last 24 hours (more reasonable timeframe)
           const recentNotifications = data.filter((notif: any) => {
