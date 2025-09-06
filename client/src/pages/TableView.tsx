@@ -51,11 +51,23 @@ export default function TableView() {
     staleTime: 10000, // Consider data fresh for 10 seconds
   });
 
+  // Query to check if current user is seated at this table
+  const { data: userSeatedInfo } = useQuery({
+    queryKey: ['/api/table-seats', user?.id],
+    enabled: !!user?.id && !!tableId,
+    refetchInterval: 10000,
+  });
+
   // Add type safety for seatedPlayers array
   const seatedPlayersArray = Array.isArray(seatedPlayers) ? seatedPlayers : [];
 
   const isOnWaitlist = waitlistArray.some((req: any) => req.tableId === tableId);
   const waitlistEntry = waitlistArray.find((req: any) => req.tableId === tableId);
+
+  // Check if current user is seated at this table
+  const userSeatedArray = Array.isArray(userSeatedInfo) ? userSeatedInfo : [];
+  const userSeatInfo = userSeatedArray.find((seat: any) => seat.tableId === tableId && seat.status === 'seated');
+  const isUserSeated = !!userSeatInfo;
 
   // Join waitlist with seat reservation
   const joinWaitlistMutation = useMutation({
@@ -210,6 +222,9 @@ export default function TableView() {
                   // Check if this seat is occupied by a seated player
                   const seatedPlayer = seatedPlayersArray.find((p: any) => p.seatNumber === seatNumber);
                   const isOccupied = !!seatedPlayer;
+                  
+                  // Show detailed player info when seated
+                  const playerBuyIn = seatedPlayer?.session_buy_in_amount || seatedPlayer?.sessionBuyInAmount || 0;
 
                   return (
                     <div
@@ -253,15 +268,22 @@ export default function TableView() {
                           }`} />
                         )}
                       </div>
-                      {/* Seat Label */}
-                      <div className={`absolute -bottom-5 left-1/2 transform -translate-x-1/2 text-xs font-medium transition-colors ${
+                      {/* Seat Label with Enhanced Info */}
+                      <div className={`absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-center transition-colors ${
                         isOccupied 
                           ? 'text-blue-400' 
                           : isSelected 
                             ? 'text-emerald-400' 
                             : 'text-slate-300'
                       }`}>
-                        {isOccupied ? seatedPlayer.player.firstName : `Seat ${seatNumber}`}
+                        <div className="text-xs font-medium">
+                          {isOccupied ? seatedPlayer.player.firstName : `Seat ${seatNumber}`}
+                        </div>
+                        {isOccupied && playerBuyIn > 0 && (
+                          <div className="text-[10px] text-slate-400 bg-slate-800/80 px-1 rounded mt-1">
+                            ₹{playerBuyIn.toLocaleString()}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -330,10 +352,106 @@ export default function TableView() {
           </Card>
         </div>
 
+        {/* Seated Player Controls - Call Time & Session Info */}
+        {isUserSeated && userSeatInfo && (
+          <div className="mt-8 w-full max-w-4xl">
+            <Card className="bg-gradient-to-r from-blue-800 to-blue-900 border-blue-600">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                    <h3 className="text-xl font-bold text-blue-200">
+                      You are seated at Seat {userSeatInfo.seatNumber}
+                    </h3>
+                  </div>
+                  <div className="text-blue-300 text-sm">
+                    Session: {Math.floor((Date.now() - new Date(userSeatInfo.session_start_time || userSeatInfo.sessionStartTime).getTime()) / 60000)} min
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Buy-in Info */}
+                  <div className="bg-blue-900/50 rounded-lg p-4 border border-blue-700">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <DollarSign className="w-5 h-5 text-emerald-400" />
+                      <span className="text-blue-200 font-semibold">Session Buy-in</span>
+                    </div>
+                    <div className="text-2xl font-bold text-white">
+                      ₹{(userSeatInfo.session_buy_in_amount || userSeatInfo.sessionBuyInAmount || 0).toLocaleString()}
+                    </div>
+                  </div>
+
+                  {/* Call Time Status */}
+                  <div className="bg-blue-900/50 rounded-lg p-4 border border-blue-700">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Clock className="w-5 h-5 text-yellow-400" />
+                      <span className="text-blue-200 font-semibold">Call Time</span>
+                    </div>
+                    <div className="text-lg font-bold text-white">
+                      {userSeatInfo.call_time_started ? (
+                        <div className="text-red-400">Active</div>
+                      ) : (
+                        <div className="text-green-400">Available</div>
+                      )}
+                    </div>
+                    {userSeatInfo.call_time_started && userSeatInfo.call_time_ends && (
+                      <div className="text-sm text-blue-300 mt-1">
+                        Ends: {new Date(userSeatInfo.call_time_ends).toLocaleTimeString()}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Cashout Window */}
+                  <div className="bg-blue-900/50 rounded-lg p-4 border border-blue-700">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <ArrowLeft className="w-5 h-5 text-purple-400" />
+                      <span className="text-blue-200 font-semibold">Cash Out</span>
+                    </div>
+                    <div className="text-lg font-bold text-white">
+                      {userSeatInfo.cashout_window_active ? (
+                        <div className="text-green-400">Available</div>
+                      ) : (
+                        <div className="text-slate-400">Pending</div>
+                      )}
+                    </div>
+                    {userSeatInfo.cashout_window_active && userSeatInfo.cashout_window_ends && (
+                      <div className="text-sm text-blue-300 mt-1">
+                        Until: {new Date(userSeatInfo.cashout_window_ends).toLocaleTimeString()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Buttons for Seated Players */}
+                <div className="flex justify-center space-x-4 mt-6">
+                  <Button
+                    variant="outline"
+                    className="bg-yellow-600 hover:bg-yellow-700 text-white border-yellow-500"
+                    disabled={!!userSeatInfo.call_time_started}
+                  >
+                    <Clock className="w-4 h-4 mr-2" />
+                    {userSeatInfo.call_time_started ? 'Call Time Active' : 'Request Call Time'}
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    className="bg-purple-600 hover:bg-purple-700 text-white border-purple-500"
+                    disabled={!userSeatInfo.cashout_window_active}
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    {userSeatInfo.cashout_window_active ? 'Cash Out' : 'Cash Out Unavailable'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Seat Selection and Join Controls */}
-        <div className="mt-8 text-center">
-          {selectedSeat ? (
-            <div className="space-y-4">
+        {!isUserSeated && (
+          <div className="mt-8 text-center">
+            {selectedSeat ? (
+              <div className="space-y-4">
               <div className="bg-slate-800 border border-emerald-500/50 rounded-lg p-4 max-w-md mx-auto">
                 <h3 className="text-emerald-400 font-semibold mb-2">Seat {selectedSeat} Selected</h3>
                 <p className="text-slate-300 text-sm mb-2">Reserve this seat position for {currentTable?.name}</p>
@@ -370,7 +488,8 @@ export default function TableView() {
               <p className="text-slate-400 text-xs mt-2">Staff will manage final table assignments</p>
             </div>
           )}
-        </div>
+          </div>
+        )}
 
         {/* Info Text */}
         <div className="mt-8 text-center text-slate-400">
