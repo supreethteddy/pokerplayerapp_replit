@@ -1503,11 +1503,12 @@ export function registerRoutes(app: Express) {
         });
       }
 
-      const player = {
+      const transformedPlayer = {
         id: playerData.id,
         email: playerData.email,
         firstName: playerData.first_name,
         lastName: playerData.last_name,
+        nickname: playerData.nickname,
         phone: playerData.phone || '',
         kycStatus: playerData.kyc_status,
         balance: playerData.balance,
@@ -1528,8 +1529,8 @@ export function registerRoutes(app: Express) {
         authToken: playerData.supabase_id
       };
 
-      console.log(`🎯 [ENTERPRISE PLAYER] Enterprise lookup successful: ${player.email} (ID: ${player.id}, KYC: ${player.kycStatus})`);
-      res.json(player);
+      console.log(`🎯 [ENTERPRISE PLAYER] Enterprise lookup successful: ${transformedPlayer.email} (ID: ${transformedPlayer.id}, KYC: ${transformedPlayer.kycStatus})`);
+      res.json(transformedPlayer);
 
     } catch (error: any) {
       console.error('❌ [ENTERPRISE PLAYER] Critical error:', error);
@@ -2840,8 +2841,8 @@ export function registerRoutes(app: Express) {
         email: newPlayerData.email,
         firstName: newPlayerData.first_name,
         lastName: newPlayerData.last_name,
-        fullName: newPlayerData.full_name || `${newPlayerData.first_name} ${newPlayerData.last_name}`.trim(),
-        nickname: newPlayerData.nickname || nickname?.trim() || firstName,
+        fullName: newPlayerData.full_name,
+        nickname: newPlayerData.nickname,
         playerId: newPlayerData.id,
         kycStatus: newPlayerData.kyc_status,
         balance: newPlayerData.balance,

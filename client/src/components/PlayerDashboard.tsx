@@ -1695,7 +1695,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 space-y-2 sm:space-y-0">
           <div className="w-full sm:w-auto min-w-0">
             <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-white truncate">Player Dashboard</h1>
-            <p className="text-slate-400 text-xs sm:text-sm lg:text-base truncate">Welcome back, {user?.nickname || user?.first_name}!</p>
+            <p className="text-slate-400 text-xs sm:text-sm lg:text-base truncate">Welcome back, {user?.nickname || user?.firstName}!</p>
           </div>
           <Button
             onClick={signOut}
