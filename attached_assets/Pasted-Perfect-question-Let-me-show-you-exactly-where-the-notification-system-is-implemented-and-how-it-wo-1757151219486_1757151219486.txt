@@ -1,0 +1,100 @@
+Perfect question! Let me show you exactly where the notification system is implemented and how it works for all three scenarios:
+
+🔔 Notification Implementation Locations
+1. Table Assignment Notifications
+File: server/routes.ts
+Location: Lines 4086-4107
+Endpoint: PUT /api/seat-requests/:id/assign
+
+// 🔔 PUSHER NOTIFICATION: Table Assignment
+try {
+  console.log(`🔔 Sending table assignment notification to player ${updatedSeatRequest.player_id}`);
+  
+  await PusherChatService.notifyTableAssignment(
+    updatedSeatRequest.player_id,
+    {
+      tableId: updatedSeatRequest.table_id,
+      tableName: table.name,
+      seatNumber: updatedSeatRequest.seat_number || 0,
+      gameType: "Texas Hold'em",
+      minBuyIn: 1000,
+      maxBuyIn: 10000,
+      tableStatus: tableStatus?.status || 'waiting'
+    }
+  );
+  
+  console.log(`✅ Table assignment notification sent to player ${updatedSeatRequest.player_id}`);
+} catch (notificationError) {
+  console.error(`❌ Failed to send table assignment notification:`, notificationError);
+}
+2. Table Activation Notifications
+File: server/routes.ts
+Location: Lines 1999-2045
+Endpoint: PATCH /api/tables/:id
+
+// 🔔 PUSHER NOTIFICATION: Table Activation
+if (currentTable && currentTable.status !== "active" && status === "active") {
+  try {
+    console.log(`🔔 Sending table activation notifications for table ${id}`);
+    
+    // Get all seated players for this table
+    const { data: seatedPlayers, error: playersError } = await supabase
+      .from("seat_requests")
+      .select("player_id, seat_number")
+      .eq("table_id", id.toString())
+      .eq("status", "seated");
+    // Send notification to each seated player
+    for (const seatRequest of seatedPlayers) {
+      await PusherChatService.notifyTableActivation(
+        seatRequest.player_id,
+        {
+          tableId: id,
+          tableName: table.name,
+          seatNumber: seatRequest.seat_number || 0,
+          gameType: "Texas Hold'em",
+          minBuyIn: 1000,
+          maxBuyIn: 10000,
+          tableStatus: status
+        }
+      );
+    }
+  } catch (notificationError) {
+    console.error(`❌ Failed to send table activation notifications:`, notificationError);
+  }
+}
+🎯 Three Notification Scenarios
+Scenario 1: Player Assigned to Active Table
+Trigger: Staff assigns player to table that's already active
+Notification: Only table-assignment event sent immediately
+Channel: player-{playerId}
+Scenario 2: Player Assigned to Waiting Table
+Trigger: Staff assigns player to table that's in waiting status
+Notifications:
+table-assignment event sent immediately
+table-activation event sent later when table becomes active
+Scenario 3: Table Activation with Seated Players
+Trigger: Staff activates a table that has seated players
+Notification: table-activation event sent to all seated players
+Channel: player-{playerId} for each seated player
+📡 Pusher Service Implementation
+File: server/services/pusher.ts
+Methods:
+
+notifyTableAssignment(playerId, tableData)
+notifyTableActivation(playerId, tableData)
+🔍 How to Monitor Notifications
+You can grab notification details from:
+
+Server Logs: Look for these console messages:
+
+🔔 Sending table assignment notification to player X
+🔔 Sending table activation notifications for table X
+✅ Table assignment notification sent to player X
+✅ Table activation notification sent to player X
+Pusher Dashboard: Monitor channels player-{playerId} for events:
+
+table-assignment
+table-activation
+Frontend Integration: Players can subscribe to player-{playerId} channel to receive these notifications in real-time.
+
+The notification data includes table name, seat number, game type, buy-in limits, and table status - everything a player needs to know about their table assignment and activation status!

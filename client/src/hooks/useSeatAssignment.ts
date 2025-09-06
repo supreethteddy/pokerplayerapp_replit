@@ -3,12 +3,14 @@ import { useLocation } from 'wouter';
 import Pusher from 'pusher-js';
 import { useToast } from '@/hooks/use-toast';
 
-interface SeatAssignmentData {
+interface TableNotificationData {
   tableId: string;
+  tableName: string;
   seatNumber: number;
-  assignedBy: string;
-  assignedAt: string;
-  message: string;
+  gameType: string;
+  minBuyIn: number;
+  maxBuyIn: number;
+  tableStatus: string;
 }
 
 export function useSeatAssignment(playerId: string | number) {
@@ -50,14 +52,14 @@ export function useSeatAssignment(playerId: string | number) {
     // Subscribe to player-specific channel for seat assignments
     const playerChannel = pusherRef.current.subscribe(`player-${playerId}`);
 
-    // Listen for seat assignment events
-    playerChannel.bind('seat-assigned', (data: SeatAssignmentData) => {
-      console.log('🪑 [SEAT ASSIGNMENT] Player assigned to seat:', data);
+    // Listen for table assignment events (player assigned to table)
+    playerChannel.bind('table-assignment', (data: TableNotificationData) => {
+      console.log('🪑 [TABLE ASSIGNMENT] Player assigned to table:', data);
 
       // Show notification to player
       toast({
         title: "🪑 Seat Assigned!",
-        description: `You have been assigned to seat ${data.seatNumber}. Taking you to the table...`,
+        description: `You've been assigned to seat ${data.seatNumber} at ${data.tableName}. Taking you to the table...`,
         duration: 5000,
       });
 
@@ -67,7 +69,24 @@ export function useSeatAssignment(playerId: string | number) {
       }, 2000);
     });
 
-    console.log(`📡 [SEAT ASSIGNMENT] Listening for seat assignments on player-${playerId}`);
+    // Listen for table activation events (table becomes active)
+    playerChannel.bind('table-activation', (data: TableNotificationData) => {
+      console.log('🚀 [TABLE ACTIVATION] Table became active:', data);
+
+      // Show notification to player
+      toast({
+        title: "🚀 Table Active!",
+        description: `${data.tableName} is now active! Game starting at seat ${data.seatNumber}...`,
+        duration: 5000,
+      });
+
+      // Wait a moment for the user to see the notification, then navigate
+      setTimeout(() => {
+        setLocation(`/table/${data.tableId}`);
+      }, 2000);
+    });
+
+    console.log(`📡 [TABLE NOTIFICATIONS] Listening for table-assignment and table-activation events on player-${playerId}`);
 
     // Cleanup function
     return () => {
