@@ -2031,12 +2031,27 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     Leave
                                   </Button>
                                 </>
+                              ) : gameStatus.isInActiveGame ? (
+                                <div className="flex flex-col space-y-2">
+                                  <Button
+                                    disabled={true}
+                                    size="sm"
+                                    className="bg-slate-600 text-slate-400 cursor-not-allowed opacity-50"
+                                  >
+                                    <AlertTriangle className="w-4 h-4 mr-2" />
+                                    Cannot Join - Playing at Another Table
+                                  </Button>
+                                  <div className="text-xs text-amber-400 flex items-center">
+                                    <AlertTriangle className="w-3 h-3 mr-1" />
+                                    Cash out from {gameStatus.activeGameInfo?.tableName} first
+                                  </div>
+                                </div>
                               ) : (
                                 <Button
                                   onClick={() => handleJoinWaitList(String(table.id))}
-                                  disabled={joinWaitListMutation.isPending}
+                                  disabled={joinWaitListMutation.isPending || gameStatus.isInActiveGame}
                                   size="sm"
-                                  className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 border border-emerald-500/30 backdrop-blur-sm"
+                                  className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 border border-emerald-500/30 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   {joinWaitListMutation.isPending ? (
                                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />

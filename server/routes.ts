@@ -3453,6 +3453,28 @@ export function registerRoutes(app: Express) {
       await pgClient.connect();
 
       try {
+        // GAME RESTRICTION VALIDATION: Check if player is already seated at any active table
+        const seatedCheck = await pgClient.query(`
+          SELECT sr.table_id, pt.name as table_name, pt.status 
+          FROM seat_requests sr
+          JOIN poker_tables pt ON sr.table_id = pt.id
+          WHERE sr.player_id = $1 AND sr.status = 'active' AND pt.status = 'active'
+        `, [playerId]);
+
+        if (seatedCheck.rows.length > 0) {
+          const activeGame = seatedCheck.rows[0];
+          await pgClient.end();
+          return res.status(409).json({
+            error: 'Cannot join waitlist while seated at an active table',
+            restriction: 'ACTIVE_GAME',
+            activeTable: {
+              id: activeGame.table_id,
+              name: activeGame.table_name,
+              status: activeGame.status
+            },
+            message: `You are currently seated at ${activeGame.table_name}. Please cash out before joining another waitlist.`
+          });
+        }
         // Check if player already on waitlist for this table
         const existingCheck = await pgClient.query(
           'SELECT id FROM seat_requests WHERE player_id = $1 AND table_id = $2',
