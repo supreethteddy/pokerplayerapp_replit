@@ -64,6 +64,7 @@ import PlayerChatSystem from "./PlayerChatSystem";
 import NotificationHistoryTab from "./NotificationHistoryTab";
 import FoodBeverageTab from "./FoodBeverageTab";
 import { useSeatAssignment } from "@/hooks/useSeatAssignment";
+import { usePlayerGameStatus } from "@/hooks/usePlayerGameStatus";
 
 
 // Scrollable Offers Display Component
@@ -384,6 +385,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Initialize seat assignment listener
   useSeatAssignment(user?.id);
+
+  // Get player game status for restrictions and active game display
+  const gameStatus = usePlayerGameStatus();
+
   const [showTournaments, setShowTournaments] = useState(false);
 
   // Chat Dialog state
@@ -1627,6 +1632,64 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               <X className="w-4 h-4" />
             </Button>
           </div>
+        </div>
+      )}
+
+      {/* Active Game Status Banner */}
+      {gameStatus.activeGameInfo && (
+        <div className={`border-b px-6 py-4 ${
+          gameStatus.isInActiveGame 
+            ? 'bg-gradient-to-r from-amber-600 to-amber-700 border-amber-500' 
+            : 'bg-gradient-to-r from-emerald-600 to-emerald-700 border-emerald-500'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className={`p-2 rounded-full ${
+                gameStatus.isInActiveGame ? 'bg-amber-500' : 'bg-emerald-500'
+              }`}>
+                <Play className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-white font-bold text-lg">
+                    {gameStatus.isInActiveGame ? '🎮 CURRENTLY PLAYING' : '⏳ WAITING FOR GAME'}
+                  </span>
+                  {gameStatus.activeGameInfo.seatNumber && (
+                    <Badge className="bg-white text-slate-900 font-bold">
+                      Seat #{gameStatus.activeGameInfo.seatNumber}
+                    </Badge>
+                  )}
+                </div>
+                <div className="text-white/90 text-sm">
+                  <span className="font-medium">{gameStatus.activeGameInfo.tableName}</span> • 
+                  <span className="ml-1">{gameStatus.activeGameInfo.gameType}</span>
+                  {gameStatus.activeGameInfo.position && gameStatus.activeGameInfo.position > 0 && (
+                    <span className="ml-1">• Position #{gameStatus.activeGameInfo.position}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <Link href={`/table/${gameStatus.activeGameInfo.tableId}`}>
+              <Button 
+                className={`${
+                  gameStatus.isInActiveGame 
+                    ? 'bg-white text-amber-700 hover:bg-amber-50' 
+                    : 'bg-white text-emerald-700 hover:bg-emerald-50'
+                } font-semibold px-6`}
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                {gameStatus.isInActiveGame ? 'View Game' : 'View Table'}
+              </Button>
+            </Link>
+          </div>
+          {gameStatus.isInActiveGame && gameStatus.restrictionMessage && (
+            <div className="mt-3 p-3 bg-amber-500/20 rounded-lg border border-amber-400/30">
+              <div className="flex items-center text-white">
+                <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0" />
+                <span className="text-sm font-medium">{gameStatus.restrictionMessage}</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
