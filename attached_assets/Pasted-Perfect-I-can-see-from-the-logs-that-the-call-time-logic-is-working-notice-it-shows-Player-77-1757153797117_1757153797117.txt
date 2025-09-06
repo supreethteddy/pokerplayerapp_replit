@@ -1,0 +1,113 @@
+Perfect! I can see from the logs that the call time logic is working - notice it shows "📊 Player 77: Session 50m, Call time eligible: true". Let me explain the detailed call time and cash out logic implementation:
+
+
+Executed rg -n 'call.*time.*request|cashout.*request' . | head -n 10
+
+Decided on call time explanation (5 seconds)
+🎯 COMPREHENSIVE CALL TIME & CASH OUT LOGIC
+Perfect! I can see from the logs that Player 77 has been seated for 51 minutes and shows "Call time eligible: true". Let me explain the detailed logic based on the live system data:
+
+📊 Current Live Example
+From the logs we can see:
+
+Player: itshakverified (ID: 77)
+Session Duration: 51 minutes
+Status: Call time eligible ✅
+Configuration: 30min minimum play, 10min call window, 3min cashout window
+🕒 Call Time Eligibility Logic
+File: server/routes.ts (Lines 3688-3689)
+
+callTimeEligible: entry.status === 'seated' && 
+                 entry.session_start_time && 
+                 table?.status === 'active' &&
+                 ((new Date().getTime() - new Date(entry.session_start_time).getTime()) / (1000 * 60)) >= (entry.min_play_time_minutes || 30)
+Four Conditions Must Be Met:
+Player Status: Must be seated (not waiting)
+Session Started: Must have session_start_time timestamp
+Table Active: Table status must be active
+Minimum Time: Must have played ≥ minimum time (default 30 minutes)
+⏰ Timing Configuration
+Setting	Default	Description
+minPlayTimeMinutes	30	Minimum time before call time is allowed
+callTimeWindowMinutes	10	Duration player has to make decision
+cashoutWindowMinutes	3	Window after call time for cash out
+🎮 Call Time Process Flow
+Phase 1: Eligibility Check
+Player seated ≥ 30 minutes → Eligible ✅
+"Request Call Time" button becomes active
+System shows green indicator
+Phase 2: Call Time Request
+Player clicks "Request Call Time"
+call_time_started timestamp set
+call_time_ends calculated (start + 10 minutes)
+Manager/Staff receives notification
+Player has 10 minutes to decide
+Phase 3: Decision Window
+During 10-minute call time:
+
+Player can continue playing (cancel call time)
+Player can cash out (if choosing to leave)
+Manager can see call time status in dashboard
+Countdown timer shows remaining time
+Phase 4: Cashout Window
+If player chooses to cash out:
+
+cashoutWindowActive = true
+3-minute window opens for final cashout
+Manager processes cashout request
+Session ends when complete
+🎯 Advanced Timing Logic
+File: server/api/table-ledger.ts (Lines 46-78)
+
+// Check minimum play time eligibility
+if (session.min_play_time_expiry && now >= new Date(session.min_play_time_expiry)) {
+  callTimeEligible = true;
+}
+// Check if in cashout window
+if (session.cashout_window_start && session.cashout_window_end) {
+  const windowStart = new Date(session.cashout_window_start);
+  const windowEnd = new Date(session.cashout_window_end);
+  
+  if (now >= windowStart && now <= windowEnd) {
+    cashoutEligible = true;
+    timingStatus = 'cashout_window';
+  }
+}
+// Check if call time period is active
+if (session.call_time_play_period_start && session.call_time_play_period_end) {
+  const periodStart = new Date(session.call_time_play_period_start);
+  const periodEnd = new Date(session.call_time_play_period_end);
+  
+  if (now >= periodStart && now <= periodEnd) {
+    timingStatus = 'call_time_active';
+    callTimeEligible = false; // Can't request call time during active period
+  }
+}
+🔄 Timing States
+State	Description	Player Actions
+playing	Normal play (< 30min)	Continue playing
+call_time_eligible	Can request call time (≥ 30min)	Request call time
+call_time_active	Call time in progress	Decide: stay or leave
+cashout_window	3-minute cashout period	Complete cashout
+💡 Real-World Casino Rules
+This implements Bellagio-style timing controls:
+
+Minimum Play Time: Prevents quick hit-and-run
+Call Time Notice: Gives fair warning before leaving
+Decision Window: Reasonable time to choose
+Cashout Window: Ensures orderly table management
+🎲 Player Portal Integration
+Players see:
+
+⏰ Session timer: "Session 51m"
+🟢 "Request Call Time" button (when eligible)
+⏳ Countdown during call time
+💰 "Cash Out" option in cashout window
+👨‍💼 Manager Controls
+Staff can:
+
+View all call time requests in real-time
+Approve/deny cashout requests
+Monitor session timers
+Manage table flow efficiently
+This system ensures fair play while maintaining smooth casino operations!
