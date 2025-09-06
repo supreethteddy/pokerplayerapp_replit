@@ -63,6 +63,7 @@ import NotificationPopup from "./NotificationPopup";
 import PlayerChatSystem from "./PlayerChatSystem";
 import NotificationHistoryTab from "./NotificationHistoryTab";
 import FoodBeverageTab from "./FoodBeverageTab";
+import { useSeatAssignment } from "@/hooks/useSeatAssignment";
 
 
 // Scrollable Offers Display Component
@@ -380,6 +381,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Tournament state variables
   const [tournamentActionLoading, setTournamentActionLoading] = useState(false);
+
+  // Initialize seat assignment listener
+  useSeatAssignment(user?.id);
   const [showTournaments, setShowTournaments] = useState(false);
 
   // Chat Dialog state
