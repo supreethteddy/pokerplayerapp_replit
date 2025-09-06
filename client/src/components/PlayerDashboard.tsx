@@ -1970,12 +1970,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                               {/* Game Status Indicator */}
                               <div className="flex items-center space-x-2 mt-1">
                                 <div className={`w-2 h-2 rounded-full ${
-                                  table.gameStarted ? 'bg-red-500' : 'bg-green-500'
+                                  table.isActive ? 'bg-red-500' : 'bg-green-500'
                                 }`}></div>
                                 <span className={`text-xs ${
-                                  table.gameStarted ? 'text-red-400' : 'text-green-400'
+                                  table.isActive ? 'text-red-400' : 'text-green-400'
                                 }`}>
-                                  {table.gameStarted ? 'Game In Progress' : 'Accepting Players'}
+                                  {table.isActive ? 'Game In Progress' : 'Accepting Players'}
                                 </span>
                               </div>
                             </div>
@@ -2011,7 +2011,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                   {/* Show game status for waitlisted players */}
                                   {tableStatuses?.[String(table.id)] && (
                                     <div className="flex items-center space-x-1">
-                                      {tableStatuses[String(table.id)].gameStarted ? (
+                                      {(tableStatuses as any)[String(table.id)]?.gameStarted ? (
                                         <span className="text-xs text-amber-400">⚠️ Game started</span>
                                       ) : (
                                         <span className="text-xs text-green-400">✅ Can join now</span>
