@@ -45,7 +45,7 @@ export default function TableView() {
 
   // Get seated players for this table
   const { data: seatedPlayers } = useQuery({
-    queryKey: ['/api/table-seats', tableId],
+    queryKey: ['/api/tables', tableId, 'seats'],
     enabled: !!tableId,
     refetchInterval: 15000, // Refresh every 15 seconds instead of 2 seconds
     staleTime: 10000, // Consider data fresh for 10 seconds

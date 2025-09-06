@@ -3227,6 +3227,88 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Get All Seated Players for a Table - Shows all players seated at a specific table
+  app.get("/api/tables/:tableId/seats", async (req, res) => {
+    try {
+      const tableId = req.params.tableId;
+      console.log(`🪑 [TABLE SEATS] Getting all seated players for table: ${tableId}`);
+
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        // Query for all seated players at this table
+        const query = `
+          SELECT 
+            sr.id,
+            sr.player_id,
+            sr.table_id,
+            sr.seat_number,
+            sr.status,
+            sr.session_start_time,
+            sr.session_buy_in_amount,
+            sr.call_time_started,
+            sr.call_time_ends,
+            sr.cashout_window_active,
+            sr.cashout_window_ends,
+            sr.min_play_time_minutes,
+            sr.call_time_window_minutes,
+            sr.call_time_play_period_minutes,
+            sr.cashout_window_minutes,
+            p.first_name,
+            p.last_name,
+            p.email
+          FROM seat_requests sr
+          JOIN players p ON sr.player_id = p.id
+          WHERE sr.table_id = $1 AND sr.status = 'seated'
+          ORDER BY sr.seat_number ASC
+        `;
+
+        const result = await pgClient.query(query, [tableId]);
+        
+        console.log(`✅ [TABLE SEATS] Found ${result.rows.length} seated players for table ${tableId}`);
+        
+        // Transform the data to match frontend expectations
+        const seatedPlayers = result.rows.map(row => ({
+          id: row.id,
+          playerId: row.player_id,
+          tableId: row.table_id,
+          seatNumber: row.seat_number,
+          status: row.status,
+          sessionStartTime: row.session_start_time,
+          sessionBuyInAmount: row.session_buy_in_amount || 0,
+          session_buy_in_amount: row.session_buy_in_amount || 0, // Support both formats
+          callTimeStarted: row.call_time_started,
+          callTimeEnds: row.call_time_ends,
+          call_time_started: row.call_time_started,
+          call_time_ends: row.call_time_ends,
+          cashoutWindowActive: row.cashout_window_active,
+          cashoutWindowEnds: row.cashout_window_ends,
+          cashout_window_active: row.cashout_window_active,
+          cashout_window_ends: row.cashout_window_ends,
+          minPlayTimeMinutes: row.min_play_time_minutes,
+          callTimeWindowMinutes: row.call_time_window_minutes,
+          player: {
+            id: row.player_id,
+            firstName: row.first_name,
+            lastName: row.last_name,
+            email: row.email
+          }
+        }));
+
+        res.json(seatedPlayers);
+        
+      } finally {
+        await pgClient.end();
+      }
+      
+    } catch (error) {
+      console.error(`❌ [TABLE SEATS] Error getting seated players:`, error);
+      res.status(500).json({ error: 'Failed to get seated players' });
+    }
+  });
+
   // Get Seated Player Table Information - Shows where player is currently seated
   app.get("/api/table-seats/:playerId", async (req, res) => {
     try {
