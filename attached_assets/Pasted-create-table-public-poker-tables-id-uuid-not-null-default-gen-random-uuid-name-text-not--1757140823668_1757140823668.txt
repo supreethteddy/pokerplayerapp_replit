@@ -1,0 +1,79 @@
+create table public.poker_tables (
+  id uuid not null default gen_random_uuid (),
+  name text not null,
+  game_type text not null,
+  min_buy_in numeric(10, 2) null default 1000,
+  max_buy_in numeric(10, 2) null default 10000,
+  small_blind numeric(10, 2) null default 10,
+  big_blind numeric(10, 2) null default 20,
+  max_players integer null default 9,
+  current_players integer null default 0,
+  status text null default 'waiting'::text,
+  dealer_id uuid null,
+  created_at timestamp without time zone null default CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone null default CURRENT_TIMESTAMP,
+  min_play_time integer null default 30,
+  call_time_duration integer null default 60,
+  cash_out_window integer null default 15,
+  constraint poker_tables_pkey primary key (id),
+  constraint poker_tables_status_check check (
+    (
+      status = any (
+        array[
+          'active'::text,
+          'waiting'::text,
+          'paused'::text,
+          'maintenance'::text
+        ]
+      )
+    )
+  )
+) TABLESPACE pg_default;
+
+create trigger update_poker_tables_updated_at BEFORE
+update on poker_tables for EACH row
+execute FUNCTION update_updated_at_column ();
+
+create table public.seat_requests (
+  id serial not null,
+  player_id integer null,
+  table_id text null,
+  status text not null default 'waiting'::text,
+  position integer null default 0,
+  estimated_wait integer null default 0,
+  created_at timestamp with time zone null default now(),
+  game_type text null default 'Texas Hold''em'::text,
+  seat_number integer null,
+  notes text null,
+  updated_at timestamp with time zone null default now(),
+  universal_id text null,
+  session_start_time timestamp with time zone null,
+  min_play_time_minutes integer null default 30,
+  call_time_window_minutes integer null default 10,
+  call_time_play_period_minutes integer null default 5,
+  cashout_window_minutes integer null default 3,
+  call_time_started timestamp with time zone null,
+  call_time_ends timestamp with time zone null,
+  cashout_window_active boolean null default false,
+  cashout_window_ends timestamp with time zone null,
+  last_cashout_attempt timestamp with time zone null,
+  session_buy_in_amount numeric(10, 2) null default 0.00,
+  session_cash_out_amount numeric(10, 2) null default 0.00,
+  session_rake_amount numeric(10, 2) null default 0.00,
+  session_tip_amount numeric(10, 2) null default 0.00,
+  constraint seat_requests_pkey primary key (id),
+  constraint seat_requests_universal_id_key unique (universal_id),
+  constraint seat_requests_player_id_fkey foreign KEY (player_id) references players (id) on delete CASCADE
+) TABLESPACE pg_default;
+
+create index IF not exists idx_seat_requests_player_id on public.seat_requests using btree (player_id) TABLESPACE pg_default;
+
+create index IF not exists idx_seat_requests_table_id on public.seat_requests using btree (table_id) TABLESPACE pg_default;
+
+create index IF not exists idx_seat_requests_status on public.seat_requests using btree (status) TABLESPACE pg_default;
+
+create index IF not exists idx_seat_requests_universal_id on public.seat_requests using btree (universal_id) TABLESPACE pg_default;
+
+create trigger update_seat_requests_updated_at BEFORE
+update on seat_requests for EACH row
+execute FUNCTION update_updated_at_column ();
