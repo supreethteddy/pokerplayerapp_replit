@@ -244,11 +244,18 @@ router.post('/api/staff/assign-player', async (req: Request, res: Response) => {
 
       const waitlistEntry = waitlistQuery.rows[0];
 
-      // 3. Update the seat_requests entry to 'seated' status
+      // 3. Update the seat_requests entry to 'seated' status with session data
       const updateResult = await pgClient.query(`
         UPDATE seat_requests 
         SET status = $1, seat_number = $2, updated_at = NOW(), 
-            session_start_time = NOW(), notes = $3
+            session_start_time = NOW(), 
+            session_buy_in_amount = 10000,
+            min_play_time_minutes = 30,
+            call_time_window_minutes = 60,
+            call_time_play_period_minutes = 15,
+            cashout_window_minutes = 10,
+            cashout_window_active = false,
+            notes = $3
         WHERE id = $4 
         RETURNING *
       `, ['seated', seatNumber, note || `Assigned to seat ${seatNumber} by ${assignedBy}`, waitlistEntry.id]);

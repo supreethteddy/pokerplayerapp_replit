@@ -3437,6 +3437,132 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Live Sessions API endpoint - reads from seat_requests table
+  app.get("/api/live-sessions/:playerId", async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      console.log(`🪑 [LIVE SESSIONS] Fetching session for player: ${playerId}`);
+      
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        // Query for active seated session from seat_requests table
+        const sessionResult = await pgClient.query(`
+          SELECT
+            sr.id, sr.player_id, sr.table_id, sr.status, sr.seat_number,
+            sr.session_start_time, sr.session_buy_in_amount,
+            sr.min_play_time_minutes, sr.call_time_window_minutes,
+            sr.call_time_play_period_minutes, sr.cashout_window_minutes,
+            sr.cashout_window_active,
+            pt.name as table_name, pt.game_type, pt.min_buy_in, pt.max_buy_in,
+            pt.small_blind, pt.big_blind, pt.status as table_status
+          FROM seat_requests sr
+          LEFT JOIN poker_tables pt ON sr.table_id::uuid = pt.id
+          WHERE sr.player_id = $1 AND sr.status = 'seated' AND sr.session_start_time IS NOT NULL
+          ORDER BY sr.session_start_time DESC
+          LIMIT 1
+        `, [parseInt(playerId)]);
+
+        await pgClient.end();
+
+        if (sessionResult.rows.length === 0) {
+          console.log(`📊 [LIVE SESSIONS] No active session found for player ${playerId}`);
+          return res.json({ hasActiveSession: false, session: null });
+        }
+
+        const row = sessionResult.rows[0];
+        
+        console.log(`✅ [LIVE SESSIONS] Found active session for player ${playerId}:`, {
+          tableId: row.table_id,
+          tableName: row.table_name,
+          sessionStart: row.session_start_time,
+          status: row.status
+        });
+
+        // Calculate session duration
+        const sessionStart = new Date(row.session_start_time);
+        const now = new Date();
+        const sessionDurationMinutes = Math.floor((now.getTime() - sessionStart.getTime()) / (1000 * 60));
+
+        // Enhanced timing calculations with dynamic rules
+        const minPlayTimeMinutes = row.min_play_time_minutes || 30;
+        const callTimeWindowMinutes = row.call_time_window_minutes || 60;
+        const callTimePlayPeriodMinutes = row.call_time_play_period_minutes || 15;
+        const cashoutWindowMinutes = row.cashout_window_minutes || 10;
+
+        // Calculate timing states
+        const minPlayTimeCompleted = sessionDurationMinutes >= minPlayTimeMinutes;
+        const callTimeEligible = sessionDurationMinutes >= callTimeWindowMinutes;
+
+        // Enhanced cashout window calculations
+        const cashoutWindowStartMinutes = Math.max(0, minPlayTimeMinutes - cashoutWindowMinutes);
+        const cashoutWindowEndMinutes = minPlayTimeMinutes;
+        const inCashoutWindow = sessionDurationMinutes >= cashoutWindowStartMinutes && 
+                               sessionDurationMinutes <= cashoutWindowEndMinutes;
+        const cashoutTimeRemaining = inCashoutWindow ? 
+          Math.max(0, cashoutWindowEndMinutes - sessionDurationMinutes) : 0;
+
+        // Build comprehensive session response from seat_requests data
+        const sessionData = {
+          id: row.id,
+          playerId: parseInt(playerId),
+          tableId: row.table_id,
+          tableName: row.table_name || 'Unknown Table',
+          gameType: row.game_type || 'Unknown Game',
+          stakes: `₹${row.min_buy_in || 1000}/${row.max_buy_in || 10000}`,
+          buyInAmount: row.session_buy_in_amount || 10000,
+          currentChips: row.session_buy_in_amount || 10000, // Start with buy-in amount
+          sessionDuration: sessionDurationMinutes,
+          startedAt: row.session_start_time,
+          status: 'active',
+          profitLoss: 0, // No profit/loss tracking yet
+          
+          // Timing configuration from seat_requests table
+          minPlayTimeMinutes,
+          callTimeWindowMinutes,
+          callTimePlayPeriodMinutes,
+          cashoutWindowMinutes,
+          
+          // Calculated timing states
+          minPlayTimeCompleted,
+          callTimeEligible,
+          canCashOut: minPlayTimeCompleted,
+          isLive: true, // Player is seated, so session is live
+          sessionStartTime: row.session_start_time,
+          
+          // Enhanced cashout window properties
+          cashoutWindowStartMinutes,
+          cashoutWindowEndMinutes,
+          inCashoutWindow,
+          cashoutTimeRemaining
+        };
+
+        console.log(`📊 [LIVE SESSIONS] Session data for player ${playerId}:`, {
+          duration: sessionDurationMinutes,
+          minPlayCompleted: minPlayTimeCompleted,
+          callTimeEligible: callTimeEligible,
+          canCashOut: minPlayTimeCompleted
+        });
+
+        res.json({
+          hasActiveSession: true,
+          session: sessionData
+        });
+
+      } catch (dbError: any) {
+        await pgClient.end();
+        console.error('❌ [LIVE SESSIONS] Database error:', dbError);
+        return res.status(500).json({ error: 'Database query failed' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [LIVE SESSIONS] Error:', error);
+      res.status(500).json({ error: 'Failed to fetch session data' });
+    }
+  });
+
   // Join Table Waitlist API - Using Updated Schema
   app.post("/api/seat-requests", async (req, res) => {
     try {
