@@ -1970,12 +1970,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                               {/* Game Status Indicator */}
                               <div className="flex items-center space-x-2 mt-1">
                                 <div className={`w-2 h-2 rounded-full ${
-                                  table.isActive ? 'bg-red-500' : 'bg-green-500'
+                                  table.status === 'active' ? 'bg-red-500' : 'bg-green-500'
                                 }`}></div>
                                 <span className={`text-xs ${
-                                  table.isActive ? 'text-red-400' : 'text-green-400'
+                                  table.status === 'active' ? 'text-red-400' : 'text-green-400'
                                 }`}>
-                                  {table.isActive ? 'Game In Progress' : 'Accepting Players'}
+                                  {table.status === 'active' ? 'Game In Progress' : 'Accepting Players'}
                                 </span>
                               </div>
                             </div>

@@ -1596,10 +1596,10 @@ export function registerRoutes(app: Express) {
         maxPlayers: table.max_players || 9,
         currentPlayers: table.current_players || 0,
         waitingList: 0,
-        status: table.status === 'active' ? 'active' : 'waiting',
+        status: table.status, // Keep the exact database status
         gameStarted: table.status === 'active',
         gameStartTime: table.status === 'active' ? table.updated_at : null,
-        isActive: table.status !== 'maintenance',
+        isActive: table.status === 'active', // Only true when status is 'active'
         minBuyIn: table.min_buy_in,
         maxBuyIn: table.max_buy_in,
         smallBlind: table.small_blind,
