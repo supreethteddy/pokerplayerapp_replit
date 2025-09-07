@@ -3329,7 +3329,7 @@ export function registerRoutes(app: Express) {
             pt.name as table_name, pt.game_type, pt.min_buy_in, pt.max_buy_in,
             p.first_name, p.last_name
           FROM seat_requests sr
-          LEFT JOIN poker_tables pt ON sr.table_id = pt.id::text
+          LEFT JOIN poker_tables pt ON sr.table_id::uuid = pt.id
           LEFT JOIN players p ON sr.player_id = p.id
           WHERE sr.player_id = $1 AND sr.status = 'active'
           ORDER BY sr.session_start_time DESC
@@ -3392,7 +3392,7 @@ export function registerRoutes(app: Express) {
             pt.name as table_name, pt.game_type as table_game_type,
             pt.min_buy_in, pt.max_buy_in
           FROM seat_requests sr
-          LEFT JOIN poker_tables pt ON sr.table_id = pt.id::text
+          LEFT JOIN poker_tables pt ON sr.table_id::uuid = pt.id
           WHERE sr.player_id = $1
           ORDER BY sr.created_at DESC
         `, [playerId]);
@@ -3457,7 +3457,7 @@ export function registerRoutes(app: Express) {
         const seatedCheck = await pgClient.query(`
           SELECT sr.table_id, pt.name as table_name, pt.status 
           FROM seat_requests sr
-          JOIN poker_tables pt ON sr.table_id = pt.id
+          JOIN poker_tables pt ON sr.table_id::uuid = pt.id
           WHERE sr.player_id = $1 AND sr.status = 'active' AND pt.status = 'active'
         `, [playerId]);
 
@@ -3491,7 +3491,7 @@ export function registerRoutes(app: Express) {
 
         // Get table info for context
         const tableInfo = await pgClient.query(
-          'SELECT name, game_type, min_buy_in, max_buy_in FROM poker_tables WHERE id = $1',
+          'SELECT name, game_type, min_buy_in, max_buy_in FROM poker_tables WHERE id = $1::uuid',
           [tableId]
         );
 
