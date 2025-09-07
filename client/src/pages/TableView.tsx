@@ -8,6 +8,7 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useUltraFastAuth } from "@/hooks/useUltraFastAuth";
+import { PlaytimeTracker } from "@/components/PlaytimeTracker";
 
 export default function TableView() {
   const { tableId } = useParams();
@@ -177,8 +178,8 @@ export default function TableView() {
         <div className="w-16"></div> {/* Spacer for centering */}
       </div>
 
-      {/* Waitlist Status Banner */}
-      {isOnWaitlist && waitlistEntry && (
+      {/* Waitlist Status Banner - Only show if not seated */}
+      {isOnWaitlist && waitlistEntry && !isUserSeated && (
         <div className="mx-4 mb-4 p-4 bg-gradient-to-r from-amber-600/20 to-amber-500/20 border border-amber-500/50 rounded-lg">
           <div className="flex items-center justify-between">
             <div>
@@ -191,6 +192,13 @@ export default function TableView() {
               <Clock className="w-5 h-5" />
             </div>
           </div>
+        </div>
+      )}
+
+      {/* PlaytimeTracker for Seated Players */}
+      {isUserSeated && user?.id && (
+        <div className="mx-4 mb-4">
+          <PlaytimeTracker playerId={user.id.toString()} />
         </div>
       )}
 
