@@ -1,0 +1,123 @@
+Yes! We are sending seat assignment notifications. I can see from the logs that Player 77 was recently assigned to table "hello123" (Session 0m indicates a fresh assignment).
+
+🔔 Seat Assignment Notifications - YES, We Send Them!
+Notification Type: table-assignment
+Channel: player-{playerId} (e.g., player-77)
+Trigger: When staff assigns a player to a seat
+
+Current Implementation
+// File: server/routes.ts (Lines 4086-4107)
+await PusherChatService.notifyTableAssignment(
+  updatedSeatRequest.player_id,
+  {
+    tableId: updatedSeatRequest.table_id,
+    tableName: table.name,
+    seatNumber: updatedSeatRequest.seat_number || 0,
+    gameType: "Texas Hold'em", 
+    minBuyIn: 1000,
+    maxBuyIn: 10000,
+    tableStatus: tableStatus?.status || 'waiting'
+  }
+);
+📱 How to Capture Notifications in Another App
+You can integrate with our notification system using Pusher client libraries:
+
+1. Web/JavaScript Integration
+// Install: npm install pusher-js
+import Pusher from 'pusher-js';
+const pusher = new Pusher('YOUR_PUSHER_KEY', {
+  cluster: 'YOUR_CLUSTER'
+});
+// Subscribe to specific player
+const channel = pusher.subscribe('player-77');
+// Listen for seat assignments
+channel.bind('table-assignment', function(data) {
+  console.log('🪑 Player assigned to seat!', data);
+  // data contains: tableId, tableName, seatNumber, gameType, etc.
+  
+  // Your app logic here
+  showNotification(`Assigned to ${data.tableName}, Seat ${data.seatNumber}`);
+});
+// Listen for table activations  
+channel.bind('table-activation', function(data) {
+  console.log('🎯 Table activated!', data);
+  showNotification(`Table ${data.tableName} is now active!`);
+});
+2. Mobile App Integration
+iOS (Swift):
+
+import PusherSwift
+let pusher = Pusher(key: "YOUR_PUSHER_KEY", options: PusherClientOptions(host: .cluster("YOUR_CLUSTER")))
+let channel = pusher.subscribe("player-77")
+channel.bind(eventName: "table-assignment") { data in
+    // Handle seat assignment
+    print("Seat assigned: \(data)")
+}
+Android (Kotlin):
+
+val pusher = Pusher("YOUR_PUSHER_KEY", PusherOptions().setCluster("YOUR_CLUSTER"))
+val channel = pusher.subscribe("player-77")
+channel.bind("table-assignment") { event ->
+    // Handle seat assignment
+    println("Seat assigned: ${event.data}")
+}
+3. Server-Side Integration
+Node.js Backend:
+
+const Pusher = require('pusher');
+const pusher = new Pusher({
+  appId: 'YOUR_APP_ID',
+  key: 'YOUR_KEY', 
+  secret: 'YOUR_SECRET',
+  cluster: 'YOUR_CLUSTER'
+});
+// Subscribe to webhooks for all events
+app.post('/pusher/webhook', (req, res) => {
+  const events = req.body.events;
+  
+  events.forEach(event => {
+    if (event.name === 'table-assignment') {
+      // Process seat assignment
+      console.log(`Player assigned: ${event.data}`);
+      // Forward to your systems
+    }
+  });
+});
+🎯 Real-Time Integration Examples
+Player Mobile App
+// When player opens app, subscribe to their notifications
+const playerId = getCurrentPlayerId();
+const channel = pusher.subscribe(`player-${playerId}`);
+channel.bind('table-assignment', (data) => {
+  // Show push notification
+  showPushNotification('🪑 Seat Assigned!', 
+    `You've been assigned to ${data.tableName}, Seat ${data.seatNumber}`);
+  
+  // Update app UI
+  updatePlayerStatus('seated');
+  navigateToTable(data.tableId);
+});
+Restaurant/F&B System Integration
+// Monitor all player assignments for dining coordination
+const channel = pusher.subscribe('staff-notifications');
+channel.bind('table-assignment', (data) => {
+  // Coordinate with restaurant
+  notifyRestaurant(`Player seated at ${data.tableName} - prepare dining options`);
+});
+Analytics/Reporting System
+// Track all seat assignments for business intelligence
+channel.bind('table-assignment', (data) => {
+  // Send to analytics
+  trackEvent('seat_assignment', {
+    table: data.tableName,
+    gameType: data.gameType,
+    timestamp: new Date()
+  });
+});
+🔧 Connection Details You'll Need
+To connect to our notification system, you'll need:
+
+Pusher App Credentials (key, secret, app ID, cluster)
+Player ID for the specific channel
+Event Names: table-assignment, table-activation
+The notifications fire immediately when staff assigns seats, so your external app will receive real-time updates!
