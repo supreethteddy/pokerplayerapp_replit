@@ -3320,18 +3320,21 @@ export function registerRoutes(app: Express) {
       await pgClient.connect();
 
       try {
-        // Query for active seated sessions
+        // Query for seated sessions with active tables
         const seatedResult = await pgClient.query(`
           SELECT
             sr.id, sr.player_id, sr.table_id, sr.status, sr.position,
             sr.seat_number, sr.session_start_time, sr.session_buy_in_amount,
             sr.session_cash_out_amount, sr.created_at,
-            pt.name as table_name, pt.game_type, pt.min_buy_in, pt.max_buy_in,
+            pt.name as table_name, pt.game_type, pt.min_buy_in, pt.max_buy_in, pt.status as table_status,
             p.first_name, p.last_name
           FROM seat_requests sr
           LEFT JOIN poker_tables pt ON sr.table_id::uuid = pt.id
           LEFT JOIN players p ON sr.player_id = p.id
-          WHERE sr.player_id = $1 AND sr.status = 'active'
+          WHERE sr.player_id = $1 
+            AND sr.status = 'seated' 
+            AND pt.status = 'active' 
+            AND sr.session_start_time IS NOT NULL
           ORDER BY sr.session_start_time DESC
         `, [playerId]);
 
