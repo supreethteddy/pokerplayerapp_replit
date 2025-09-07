@@ -3477,7 +3477,7 @@ export function registerRoutes(app: Express) {
         }
         // Check if player already on waitlist for this table
         const existingCheck = await pgClient.query(
-          'SELECT id FROM seat_requests WHERE player_id = $1 AND table_id = $2::uuid',
+          'SELECT id FROM seat_requests WHERE player_id = $1 AND table_id = $2',
           [playerId, tableId]
         );
 
@@ -3491,7 +3491,7 @@ export function registerRoutes(app: Express) {
 
         // Get table info for context
         const tableInfo = await pgClient.query(
-          'SELECT name, game_type, min_buy_in, max_buy_in FROM poker_tables WHERE id = $1::uuid',
+          'SELECT name, game_type, min_buy_in, max_buy_in FROM poker_tables WHERE id = $1',
           [tableId]
         );
 
@@ -3500,7 +3500,7 @@ export function registerRoutes(app: Express) {
 
         // Calculate position (next in line)
         const positionResult = await pgClient.query(
-          'SELECT COALESCE(MAX(position), 0) + 1 as next_position FROM seat_requests WHERE table_id = $1::uuid',
+          'SELECT COALESCE(MAX(position), 0) + 1 as next_position FROM seat_requests WHERE table_id = $1',
           [tableId]
         );
         const position = positionResult.rows[0]?.next_position || 1;
@@ -3601,7 +3601,7 @@ export function registerRoutes(app: Express) {
       try {
         // Check if seat request exists
         const checkResult = await pgClient.query(
-          'SELECT id, status FROM seat_requests WHERE player_id = $1 AND table_id = $2::uuid',
+          'SELECT id, status, position FROM seat_requests WHERE player_id = $1 AND table_id = $2',
           [playerId, tableId]
         );
 
@@ -3626,7 +3626,7 @@ export function registerRoutes(app: Express) {
 
         // Delete the seat request
         const deleteResult = await pgClient.query(
-          'DELETE FROM seat_requests WHERE player_id = $1 AND table_id = $2::uuid RETURNING *',
+          'DELETE FROM seat_requests WHERE player_id = $1 AND table_id = $2 RETURNING *',
           [playerId, tableId]
         );
 
@@ -3637,7 +3637,7 @@ export function registerRoutes(app: Express) {
           UPDATE seat_requests 
           SET position = position - 1, 
               estimated_wait = (position - 1) * 10
-          WHERE table_id = $1::uuid AND position > $2
+          WHERE table_id = $1 AND position > $2
         `, [tableId, seatRequest.position || 0]);
 
         await pgClient.end();
