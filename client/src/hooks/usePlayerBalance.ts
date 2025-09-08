@@ -21,7 +21,7 @@ export function usePlayerBalance(playerId: string) {
   // Fetch player balance from our backend API using the correct dual balance endpoint
   const { data: balance, isLoading, error } = useQuery<PlayerBalance>({
     queryKey: [`/api/balance/${playerId}`],
-    refetchInterval: 1000, // Refetch every 1 second for microsecond-level balance updates
+    refetchInterval: 5000, // Refetch every 5 seconds for optimized performance
     staleTime: 0, // Always consider data stale for fresh credit updates from staff portal
   });
 

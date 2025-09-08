@@ -84,7 +84,7 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
   // Fetch live session data with proper response structure
   const { data: sessionResponse, isLoading, error } = useQuery<{hasActiveSession: boolean, session: LiveSession | null}>({
     queryKey: ['/api/live-sessions', playerId],
-    refetchInterval: 1000, // Update every second for real-time tracking
+    refetchInterval: 5000, // Update every 5 seconds for optimized performance
     enabled: !!playerId,
   });
 

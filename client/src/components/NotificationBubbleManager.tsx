@@ -287,8 +287,8 @@ export const NotificationBubbleManager: React.FC = () => {
     // Initial fetch
     fetchNotifications();
 
-    // Poll every 3 seconds for real-time updates
-    const interval = setInterval(fetchNotifications, 3000);
+    // Poll every 5 seconds for optimized performance
+    const interval = setInterval(fetchNotifications, 5000);
 
     return () => clearInterval(interval);
   }, [user?.id, permission, notifications]);
