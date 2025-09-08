@@ -33,10 +33,20 @@ interface LiveSession {
   canCashOut: boolean;
   cashOutTimeRemaining: number;
 
-  // TABLE CONFIGURATION
-  tableMinPlayTime: number;
-  tableCallTimeDuration: number;
-  tableCashOutWindow: number;
+  // TABLE CONFIGURATION (from poker_tables)
+  min_play_time: number;
+  call_time_duration: number;
+  cash_out_window: number;
+  
+  // SEAT REQUEST TIMING (from seat_requests)
+  min_play_time_minutes: number;
+  call_time_window_minutes: number;
+  call_time_play_period_minutes: number;
+  cashout_window_minutes: number;
+  call_time_started: string | null;
+  call_time_ends: string | null;
+  cashout_window_active: boolean;
+  cashout_window_ends: string | null;
 }
 
 interface PlaytimeTrackerProps {
@@ -221,7 +231,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
     const start = new Date(session?.sessionStartTime || new Date());
     const now = new Date();
     const minutesPlayed = (now.getTime() - start.getTime()) / (1000 * 60);
-    const timeUntilMinPlay = (session?.tableMinPlayTime || 30) - minutesPlayed;
+    const timeUntilMinPlay = (session?.min_play_time || session?.min_play_time_minutes || 30) - minutesPlayed;
 
     return Math.max(0, Math.ceil(timeUntilMinPlay));
   };
@@ -241,7 +251,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
       case 'MINIMUM_PLAY':
         return {
           phase: 'Minimum Play Time',
-          description: `Must play ${session?.tableMinPlayTime || 30} minutes minimum`,
+          description: `Must play ${session?.min_play_time || session?.min_play_time_minutes || 30} minutes minimum`,
           timeRemaining: getTimeUntilMinPlay()
         };
       case 'CALL_TIME_AVAILABLE':
@@ -253,13 +263,13 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
       case 'CALL_TIME_ACTIVE':
         return {
           phase: 'Call Time Active',
-          description: `${session?.tableCallTimeDuration || 60}-minute countdown running`,
+          description: `${session?.call_time_duration || session?.call_time_play_period_minutes || 60}-minute countdown running`,
           timeRemaining: session?.callTimeRemaining || 0
         };
       case 'CASH_OUT_WINDOW':
         return {
           phase: 'Cash Out Window',
-          description: `${session?.tableCashOutWindow || 15}-minute window to cash out`,
+          description: `${session?.cash_out_window || session?.cashout_window_minutes || 15}-minute window to cash out`;
           timeRemaining: session?.cashOutTimeRemaining || 0
         };
       default:
@@ -392,13 +402,13 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
             {/* State Machine Status Indicators */}
             <div className="grid grid-cols-4 gap-2 text-xs">
               {/* Minimum Play */}
-              <div className={`p-2 rounded ${session.minPlayTimeCompleted ? 'bg-green-900/50 border border-green-500/50' : 'bg-red-900/50 border border-red-500/50'}`}>
+              <div className={`p-2 rounded ${session?.minPlayTimeCompleted ? 'bg-green-900/50 border border-green-500/50' : 'bg-red-900/50 border border-red-500/50'}`}>
                 <div className="flex items-center justify-between">
-                  <span className={session.minPlayTimeCompleted ? 'text-green-400' : 'text-red-400'}>
+                  <span className={session?.minPlayTimeCompleted ? 'text-green-400' : 'text-red-400'}>
                     Min Play
                   </span>
-                  <span className={session.minPlayTimeCompleted ? 'text-green-300' : 'text-red-300'}>
-                    {session.minPlayTimeCompleted ? '✓' : `${timeUntilMinPlay}m`}
+                  <span className={session?.minPlayTimeCompleted ? 'text-green-300' : 'text-red-300'}>
+                    {session?.minPlayTimeCompleted ? '✓' : `${timeUntilMinPlay}m`}
                   </span>
                 </div>
               </div>
