@@ -387,17 +387,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex space-x-3">
-              {/* Call Time Button - Only show View Table button */}
-              <Button
-                onClick={() => window.location.href = `/table/${gameStatus.activeGameInfo?.tableId || session?.tableId || ''}`}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 transition-all duration-300"
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                View Table
-              </Button>
-            </div>
+            
 
             {/* State Machine Status Indicators */}
             <div className="grid grid-cols-4 gap-2 text-xs">
