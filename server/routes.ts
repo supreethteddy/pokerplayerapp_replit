@@ -1627,7 +1627,7 @@ export function registerRoutes(app: Express) {
   app.get("/api/tables/:tableId/pot", async (req, res) => {
     try {
       const { tableId } = req.params;
-      
+
       console.log(`💰 [TABLE POT] Calculating pot for table: ${tableId}`);
 
       const { Client } = await import('pg');
@@ -1645,7 +1645,7 @@ export function registerRoutes(app: Express) {
 
         await pgClient.end();
         console.log(`✅ [TABLE POT] Calculated pot for table ${tableId}: ₹${totalPot}`);
-        
+
         res.json({ 
           tableId, 
           pot: parseFloat(totalPot).toFixed(2)
@@ -1829,7 +1829,7 @@ export function registerRoutes(app: Express) {
       const { playerId, documentType, fileName, fileData, fileSize, mimeType } = req.body;
 
       console.log(`🔧 [DIRECT KYC UPLOAD] Uploading ${documentType} for player:`, playerId);
-      console.log(`🔧 [DIRECT KYC UPLOAD] Request data:`, { playerId, documentType, fileName, fileDataLength: fileData?.length });
+      console.log(`🔧 [DIRECT KYC UPLOAD] Request data:`, { playerId, documentType, fileName, fileData?.length });
 
       if (!playerId || !documentType || !fileName || !fileData) {
         return res.status(400).json({ error: 'Missing required fields' });
@@ -2178,7 +2178,7 @@ export function registerRoutes(app: Express) {
     const typeMap = {
       'government_id': 'Government ID',
       'address_proof': 'Address Proof',
-      'utility_bill': 'Utility Bill',
+      'utility_bill':'Utility Bill',
       'pan_card': 'PAN Card',
       'profile_photo': 'Profile Photo',
       'id_document': 'ID Document',
@@ -3306,9 +3306,9 @@ export function registerRoutes(app: Express) {
         `;
 
         const result = await pgClient.query(query, [tableId]);
-        
+
         console.log(`✅ [TABLE SEATS] Found ${result.rows.length} seated players for table ${tableId}`);
-        
+
         // Transform the data to match frontend expectations
         const seatedPlayers = result.rows.map(row => ({
           id: row.id,
@@ -3338,11 +3338,11 @@ export function registerRoutes(app: Express) {
         }));
 
         res.json(seatedPlayers);
-        
+
       } finally {
         await pgClient.end();
       }
-      
+
     } catch (error) {
       console.error(`❌ [TABLE SEATS] Error getting seated players:`, error);
       res.status(500).json({ error: 'Failed to get seated players' });
@@ -3485,7 +3485,7 @@ export function registerRoutes(app: Express) {
     try {
       const { playerId } = req.params;
       console.log(`🪑 [LIVE SESSIONS] Fetching session for player: ${playerId}`);
-      
+
       const { Client } = await import('pg');
       const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
       await pgClient.connect();
@@ -3516,7 +3516,7 @@ export function registerRoutes(app: Express) {
         }
 
         const row = sessionResult.rows[0];
-        
+
         console.log(`✅ [LIVE SESSIONS] Found active session for player ${playerId}:`, {
           tableId: row.table_id,
           tableName: row.table_name,
@@ -3561,20 +3561,20 @@ export function registerRoutes(app: Express) {
           startedAt: row.session_start_time,
           status: 'active',
           profitLoss: 0, // No profit/loss tracking yet
-          
+
           // Timing configuration from seat_requests table
           minPlayTimeMinutes,
           callTimeWindowMinutes,
           callTimePlayPeriodMinutes,
           cashoutWindowMinutes,
-          
+
           // Calculated timing states
           minPlayTimeCompleted,
           callTimeEligible,
           canCashOut: minPlayTimeCompleted,
           isLive: true, // Player is seated, so session is live
           sessionStartTime: row.session_start_time,
-          
+
           // Enhanced cashout window properties
           cashoutWindowStartMinutes,
           cashoutWindowEndMinutes,
@@ -3611,7 +3611,7 @@ export function registerRoutes(app: Express) {
     try {
       const { playerId } = req.params;
       console.log(`⏰ [CALL TIME] Processing request for player: ${playerId}`);
-      
+
       const { Client } = await import('pg');
       const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
       await pgClient.connect();
@@ -3638,7 +3638,7 @@ export function registerRoutes(app: Express) {
         }
 
         const session = sessionResult.rows[0];
-        
+
         // Check if player is eligible for call time
         const sessionStart = new Date(session.session_start_time);
         const now = new Date();
@@ -3689,7 +3689,7 @@ export function registerRoutes(app: Express) {
     try {
       const { playerId } = req.params;
       console.log(`💰 [CASH OUT] Processing request for player: ${playerId}`);
-      
+
       const { Client } = await import('pg');
       const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
       await pgClient.connect();
@@ -3716,7 +3716,7 @@ export function registerRoutes(app: Express) {
         }
 
         const session = sessionResult.rows[0];
-        
+
         // Check if player has completed minimum play time
         const sessionStart = new Date(session.session_start_time);
         const now = new Date();

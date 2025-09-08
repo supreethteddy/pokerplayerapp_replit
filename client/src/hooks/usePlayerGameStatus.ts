@@ -33,11 +33,18 @@ export function usePlayerGameStatus(): GameStatusInfo {
     refetchInterval: 30000,
   });
 
-  // Get player's seated info
+  // Get player's seated info from seat_requests table
   const { data: seatedInfo = [] } = useQuery({
     queryKey: ['/api/table-seats', user?.id],
     enabled: !!user?.id,
     refetchInterval: 10000,
+  });
+
+  // ALSO check seat_requests directly for seated status
+  const { data: seatRequestsData = [] } = useQuery({
+    queryKey: ['/api/seat-requests', user?.id],
+    enabled: !!user?.id,
+    refetchInterval: 5000,
   });
 
   // Process the game status
@@ -49,7 +56,11 @@ export function usePlayerGameStatus(): GameStatusInfo {
 
   // Check for seated sessions first (higher priority)
   const seatedSessions = Array.isArray(seatedInfo) ? seatedInfo : [];
-  const activeSeat = seatedSessions.find((seat: any) => seat.status === 'seated');
+  const seatRequestsArray = Array.isArray(seatRequestsData) ? seatRequestsData : [];
+  
+  // Find active seated session from either source
+  const activeSeat = seatedSessions.find((seat: any) => seat.status === 'seated') ||
+                    seatRequestsArray.find((req: any) => req.status === 'seated');
 
   if (activeSeat) {
     // Player is seated somewhere, check if the table is active
@@ -61,11 +72,11 @@ export function usePlayerGameStatus(): GameStatusInfo {
       restrictionMessage = `You must cash out from your active table "${tableInfo.name}" before joining another game`;
       
       activeGameInfo = {
-        tableId: activeSeat.tableId,
+        tableId: activeSeat.tableId || activeSeat.table_id,
         tableName: tableInfo.name || activeSeat.tableName || 'Unknown Table',
-        gameType: tableInfo.game_type || tableInfo.gameType || 'Texas Hold\'em',
+        gameType: tableInfo.game_type || tableInfo.gameType || activeSeat.game_type || 'Texas Hold\'em',
         position: 0, // Seated players don't have waitlist position
-        seatNumber: activeSeat.seatNumber,
+        seatNumber: activeSeat.seatNumber || activeSeat.seat_number,
         status: 'PLAYING NOW'
       };
     } else if (tableInfo && tableInfo.status !== 'active') {
