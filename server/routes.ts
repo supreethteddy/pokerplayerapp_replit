@@ -1829,7 +1829,7 @@ export function registerRoutes(app: Express) {
       const { playerId, documentType, fileName, fileData, fileSize, mimeType } = req.body;
 
       console.log(`🔧 [DIRECT KYC UPLOAD] Uploading ${documentType} for player:`, playerId);
-      console.log(`🔧 [DIRECT KYC UPLOAD] Request data:`, { playerId, documentType, fileName, fileData?.length });
+      console.log(`🔧 [DIRECT KYC UPLOAD] Request data:`, { playerId, documentType, fileName, fileDataLength: fileData ? fileData.length : undefined });
 
       if (!playerId || !documentType || !fileName || !fileData) {
         return res.status(400).json({ error: 'Missing required fields' });
