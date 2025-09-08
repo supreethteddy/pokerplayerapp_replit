@@ -385,7 +385,7 @@ export default function TableView() {
                     </h3>
                   </div>
                   <div className="text-blue-300 text-sm">
-                    Session: {Math.floor((Date.now() - new Date(userSeatInfo.session_start_time || userSeatInfo.sessionStartTime).getTime()) / 60000)} min
+                    Seated at Table
                   </div>
                 </div>
 
@@ -397,7 +397,7 @@ export default function TableView() {
                       <span className="text-blue-200 font-semibold">Session Buy-in</span>
                     </div>
                     <div className="text-2xl font-bold text-white">
-                      ₹{(userSeatInfo.session_buy_in_amount || userSeatInfo.sessionBuyInAmount || 0).toLocaleString()}
+                      ₹{(userSeatInfo.buyInAmount || 5000).toLocaleString()}
                     </div>
                   </div>
 
@@ -408,17 +408,8 @@ export default function TableView() {
                       <span className="text-blue-200 font-semibold">Call Time</span>
                     </div>
                     <div className="text-lg font-bold text-white">
-                      {userSeatInfo.call_time_started ? (
-                        <div className="text-red-400">Active</div>
-                      ) : (
-                        <div className="text-green-400">Available</div>
-                      )}
+                      <div className="text-green-400">Available</div>
                     </div>
-                    {userSeatInfo.call_time_started && userSeatInfo.call_time_ends && (
-                      <div className="text-sm text-blue-300 mt-1">
-                        Ends: {new Date(userSeatInfo.call_time_ends).toLocaleTimeString()}
-                      </div>
-                    )}
                   </div>
 
                   {/* Cashout Window */}
@@ -428,40 +419,12 @@ export default function TableView() {
                       <span className="text-blue-200 font-semibold">Cash Out</span>
                     </div>
                     <div className="text-lg font-bold text-white">
-                      {userSeatInfo.cashout_window_active ? (
-                        <div className="text-green-400">Available</div>
-                      ) : (
-                        <div className="text-slate-400">Pending</div>
-                      )}
+                      <div className="text-slate-400">Pending</div>
                     </div>
-                    {userSeatInfo.cashout_window_active && userSeatInfo.cashout_window_ends && (
-                      <div className="text-sm text-blue-300 mt-1">
-                        Until: {new Date(userSeatInfo.cashout_window_ends).toLocaleTimeString()}
-                      </div>
-                    )}
                   </div>
                 </div>
 
-                {/* Action Buttons for Seated Players */}
-                <div className="flex justify-center space-x-4 mt-6">
-                  <Button
-                    variant="outline"
-                    className="bg-yellow-600 hover:bg-yellow-700 text-white border-yellow-500"
-                    disabled={!!userSeatInfo.call_time_started}
-                  >
-                    <Clock className="w-4 h-4 mr-2" />
-                    {userSeatInfo.call_time_started ? 'Call Time Active' : 'Request Call Time'}
-                  </Button>
-                  
-                  <Button
-                    variant="outline"
-                    className="bg-purple-600 hover:bg-purple-700 text-white border-purple-500"
-                    disabled={!userSeatInfo.cashout_window_active}
-                  >
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    {userSeatInfo.cashout_window_active ? 'Cash Out' : 'Cash Out Unavailable'}
-                  </Button>
-                </div>
+                {/* Action buttons are now in PlaytimeTracker dialog */}
               </CardContent>
             </Card>
           </div>

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, DollarSign, Play, Phone, X, Eye } from "lucide-react";
+import { Clock, DollarSign, Play, Phone, X, Eye, ArrowRight } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useGameStatusSync } from "@/hooks/useGameStatusSync";
@@ -452,6 +452,57 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
                   </span>
                 </div>
               </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                onClick={() => {
+                  console.log('🎯 [CALL TIME] Requesting call time for player:', playerId);
+                  // TODO: Implement call time request API
+                }}
+                disabled={!session?.callTimeAvailable || session?.callTimeActive}
+                className={`w-full py-3 ${
+                  session?.callTimeAvailable && !session?.callTimeActive
+                    ? 'bg-yellow-600 hover:bg-yellow-700 border-yellow-500 text-white'
+                    : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                <Clock className="w-4 h-4 mr-2" />
+                {session?.callTimeActive ? 'Call Time Active' : 'Request Call Time'}
+              </Button>
+
+              <Button
+                onClick={() => {
+                  console.log('🎯 [CASH OUT] Requesting cash out for player:', playerId);
+                  // TODO: Implement cash out request API
+                }}
+                disabled={!session?.canCashOut}
+                className={`w-full py-3 ${
+                  session?.canCashOut
+                    ? 'bg-green-600 hover:bg-green-700 border-green-500 text-white'
+                    : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                <ArrowRight className="w-4 h-4 mr-2" />
+                {session?.canCashOut ? 'Cash Out Now' : 'Cash Out Unavailable'}
+              </Button>
+            </div>
+
+            {/* Action Status */}
+            <div className="text-xs text-center text-gray-400">
+              {session?.callTimeAvailable && !session?.callTimeActive && (
+                <span className="text-yellow-400">✨ You can request call time now</span>
+              )}
+              {session?.callTimeActive && (
+                <span className="text-orange-400">⏰ Call time is currently active</span>
+              )}
+              {!session?.canCashOut && (
+                <span className="text-gray-400">💰 Cash out will be available after call time</span>
+              )}
+              {session?.canCashOut && (
+                <span className="text-green-400">💰 Ready to cash out!</span>
+              )}
             </div>
 
             {/* Table Configuration */}

@@ -1,0 +1,44 @@
+create table public.seat_requests (
+  id serial not null,
+  player_id integer null,
+  table_id text null,
+  status text not null default 'waiting'::text,
+  position integer null default 0,
+  estimated_wait integer null default 0,
+  created_at timestamp with time zone null default now(),
+  game_type text null default 'Texas Hold''em'::text,
+  seat_number integer null,
+  notes text null,
+  updated_at timestamp with time zone null default now(),
+  universal_id text null,
+  session_start_time timestamp with time zone null,
+  min_play_time_minutes integer null default 30,
+  call_time_window_minutes integer null default 10,
+  call_time_play_period_minutes integer null default 5,
+  cashout_window_minutes integer null default 3,
+  call_time_started timestamp with time zone null,
+  call_time_ends timestamp with time zone null,
+  cashout_window_active boolean null default false,
+  cashout_window_ends timestamp with time zone null,
+  last_cashout_attempt timestamp with time zone null,
+  session_buy_in_amount numeric(10, 2) null default 0.00,
+  session_cash_out_amount numeric(10, 2) null default 0.00,
+  session_rake_amount numeric(10, 2) null default 0.00,
+  session_tip_amount numeric(10, 2) null default 0.00,
+  request text null,
+  constraint seat_requests_pkey primary key (id),
+  constraint seat_requests_universal_id_key unique (universal_id),
+  constraint seat_requests_player_id_fkey foreign KEY (player_id) references players (id) on delete CASCADE
+) TABLESPACE pg_default;
+
+create index IF not exists idx_seat_requests_player_id on public.seat_requests using btree (player_id) TABLESPACE pg_default;
+
+create index IF not exists idx_seat_requests_table_id on public.seat_requests using btree (table_id) TABLESPACE pg_default;
+
+create index IF not exists idx_seat_requests_status on public.seat_requests using btree (status) TABLESPACE pg_default;
+
+create index IF not exists idx_seat_requests_universal_id on public.seat_requests using btree (universal_id) TABLESPACE pg_default;
+
+create trigger update_seat_requests_updated_at BEFORE
+update on seat_requests for EACH row
+execute FUNCTION update_updated_at_column ();
