@@ -109,18 +109,20 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
     usesFallback: hasSeatedPlayerFromFallback,
     isInActiveGame: gameStatus?.isInActiveGame,
     fallbackData: fallbackSession,
-    sessionResponse: sessionResponse?.hasActiveSession
+    sessionResponse: sessionResponse?.hasActiveSession,
+    shouldRender: (session || hasSeatedPlayerFromFallback)
   });
 
   // Live timer update with setInterval
   useEffect(() => {
-    if (!session?.sessionStartTime) {
+    const startTime = session?.sessionStartTime || fallbackSession?.sessionStartTime;
+    if (!startTime) {
       setLiveTimer("00:00:00");
       return;
     }
 
     const updateLiveTimer = () => {
-      const start = new Date(session.sessionStartTime);
+      const start = new Date(startTime);
       const now = new Date();
       const diff = now.getTime() - start.getTime();
       
@@ -137,7 +139,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
     const interval = setInterval(updateLiveTimer, 1000);
 
     return () => clearInterval(interval);
-  }, [session?.sessionStartTime]);
+  }, [startTime]);
 
   // Call Time mutation
   const callTimeMutation = useMutation({
@@ -331,11 +333,11 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
             {/* Balance Info */}
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-slate-800/50 p-3 rounded text-center">
-                <div className="text-lg font-semibold text-white">₹{session.buyInAmount.toLocaleString()}</div>
+                <div className="text-lg font-semibold text-white">₹{(session?.buyInAmount || 1000).toLocaleString()}</div>
                 <div className="text-xs text-slate-400">Buy-in</div>
               </div>
               <div className="bg-slate-800/50 p-3 rounded text-center">
-                <div className="text-lg font-semibold text-emerald-500">₹{session.currentChips.toLocaleString()}</div>
+                <div className="text-lg font-semibold text-emerald-500">₹{(session?.currentChips || 1000).toLocaleString()}</div>
                 <div className="text-xs text-slate-400">Current Chips</div>
               </div>
             </div>
@@ -343,8 +345,8 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
             {/* Table Information */}
             <div className="bg-slate-800/50 p-3 rounded">
               <div className="text-center">
-                <div className="text-sm text-slate-400">Table: {session.tableName}</div>
-                <div className="text-sm text-slate-300">{session.gameType} • {session.stakes}</div>
+                <div className="text-sm text-slate-400">Table: {session?.tableName || fallbackSession?.tableName || 'Unknown'}</div>
+                <div className="text-sm text-slate-300">{session?.gameType || fallbackSession?.gameType || 'Texas Hold\'em'} • {session?.stakes || '₹1000.00/10000.00'}</div>
               </div>
             </div>
 
