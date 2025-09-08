@@ -19,7 +19,6 @@ interface LiveSession {
   sessionDuration: number;
   startedAt: string;
   status: string;
-  profitLoss: number;
   minPlayTimeMinutes: number;
   callTimeWindowMinutes: number;
   callTimePlayPeriodMinutes: number;
@@ -268,20 +267,14 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
             </div>
 
             {/* Balance Info */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="bg-slate-800/50 p-3 rounded text-center">
                 <div className="text-lg font-semibold text-white">₹{session.buyInAmount.toLocaleString()}</div>
                 <div className="text-xs text-slate-400">Buy-in</div>
               </div>
               <div className="bg-slate-800/50 p-3 rounded text-center">
                 <div className="text-lg font-semibold text-emerald-500">₹{session.currentChips.toLocaleString()}</div>
-                <div className="text-xs text-slate-400">Current</div>
-              </div>
-              <div className="bg-slate-800/50 p-3 rounded text-center">
-                <div className={`text-lg font-semibold ${session.profitLoss >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {session.profitLoss >= 0 ? '+' : ''}₹{session.profitLoss.toLocaleString()}
-                </div>
-                <div className="text-xs text-slate-400">P&L</div>
+                <div className="text-xs text-slate-400">Current Chips</div>
               </div>
             </div>
 
