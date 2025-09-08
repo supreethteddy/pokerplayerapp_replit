@@ -3645,11 +3645,10 @@ export function registerRoutes(app: Express) {
           status: 'active',
           profitLoss: 0, // No profit/loss tracking yet
 
-          // Timing configuration from seat_requests table
+          // Timing configuration from poker_tables (dynamic values)
           minPlayTimeMinutes,
-          callTimeWindowMinutes,
-          callTimePlayPeriodMinutes,
-          cashoutWindowMinutes,
+          callTimeDurationMinutes,
+          cashOutWindowMinutes,
 
           // STATE MACHINE STATUS
           sessionPhase,
@@ -3663,7 +3662,7 @@ export function registerRoutes(app: Express) {
           isLive: true,
           sessionStartTime: row.session_start_time,
 
-          // Table configuration
+          // Table configuration (dynamic from poker_tables)
           tableMinPlayTime: minPlayTimeMinutes,
           tableCallTimeDuration: callTimeDurationMinutes,
           tableCashOutWindow: cashOutWindowMinutes
