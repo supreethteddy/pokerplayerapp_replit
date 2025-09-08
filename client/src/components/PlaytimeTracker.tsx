@@ -269,7 +269,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
       case 'CASH_OUT_WINDOW':
         return {
           phase: 'Cash Out Window',
-          description: `${session?.cash_out_window || session?.cashout_window_minutes || 15}-minute window to cash out`;
+          description: `${session?.cash_out_window || session?.cashout_window_minutes || 15}-minute window to cash out`,
           timeRemaining: session?.cashOutTimeRemaining || 0
         };
       default:
