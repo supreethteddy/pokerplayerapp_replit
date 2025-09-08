@@ -8,6 +8,7 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useUltraFastAuth } from "@/hooks/useUltraFastAuth";
+import { usePlayerGameStatus } from "@/hooks/usePlayerGameStatus";
 import { PlaytimeTracker } from "@/components/PlaytimeTracker";
 
 export default function TableView() {
@@ -32,6 +33,9 @@ export default function TableView() {
 
   // Use the working ultra-fast auth system (same as PlayerDashboard)
   const { user, loading: authLoading } = useUltraFastAuth();
+  
+  // Use the working game status system (same as PlayerDashboard)
+  const gameStatus = usePlayerGameStatus();
 
   const currentTable = tablesArray.find((table: any) => table.id === tableId);
 
@@ -52,12 +56,7 @@ export default function TableView() {
     staleTime: 10000, // Consider data fresh for 10 seconds
   });
 
-  // Query to check if current user is seated at this table
-  const { data: userSeatedInfo } = useQuery({
-    queryKey: ['/api/table-seats', user?.id],
-    enabled: !!user?.id && !!tableId,
-    refetchInterval: 10000,
-  });
+  // Note: Now using gameStatus.isInActiveGame instead of the unreliable /api/table-seats endpoint
 
   // Add type safety for seatedPlayers array
   const seatedPlayersArray = Array.isArray(seatedPlayers) ? seatedPlayers : [];
@@ -77,10 +76,9 @@ export default function TableView() {
   const isOnWaitlist = waitlistArray.some((req: any) => req.tableId === tableId);
   const waitlistEntry = waitlistArray.find((req: any) => req.tableId === tableId);
 
-  // Check if current user is seated at this table
-  const userSeatedArray = Array.isArray(userSeatedInfo) ? userSeatedInfo : [];
-  const userSeatInfo = userSeatedArray.find((seat: any) => seat.tableId === tableId && seat.status === 'seated');
-  const isUserSeated = !!userSeatInfo;
+  // Check if current user is seated at this table using the working game status
+  const isUserSeated = gameStatus.isInActiveGame && gameStatus.activeGameInfo?.tableId === tableId;
+  const userSeatInfo = gameStatus.activeGameInfo || gameStatus.seatedSessionFallback;
 
   // Join waitlist with seat reservation
   const joinWaitlistMutation = useMutation({
