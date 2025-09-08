@@ -19,21 +19,23 @@ interface LiveSession {
   sessionDuration: number;
   startedAt: string;
   status: string;
-  minPlayTimeMinutes: number;
-  callTimeWindowMinutes: number;
-  callTimePlayPeriodMinutes: number;
-  cashoutWindowMinutes: number;
-  minPlayTimeCompleted: boolean;
-  callTimeEligible: boolean;
-  canCashOut: boolean;
   isLive: boolean;
   sessionStartTime: string;
   
-  // Enhanced cashout window properties (from backend calculations)
-  cashoutWindowStartMinutes: number;
-  cashoutWindowEndMinutes: number;
-  inCashoutWindow: boolean;
-  cashoutTimeRemaining: number;
+  // STATE MACHINE PROPERTIES
+  sessionPhase: string; // 'MINIMUM_PLAY' | 'CALL_TIME_AVAILABLE' | 'CALL_TIME_ACTIVE' | 'CASH_OUT_WINDOW'
+  minPlayTimeCompleted: boolean;
+  callTimeAvailable: boolean;
+  callTimeActive: boolean;
+  callTimeRemaining: number;
+  cashOutWindowActive: boolean;
+  canCashOut: boolean;
+  cashOutTimeRemaining: number;
+  
+  // TABLE CONFIGURATION
+  tableMinPlayTime: number;
+  tableCallTimeDuration: number;
+  tableCashOutWindow: number;
 }
 
 interface PlaytimeTrackerProps {
@@ -190,59 +192,60 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // Calculate time until call time available
-  const getTimeUntilCallTime = () => {
-    if (!session?.sessionStartTime || session.callTimeEligible) return 0;
-    
-    const start = new Date(session.sessionStartTime);
-    const now = new Date();
-    const minutesPlayed = (now.getTime() - start.getTime()) / (1000 * 60);
-    const timeUntilCallTime = session.callTimeWindowMinutes - minutesPlayed;
-    
-    return Math.max(0, Math.ceil(timeUntilCallTime));
-  };
-
-  // Calculate cashout window timing using enhanced backend data
-  const getCashoutWindowStatus = () => {
-    if (!session) return { inWindow: false, timeRemaining: 0, timeUntilWindow: 0 };
-    
-    // Use backend's real-time calculations with dynamic timing rules
-    const inWindow = session.inCashoutWindow || false;
-    const timeRemaining = session.cashoutTimeRemaining || 0;
-    
-    // Calculate time until window opens if not in window and before start time
-    let timeUntilWindow = 0;
-    if (!inWindow && session.sessionStartTime) {
-      const start = new Date(session.sessionStartTime);
-      const now = new Date();
-      const minutesPlayed = (now.getTime() - start.getTime()) / (1000 * 60);
-      const windowStartTime = session.cashoutWindowStartMinutes || session.minPlayTimeMinutes || 30;
-      
-      if (minutesPlayed < windowStartTime) {
-        timeUntilWindow = Math.ceil(windowStartTime - minutesPlayed);
-      }
-    }
-    
-    return { inWindow, timeRemaining, timeUntilWindow };
-  };
-
-  const sessionDuration = getSessionDuration();
-  const timeUntilCallTime = getTimeUntilCallTime();
-  const cashoutStatus = getCashoutWindowStatus();
-  
-  // Calculate time until minimum play time is completed
+  // Calculate time until minimum play time (for MINIMUM_PLAY phase)
   const getTimeUntilMinPlay = () => {
     if (!session?.sessionStartTime || session.minPlayTimeCompleted) return 0;
     
     const start = new Date(session.sessionStartTime);
     const now = new Date();
     const minutesPlayed = (now.getTime() - start.getTime()) / (1000 * 60);
-    const timeUntilMinPlay = session.minPlayTimeMinutes - minutesPlayed;
+    const timeUntilMinPlay = (session.tableMinPlayTime || 30) - minutesPlayed;
     
     return Math.max(0, Math.ceil(timeUntilMinPlay));
   };
-  
+
+  // Get phase-specific status information
+  const getPhaseStatus = () => {
+    if (!session) return { phase: 'UNKNOWN', description: '', timeRemaining: 0 };
+    
+    switch (session.sessionPhase) {
+      case 'MINIMUM_PLAY':
+        return {
+          phase: 'Minimum Play Time',
+          description: `Must play ${session.tableMinPlayTime || 30} minutes minimum`,
+          timeRemaining: getTimeUntilMinPlay()
+        };
+      case 'CALL_TIME_AVAILABLE':
+        return {
+          phase: 'Call Time Available',
+          description: 'Can request call time',
+          timeRemaining: 0
+        };
+      case 'CALL_TIME_ACTIVE':
+        return {
+          phase: 'Call Time Active',
+          description: `${session.tableCallTimeDuration || 60}-minute countdown running`,
+          timeRemaining: session.callTimeRemaining || 0
+        };
+      case 'CASH_OUT_WINDOW':
+        return {
+          phase: 'Cash Out Window',
+          description: `${session.tableCashOutWindow || 15}-minute window to cash out`,
+          timeRemaining: session.cashOutTimeRemaining || 0
+        };
+      default:
+        return {
+          phase: 'Unknown',
+          description: 'Session state unclear',
+          timeRemaining: 0
+        };
+    }
+  };
+
+  const sessionDuration = getSessionDuration();
   const timeUntilMinPlay = getTimeUntilMinPlay();
+  const phaseStatus = getPhaseStatus();
+  
 
   // Don't render if no session or not loading
   if (isLoading) {
@@ -314,48 +317,65 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
               </div>
             </div>
 
+            {/* Current Phase Status */}
+            <div className="bg-blue-900/20 border border-blue-500/30 p-3 rounded-lg">
+              <div className="text-center">
+                <div className="text-sm font-medium text-blue-300 mb-1">
+                  Current Phase: {phaseStatus.phase}
+                </div>
+                <div className="text-xs text-blue-400">
+                  {phaseStatus.description}
+                </div>
+                {phaseStatus.timeRemaining > 0 && (
+                  <div className="text-lg font-mono font-bold text-blue-200 mt-2">
+                    {phaseStatus.timeRemaining} minutes remaining
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Action Buttons */}
             <div className="flex space-x-3">
               {/* Call Time Button */}
               <Button
                 onClick={() => callTimeMutation.mutate()}
-                disabled={!session.callTimeEligible || callTimeMutation.isPending}
-                className="flex-1 bg-orange-600 hover:bg-orange-700 disabled:opacity-50"
+                disabled={!session.callTimeAvailable || callTimeMutation.isPending}
+                className={`flex-1 ${
+                  session.callTimeAvailable 
+                    ? 'bg-orange-600 hover:bg-orange-700' 
+                    : 'bg-gray-600 opacity-50 cursor-not-allowed'
+                } transition-all duration-300`}
               >
                 <Phone className="h-4 w-4 mr-2" />
-                {session.callTimeEligible ? 'Call Time' : `Call Time in ${timeUntilCallTime}m`}
+                {session.callTimeAvailable ? 'Call Time' : (
+                  session.callTimeActive ? `Call Time Active (${session.callTimeRemaining}m)` : 'Call Time Unavailable'
+                )}
               </Button>
 
-              {/* Cash Out Button - Only shows during window */}
-              {cashoutStatus.inWindow ? (
-                <Button
-                  onClick={() => cashOutMutation.mutate()}
-                  disabled={cashOutMutation.isPending}
-                  className={`flex-1 ${
-                    cashoutStatus.timeRemaining <= 5 
-                      ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
-                      : 'bg-green-600 hover:bg-green-700'
-                  } transition-all duration-300`}
-                >
-                  <DollarSign className="h-4 w-4 mr-2" />
-                  Cash Out ({cashoutStatus.timeRemaining}m left)
-                </Button>
-              ) : (
-                <Button
-                  disabled={true}
-                  className="flex-1 bg-gray-600 opacity-50 cursor-not-allowed"
-                >
-                  <DollarSign className="h-4 w-4 mr-2" />
-                  {cashoutStatus.timeUntilWindow > 0 
-                    ? `Cash Out in ${cashoutStatus.timeUntilWindow}m`
-                    : 'Cash Out Window Closed'
-                  }
-                </Button>
-              )}
+              {/* Cash Out Button */}
+              <Button
+                onClick={() => cashOutMutation.mutate()}
+                disabled={!session.canCashOut || cashOutMutation.isPending}
+                className={`flex-1 ${
+                  session.canCashOut
+                    ? (session.cashOutTimeRemaining <= 5 
+                        ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
+                        : 'bg-green-600 hover:bg-green-700')
+                    : 'bg-gray-600 opacity-50 cursor-not-allowed'
+                } transition-all duration-300`}
+              >
+                <DollarSign className="h-4 w-4 mr-2" />
+                {session.canCashOut ? (
+                  session.cashOutTimeRemaining > 0 
+                    ? `Cash Out (${session.cashOutTimeRemaining}m left)` 
+                    : 'Cash Out Now'
+                ) : 'Cash Out Unavailable'}
+              </Button>
             </div>
 
-            {/* Enhanced Status Indicators with Cashout Window */}
-            <div className="grid grid-cols-3 gap-2 text-xs">
+            {/* State Machine Status Indicators */}
+            <div className="grid grid-cols-4 gap-2 text-xs">
+              {/* Minimum Play */}
               <div className={`p-2 rounded ${session.minPlayTimeCompleted ? 'bg-green-900/50 border border-green-500/50' : 'bg-red-900/50 border border-red-500/50'}`}>
                 <div className="flex items-center justify-between">
                   <span className={session.minPlayTimeCompleted ? 'text-green-400' : 'text-red-400'}>
@@ -366,73 +386,82 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
                   </span>
                 </div>
               </div>
-              <div className={`p-2 rounded ${session.callTimeEligible ? 'bg-green-900/50 border border-green-500/50' : 'bg-yellow-900/50 border border-yellow-500/50'}`}>
+              
+              {/* Call Time Available */}
+              <div className={`p-2 rounded ${session.callTimeAvailable ? 'bg-green-900/50 border border-green-500/50' : 'bg-gray-900/50 border border-gray-500/50'}`}>
                 <div className="flex items-center justify-between">
-                  <span className={session.callTimeEligible ? 'text-green-400' : 'text-yellow-400'}>
-                    Call Time
+                  <span className={session.callTimeAvailable ? 'text-green-400' : 'text-gray-400'}>
+                    Available
                   </span>
-                  <span className={session.callTimeEligible ? 'text-green-300' : 'text-yellow-300'}>
-                    {session.callTimeEligible ? '✓' : `${timeUntilCallTime}m`}
+                  <span className={session.callTimeAvailable ? 'text-green-300' : 'text-gray-300'}>
+                    {session.callTimeAvailable ? '✓' : '✗'}
                   </span>
                 </div>
               </div>
+              
+              {/* Call Time Active */}
+              <div className={`p-2 rounded ${session.callTimeActive ? 'bg-orange-900/50 border border-orange-500/50' : 'bg-gray-900/50 border border-gray-500/50'}`}>
+                <div className="flex items-center justify-between">
+                  <span className={session.callTimeActive ? 'text-orange-400' : 'text-gray-400'}>
+                    Active
+                  </span>
+                  <span className={session.callTimeActive ? 'text-orange-300' : 'text-gray-300'}>
+                    {session.callTimeActive ? `${session.callTimeRemaining}m` : '✗'}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Cash Out Window */}
               <div className={`p-2 rounded ${
-                cashoutStatus.inWindow 
-                  ? (cashoutStatus.timeRemaining <= 5 
+                session.cashOutWindowActive 
+                  ? (session.cashOutTimeRemaining <= 5 
                       ? 'bg-red-900/50 border border-red-500/50 animate-pulse' 
-                      : 'bg-green-900/50 border border-green-500/50')
+                      : 'bg-blue-900/50 border border-blue-500/50')
                   : 'bg-gray-900/50 border border-gray-500/50'
               }`}>
                 <div className="flex items-center justify-between">
                   <span className={
-                    cashoutStatus.inWindow 
-                      ? (cashoutStatus.timeRemaining <= 5 ? 'text-red-400' : 'text-green-400')
+                    session.cashOutWindowActive 
+                      ? (session.cashOutTimeRemaining <= 5 ? 'text-red-400' : 'text-blue-400')
                       : 'text-gray-400'
                   }>
-                    Cashout
+                    Cash Out
                   </span>
                   <span className={
-                    cashoutStatus.inWindow 
-                      ? (cashoutStatus.timeRemaining <= 5 ? 'text-red-300' : 'text-green-300')
+                    session.cashOutWindowActive 
+                      ? (session.cashOutTimeRemaining <= 5 ? 'text-red-300' : 'text-blue-300')
                       : 'text-gray-300'
                   }>
-                    {cashoutStatus.inWindow 
-                      ? `${cashoutStatus.timeRemaining}m` 
-                      : (cashoutStatus.timeUntilWindow > 0 ? `${cashoutStatus.timeUntilWindow}m` : '✗')
-                    }
+                    {session.cashOutWindowActive ? `${session.cashOutTimeRemaining}m` : '✗'}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Dynamic Timing Rules with Real-Time Updates */}
+            {/* Table Configuration */}
             <div className="bg-gray-800/50 p-3 rounded text-xs text-gray-400 border border-gray-700">
               <div className="font-medium mb-2 flex items-center justify-between">
-                <span>Staff-Configurable Timing Rules:</span>
+                <span>Table Configuration:</span>
                 <Badge variant="outline" className="text-xs px-2 py-1 bg-blue-900/30 border-blue-500/50 text-blue-300">
-                  Live
+                  {session.sessionPhase}
                 </Badge>
               </div>
               <ul className="space-y-1">
                 <li className="flex justify-between">
                   <span>• Minimum play time:</span> 
-                  <span className="font-medium text-white">{session.minPlayTimeMinutes}m</span>
-                </li>
-                <li className="flex justify-between">
-                  <span>• Call time window:</span> 
-                  <span className="font-medium text-white">{session.callTimeWindowMinutes}m</span>
+                  <span className="font-medium text-white">{session.tableMinPlayTime || 30}m</span>
                 </li>
                 <li className="flex justify-between">
                   <span>• Call time duration:</span> 
-                  <span className="font-medium text-white">{session.callTimePlayPeriodMinutes}m</span>
+                  <span className="font-medium text-white">{session.tableCallTimeDuration || 60}m</span>
                 </li>
                 <li className="flex justify-between">
-                  <span>• Cashout window:</span> 
-                  <span className="font-medium text-white">{session.cashoutWindowMinutes}m</span>
+                  <span>• Cash out window:</span> 
+                  <span className="font-medium text-white">{session.tableCashOutWindow || 15}m</span>
                 </li>
               </ul>
               <div className="mt-2 pt-2 border-t border-gray-700 text-xs text-gray-500">
-                Cashout window: {session.cashoutWindowStartMinutes}m - {session.cashoutWindowEndMinutes}m
+                State Machine: Min Play → Call Time Available → Call Time Active → Cash Out Window
               </div>
             </div>
           </div>

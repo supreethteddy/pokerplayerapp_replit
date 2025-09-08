@@ -3491,16 +3491,16 @@ export function registerRoutes(app: Express) {
       await pgClient.connect();
 
       try {
-        // Query for active seated session from seat_requests table
+        // Query for active seated session with all required fields
         const sessionResult = await pgClient.query(`
           SELECT
             sr.id, sr.player_id, sr.table_id, sr.status, sr.seat_number,
             sr.session_start_time, sr.session_buy_in_amount,
-            sr.min_play_time_minutes, sr.call_time_window_minutes,
-            sr.call_time_play_period_minutes, sr.cashout_window_minutes,
-            sr.cashout_window_active,
+            sr.call_time_started, sr.call_time_ends,
+            sr.cashout_window_active, sr.cashout_window_ends,
             pt.name as table_name, pt.game_type, pt.min_buy_in, pt.max_buy_in,
-            pt.small_blind, pt.big_blind, pt.status as table_status
+            pt.small_blind, pt.big_blind, pt.status as table_status,
+            pt.min_play_time, pt.call_time_duration, pt.cash_out_window
           FROM seat_requests sr
           LEFT JOIN poker_tables pt ON sr.table_id::uuid = pt.id
           WHERE sr.player_id = $1 AND sr.status = 'seated' AND sr.session_start_time IS NOT NULL
@@ -3508,9 +3508,8 @@ export function registerRoutes(app: Express) {
           LIMIT 1
         `, [parseInt(playerId)]);
 
-        await pgClient.end();
-
         if (sessionResult.rows.length === 0) {
+          await pgClient.end();
           console.log(`📊 [LIVE SESSIONS] No active session found for player ${playerId}`);
           return res.json({ hasActiveSession: false, session: null });
         }
@@ -3529,14 +3528,12 @@ export function registerRoutes(app: Express) {
         const now = new Date();
         const sessionDurationMinutes = Math.floor((now.getTime() - sessionStart.getTime()) / (1000 * 60));
 
-        // Get table configuration from poker_tables
-        const tableConfigResult = await pgClient.query(`
-          SELECT min_play_time, call_time_duration, cash_out_window
-          FROM poker_tables
-          WHERE id = $1::uuid
-        `, [row.table_id]);
-
-        const tableConfig = tableConfigResult.rows[0] || {};
+        // Get table configuration from poker_tables (included in main query)
+        const tableConfig = {
+          min_play_time: row.min_play_time || 30,
+          call_time_duration: row.call_time_duration || 60, 
+          cash_out_window: row.cash_out_window || 15
+        };
         const minPlayTimeMinutes = tableConfig.min_play_time || 30;
         const callTimeDurationMinutes = tableConfig.call_time_duration || 60;
         const cashOutWindowMinutes = tableConfig.cash_out_window || 15;
@@ -3680,6 +3677,8 @@ export function registerRoutes(app: Express) {
           callTimeActive,
           canCashOut
         });
+
+        await pgClient.end();
 
         res.json({
           hasActiveSession: true,
