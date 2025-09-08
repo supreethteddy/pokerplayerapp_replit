@@ -4368,9 +4368,9 @@ export function registerRoutes(app: Express) {
       await pgClient.connect();
 
       try {
-        // First, verify the player is seated and eligible for call time
+        // First, verify the player is seated and get table configuration
         const seatQuery = await pgClient.query(`
-          SELECT sr.*, pt.call_time_duration 
+          SELECT sr.*, pt.call_time_duration, pt.name as table_name
           FROM seat_requests sr
           JOIN poker_tables pt ON sr.table_id::uuid = pt.id
           WHERE sr.player_id = $1 AND sr.status = 'seated'
@@ -4380,21 +4380,51 @@ export function registerRoutes(app: Express) {
 
         if (seatQuery.rows.length === 0) {
           await pgClient.end();
+          console.log(`❌ [CALL TIME] Player ${playerId} not found or not seated`);
           return res.status(400).json({ error: 'Player not found or not seated' });
         }
 
         const seatInfo = seatQuery.rows[0];
-        const callTimeDuration = seatInfo.call_time_duration || 60; // Default 60 minutes
+        const callTimeDuration = seatInfo.call_time_duration || 60;
+        
+        console.log(`🎯 [CALL TIME] Player ${playerId} found:`, {
+          seatId: seatInfo.id,
+          tableId: seatInfo.table_id,
+          tableName: seatInfo.table_name,
+          callTimeDuration: callTimeDuration,
+          currentCallTimeStarted: seatInfo.call_time_started,
+          currentCallTimeEnds: seatInfo.call_time_ends
+        });
 
-        // Calculate call time end timestamp
+        // Check if call time is already active
+        if (seatInfo.call_time_started && seatInfo.call_time_ends) {
+          const callTimeEnds = new Date(seatInfo.call_time_ends);
+          if (callTimeEnds > new Date()) {
+            await pgClient.end();
+            return res.status(400).json({ 
+              error: 'Call time is already active',
+              callTimeEnds: callTimeEnds.toISOString()
+            });
+          }
+        }
+
+        // Calculate new call time timestamps
         const callTimeStarted = new Date();
         const callTimeEnds = new Date(callTimeStarted.getTime() + (callTimeDuration * 60 * 1000));
 
-        // Update seat_requests with call time information
+        console.log(`🕐 [CALL TIME] Setting timestamps:`, {
+          started: callTimeStarted.toISOString(),
+          ends: callTimeEnds.toISOString(),
+          durationMinutes: callTimeDuration
+        });
+
+        // Update seat_requests with call time information and clear cash out window
         const updateResult = await pgClient.query(`
           UPDATE seat_requests 
           SET call_time_started = $1,
               call_time_ends = $2,
+              cashout_window_active = false,
+              cashout_window_ends = null,
               updated_at = NOW()
           WHERE player_id = $3 AND status = 'seated'
           RETURNING *
@@ -4402,36 +4432,76 @@ export function registerRoutes(app: Express) {
 
         if (updateResult.rows.length === 0) {
           await pgClient.end();
-          return res.status(500).json({ error: 'Failed to start call time' });
+          console.log(`❌ [CALL TIME] Failed to update seat_requests for player ${playerId}`);
+          return res.status(500).json({ error: 'Failed to update call time in database' });
         }
+
+        const updatedSeat = updateResult.rows[0];
+        console.log(`✅ [CALL TIME] Database updated:`, {
+          id: updatedSeat.id,
+          call_time_started: updatedSeat.call_time_started,
+          call_time_ends: updatedSeat.call_time_ends,
+          cashout_window_active: updatedSeat.cashout_window_active
+        });
 
         await pgClient.end();
 
         // Send real-time notification via Pusher
         await pusher.trigger(`player-${playerId}`, 'call_time_started', {
+          playerId: playerId,
           callTimeStarted: callTimeStarted.toISOString(),
           callTimeEnds: callTimeEnds.toISOString(),
           duration: callTimeDuration,
+          tableName: seatInfo.table_name,
           message: `Call time started: ${callTimeDuration} minutes`
         });
 
-        console.log(`✅ [CALL TIME] Started for player ${playerId}: ${callTimeDuration}m until ${callTimeEnds.toLocaleTimeString()}`);
-        res.json({ 
-          success: true, 
+        // Also notify staff portal
+        await pusher.trigger('staff-portal', 'call_time_started', {
+          playerId: playerId,
+          tableName: seatInfo.table_name,
           callTimeStarted: callTimeStarted.toISOString(),
           callTimeEnds: callTimeEnds.toISOString(),
           duration: callTimeDuration
         });
 
+        console.log(`✅ [CALL TIME] Successfully started for player ${playerId}:`, {
+          duration: `${callTimeDuration} minutes`,
+          endsAt: callTimeEnds.toLocaleTimeString(),
+          table: seatInfo.table_name
+        });
+
+        res.json({ 
+          success: true, 
+          callTimeStarted: callTimeStarted.toISOString(),
+          callTimeEnds: callTimeEnds.toISOString(),
+          duration: callTimeDuration,
+          message: `Call time started: ${callTimeDuration} minutes until ${callTimeEnds.toLocaleTimeString()}`
+        });
+
       } catch (dbError: any) {
         await pgClient.end();
         console.error('❌ [CALL TIME] Database error:', dbError);
-        return res.status(500).json({ error: 'Database operation failed' });
+        console.error('❌ [CALL TIME] Error details:', {
+          message: dbError.message,
+          code: dbError.code,
+          detail: dbError.detail,
+          hint: dbError.hint,
+          position: dbError.position,
+          query: dbError.query
+        });
+        return res.status(500).json({ 
+          error: 'Database operation failed',
+          details: dbError.message 
+        });
       }
 
     } catch (error: any) {
-      console.error('❌ [CALL TIME] Error:', error);
-      res.status(500).json({ error: 'Failed to start call time' });
+      console.error('❌ [CALL TIME] General error:', error);
+      res.status(500).json({ 
+        error: 'Failed to start call time',
+        details: error.message 
+      });
     }
   });
 
