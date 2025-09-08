@@ -37,7 +37,7 @@ interface LiveSession {
   min_play_time: number;
   call_time_duration: number;
   cash_out_window: number;
-  
+
   // SEAT REQUEST TIMING (from seat_requests)
   min_play_time_minutes: number;
   call_time_window_minutes: number;
@@ -387,18 +387,18 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
               </div>
             </div>
 
-            
+
 
             {/* State Machine Status Indicators */}
             <div className="grid grid-cols-4 gap-2 text-xs">
-              {/* Minimum Play */}
-              <div className={`p-2 rounded ${session?.minPlayTimeCompleted ? 'bg-green-900/50 border border-green-500/50' : 'bg-red-900/50 border border-red-500/50'}`}>
+              {/* Minimum Play Time */}
+              <div className={`p-2 rounded ${!session?.minPlayTimeCompleted ? 'bg-yellow-900/50 border border-yellow-500/50' : 'bg-green-900/50 border border-green-500/50'}`}>
                 <div className="flex items-center justify-between">
-                  <span className={session?.minPlayTimeCompleted ? 'text-green-400' : 'text-red-400'}>
+                  <span className={!session?.minPlayTimeCompleted ? 'text-yellow-400' : 'text-green-400'}>
                     Min Play
                   </span>
-                  <span className={session?.minPlayTimeCompleted ? 'text-green-300' : 'text-red-300'}>
-                    {session?.minPlayTimeCompleted ? '✓' : `${timeUntilMinPlay}m`}
+                  <span className={!session?.minPlayTimeCompleted ? 'text-yellow-300' : 'text-green-300'}>
+                    {!session?.minPlayTimeCompleted ? `${getTimeUntilMinPlay()}m` : '✓'}
                   </span>
                 </div>
               </div>
