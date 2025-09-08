@@ -92,7 +92,7 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
   // Call Time mutation
   const callTimeMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest(`/api/live-sessions/${playerId}/call-time`, 'POST');
+      const response = await apiRequest('POST', `/api/live-sessions/${playerId}/call-time`);
       return response;
     },
     onSuccess: () => {
@@ -114,7 +114,7 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
   // Cash Out mutation
   const cashOutMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest(`/api/live-sessions/${playerId}/cash-out`, 'POST');
+      const response = await apiRequest('POST', `/api/live-sessions/${playerId}/cash-out`);
       return response;
     },
     onSuccess: () => {
