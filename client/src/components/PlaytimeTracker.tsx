@@ -42,6 +42,7 @@ interface PlaytimeTrackerProps {
 
 export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [liveTimer, setLiveTimer] = useState("00:00:00");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -79,6 +80,33 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
       };
     }).catch(console.error);
   }, [playerId, toast, queryClient]);
+
+  // Live timer update with setInterval
+  useEffect(() => {
+    if (!session?.sessionStartTime) {
+      setLiveTimer("00:00:00");
+      return;
+    }
+
+    const updateLiveTimer = () => {
+      const start = new Date(session.sessionStartTime);
+      const now = new Date();
+      const diff = now.getTime() - start.getTime();
+      
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      
+      const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      setLiveTimer(timeString);
+    };
+
+    // Update immediately and then every second
+    updateLiveTimer();
+    const interval = setInterval(updateLiveTimer, 1000);
+
+    return () => clearInterval(interval);
+  }, [session?.sessionStartTime]);
 
   // Fetch live session data with proper response structure
   const { data: sessionResponse, isLoading, error } = useQuery<{hasActiveSession: boolean, session: LiveSession | null}>({
@@ -261,7 +289,7 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
             {/* Session Timer */}
             <div className="text-center bg-slate-800 p-4 rounded-lg">
               <div className="text-2xl font-mono font-bold text-white mb-1">
-                {sessionDuration}
+                {liveTimer}
               </div>
               <div className="text-sm text-slate-400">Session Time</div>
             </div>
