@@ -3566,6 +3566,163 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Call Time Request API - Updates seat_requests.request column
+  app.post("/api/live-sessions/:playerId/call-time", async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      console.log(`⏰ [CALL TIME] Processing request for player: ${playerId}`);
+      
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        // Get player's active session
+        const sessionResult = await pgClient.query(`
+          SELECT 
+            sr.id, sr.player_id, sr.table_id, sr.status, sr.seat_number,
+            sr.session_start_time, sr.call_time_window_minutes,
+            pt.name as table_name, pt.game_type,
+            p.first_name, p.last_name
+          FROM seat_requests sr
+          LEFT JOIN poker_tables pt ON sr.table_id::uuid = pt.id
+          LEFT JOIN players p ON sr.player_id = p.id
+          WHERE sr.player_id = $1 AND sr.status = 'seated' AND sr.session_start_time IS NOT NULL
+          ORDER BY sr.session_start_time DESC
+          LIMIT 1
+        `, [parseInt(playerId)]);
+
+        if (sessionResult.rows.length === 0) {
+          await pgClient.end();
+          return res.status(404).json({ error: 'No active session found' });
+        }
+
+        const session = sessionResult.rows[0];
+        
+        // Check if player is eligible for call time
+        const sessionStart = new Date(session.session_start_time);
+        const now = new Date();
+        const sessionDurationMinutes = Math.floor((now.getTime() - sessionStart.getTime()) / (1000 * 60));
+        const callTimeWindowMinutes = session.call_time_window_minutes || 60;
+
+        if (sessionDurationMinutes < callTimeWindowMinutes) {
+          await pgClient.end();
+          return res.status(400).json({ 
+            error: 'Call time not available yet',
+            timeRemaining: callTimeWindowMinutes - sessionDurationMinutes
+          });
+        }
+
+        // Update seat_requests.request column with call_time
+        await pgClient.query(`
+          UPDATE seat_requests 
+          SET request = 'call_time',
+              call_time_started = NOW(),
+              call_time_ends = NOW() + INTERVAL '15 minutes',
+              updated_at = NOW()
+          WHERE id = $1
+        `, [session.id]);
+
+        await pgClient.end();
+
+        console.log(`✅ [CALL TIME] Request processed for player ${playerId} - updated seat_requests.request to 'call_time'`);
+        res.json({ 
+          success: true, 
+          message: 'Call time activated - staff will be notified',
+          callTimeEnds: new Date(Date.now() + 15 * 60 * 1000).toISOString()
+        });
+
+      } catch (dbError: any) {
+        await pgClient.end();
+        console.error('❌ [CALL TIME] Database error:', dbError);
+        return res.status(500).json({ error: 'Database operation failed' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [CALL TIME] Error:', error);
+      res.status(500).json({ error: 'Failed to process call time request' });
+    }
+  });
+
+  // Cash Out Request API - Updates seat_requests.request column
+  app.post("/api/live-sessions/:playerId/cash-out", async (req, res) => {
+    try {
+      const { playerId } = req.params;
+      console.log(`💰 [CASH OUT] Processing request for player: ${playerId}`);
+      
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        // Get player's active session
+        const sessionResult = await pgClient.query(`
+          SELECT 
+            sr.id, sr.player_id, sr.table_id, sr.status, sr.seat_number,
+            sr.session_start_time, sr.session_buy_in_amount, sr.min_play_time_minutes,
+            pt.name as table_name, pt.game_type,
+            p.first_name, p.last_name
+          FROM seat_requests sr
+          LEFT JOIN poker_tables pt ON sr.table_id::uuid = pt.id
+          LEFT JOIN players p ON sr.player_id = p.id
+          WHERE sr.player_id = $1 AND sr.status = 'seated' AND sr.session_start_time IS NOT NULL
+          ORDER BY sr.session_start_time DESC
+          LIMIT 1
+        `, [parseInt(playerId)]);
+
+        if (sessionResult.rows.length === 0) {
+          await pgClient.end();
+          return res.status(404).json({ error: 'No active session found' });
+        }
+
+        const session = sessionResult.rows[0];
+        
+        // Check if player has completed minimum play time
+        const sessionStart = new Date(session.session_start_time);
+        const now = new Date();
+        const sessionDurationMinutes = Math.floor((now.getTime() - sessionStart.getTime()) / (1000 * 60));
+        const minPlayTimeMinutes = session.min_play_time_minutes || 30;
+
+        if (sessionDurationMinutes < minPlayTimeMinutes) {
+          await pgClient.end();
+          return res.status(400).json({ 
+            error: 'Minimum play time not completed',
+            timeRemaining: minPlayTimeMinutes - sessionDurationMinutes,
+            minPlayTime: minPlayTimeMinutes
+          });
+        }
+
+        // Update seat_requests.request column with cash_out
+        await pgClient.query(`
+          UPDATE seat_requests 
+          SET request = 'cash_out',
+              cashout_window_active = true,
+              cashout_window_ends = NOW() + INTERVAL '10 minutes',
+              updated_at = NOW()
+          WHERE id = $1
+        `, [session.id]);
+
+        await pgClient.end();
+
+        console.log(`✅ [CASH OUT] Request processed for player ${playerId} - updated seat_requests.request to 'cash_out'`);
+        res.json({ 
+          success: true, 
+          message: 'Cash out request sent to staff',
+          cashOutWindow: '10 minutes'
+        });
+
+      } catch (dbError: any) {
+        await pgClient.end();
+        console.error('❌ [CASH OUT] Database error:', dbError);
+        return res.status(500).json({ error: 'Database operation failed' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [CASH OUT] Error:', error);
+      res.status(500).json({ error: 'Failed to process cash out request' });
+    }
+  });
+
   // Join Table Waitlist API - Using Updated Schema
   app.post("/api/seat-requests", async (req, res) => {
     try {
