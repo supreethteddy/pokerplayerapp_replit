@@ -390,37 +390,37 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
             {/* State Machine Status Indicators */}
             <div className="grid grid-cols-4 gap-2 text-xs">
               {/* Minimum Play Time */}
-              <div className={`p-2 rounded ${session?.minPlayTimeCompleted ? 'bg-green-900/50 border border-green-500/50' : 'bg-gray-900/50 border border-gray-500/50'}`}>
+              <div className={`p-2 rounded ${session?.minPlayTimeCompleted ? 'bg-green-900/50 border border-green-500/50' : 'bg-slate-900/50 border border-slate-500/50'}`}>
                 <div className="flex items-center justify-between">
-                  <span className={session?.minPlayTimeCompleted ? 'text-green-400' : 'text-gray-400'}>
+                  <span className={session?.minPlayTimeCompleted ? 'text-green-400' : 'text-slate-400'}>
                     Min Play
                   </span>
-                  <span className={session?.minPlayTimeCompleted ? 'text-green-300' : 'text-gray-300'}>
+                  <span className={session?.minPlayTimeCompleted ? 'text-green-300' : 'text-slate-300'}>
                     {session?.minPlayTimeCompleted ? '✓' : `${session?.minPlayTimeMinutes || 30}m`}
                   </span>
                 </div>
-                <div className="mt-1 text-xs">{session?.minPlayTimeCompleted ? 'Completed' : `${session?.minPlayTimeMinutes || 30} minutes required`}</div>
+                <div className={`mt-1 text-xs ${session?.minPlayTimeCompleted ? 'text-green-300' : 'text-slate-400'}`}>{session?.minPlayTimeCompleted ? 'Completed' : `${session?.minPlayTimeMinutes || 30} minutes required`}</div>
               </div>
 
               {/* Call Time Available */}
-              <div className={`p-2 rounded ${session?.callTimeAvailable ? 'bg-green-900/50 border border-green-500/50' : 'bg-gray-900/50 border border-gray-500/50'}`}>
+              <div className={`p-2 rounded ${session?.callTimeAvailable ? 'bg-green-900/50 border border-green-500/50' : 'bg-slate-900/50 border border-slate-500/50'}`}>
                 <div className="flex items-center justify-between">
-                  <span className={session?.callTimeAvailable ? 'text-green-400' : 'text-gray-400'}>
+                  <span className={session?.callTimeAvailable ? 'text-green-400' : 'text-slate-400'}>
                     Available
                   </span>
-                  <span className={session?.callTimeAvailable ? 'text-green-300' : 'text-gray-300'}>
+                  <span className={session?.callTimeAvailable ? 'text-green-300' : 'text-slate-300'}>
                     {session?.callTimeAvailable ? '✓' : '✗'}
                   </span>
                 </div>
               </div>
 
               {/* Call Time Active */}
-              <div className={`p-2 rounded ${session?.callTimeActive ? 'bg-orange-900/50 border border-orange-500/50' : 'bg-gray-900/50 border border-gray-500/50'}`}>
+              <div className={`p-2 rounded ${session?.callTimeActive ? 'bg-orange-900/50 border border-orange-500/50' : 'bg-slate-900/50 border border-slate-500/50'}`}>
                 <div className="flex items-center justify-between">
-                  <span className={session?.callTimeActive ? 'text-orange-400' : 'text-gray-400'}>
+                  <span className={session?.callTimeActive ? 'text-orange-400' : 'text-slate-400'}>
                     Active
                   </span>
-                  <span className={session?.callTimeActive ? 'text-orange-300' : 'text-gray-300'}>
+                  <span className={session?.callTimeActive ? 'text-orange-300' : 'text-slate-300'}>
                     {session?.callTimeActive ? `${session?.callTimeRemaining}m` : '✗'}
                   </span>
                 </div>
@@ -432,20 +432,20 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
                   ? (session?.cashOutTimeRemaining <= 5 
                       ? 'bg-red-900/50 border border-red-500/50 animate-pulse' 
                       : 'bg-blue-900/50 border border-blue-500/50')
-                  : 'bg-gray-900/50 border border-gray-500/50'
+                  : 'bg-slate-900/50 border border-slate-500/50'
               }`}>
                 <div className="flex items-center justify-between">
                   <span className={
                     session?.cashOutWindowActive 
                       ? (session?.cashOutTimeRemaining <= 5 ? 'text-red-400' : 'text-blue-400')
-                      : 'text-gray-400'
+                      : 'text-slate-400'
                   }>
                     Cash Out
                   </span>
                   <span className={
                     session?.cashOutWindowActive 
                       ? (session?.cashOutTimeRemaining <= 5 ? 'text-red-300' : 'text-blue-300')
-                      : 'text-gray-300'
+                      : 'text-slate-300'
                   }>
                     {session?.cashOutWindowActive ? `${session?.cashOutTimeRemaining}m` : '✗'}
                   </span>
@@ -533,42 +533,42 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
             </div>
 
             {/* Action Status */}
-            <div className="text-xs text-center text-gray-400 bg-slate-800/30 p-3 rounded border">
+            <div className="text-xs text-center bg-slate-800/30 p-3 rounded border border-slate-600">
               {session?.callTimeAvailable && !session?.callTimeActive && (
                 <div className="text-yellow-400">
                   <div className="font-medium">⏰ Call Time Available</div>
-                  <div className="mt-1 text-xs">Click to start {session?.callTimeDurationMinutes || 60}-minute countdown. After completion, you'll have {session?.cashOutWindowMinutes || 15} minutes to cash out.</div>
+                  <div className="mt-1 text-xs text-yellow-300">Click to start {session?.callTimeDurationMinutes || 60}-minute countdown. After completion, you'll have {session?.cashOutWindowMinutes || 15} minutes to cash out.</div>
                 </div>
               )}
               {session?.callTimeActive && (
                 <div className="text-orange-400">
                   <div className="font-medium">🔄 Call Time Active</div>
-                  <div className="mt-1 text-xs">Cash out window will open in {session?.callTimeRemaining || 0} minutes</div>
+                  <div className="mt-1 text-xs text-orange-300">Cash out window will open in {session?.callTimeRemaining || 0} minutes</div>
                 </div>
               )}
               {session?.canCashOut && (
                 <div className="text-green-400">
                   <div className="font-medium">💰 Cash Out Window Open!</div>
-                  <div className="mt-1 text-xs">You have {session?.cashOutTimeRemaining || 0} minutes to request cash out</div>
+                  <div className="mt-1 text-xs text-green-300">You have {session?.cashOutTimeRemaining || 0} minutes to request cash out</div>
                 </div>
               )}
               {!session?.callTimeAvailable && !session?.callTimeActive && !session?.canCashOut && (
-                <div className="text-gray-400">
+                <div className="text-slate-300">
                   <div className="font-medium">⏱️ Minimum Play Time</div>
-                  <div className="mt-1 text-xs">Complete {session?.minPlayTimeMinutes || 30} minutes before call time becomes available</div>
+                  <div className="mt-1 text-xs text-slate-400">Complete {session?.minPlayTimeMinutes || 30} minutes before call time becomes available</div>
                 </div>
               )}
             </div>
 
             {/* Table Configuration */}
-            <div className="bg-gray-800/50 p-3 rounded text-xs text-gray-400 border border-gray-700">
-              <div className="font-medium mb-2 flex items-center justify-between">
+            <div className="bg-slate-800/50 p-3 rounded text-xs border border-slate-600">
+              <div className="font-medium mb-2 flex items-center justify-between text-slate-300">
                 <span>Table Configuration:</span>
                 <Badge variant="outline" className="text-xs px-2 py-1 bg-blue-900/30 border-blue-500/50 text-blue-300">
                   {session?.sessionPhase}
                 </Badge>
               </div>
-              <ul className="space-y-1">
+              <ul className="space-y-1 text-slate-400">
                 <li className="flex justify-between">
                   <span>• Minimum play time:</span> 
                   <span className="font-medium text-white">{session?.min_play_time || session?.min_play_time_minutes || 30}m</span>
@@ -582,7 +582,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
                   <span className="font-medium text-white">{session?.cash_out_window || session?.cashout_window_minutes || 15}m</span>
                 </li>
               </ul>
-              <div className="mt-2 pt-2 border-t border-gray-700 text-xs text-gray-500">
+              <div className="mt-2 pt-2 border-t border-slate-600 text-xs text-slate-500">
                 State Machine: Min Play → Call Time Available → Call Time Active → Cash Out Window
               </div>
             </div>
