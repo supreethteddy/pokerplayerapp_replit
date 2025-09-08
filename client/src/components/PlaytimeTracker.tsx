@@ -457,9 +457,28 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
             {/* Action Buttons */}
             <div className="grid grid-cols-2 gap-3">
               <Button
-                onClick={() => {
-                  console.log('🎯 [CALL TIME] Requesting call time for player:', playerId);
-                  // TODO: Implement call time request API
+                onClick={async () => {
+                  console.log('🎯 [CALL TIME] Starting call time for player:', playerId);
+                  try {
+                    const response = await apiRequest('POST', '/api/call-time/start', {
+                      playerId: parseInt(playerId),
+                      sessionId: session?.id
+                    });
+                    if (response.ok) {
+                      queryClient.invalidateQueries({ queryKey: ['/api/live-sessions', playerId] });
+                      toast({
+                        title: "Call Time Started",
+                        description: `Your ${session?.callTimeDurationMinutes || 60}-minute call time has begun.`,
+                      });
+                    }
+                  } catch (error) {
+                    console.error('Failed to start call time:', error);
+                    toast({
+                      title: "Error",
+                      description: "Failed to start call time. Please try again.",
+                      variant: "destructive"
+                    });
+                  }
                 }}
                 disabled={!session?.callTimeAvailable || session?.callTimeActive}
                 className={`w-full py-3 ${
@@ -469,13 +488,35 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
                 }`}
               >
                 <Clock className="w-4 h-4 mr-2" />
-                {session?.callTimeActive ? 'Call Time Active' : 'Request Call Time'}
+                {session?.callTimeActive 
+                  ? `Call Time: ${session?.callTimeRemaining || 0}m left`
+                  : 'Start Call Time'
+                }
               </Button>
 
               <Button
-                onClick={() => {
+                onClick={async () => {
                   console.log('🎯 [CASH OUT] Requesting cash out for player:', playerId);
-                  // TODO: Implement cash out request API
+                  try {
+                    const response = await apiRequest('POST', '/api/cash-out/request', {
+                      playerId: parseInt(playerId),
+                      sessionId: session?.id
+                    });
+                    if (response.ok) {
+                      queryClient.invalidateQueries({ queryKey: ['/api/live-sessions', playerId] });
+                      toast({
+                        title: "Cash Out Requested",
+                        description: "Your cash out request has been sent to management.",
+                      });
+                    }
+                  } catch (error) {
+                    console.error('Failed to request cash out:', error);
+                    toast({
+                      title: "Error",
+                      description: "Failed to request cash out. Please try again.",
+                      variant: "destructive"
+                    });
+                  }
                 }}
                 disabled={!session?.canCashOut}
                 className={`w-full py-3 ${
@@ -485,23 +526,38 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
                 }`}
               >
                 <ArrowRight className="w-4 h-4 mr-2" />
-                {session?.canCashOut ? 'Cash Out Now' : 'Cash Out Unavailable'}
+                {session?.canCashOut 
+                  ? `Cash Out (${session?.cashOutTimeRemaining || 0}m left)`
+                  : 'Cash Out Unavailable'
+                }
               </Button>
             </div>
 
             {/* Action Status */}
-            <div className="text-xs text-center text-gray-400">
+            <div className="text-xs text-center text-gray-400 bg-slate-800/30 p-3 rounded border">
               {session?.callTimeAvailable && !session?.callTimeActive && (
-                <span className="text-yellow-400">✨ You can request call time now</span>
+                <div className="text-yellow-400">
+                  <div className="font-medium">⏰ Call Time Available</div>
+                  <div className="mt-1 text-xs">Click to start {session?.callTimeDurationMinutes || 60}-minute countdown. After completion, you'll have {session?.cashOutWindowMinutes || 15} minutes to cash out.</div>
+                </div>
               )}
               {session?.callTimeActive && (
-                <span className="text-orange-400">⏰ Call time is currently active</span>
-              )}
-              {!session?.canCashOut && (
-                <span className="text-gray-400">💰 Cash out will be available after call time</span>
+                <div className="text-orange-400">
+                  <div className="font-medium">🔄 Call Time Active</div>
+                  <div className="mt-1 text-xs">Cash out window will open in {session?.callTimeRemaining || 0} minutes</div>
+                </div>
               )}
               {session?.canCashOut && (
-                <span className="text-green-400">💰 Ready to cash out!</span>
+                <div className="text-green-400">
+                  <div className="font-medium">💰 Cash Out Window Open!</div>
+                  <div className="mt-1 text-xs">You have {session?.cashOutTimeRemaining || 0} minutes to request cash out</div>
+                </div>
+              )}
+              {!session?.callTimeAvailable && !session?.canCashOut && (
+                <div className="text-gray-400">
+                  <div className="font-medium">⏳ Minimum Play Time</div>
+                  <div className="mt-1 text-xs">Complete {session?.minPlayTimeMinutes || 30} minutes before call time becomes available</div>
+                </div>
               )}
             </div>
 
