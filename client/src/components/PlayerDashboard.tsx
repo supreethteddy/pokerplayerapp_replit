@@ -2016,18 +2016,21 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                       )}
                                     </div>
                                   )}
-                                  <Button
-                                    onClick={() => handleLeaveWaitList(String(table.id))}
-                                    disabled={leaveWaitListMutation.isPending}
-                                    size="sm"
-                                    variant="outline"
-                                    className="bg-gradient-to-r from-slate-600/30 to-slate-500/30 border border-slate-400/50 text-slate-300 hover:from-slate-500/40 hover:to-slate-400/40 hover:border-slate-300 hover:text-slate-200 transition-all duration-300 shadow-lg hover:shadow-slate-500/25 backdrop-blur-sm"
-                                  >
-                                    {leaveWaitListMutation.isPending ? (
-                                      <div className="w-4 h-4 border-2 border-slate-300 border-t-transparent rounded-full animate-spin mr-2" />
-                                    ) : null}
-                                    Leave
-                                  </Button>
+                                  {/* Only show Leave button if game hasn't started or player is not seated at this table */}
+                                  {!((tableStatuses as any)[String(table.id)]?.gameStarted && gameStatus.isInActiveGame && gameStatus.activeGameInfo?.tableId === String(table.id)) && (
+                                    <Button
+                                      onClick={() => handleLeaveWaitList(String(table.id))}
+                                      disabled={leaveWaitListMutation.isPending}
+                                      size="sm"
+                                      variant="outline"
+                                      className="bg-gradient-to-r from-slate-600/30 to-slate-500/30 border border-slate-400/50 text-slate-300 hover:from-slate-500/40 hover:to-slate-400/40 hover:border-slate-300 hover:text-slate-200 transition-all duration-300 shadow-lg hover:shadow-slate-500/25 backdrop-blur-sm"
+                                    >
+                                      {leaveWaitListMutation.isPending ? (
+                                        <div className="w-4 h-4 border-2 border-slate-300 border-t-transparent rounded-full animate-spin mr-2" />
+                                      ) : null}
+                                      Leave
+                                    </Button>
+                                  )}
                                 </>
                               ) : gameStatus.isInActiveGame ? (
                                 <div className="flex flex-col space-y-2">
