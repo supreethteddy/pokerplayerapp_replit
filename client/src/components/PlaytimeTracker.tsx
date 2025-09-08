@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, DollarSign, Play, Phone, X } from "lucide-react";
+import { Clock, DollarSign, Play, Phone, X, Eye } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useGameStatusSync } from "@/hooks/useGameStatusSync";
@@ -22,7 +22,7 @@ interface LiveSession {
   status: string;
   isLive: boolean;
   sessionStartTime: string;
-  
+
   // STATE MACHINE PROPERTIES
   sessionPhase: string; // 'MINIMUM_PLAY' | 'CALL_TIME_AVAILABLE' | 'CALL_TIME_ACTIVE' | 'CASH_OUT_WINDOW'
   minPlayTimeCompleted: boolean;
@@ -32,7 +32,7 @@ interface LiveSession {
   cashOutWindowActive: boolean;
   canCashOut: boolean;
   cashOutTimeRemaining: number;
-  
+
   // TABLE CONFIGURATION
   tableMinPlayTime: number;
   tableCallTimeDuration: number;
@@ -49,7 +49,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
   const [liveTimer, setLiveTimer] = useState("00:00:00");
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+
   // Use centralized synchronization for immediate updates
   const { invalidateAllGameQueries } = useGameStatusSync();
 
@@ -64,11 +64,11 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
       });
 
       const playerChannel = pusher.subscribe(`player-${playerId}`);
-      
+
       // Listen for timing rule updates with nanosecond-level sync
       playerChannel.bind('timing_rules_updated', (data: any) => {
         console.log('🔧 [TIMING RULES] Staff updated table rules:', data);
-        
+
         // Show immediate notification to player
         toast({
           title: "Table Rules Updated",
@@ -97,11 +97,11 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
   });
 
   const session = sessionResponse?.hasActiveSession ? sessionResponse.session : null;
-  
+
   // FALLBACK LOGIC: If no session from API but gameStatus shows seated, use fallback data
   const fallbackSession = gameStatus?.seatedSessionFallback;
   const hasSeatedPlayerFromFallback = !session && fallbackSession && gameStatus?.isInActiveGame;
-  
+
   console.log('🎯 [PLAYTIME TRACKER] Session check:', {
     playerId,
     hasApiSession: !!session,
@@ -125,11 +125,11 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
       const start = new Date(startTime);
       const now = new Date();
       const diff = Math.max(0, now.getTime() - start.getTime()); // Ensure non-negative
-      
+
       const hours = Math.floor(diff / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-      
+
       const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
       setLiveTimer(timeString);
     };
@@ -202,27 +202,27 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
   // Calculate session duration
   const getSessionDuration = () => {
     if (!session?.sessionStartTime) return "00:00:00";
-    
+
     const start = new Date(session.sessionStartTime);
     const now = new Date();
     const diff = now.getTime() - start.getTime();
-    
+
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-    
+
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
   // Calculate time until minimum play time (for MINIMUM_PLAY phase)
   const getTimeUntilMinPlay = () => {
     if (!session?.sessionStartTime || session.minPlayTimeCompleted) return 0;
-    
+
     const start = new Date(session.sessionStartTime);
     const now = new Date();
     const minutesPlayed = (now.getTime() - start.getTime()) / (1000 * 60);
     const timeUntilMinPlay = (session.tableMinPlayTime || 30) - minutesPlayed;
-    
+
     return Math.max(0, Math.ceil(timeUntilMinPlay));
   };
 
@@ -236,7 +236,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
       };
     }
     if (!session) return { phase: 'UNKNOWN', description: '', timeRemaining: 0 };
-    
+
     switch (session.sessionPhase) {
       case 'MINIMUM_PLAY':
         return {
@@ -274,7 +274,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
   const sessionDuration = getSessionDuration();
   const timeUntilMinPlay = getTimeUntilMinPlay();
   const phaseStatus = getPhaseStatus();
-  
+
 
   // Enhanced condition checking: Show PlaytimeTracker if we have a session OR if fallback indicates player is seated
   if (isLoading && !hasSeatedPlayerFromFallback) {
@@ -379,40 +379,13 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
 
             {/* Action Buttons */}
             <div className="flex space-x-3">
-              {/* Call Time Button */}
+              {/* Call Time Button - Only show View Table button */}
               <Button
-                onClick={() => callTimeMutation.mutate()}
-                disabled={!session.callTimeAvailable || callTimeMutation.isPending}
-                className={`flex-1 ${
-                  session.callTimeAvailable 
-                    ? 'bg-orange-600 hover:bg-orange-700' 
-                    : 'bg-gray-600 opacity-50 cursor-not-allowed'
-                } transition-all duration-300`}
+                onClick={() => window.location.href = `/table/${gameStatus.activeGameInfo?.tableId || session?.tableId || ''}`}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 transition-all duration-300"
               >
-                <Phone className="h-4 w-4 mr-2" />
-                {session.callTimeAvailable ? 'Call Time' : (
-                  session.callTimeActive ? `Call Time Active (${session.callTimeRemaining}m)` : 'Call Time Unavailable'
-                )}
-              </Button>
-
-              {/* Cash Out Button */}
-              <Button
-                onClick={() => cashOutMutation.mutate()}
-                disabled={!session.canCashOut || cashOutMutation.isPending}
-                className={`flex-1 ${
-                  session.canCashOut
-                    ? (session.cashOutTimeRemaining <= 5 
-                        ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
-                        : 'bg-green-600 hover:bg-green-700')
-                    : 'bg-gray-600 opacity-50 cursor-not-allowed'
-                } transition-all duration-300`}
-              >
-                <DollarSign className="h-4 w-4 mr-2" />
-                {session.canCashOut ? (
-                  session.cashOutTimeRemaining > 0 
-                    ? `Cash Out (${session.cashOutTimeRemaining}m left)` 
-                    : 'Cash Out Now'
-                ) : 'Cash Out Unavailable'}
+                <Eye className="h-4 w-4 mr-2" />
+                View Table
               </Button>
             </div>
 
@@ -429,7 +402,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
                   </span>
                 </div>
               </div>
-              
+
               {/* Call Time Available */}
               <div className={`p-2 rounded ${session.callTimeAvailable ? 'bg-green-900/50 border border-green-500/50' : 'bg-gray-900/50 border border-gray-500/50'}`}>
                 <div className="flex items-center justify-between">
@@ -441,7 +414,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
                   </span>
                 </div>
               </div>
-              
+
               {/* Call Time Active */}
               <div className={`p-2 rounded ${session.callTimeActive ? 'bg-orange-900/50 border border-orange-500/50' : 'bg-gray-900/50 border border-gray-500/50'}`}>
                 <div className="flex items-center justify-between">
@@ -453,7 +426,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
                   </span>
                 </div>
               </div>
-              
+
               {/* Cash Out Window */}
               <div className={`p-2 rounded ${
                 session.cashOutWindowActive 
