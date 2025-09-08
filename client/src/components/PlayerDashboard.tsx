@@ -2009,7 +2009,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     Position: {getWaitListPosition(String(table.id))}
                                   </span>
                                   {/* Show game status for waitlisted players */}
-                                  {tableStatuses?.[String(table.id)] && (
+                                  {tableStatuses && tableStatuses[String(table.id)] && (
                                     <div className="flex items-center space-x-1">
                                       {(tableStatuses as any)[String(table.id)]?.gameStarted && (
                                         <span className="text-xs text-amber-400">⚠️ Game started</span>
@@ -2017,7 +2017,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     </div>
                                   )}
                                   {/* Only show Leave button if game hasn't started or player is not seated at this table */}
-                                  {!((tableStatuses as any)[String(table.id)]?.gameStarted && gameStatus.isInActiveGame && gameStatus.activeGameInfo?.tableId === String(table.id)) && (
+                                  {!(tableStatuses && (tableStatuses as any)[String(table.id)]?.gameStarted && gameStatus.isInActiveGame && gameStatus.activeGameInfo?.tableId === String(table.id)) && (
                                     <Button
                                       onClick={() => handleLeaveWaitList(String(table.id))}
                                       disabled={leaveWaitListMutation.isPending}
