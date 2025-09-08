@@ -1623,6 +1623,46 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Table pot calculation - sums buy-ins from all seated players
+  app.get("/api/tables/:tableId/pot", async (req, res) => {
+    try {
+      const { tableId } = req.params;
+      
+      console.log(`💰 [TABLE POT] Calculating pot for table: ${tableId}`);
+
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        const result = await pgClient.query(`
+          SELECT COALESCE(SUM(CAST(session_buy_in_amount AS DECIMAL)), 0) as total_pot
+          FROM seat_requests 
+          WHERE table_id = $1 AND status = 'seated'
+        `, [tableId]);
+
+        const totalPot = result.rows[0]?.total_pot || 0;
+
+        await pgClient.end();
+        console.log(`✅ [TABLE POT] Calculated pot for table ${tableId}: ₹${totalPot}`);
+        
+        res.json({ 
+          tableId, 
+          pot: parseFloat(totalPot).toFixed(2)
+        });
+
+      } catch (dbError: any) {
+        await pgClient.end();
+        console.error('❌ [TABLE POT] Database error:', dbError);
+        return res.status(500).json({ error: 'Database query failed' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [TABLE POT] Server error:', error);
+      res.status(500).json({ error: 'Failed to calculate pot' });
+    }
+  });
+
   app.get("/api/tournaments", async (req, res) => {
     try {
       const { createClient } = await import('@supabase/supabase-js');

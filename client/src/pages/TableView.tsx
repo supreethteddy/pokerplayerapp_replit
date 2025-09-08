@@ -62,6 +62,18 @@ export default function TableView() {
   // Add type safety for seatedPlayers array
   const seatedPlayersArray = Array.isArray(seatedPlayers) ? seatedPlayers : [];
 
+  // Fetch pot calculation for this table
+  const { data: potData } = useQuery({
+    queryKey: ['/api/tables', tableId, 'pot'],
+    queryFn: async () => {
+      const response = await fetch(`/api/tables/${tableId}/pot`);
+      if (!response.ok) throw new Error('Failed to fetch pot');
+      return response.json();
+    },
+    enabled: !!tableId,
+    refetchInterval: 5000, // Update every 5 seconds
+  });
+
   const isOnWaitlist = waitlistArray.some((req: any) => req.tableId === tableId);
   const waitlistEntry = waitlistArray.find((req: any) => req.tableId === tableId);
 
@@ -316,7 +328,9 @@ export default function TableView() {
                     {/* Pot Display */}
                     <div className="bg-gradient-to-br from-yellow-600 via-amber-500 to-orange-500 border-2 border-yellow-400/80 px-4 py-2 rounded-lg text-center shadow-xl">
                       <div className="text-yellow-200 text-xs font-semibold">POT</div>
-                      <div className="text-white text-lg font-bold">₹0</div>
+                      <div className="text-white text-lg font-bold">
+                        ₹{potData?.pot ? parseFloat(potData.pot).toLocaleString() : '0'}
+                      </div>
                     </div>
                   </div>
                 </div>

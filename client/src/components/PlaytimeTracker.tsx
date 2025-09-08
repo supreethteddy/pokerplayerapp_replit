@@ -81,6 +81,15 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
     }).catch(console.error);
   }, [playerId, toast, queryClient]);
 
+  // Fetch live session data with proper response structure
+  const { data: sessionResponse, isLoading, error } = useQuery<{hasActiveSession: boolean, session: LiveSession | null}>({
+    queryKey: ['/api/live-sessions', playerId],
+    refetchInterval: 1000, // Update every second for real-time tracking
+    enabled: !!playerId,
+  });
+
+  const session = sessionResponse?.hasActiveSession ? sessionResponse.session : null;
+
   // Live timer update with setInterval
   useEffect(() => {
     if (!session?.sessionStartTime) {
@@ -107,15 +116,6 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
 
     return () => clearInterval(interval);
   }, [session?.sessionStartTime]);
-
-  // Fetch live session data with proper response structure
-  const { data: sessionResponse, isLoading, error } = useQuery<{hasActiveSession: boolean, session: LiveSession | null}>({
-    queryKey: ['/api/live-sessions', playerId],
-    refetchInterval: 1000, // Update every second for real-time tracking
-    enabled: !!playerId,
-  });
-
-  const session = sessionResponse?.hasActiveSession ? sessionResponse.session : null;
 
   // Call Time mutation
   const callTimeMutation = useMutation({
