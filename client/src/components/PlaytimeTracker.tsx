@@ -387,20 +387,19 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
               </div>
             </div>
 
-
-
             {/* State Machine Status Indicators */}
             <div className="grid grid-cols-4 gap-2 text-xs">
               {/* Minimum Play Time */}
-              <div className={`p-2 rounded ${!session?.minPlayTimeCompleted ? 'bg-yellow-900/50 border border-yellow-500/50' : 'bg-green-900/50 border border-green-500/50'}`}>
+              <div className={`p-2 rounded ${session?.minPlayTimeCompleted ? 'bg-green-900/50 border border-green-500/50' : 'bg-gray-900/50 border border-gray-500/50'}`}>
                 <div className="flex items-center justify-between">
-                  <span className={!session?.minPlayTimeCompleted ? 'text-yellow-400' : 'text-green-400'}>
+                  <span className={session?.minPlayTimeCompleted ? 'text-green-400' : 'text-gray-400'}>
                     Min Play
                   </span>
-                  <span className={!session?.minPlayTimeCompleted ? 'text-yellow-300' : 'text-green-300'}>
-                    {!session?.minPlayTimeCompleted ? `${getTimeUntilMinPlay()}m` : '✓'}
+                  <span className={session?.minPlayTimeCompleted ? 'text-green-300' : 'text-gray-300'}>
+                    {session?.minPlayTimeCompleted ? '✓' : `${session?.minPlayTimeMinutes || 30}m`}
                   </span>
                 </div>
+                <div className="mt-1 text-xs">{session?.minPlayTimeCompleted ? 'Completed' : `${session?.minPlayTimeMinutes || 30} minutes required`}</div>
               </div>
 
               {/* Call Time Available */}
@@ -553,9 +552,9 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
                   <div className="mt-1 text-xs">You have {session?.cashOutTimeRemaining || 0} minutes to request cash out</div>
                 </div>
               )}
-              {!session?.callTimeAvailable && !session?.canCashOut && (
+              {!session?.callTimeAvailable && !session?.callTimeActive && !session?.canCashOut && (
                 <div className="text-gray-400">
-                  <div className="font-medium">⏳ Minimum Play Time</div>
+                  <div className="font-medium">⏱️ Minimum Play Time</div>
                   <div className="mt-1 text-xs">Complete {session?.minPlayTimeMinutes || 30} minutes before call time becomes available</div>
                 </div>
               )}
