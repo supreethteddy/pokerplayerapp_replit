@@ -4372,7 +4372,7 @@ export function registerRoutes(app: Express) {
         const seatQuery = await pgClient.query(`
           SELECT sr.*, pt.call_time_duration 
           FROM seat_requests sr
-          JOIN poker_tables pt ON sr.table_id = pt.id
+          JOIN poker_tables pt ON sr.table_id::uuid = pt.id
           WHERE sr.player_id = $1 AND sr.status = 'seated'
           ORDER BY sr.created_at DESC 
           LIMIT 1
@@ -4451,7 +4451,7 @@ export function registerRoutes(app: Express) {
         const seatQuery = await pgClient.query(`
           SELECT sr.*, pt.cash_out_window, pt.name as table_name 
           FROM seat_requests sr
-          JOIN poker_tables pt ON sr.table_id = pt.id
+          JOIN poker_tables pt ON sr.table_id::uuid = pt.id
           WHERE sr.player_id = $1 AND sr.status = 'seated'
           ORDER BY sr.created_at DESC 
           LIMIT 1
