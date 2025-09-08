@@ -124,7 +124,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
     const updateLiveTimer = () => {
       const start = new Date(startTime);
       const now = new Date();
-      const diff = now.getTime() - start.getTime();
+      const diff = Math.max(0, now.getTime() - start.getTime()); // Ensure non-negative
       
       const hours = Math.floor(diff / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -139,7 +139,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
     const interval = setInterval(updateLiveTimer, 1000);
 
     return () => clearInterval(interval);
-  }, [startTime]);
+  }, [session?.sessionStartTime, fallbackSession?.sessionStartTime]);
 
   // Call Time mutation
   const callTimeMutation = useMutation({
@@ -226,8 +226,15 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
     return Math.max(0, Math.ceil(timeUntilMinPlay));
   };
 
-  // Get phase-specific status information
+  // Get phase-specific status information (works with fallback)
   const getPhaseStatus = () => {
+    if (!session && hasSeatedPlayerFromFallback) {
+      return { 
+        phase: 'Minimum Play Time', 
+        description: 'Session tracking starting...', 
+        timeRemaining: 0 
+      };
+    }
     if (!session) return { phase: 'UNKNOWN', description: '', timeRemaining: 0 };
     
     switch (session.sessionPhase) {
@@ -286,7 +293,8 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
 
   console.log('✅ [PLAYTIME TRACKER] Rendering PlaytimeTracker!', { 
     hasSession: !!session, 
-    hasFallback: hasSeatedPlayerFromFallback 
+    hasFallback: hasSeatedPlayerFromFallback,
+    startTime: session?.sessionStartTime || fallbackSession?.sessionStartTime
   });
 
   return (
@@ -325,9 +333,11 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
             {/* Session Timer */}
             <div className="text-center bg-slate-800 p-4 rounded-lg">
               <div className="text-2xl font-mono font-bold text-white mb-1">
-                {liveTimer}
+                {liveTimer || "00:00:00"}
               </div>
-              <div className="text-sm text-slate-400">Session Time</div>
+              <div className="text-sm text-slate-400">
+                {session?.sessionStartTime || fallbackSession?.sessionStartTime ? "Session Time" : "Session Starting..."}
+              </div>
             </div>
 
             {/* Balance Info */}
