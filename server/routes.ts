@@ -3529,23 +3529,95 @@ export function registerRoutes(app: Express) {
         const now = new Date();
         const sessionDurationMinutes = Math.floor((now.getTime() - sessionStart.getTime()) / (1000 * 60));
 
-        // Enhanced timing calculations with dynamic rules
-        const minPlayTimeMinutes = row.min_play_time_minutes || 30;
-        const callTimeWindowMinutes = row.call_time_window_minutes || 60;
-        const callTimePlayPeriodMinutes = row.call_time_play_period_minutes || 15;
-        const cashoutWindowMinutes = row.cashout_window_minutes || 10;
+        // Get table configuration from poker_tables
+        const tableConfigResult = await pgClient.query(`
+          SELECT min_play_time, call_time_duration, cash_out_window
+          FROM poker_tables
+          WHERE id = $1::uuid
+        `, [row.table_id]);
 
-        // Calculate timing states
+        const tableConfig = tableConfigResult.rows[0] || {};
+        const minPlayTimeMinutes = tableConfig.min_play_time || 30;
+        const callTimeDurationMinutes = tableConfig.call_time_duration || 60;
+        const cashOutWindowMinutes = tableConfig.cash_out_window || 15;
+
+        // STATE MACHINE IMPLEMENTATION
+        // Phase 1: MINIMUM_PLAY (0 to min_play_time)
+        // Phase 2: CALL_TIME_AVAILABLE (after min_play_time, no active call time)
+        // Phase 3: CALL_TIME_ACTIVE (call time button pressed, countdown running)
+        // Phase 4: CASH_OUT_WINDOW (after call time countdown, cash out available)
+        // Phase 5: Back to CALL_TIME_AVAILABLE (if cash out window expires)
+
+        const now = new Date();
         const minPlayTimeCompleted = sessionDurationMinutes >= minPlayTimeMinutes;
-        const callTimeEligible = sessionDurationMinutes >= callTimeWindowMinutes;
+        
+        // Initialize state variables
+        let sessionPhase = 'MINIMUM_PLAY';
+        let callTimeAvailable = false;
+        let callTimeActive = false;
+        let callTimeRemaining = 0;
+        let cashOutWindowActive = false;
+        let cashOutTimeRemaining = 0;
+        let canCashOut = false;
 
-        // Enhanced cashout window calculations
-        const cashoutWindowStartMinutes = Math.max(0, minPlayTimeMinutes - cashoutWindowMinutes);
-        const cashoutWindowEndMinutes = minPlayTimeMinutes;
-        const inCashoutWindow = sessionDurationMinutes >= cashoutWindowStartMinutes && 
-                               sessionDurationMinutes <= cashoutWindowEndMinutes;
-        const cashoutTimeRemaining = inCashoutWindow ? 
-          Math.max(0, cashoutWindowEndMinutes - sessionDurationMinutes) : 0;
+        if (!minPlayTimeCompleted) {
+          // PHASE 1: MINIMUM_PLAY - Must complete minimum play time first
+          sessionPhase = 'MINIMUM_PLAY';
+          const timeUntilMinPlay = minPlayTimeMinutes - sessionDurationMinutes;
+          console.log(`📊 [STATE MACHINE] Player ${playerId} in MINIMUM_PLAY phase, ${timeUntilMinPlay} minutes remaining`);
+        } else {
+          // Check if call time is currently active
+          if (row.call_time_started && row.call_time_ends) {
+            const callTimeEnds = new Date(row.call_time_ends);
+            
+            if (now < callTimeEnds) {
+              // PHASE 3: CALL_TIME_ACTIVE - Call time countdown running
+              sessionPhase = 'CALL_TIME_ACTIVE';
+              callTimeActive = true;
+              callTimeRemaining = Math.ceil((callTimeEnds.getTime() - now.getTime()) / (1000 * 60));
+              console.log(`📊 [STATE MACHINE] Player ${playerId} in CALL_TIME_ACTIVE phase, ${callTimeRemaining} minutes remaining`);
+            } else {
+              // Call time countdown finished, check if in cash out window
+              if (row.cashout_window_active && row.cashout_window_ends) {
+                const cashOutEnds = new Date(row.cashout_window_ends);
+                
+                if (now < cashOutEnds) {
+                  // PHASE 4: CASH_OUT_WINDOW - Cash out available
+                  sessionPhase = 'CASH_OUT_WINDOW';
+                  cashOutWindowActive = true;
+                  canCashOut = true;
+                  cashOutTimeRemaining = Math.ceil((cashOutEnds.getTime() - now.getTime()) / (1000 * 60));
+                  console.log(`📊 [STATE MACHINE] Player ${playerId} in CASH_OUT_WINDOW phase, ${cashOutTimeRemaining} minutes remaining`);
+                } else {
+                  // Cash out window expired, reset to call time available
+                  sessionPhase = 'CALL_TIME_AVAILABLE';
+                  callTimeAvailable = true;
+                  
+                  // Clear expired windows in database
+                  await pgClient.query(`
+                    UPDATE seat_requests 
+                    SET call_time_started = NULL, call_time_ends = NULL, 
+                        cashout_window_active = false, cashout_window_ends = NULL,
+                        updated_at = NOW()
+                    WHERE id = $1
+                  `, [row.id]);
+                  
+                  console.log(`📊 [STATE MACHINE] Player ${playerId} cash out window expired, back to CALL_TIME_AVAILABLE`);
+                }
+              } else {
+                // Call time finished but no cash out window started (error state), reset
+                sessionPhase = 'CALL_TIME_AVAILABLE';
+                callTimeAvailable = true;
+                console.log(`📊 [STATE MACHINE] Player ${playerId} in error state, reset to CALL_TIME_AVAILABLE`);
+              }
+            }
+          } else {
+            // PHASE 2: CALL_TIME_AVAILABLE - Can request call time
+            sessionPhase = 'CALL_TIME_AVAILABLE';
+            callTimeAvailable = true;
+            console.log(`📊 [STATE MACHINE] Player ${playerId} in CALL_TIME_AVAILABLE phase`);
+          }
+        }
 
         // Build comprehensive session response from seat_requests data
         const sessionData = {
@@ -3568,25 +3640,31 @@ export function registerRoutes(app: Express) {
           callTimePlayPeriodMinutes,
           cashoutWindowMinutes,
 
-          // Calculated timing states
+          // STATE MACHINE STATUS
+          sessionPhase,
           minPlayTimeCompleted,
-          callTimeEligible,
-          canCashOut: minPlayTimeCompleted,
-          isLive: true, // Player is seated, so session is live
+          callTimeAvailable,
+          callTimeActive,
+          callTimeRemaining,
+          cashOutWindowActive,
+          canCashOut,
+          cashOutTimeRemaining,
+          isLive: true,
           sessionStartTime: row.session_start_time,
 
-          // Enhanced cashout window properties
-          cashoutWindowStartMinutes,
-          cashoutWindowEndMinutes,
-          inCashoutWindow,
-          cashoutTimeRemaining
+          // Table configuration
+          tableMinPlayTime: minPlayTimeMinutes,
+          tableCallTimeDuration: callTimeDurationMinutes,
+          tableCashOutWindow: cashOutWindowMinutes
         };
 
         console.log(`📊 [LIVE SESSIONS] Session data for player ${playerId}:`, {
           duration: sessionDurationMinutes,
+          phase: sessionPhase,
           minPlayCompleted: minPlayTimeCompleted,
-          callTimeEligible: callTimeEligible,
-          canCashOut: minPlayTimeCompleted
+          callTimeAvailable,
+          callTimeActive,
+          canCashOut
         });
 
         res.json({
