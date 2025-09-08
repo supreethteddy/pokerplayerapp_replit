@@ -4356,6 +4356,173 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Call Time Start API - Initiate call time countdown
+  app.post("/api/call-time/start", async (req, res) => {
+    try {
+      const { playerId, sessionId } = req.body;
+      
+      console.log(`⏰ [CALL TIME] Starting call time for player ${playerId}, session ${sessionId}`);
+      
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        // First, verify the player is seated and eligible for call time
+        const seatQuery = await pgClient.query(`
+          SELECT sr.*, pt.call_time_duration 
+          FROM seat_requests sr
+          JOIN poker_tables pt ON sr.table_id = pt.id
+          WHERE sr.player_id = $1 AND sr.status = 'seated'
+          ORDER BY sr.created_at DESC 
+          LIMIT 1
+        `, [playerId]);
+
+        if (seatQuery.rows.length === 0) {
+          await pgClient.end();
+          return res.status(400).json({ error: 'Player not found or not seated' });
+        }
+
+        const seatInfo = seatQuery.rows[0];
+        const callTimeDuration = seatInfo.call_time_duration || 60; // Default 60 minutes
+
+        // Calculate call time end timestamp
+        const callTimeStarted = new Date();
+        const callTimeEnds = new Date(callTimeStarted.getTime() + (callTimeDuration * 60 * 1000));
+
+        // Update seat_requests with call time information
+        const updateResult = await pgClient.query(`
+          UPDATE seat_requests 
+          SET call_time_started = $1,
+              call_time_ends = $2,
+              updated_at = NOW()
+          WHERE player_id = $3 AND status = 'seated'
+          RETURNING *
+        `, [callTimeStarted.toISOString(), callTimeEnds.toISOString(), playerId]);
+
+        if (updateResult.rows.length === 0) {
+          await pgClient.end();
+          return res.status(500).json({ error: 'Failed to start call time' });
+        }
+
+        await pgClient.end();
+
+        // Send real-time notification via Pusher
+        await pusher.trigger(`player-${playerId}`, 'call_time_started', {
+          callTimeStarted: callTimeStarted.toISOString(),
+          callTimeEnds: callTimeEnds.toISOString(),
+          duration: callTimeDuration,
+          message: `Call time started: ${callTimeDuration} minutes`
+        });
+
+        console.log(`✅ [CALL TIME] Started for player ${playerId}: ${callTimeDuration}m until ${callTimeEnds.toLocaleTimeString()}`);
+        res.json({ 
+          success: true, 
+          callTimeStarted: callTimeStarted.toISOString(),
+          callTimeEnds: callTimeEnds.toISOString(),
+          duration: callTimeDuration
+        });
+
+      } catch (dbError: any) {
+        await pgClient.end();
+        console.error('❌ [CALL TIME] Database error:', dbError);
+        return res.status(500).json({ error: 'Database operation failed' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [CALL TIME] Error:', error);
+      res.status(500).json({ error: 'Failed to start call time' });
+    }
+  });
+
+  // Cash Out Request API - Submit cash out request during cash out window
+  app.post("/api/cash-out/request", async (req, res) => {
+    try {
+      const { playerId, sessionId } = req.body;
+      
+      console.log(`💰 [CASH OUT] Processing request for player ${playerId}, session ${sessionId}`);
+      
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        // Verify player is in cash out window
+        const seatQuery = await pgClient.query(`
+          SELECT sr.*, pt.cash_out_window, pt.name as table_name 
+          FROM seat_requests sr
+          JOIN poker_tables pt ON sr.table_id = pt.id
+          WHERE sr.player_id = $1 AND sr.status = 'seated'
+          ORDER BY sr.created_at DESC 
+          LIMIT 1
+        `, [playerId]);
+
+        if (seatQuery.rows.length === 0) {
+          await pgClient.end();
+          return res.status(400).json({ error: 'Player not found or not seated' });
+        }
+
+        const seatInfo = seatQuery.rows[0];
+        
+        // Check if cash out window is active
+        if (!seatInfo.cashout_window_active) {
+          await pgClient.end();
+          return res.status(400).json({ error: 'Cash out window is not currently active' });
+        }
+
+        // Update seat_requests with cash out request
+        const updateResult = await pgClient.query(`
+          UPDATE seat_requests 
+          SET cash_out_requested = NOW(),
+              cash_out_requested_by = $1,
+              updated_at = NOW(),
+              notes = COALESCE(notes, '') || ' | Cash out requested at ' || NOW()
+          WHERE player_id = $1 AND status = 'seated'
+          RETURNING *
+        `, [playerId]);
+
+        if (updateResult.rows.length === 0) {
+          await pgClient.end();
+          return res.status(500).json({ error: 'Failed to submit cash out request' });
+        }
+
+        await pgClient.end();
+
+        // Send notifications to staff and player via Pusher
+        await pusher.trigger('staff-portal', 'cash_out_requested', {
+          playerId,
+          playerName: `Player ${playerId}`,
+          tableId: seatInfo.table_id,
+          tableName: seatInfo.table_name,
+          seatNumber: seatInfo.seat_number,
+          requestedAt: new Date().toISOString(),
+          message: `Player ${playerId} has requested to cash out from ${seatInfo.table_name}`
+        });
+
+        await pusher.trigger(`player-${playerId}`, 'cash_out_requested', {
+          message: 'Your cash out request has been sent to management',
+          requestedAt: new Date().toISOString()
+        });
+
+        console.log(`✅ [CASH OUT] Request submitted for player ${playerId} at table ${seatInfo.table_name}`);
+        res.json({ 
+          success: true, 
+          message: 'Cash out request sent to management',
+          requestedAt: new Date().toISOString()
+        });
+
+      } catch (dbError: any) {
+        await pgClient.end();
+        console.error('❌ [CASH OUT] Database error:', dbError);
+        return res.status(500).json({ error: 'Database operation failed' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [CASH OUT] Error:', error);
+      res.status(500).json({ error: 'Failed to submit cash out request' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
