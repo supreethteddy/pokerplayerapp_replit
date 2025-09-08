@@ -1886,65 +1886,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             </div>
                           </div>
 
-                          <div className="flex flex-col sm:flex-row justify-center gap-3">
+                          <div className="flex justify-center">
                             <Button
                               onClick={() => setLocation(`/table/${session.tableId}`)}
                               className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
                             >
                               <Eye className="w-4 h-4 mr-2" />
                               View Table
-                            </Button>
-                            
-                            {/* Call Time Button */}
-                            <Button
-                              onClick={async () => {
-                                try {
-                                  const response = await apiRequest('POST', `/api/live-sessions/${user?.id}/call-time`);
-                                  if (response.ok) {
-                                    toast({
-                                      title: "Call Time Activated",
-                                      description: "You have initiated call time. Complete your current hand within the time limit.",
-                                    });
-                                    queryClient.invalidateQueries({ queryKey: ['/api/table-seats'] });
-                                  }
-                                } catch (error: any) {
-                                  toast({
-                                    title: "Call Time Failed",
-                                    description: error.message || "Failed to activate call time",
-                                    variant: "destructive",
-                                  });
-                                }
-                              }}
-                              className="bg-orange-600 hover:bg-orange-700 text-white font-semibold"
-                            >
-                              <Phone className="w-4 h-4 mr-2" />
-                              Call Time
-                            </Button>
-                            
-                            {/* Cash Out Button */}
-                            <Button
-                              onClick={async () => {
-                                try {
-                                  const response = await apiRequest('POST', `/api/live-sessions/${user?.id}/cash-out`);
-                                  if (response.ok) {
-                                    toast({
-                                      title: "Cash Out Initiated",
-                                      description: "Your cash out request has been sent to staff for processing.",
-                                    });
-                                    queryClient.invalidateQueries({ queryKey: ['/api/table-seats'] });
-                                  }
-                                } catch (error: any) {
-                                  toast({
-                                    title: "Cash Out Failed",
-                                    description: error.message || "Failed to initiate cash out",
-                                    variant: "destructive",
-                                  });
-                                }
-                              }}
-                              className="bg-purple-600 hover:bg-purple-700 text-white font-semibold"
-                            >
-                              <CreditCard className="w-4 h-4 mr-2" />
-                              Cash Out
                             </Button>
                           </div>
                         </div>
