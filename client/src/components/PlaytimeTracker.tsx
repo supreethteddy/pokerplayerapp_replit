@@ -201,11 +201,11 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
 
   // Calculate session duration
   const getSessionDuration = () => {
-    if (!session?.sessionStartTime) return "00:00:00";
+    if (!session?.sessionStartTime) return "Session Starting...";
 
-    const start = new Date(session.sessionStartTime);
+    const start = new Date(session?.sessionStartTime || new Date());
     const now = new Date();
-    const diff = now.getTime() - start.getTime();
+    const diff = Math.max(0, now.getTime() - start.getTime());
 
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -216,12 +216,12 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
 
   // Calculate time until minimum play time (for MINIMUM_PLAY phase)
   const getTimeUntilMinPlay = () => {
-    if (!session?.sessionStartTime || session.minPlayTimeCompleted) return 0;
+    if (!session?.sessionStartTime || session?.minPlayTimeCompleted) return 0;
 
-    const start = new Date(session.sessionStartTime);
+    const start = new Date(session?.sessionStartTime || new Date());
     const now = new Date();
     const minutesPlayed = (now.getTime() - start.getTime()) / (1000 * 60);
-    const timeUntilMinPlay = (session.tableMinPlayTime || 30) - minutesPlayed;
+    const timeUntilMinPlay = (session?.tableMinPlayTime || 30) - minutesPlayed;
 
     return Math.max(0, Math.ceil(timeUntilMinPlay));
   };
@@ -237,11 +237,11 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
     }
     if (!session) return { phase: 'UNKNOWN', description: '', timeRemaining: 0 };
 
-    switch (session.sessionPhase) {
+    switch (session?.sessionPhase) {
       case 'MINIMUM_PLAY':
         return {
           phase: 'Minimum Play Time',
-          description: `Must play ${session.tableMinPlayTime || 30} minutes minimum`,
+          description: `Must play ${session?.tableMinPlayTime || 30} minutes minimum`,
           timeRemaining: getTimeUntilMinPlay()
         };
       case 'CALL_TIME_AVAILABLE':
@@ -253,14 +253,14 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
       case 'CALL_TIME_ACTIVE':
         return {
           phase: 'Call Time Active',
-          description: `${session.tableCallTimeDuration || 60}-minute countdown running`,
-          timeRemaining: session.callTimeRemaining || 0
+          description: `${session?.tableCallTimeDuration || 60}-minute countdown running`,
+          timeRemaining: session?.callTimeRemaining || 0
         };
       case 'CASH_OUT_WINDOW':
         return {
           phase: 'Cash Out Window',
-          description: `${session.tableCashOutWindow || 15}-minute window to cash out`,
-          timeRemaining: session.cashOutTimeRemaining || 0
+          description: `${session?.tableCashOutWindow || 15}-minute window to cash out`,
+          timeRemaining: session?.cashOutTimeRemaining || 0
         };
       default:
         return {
