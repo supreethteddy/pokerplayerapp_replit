@@ -2235,6 +2235,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             <div className="max-w-4xl mx-auto">
               <PlaytimeTracker 
                 playerId={user?.id?.toString() || ''} 
+                gameStatus={gameStatus}
               />
             </div>
           </TabsContent>

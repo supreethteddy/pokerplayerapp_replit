@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useUltraFastAuth } from './useUltraFastAuth';
+import { useGameStatusSync } from './useGameStatusSync';
 
 interface GameStatusInfo {
   isInActiveGame: boolean;
@@ -15,36 +16,54 @@ interface GameStatusInfo {
   waitlistEntries: any[];
   canJoinWaitlists: boolean;
   restrictionMessage?: string;
+  
+  // ADD: Session fallback data for immediate synchronization
+  seatedSessionFallback?: {
+    tableId: string;
+    tableName: string;
+    gameType: string;
+    seatNumber: number;
+    status: 'seated';
+    sessionStartTime?: string;
+  };
 }
 
 export function usePlayerGameStatus(): GameStatusInfo {
   const { user } = useUltraFastAuth();
+  
+  // Use centralized synchronization for immediate updates on seat assignments
+  useGameStatusSync();
 
-  // Get player's waitlist entries
+  // UNIFIED FAST REFRESH INTERVALS (3 seconds) for immediate synchronization
+  // Get player's waitlist entries with aggressive refresh during active gaming
   const { data: waitlistEntries = [] } = useQuery({
     queryKey: ['/api/seat-requests', user?.id],
     enabled: !!user?.id,
-    refetchInterval: 15000,
+    refetchInterval: 3000, // Fast refresh for immediate seat assignment detection
+    staleTime: 1000, // Consider fresh for 1 second only
   });
 
-  // Get all tables to check status
+  // Get all tables to check status with fast refresh
   const { data: tables = [] } = useQuery({
     queryKey: ['/api/tables'],
-    refetchInterval: 30000,
+    refetchInterval: 3000, // Fast refresh for table status changes
+    staleTime: 2000, // Consider fresh for 2 seconds
   });
 
-  // Get player's seated info from seat_requests table
+  // Get player's seated info with fast refresh  
   const { data: seatedInfo = [] } = useQuery({
     queryKey: ['/api/table-seats', user?.id],
     enabled: !!user?.id,
-    refetchInterval: 10000,
+    refetchInterval: 3000, // Fast refresh for seated session detection
+    staleTime: 1000, // Consider fresh for 1 second only
   });
 
-  // ALSO check seat_requests directly for seated status
+  // Primary source: seat_requests data (contains both waitlist and seated status)
   const { data: seatRequestsData = [] } = useQuery({
     queryKey: ['/api/seat-requests', user?.id],
     enabled: !!user?.id,
-    refetchInterval: 5000,
+    refetchInterval: 3000, // Fast refresh for real-time status
+    staleTime: 1000, // Consider fresh for 1 second only
   });
 
   // Process the game status
@@ -53,6 +72,7 @@ export function usePlayerGameStatus(): GameStatusInfo {
   let activeGameInfo: GameStatusInfo['activeGameInfo'] = undefined;
   let canJoinWaitlists = true;
   let restrictionMessage: string | undefined = undefined;
+  let seatedSessionFallback: GameStatusInfo['seatedSessionFallback'] = undefined;
 
   // Check for seated sessions first (higher priority)
   const seatedSessions = Array.isArray(seatedInfo) ? seatedInfo : [];
@@ -78,6 +98,16 @@ export function usePlayerGameStatus(): GameStatusInfo {
         position: 0, // Seated players don't have waitlist position
         seatNumber: activeSeat.seatNumber || activeSeat.seat_number,
         status: 'PLAYING NOW'
+      };
+
+      // CREATE FALLBACK SESSION DATA for immediate PlaytimeTracker display
+      seatedSessionFallback = {
+        tableId: activeSeat.tableId || activeSeat.table_id,
+        tableName: tableInfo.name || activeSeat.tableName || 'Unknown Table',
+        gameType: tableInfo.game_type || tableInfo.gameType || activeSeat.game_type || 'Texas Hold\'em',
+        seatNumber: activeSeat.seatNumber || activeSeat.seat_number,
+        status: 'seated',
+        sessionStartTime: activeSeat.session_start_time || activeSeat.sessionStartTime
       };
     } else if (tableInfo && tableInfo.status !== 'active') {
       isInInactiveGame = true;
@@ -110,7 +140,8 @@ export function usePlayerGameStatus(): GameStatusInfo {
     canJoinWaitlists,
     activeGameInfo,
     seatedSessions: seatedSessions.length,
-    waitlistEntries: (Array.isArray(waitlistEntries) ? waitlistEntries : []).length
+    waitlistEntries: (Array.isArray(waitlistEntries) ? waitlistEntries : []).length,
+    seatedSessionFallback
   });
 
   return {
@@ -119,6 +150,7 @@ export function usePlayerGameStatus(): GameStatusInfo {
     activeGameInfo,
     waitlistEntries: Array.isArray(waitlistEntries) ? waitlistEntries : [],
     canJoinWaitlists,
-    restrictionMessage
+    restrictionMessage,
+    seatedSessionFallback // Include fallback session data for immediate sync
   };
 }

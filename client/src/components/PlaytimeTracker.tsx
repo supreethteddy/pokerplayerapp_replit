@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Clock, DollarSign, Play, Phone, X } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useGameStatusSync } from "@/hooks/useGameStatusSync";
 
 interface LiveSession {
   id: number;
@@ -40,13 +41,17 @@ interface LiveSession {
 
 interface PlaytimeTrackerProps {
   playerId: string;
+  gameStatus?: any; // Add game status for fallback session data
 }
 
-export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
+export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [liveTimer, setLiveTimer] = useState("00:00:00");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // Use centralized synchronization for immediate updates
+  const { invalidateAllGameQueries } = useGameStatusSync();
 
   // Listen for real-time timing rule updates from staff portal
   useEffect(() => {
@@ -71,8 +76,8 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
           variant: "default",
         });
 
-        // Invalidate session query to fetch updated timing configuration
-        queryClient.invalidateQueries({ queryKey: ['/api/live-sessions', playerId] });
+        // Use centralized invalidation for immediate synchronization
+        invalidateAllGameQueries();
       });
 
       return () => {
@@ -83,14 +88,29 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
     }).catch(console.error);
   }, [playerId, toast, queryClient]);
 
-  // Fetch live session data with proper response structure
+  // Fetch live session data with UNIFIED FAST REFRESH (3 seconds) for immediate synchronization
   const { data: sessionResponse, isLoading, error } = useQuery<{hasActiveSession: boolean, session: LiveSession | null}>({
     queryKey: ['/api/live-sessions', playerId],
-    refetchInterval: 5000, // Update every 5 seconds for optimized performance
+    refetchInterval: 3000, // UNIFIED: Fast refresh matching other game status queries
+    staleTime: 1000, // Consider fresh for 1 second only for immediate updates
     enabled: !!playerId,
   });
 
   const session = sessionResponse?.hasActiveSession ? sessionResponse.session : null;
+  
+  // FALLBACK LOGIC: If no session from API but gameStatus shows seated, use fallback data
+  const fallbackSession = gameStatus?.seatedSessionFallback;
+  const hasSeatedPlayerFromFallback = !session && fallbackSession && gameStatus?.isInActiveGame;
+  
+  console.log('🎯 [PLAYTIME TRACKER] Session check:', {
+    playerId,
+    hasApiSession: !!session,
+    hasFallbackSession: !!fallbackSession,
+    usesFallback: hasSeatedPlayerFromFallback,
+    isInActiveGame: gameStatus?.isInActiveGame,
+    fallbackData: fallbackSession,
+    sessionResponse: sessionResponse?.hasActiveSession
+  });
 
   // Live timer update with setInterval
   useEffect(() => {
@@ -247,14 +267,25 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
   const phaseStatus = getPhaseStatus();
   
 
-  // Don't render if no session or not loading
-  if (isLoading) {
+  // Enhanced condition checking: Show PlaytimeTracker if we have a session OR if fallback indicates player is seated
+  if (isLoading && !hasSeatedPlayerFromFallback) {
     return null;
   }
 
-  if (error || !session?.isLive) {
+  if (error && !hasSeatedPlayerFromFallback) {
     return null;
   }
+
+  // Show PlaytimeTracker if we have an active session OR if fallback data indicates player is seated
+  if (!session && !hasSeatedPlayerFromFallback) {
+    console.log('🚫 [PLAYTIME TRACKER] Not rendering - no session and no fallback');
+    return null;
+  }
+
+  console.log('✅ [PLAYTIME TRACKER] Rendering PlaytimeTracker!', { 
+    hasSession: !!session, 
+    hasFallback: hasSeatedPlayerFromFallback 
+  });
 
   return (
     <>
@@ -275,7 +306,7 @@ export function PlaytimeTracker({ playerId }: PlaytimeTrackerProps) {
             <div className="flex items-center justify-between">
               <DialogTitle className="text-white flex items-center">
                 <Clock className="h-5 w-5 mr-2 text-emerald-500" />
-                Live Session - {session.tableName}
+                Live Session - {session?.tableName || fallbackSession?.tableName || 'Poker Table'}
               </DialogTitle>
               <Button
                 variant="ghost"
