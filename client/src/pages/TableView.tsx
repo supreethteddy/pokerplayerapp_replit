@@ -325,7 +325,7 @@ export default function TableView() {
                   <div className="text-center">
                     {/* Pot Display */}
                     <div className="bg-gradient-to-br from-yellow-600 via-amber-500 to-orange-500 border-2 border-yellow-400/80 px-4 py-2 rounded-lg text-center shadow-xl">
-                      <div className="text-yellow-200 text-xs font-semibold">POT</div>
+                      <div className="text-yellow-200 text-xs font-semibold">Table Value</div>
                       <div className="text-white text-lg font-bold">
                         ₹{potData?.pot ? parseFloat(potData.pot).toLocaleString() : '0'}
                       </div>
