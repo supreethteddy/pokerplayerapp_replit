@@ -1700,7 +1700,7 @@ export function registerRoutes(app: Express) {
 
   app.get("/api/staff-offers", async (req, res) => {
     try {
-      console.log('🎁 [OFFERS API] Fetching offers directly from database...');
+      console.log('🎁 [OFFERS API] Fetching offers from new offers table...');
 
       // Use direct database connection like other working APIs
       const pg = await import('pg');
@@ -1710,51 +1710,60 @@ export function registerRoutes(app: Express) {
 
       await client.connect();
 
-      // Check if staff_offers table exists first
+      // Check if offers table exists first
       const tableCheckResult = await client.query(`
         SELECT EXISTS (
           SELECT FROM information_schema.tables 
           WHERE table_schema = 'public' 
-          AND table_name = 'staff_offers'
+          AND table_name = 'offers'
         );
       `);
 
       if (!tableCheckResult.rows[0].exists) {
-        console.log('⚠️ [OFFERS API] staff_offers table does not exist, returning empty array');
+        console.log('⚠️ [OFFERS API] offers table does not exist, returning empty array');
         await client.end();
         return res.json([]);
       }
 
       const result = await client.query(`
-        SELECT id, title, description, image_url, video_url, offer_type,
-               is_active, start_date, end_date, created_at, updated_at
-        FROM staff_offers
-        WHERE is_active = true
-        ORDER BY created_at DESC
+        SELECT id, title, description, offer_type, status, priority,
+               start_date, end_date, target_audience, click_url, 
+               terms_conditions, created_at, updated_at
+        FROM offers
+        WHERE status = 'active'
+          AND (start_date IS NULL OR start_date <= NOW())
+          AND (end_date IS NULL OR end_date >= NOW())
+        ORDER BY priority DESC, created_at DESC
       `);
 
       await client.end();
 
       console.log('🔍 [OFFERS API] Database results:', {
         total: result.rows.length,
-        offers: result.rows.map(o => ({ id: o.id, title: o.title }))
+        offers: result.rows.map(o => ({ id: o.id, title: o.title, priority: o.priority }))
       });
 
       const transformedOffers = result.rows.map((offer: any) => ({
         id: offer.id,
         title: offer.title,
         description: offer.description || 'Limited time offer',
-        image_url: offer.image_url || offer.video_url,
-        video_url: offer.video_url,
         offer_type: offer.offer_type,
-        is_active: offer.is_active,
+        status: offer.status,
+        priority: offer.priority || 0,
         start_date: offer.start_date,
         end_date: offer.end_date,
+        target_audience: offer.target_audience,
+        click_url: offer.click_url,
+        terms_conditions: offer.terms_conditions,
         created_at: offer.created_at,
-        updated_at: offer.updated_at
+        updated_at: offer.updated_at,
+        // Legacy compatibility fields for existing frontend components
+        is_active: offer.status === 'active',
+        image_url: null, // No image_url in new schema
+        video_url: null  // No video_url in new schema
       }));
 
-      console.log(`✅ [OFFERS API] Returning ${transformedOffers.length} active offers from database`);
+      console.log(`✅ [OFFERS API] Returning ${transformedOffers.length} active offers from new offers table`);
       res.json(transformedOffers);
     } catch (error) {
       console.error('❌ [OFFERS API] Error:', error);

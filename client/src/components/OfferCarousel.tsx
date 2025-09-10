@@ -37,21 +37,25 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
   // Use only real staff offers from database - identical to offers tab logic
   const displayOffers = (offers && Array.isArray(offers)) ? offers : [];
 
-  // Transform to carousel format with staff portal media support
+  // Transform to carousel format with new offers schema
   const displayItems = displayOffers.length > 0 ? 
     displayOffers.map((offer: any, index: number) => ({
       id: offer.id,
       offer_id: offer.id,
       position: index + 1,
-      is_active: offer.is_active,
+      is_active: offer.status === 'active',
       created_at: offer.created_at,
       staff_offers: {
         id: offer.id,
         title: offer.title,
         description: offer.description,
         offer_type: offer.offer_type,
-        image_url: offer.image_url,
-        video_url: offer.video_url
+        priority: offer.priority,
+        target_audience: offer.target_audience,
+        click_url: offer.click_url,
+        // No image/video URLs in new schema
+        image_url: null,
+        video_url: null
       }
     })) : [];
 
@@ -128,27 +132,26 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
                 onClick={() => onOfferClick(item.offer_id)}
               >
                 <CardContent className="p-0">
-                  {item.staff_offers.image_url ? (
-                    <img
-                      src={item.staff_offers.image_url}
-                      alt={item.staff_offers.title}
-                      className="w-full h-48 object-cover rounded-lg"
-                      loading="eager"
-                      decoding="async"
-                    />
-                  ) : item.staff_offers.video_url ? (
-                    <video
-                      src={item.staff_offers.video_url}
-                      className="w-full h-48 object-cover rounded-lg"
-                      controls
-                      muted
-                      preload="metadata"
-                    />
-                  ) : (
-                    <div className="w-full h-48 bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center rounded-lg">
-                      <Gift className="w-16 h-16 text-white" />
+                  <div className="w-full h-48 bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center rounded-lg relative">
+                    <Gift className="w-16 h-16 text-white" />
+                    <div className="absolute top-2 left-2 bg-black bg-opacity-50 rounded px-2 py-1">
+                      <span className="text-xs text-white font-medium">
+                        {item.staff_offers.offer_type?.toUpperCase()}
+                      </span>
                     </div>
-                  )}
+                    {item.staff_offers.priority > 0 && (
+                      <div className="absolute top-2 right-2 bg-yellow-500 rounded-full w-6 h-6 flex items-center justify-center">
+                        <span className="text-xs text-black font-bold">
+                          {item.staff_offers.priority}
+                        </span>
+                      </div>
+                    )}
+                    <div className="absolute bottom-2 left-2 right-2 text-center">
+                      <span className="text-xs text-white bg-black bg-opacity-50 rounded px-2 py-1">
+                        {item.staff_offers.target_audience?.toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
                   <div className="p-4">
                     <h3 className="text-lg font-semibold text-white mb-2">
                       {item.staff_offers.title}

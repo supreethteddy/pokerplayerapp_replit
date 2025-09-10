@@ -153,17 +153,15 @@ const ScrollableOffersDisplay = () => {
                       <source src={offer.video_url} type="video/mp4" />
                     </video>
                   </div>
-                ) : offer.image_url ? (
-                  <div className="aspect-video rounded-t-lg overflow-hidden bg-slate-900">
-                    <img 
-                      src={offer.image_url} 
-                      alt={offer.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
                 ) : (
                   <div className="aspect-video rounded-t-lg bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center">
                     <Gift className="w-16 h-16 text-white" />
+                    <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center">
+                      <div className="text-center text-white">
+                        <div className="text-xs opacity-75 mb-1">{offer.offer_type?.toUpperCase()}</div>
+                        <div className="text-sm font-medium">{offer.target_audience?.toUpperCase()}</div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -211,12 +209,16 @@ const ScrollableOffersDisplay = () => {
                   onClick={(e) => {
                     e.stopPropagation();
                     trackOfferView.mutate(offer.id);
-                    // Navigate to offer detail page using Wouter
-                    window.location.href = `/offer/${offer.id}`;
+                    // Use click_url if available, otherwise fallback to offer detail page
+                    if (offer.click_url) {
+                      window.open(offer.click_url, '_blank');
+                    } else {
+                      window.location.href = `/offer/${offer.id}`;
+                    }
                   }}
                 >
                   <Star className="w-4 h-4 mr-2" />
-                  View Offer Details
+                  {offer.click_url ? 'Visit Offer' : 'View Details'}
                 </Button>
               </div>
             </CardContent>
