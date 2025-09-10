@@ -584,9 +584,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
                   <span className="font-medium text-white">{session?.cash_out_window || session?.cashout_window_minutes || 15}m</span>
                 </li>
               </ul>
-              <div className="mt-2 pt-2 border-t border-slate-600 text-xs text-slate-500">
-                State Machine: Min Play → Call Time Available → Call Time Active → Cash Out Window
-              </div>
+              
             </div>
           </div>
         </DialogContent>
