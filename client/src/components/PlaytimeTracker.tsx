@@ -321,66 +321,66 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
 
       {/* Session Details Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700">
-          <DialogHeader>
+        <DialogContent className="w-[95vw] max-w-md max-h-[90vh] bg-slate-900 border-slate-700 overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <div className="flex items-center justify-between">
-              <DialogTitle className="text-white flex items-center">
-                <Clock className="h-5 w-5 mr-2 text-emerald-500" />
+              <DialogTitle className="text-white flex items-center text-sm sm:text-base">
+                <Clock className="h-4 w-4 sm:h-5 sm:w-5 mr-2 text-emerald-500" />
                 Live Session - {session?.tableName || fallbackSession?.tableName || 'Poker Table'}
               </DialogTitle>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsDialogOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white flex-shrink-0"
               >
                 <X className="h-4 w-4" />
               </Button>
             </div>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto flex-1 pr-2 -mr-2">
             {/* Session Timer */}
-            <div className="text-center bg-slate-800 p-4 rounded-lg">
-              <div className="text-2xl font-mono font-bold text-white mb-1">
+            <div className="text-center bg-slate-800 p-3 sm:p-4 rounded-lg">
+              <div className="text-xl sm:text-2xl font-mono font-bold text-white mb-1">
                 {liveTimer || "00:00:00"}
               </div>
-              <div className="text-sm text-slate-400">
+              <div className="text-xs sm:text-sm text-slate-400">
                 {session?.sessionStartTime || fallbackSession?.sessionStartTime ? "Session Time" : "Session Starting..."}
               </div>
             </div>
 
             {/* Balance Info */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-slate-800/50 p-3 rounded text-center">
-                <div className="text-lg font-semibold text-white">₹{(session?.buyInAmount || 1000).toLocaleString()}</div>
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              <div className="bg-slate-800/50 p-2 sm:p-3 rounded text-center">
+                <div className="text-sm sm:text-lg font-semibold text-white">₹{(session?.buyInAmount || 1000).toLocaleString()}</div>
                 <div className="text-xs text-slate-400">Buy-in</div>
               </div>
-              <div className="bg-slate-800/50 p-3 rounded text-center">
-                <div className="text-lg font-semibold text-emerald-500">₹{(session?.currentChips || 1000).toLocaleString()}</div>
+              <div className="bg-slate-800/50 p-2 sm:p-3 rounded text-center">
+                <div className="text-sm sm:text-lg font-semibold text-emerald-500">₹{(session?.currentChips || 1000).toLocaleString()}</div>
                 <div className="text-xs text-slate-400">Current Chips</div>
               </div>
             </div>
 
             {/* Table Information */}
-            <div className="bg-slate-800/50 p-3 rounded">
+            <div className="bg-slate-800/50 p-2 sm:p-3 rounded">
               <div className="text-center">
-                <div className="text-sm text-slate-400">Table: {session?.tableName || fallbackSession?.tableName || 'Unknown'}</div>
-                <div className="text-sm text-slate-300">{session?.gameType || fallbackSession?.gameType || 'Texas Hold\'em'} • {session?.stakes || '₹1000.00/10000.00'}</div>
+                <div className="text-xs sm:text-sm text-slate-400">Table: {session?.tableName || fallbackSession?.tableName || 'Unknown'}</div>
+                <div className="text-xs sm:text-sm text-slate-300">{session?.gameType || fallbackSession?.gameType || 'Texas Hold\'em'} • {session?.stakes || '₹1000.00/10000.00'}</div>
               </div>
             </div>
 
             {/* Current Phase Status */}
-            <div className="bg-blue-900/20 border border-blue-500/30 p-3 rounded-lg">
+            <div className="bg-blue-900/20 border border-blue-500/30 p-2 sm:p-3 rounded-lg">
               <div className="text-center">
-                <div className="text-sm font-medium text-blue-300 mb-1">
+                <div className="text-xs sm:text-sm font-medium text-blue-300 mb-1">
                   Current Phase: {phaseStatus.phase}
                 </div>
                 <div className="text-xs text-blue-400">
                   {phaseStatus.description}
                 </div>
                 {phaseStatus.timeRemaining > 0 && (
-                  <div className="text-lg font-mono font-bold text-blue-200 mt-2">
+                  <div className="text-sm sm:text-lg font-mono font-bold text-blue-200 mt-1 sm:mt-2">
                     {phaseStatus.timeRemaining} minutes remaining
                   </div>
                 )}
@@ -454,7 +454,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
             </div>
 
             {/* Action Buttons */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
               <Button
                 onClick={async () => {
                   console.log('🎯 [CALL TIME] Starting call time for player:', playerId);
@@ -480,13 +480,13 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
                   }
                 }}
                 disabled={!session?.callTimeAvailable || session?.callTimeActive}
-                className={`w-full py-3 ${
+                className={`w-full py-2 sm:py-3 text-xs sm:text-sm ${
                   session?.callTimeAvailable && !session?.callTimeActive
                     ? 'bg-yellow-600 hover:bg-yellow-700 border-yellow-500 text-white'
                     : 'bg-gray-700 text-gray-400 cursor-not-allowed'
                 }`}
               >
-                <Clock className="w-4 h-4 mr-2" />
+                <Clock className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                 {session?.callTimeActive 
                   ? `Call Time: ${session?.callTimeRemaining || 0}m left`
                   : 'Start Call Time'
@@ -518,22 +518,24 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
                   }
                 }}
                 disabled={!session?.canCashOut}
-                className={`w-full py-3 ${
+                className={`w-full py-2 sm:py-3 text-xs sm:text-sm ${
                   session?.canCashOut
                     ? 'bg-green-600 hover:bg-green-700 border-green-500 text-white'
                     : 'bg-gray-700 text-gray-400 cursor-not-allowed'
                 }`}
               >
-                <ArrowRight className="w-4 h-4 mr-2" />
-                {session?.canCashOut 
-                  ? `Cash Out (${session?.cashOutTimeRemaining || 0}m left)`
-                  : 'Cash Out Unavailable'
-                }
+                <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <span className="truncate">
+                  {session?.canCashOut 
+                    ? `Cash Out (${session?.cashOutTimeRemaining || 0}m left)`
+                    : 'Cash Out Unavailable'
+                  }
+                </span>
               </Button>
             </div>
 
             {/* Action Status */}
-            <div className="text-xs text-center bg-slate-800/30 p-3 rounded border border-slate-600">
+            <div className="text-xs text-center bg-slate-800/30 p-2 sm:p-3 rounded border border-slate-600">
               {session?.callTimeAvailable && !session?.callTimeActive && (
                 <div className="text-yellow-400">
                   <div className="font-medium">⏰ Call Time Available</div>
@@ -561,24 +563,24 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
             </div>
 
             {/* Table Configuration */}
-            <div className="bg-slate-800/50 p-3 rounded text-xs border border-slate-600">
+            <div className="bg-slate-800/50 p-2 sm:p-3 rounded text-xs border border-slate-600">
               <div className="font-medium mb-2 flex items-center justify-between text-slate-300">
-                <span>Table Configuration:</span>
-                <Badge variant="outline" className="text-xs px-2 py-1 bg-blue-900/30 border-blue-500/50 text-blue-300">
+                <span className="text-xs">Table Configuration:</span>
+                <Badge variant="outline" className="text-xs px-1 sm:px-2 py-1 bg-blue-900/30 border-blue-500/50 text-blue-300">
                   {session?.sessionPhase}
                 </Badge>
               </div>
-              <ul className="space-y-1 text-slate-400">
+              <ul className="space-y-1 text-slate-400 text-xs">
                 <li className="flex justify-between">
-                  <span>• Minimum play time:</span> 
+                  <span>• Min play:</span> 
                   <span className="font-medium text-white">{session?.min_play_time || session?.min_play_time_minutes || 30}m</span>
                 </li>
                 <li className="flex justify-between">
-                  <span>• Call time duration:</span> 
+                  <span>• Call time:</span> 
                   <span className="font-medium text-white">{session?.call_time_duration || session?.call_time_play_period_minutes || 60}m</span>
                 </li>
                 <li className="flex justify-between">
-                  <span>• Cash out window:</span> 
+                  <span>• Cash window:</span> 
                   <span className="font-medium text-white">{session?.cash_out_window || session?.cashout_window_minutes || 15}m</span>
                 </li>
               </ul>
