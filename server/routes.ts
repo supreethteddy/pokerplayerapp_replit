@@ -2916,6 +2916,56 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Player Feedback Endpoint
+  app.post('/api/feedback', async (req, res) => {
+    try {
+      const { playerId, message } = req.body;
+
+      if (!playerId || !message) {
+        return res.status(400).json({ error: 'Player ID and message are required' });
+      }
+
+      if (!message.trim()) {
+        return res.status(400).json({ error: 'Message cannot be empty' });
+      }
+
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.SUPABASE_DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        // Insert feedback into player_feedback table
+        const insertFeedbackQuery = `
+          INSERT INTO player_feedback (player_id, message, status, created_at)
+          VALUES ($1, $2, 'unread', NOW())
+          RETURNING id, created_at
+        `;
+
+        const feedbackResult = await pgClient.query(insertFeedbackQuery, [playerId, message.trim()]);
+
+        await pgClient.end();
+
+        console.log(`📨 [FEEDBACK] New feedback received from player ${playerId}: "${message.substring(0, 50)}..."`);
+
+        return res.json({
+          success: true,
+          feedbackId: feedbackResult.rows[0].id,
+          message: 'Feedback submitted successfully. Our team will review it shortly.',
+          timestamp: feedbackResult.rows[0].created_at
+        });
+
+      } catch (dbError: any) {
+        await pgClient.end();
+        console.error('❌ [FEEDBACK] Database error:', dbError);
+        return res.status(500).json({ error: 'Failed to save feedback' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [FEEDBACK] Server error:', error.message);
+      return res.status(500).json({ error: 'Feedback submission server error' });
+    }
+  });
+
   // PAN Card Validation Endpoint - Check for duplicates
   app.post('/api/kyc/validate-pan', async (req, res) => {
     try {
