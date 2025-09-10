@@ -3889,7 +3889,7 @@ export function registerRoutes(app: Express) {
         }
 
         // Update seat_requests with cash out request
-        const updateResult =pgClient.query(`
+        const updateResult = await pgClient.query(`
           UPDATE seat_requests 
           SET cash_out_requested = NOW(),
               cash_out_requested_by = $1,
