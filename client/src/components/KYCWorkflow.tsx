@@ -43,7 +43,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
   const { toast } = useToast();
   const [documents, setDocuments] = useState([]); // State to store fetched documents
 
-  // Function to refresh documents
+  // Function to refresh documents (professional version - no state overwrites)
   const refreshDocuments = async () => {
     try {
       const playerId = playerData?.id;
@@ -52,12 +52,14 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
         if (docsResponse.ok) {
           const docs = await docsResponse.json();
           setDocuments(docs);
+          
+          // Build document status for return but DON'T overwrite uploadedDocs state
+          // This prevents visual inconsistencies and random state refreshes
           const docStatus = {
             governmentId: docs.find((doc: any) => doc.document_type === 'government_id')?.file_url || null,
             utilityBill: docs.find((doc: any) => doc.document_type === 'utility_bill')?.file_url || null,
             panCard: docs.find((doc: any) => doc.document_type === 'pan_card')?.file_url || null
           };
-          setUploadedDocs(docStatus);
           return docStatus;
         }
       }
@@ -115,9 +117,16 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
 
         setPanCardNumber(playerData.pan_card || ''); // Assuming pan_card might be available in playerData
 
-        // Check document uploads
-        await refreshDocuments(); // Use refreshDocuments to set state
-        await fetchDocuments(); // Fetch detailed document info
+        // Check document uploads and set initial state properly
+        await fetchDocuments(); // Fetch detailed document info first
+        const currentDocStatus = await refreshDocuments(); // Get current status
+        
+        // Set initial upload state based on existing documents (professional initial load)
+        setUploadedDocs({
+          governmentId: currentDocStatus.governmentId ? 'uploaded' : null,
+          utilityBill: currentDocStatus.utilityBill ? 'uploaded' : null,
+          panCard: currentDocStatus.panCard ? 'uploaded' : null
+        });
 
         // FIXED: Check if this is from a fresh signup (KYC flow active)
         const kycFlowActive = sessionStorage.getItem('kyc_flow_active');
@@ -229,30 +238,25 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
           const docKey = documentType === 'government_id' ? 'governmentId' : 
                         documentType === 'utility_bill' ? 'utilityBill' : 'panCard';
 
-          // Set immediate visual feedback
+          // Set stable visual feedback - this stays until user manually changes it
           setUploadedDocs(prev => ({
             ...prev,
-            [docKey]: 'uploaded' // Indicate that the upload process for this type has started/completed
+            [docKey]: 'uploaded'
           }));
 
-          console.log(`✅ [KYC] Document ${documentType} uploaded and replaced successfully`);
+          console.log(`✅ [KYC] Document ${documentType} uploaded successfully`);
 
-          toast({
-            title: "Document Uploaded",
-            description: `${documentType.replace('_', ' ')} uploaded successfully!`,
-          });
+          // Refresh detailed documents list in background (professional, no toasts)
+          await fetchDocuments(); // Update documents array for checkmarks
 
-          // Refresh detailed documents list in background without overriding immediate feedback
-          await fetchDocuments(); // Fetch detailed document info for display
-
-          // Check documents status after a small delay to ensure server processing
+          // Check completion status without disrupting UI
           setTimeout(async () => {
-            const currentDocStatus = await refreshDocuments(); // Re-fetch to get accurate status
+            const currentDocStatus = await refreshDocuments();
             if (currentDocStatus.governmentId && currentDocStatus.utilityBill && currentDocStatus.panCard && isValidPAN(panCardNumber)) {
-              console.log('🎯 [KYC] All documents uploaded and PAN valid - advancing to step 3');
+              console.log('🎯 [KYC] All documents complete - advancing to step 3');
               setCurrentStep(3);
             }
-          }, 1000); // 1 second delay to allow server processing
+          }, 500); // Reduced delay for better responsiveness
         }
       };
       reader.readAsDataURL(file);
@@ -499,7 +503,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                     <CreditCard className="w-5 h-5 mr-2 text-blue-500" />
                     <Label className="text-white font-medium">Government ID</Label>
                   </div>
-                  {/* Check against actual documents state */}
+                  {/* Only show checkmark for THIS document type when it exists */}
                   {documents.some((doc: any) => doc.document_type === 'government_id') && <CheckCircle className="w-5 h-5 text-green-500" />}
                 </div>
                 <p className="text-sm text-gray-400 mb-4">
@@ -530,6 +534,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                     <FileText className="w-5 h-5 mr-2 text-green-500" />
                     <Label className="text-white font-medium">Address Proof</Label>
                   </div>
+                  {/* Only show checkmark for THIS document type when it exists */}
                   {documents.some((doc: any) => doc.document_type === 'utility_bill') && <CheckCircle className="w-5 h-5 text-green-500" />}
                 </div>
                 <p className="text-sm text-gray-400 mb-4">
@@ -560,6 +565,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                     <CreditCard className="w-5 h-5 mr-2 text-yellow-500" />
                     <Label className="text-white font-medium">PAN Card</Label>
                   </div>
+                  {/* Only show checkmark for THIS document type when it exists */}
                   {documents.some((doc: any) => doc.document_type === 'pan_card') && <CheckCircle className="w-5 h-5 text-green-500" />}
                 </div>
                 <div className="space-y-5">
