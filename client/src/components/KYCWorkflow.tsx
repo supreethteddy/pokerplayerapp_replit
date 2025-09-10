@@ -39,6 +39,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     panCard: null as string | null
   });
   const [panCardNumber, setPanCardNumber] = useState('');
+  const [panValidation, setPanValidation] = useState({ isValidating: false, error: '', isValid: false });
   const { toast } = useToast();
   const [documents, setDocuments] = useState([]); // State to store fetched documents
 
@@ -353,8 +354,45 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     return panRegex.test(pan);
   };
 
+  // Validate PAN card for duplicates and format
+  const validatePANCard = async (panNumber: string) => {
+    if (!panNumber || panNumber.length !== 10) {
+      setPanValidation({ isValidating: false, error: '', isValid: false });
+      return;
+    }
+
+    // Check format first
+    if (!isValidPAN(panNumber)) {
+      setPanValidation({ isValidating: false, error: 'Invalid PAN format', isValid: false });
+      return;
+    }
+
+    setPanValidation({ isValidating: true, error: '', isValid: false });
+
+    try {
+      const response = await apiRequest('POST', '/api/kyc/validate-pan', {
+        panCardNumber: panNumber,
+        playerId: playerData?.id
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.valid) {
+          setPanValidation({ isValidating: false, error: '', isValid: true });
+        } else {
+          setPanValidation({ isValidating: false, error: data.error, isValid: false });
+        }
+      } else {
+        const errorData = await response.json();
+        setPanValidation({ isValidating: false, error: errorData.error || 'Validation failed', isValid: false });
+      }
+    } catch (error: any) {
+      setPanValidation({ isValidating: false, error: 'Unable to validate PAN. Please try again.', isValid: false });
+    }
+  };
+
   const isStep2Complete = () => {
-    const panValid = isValidPAN(panCardNumber);
+    const panValid = isValidPAN(panCardNumber) && panValidation.isValid;
     // Check against the actual fetched documents, not just the temporary 'uploadedDocs' state
     const docStatus = documents.reduce((acc, doc: any) => {
       if (doc.document_type === 'government_id') acc.governmentId = true;
@@ -365,7 +403,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
 
     console.log('🔍 [STEP2] All docs uploaded:', docStatus.governmentId && docStatus.utilityBill && docStatus.panCard, 'PAN valid:', panValid);
     console.log('🔍 [STEP2] Docs status:', docStatus);
-    console.log('🔍 [STEP2] PAN number:', panCardNumber);
+    console.log('🔍 [STEP2] PAN number:', panCardNumber, 'PAN validation:', panValidation);
     return docStatus.governmentId && docStatus.utilityBill && docStatus.panCard && panValid;
   };
 
@@ -529,15 +567,31 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                     <Label className="text-white text-sm font-medium">PAN Card Number *</Label>
                     <Input
                       value={panCardNumber}
-                      onChange={(e) => setPanCardNumber(e.target.value.toUpperCase())}
+                      onChange={(e) => {
+                        const value = e.target.value.toUpperCase();
+                        setPanCardNumber(value);
+                        // Validate PAN in real-time with debouncing
+                        if (value.length === 10) {
+                          setTimeout(() => validatePANCard(value), 500);
+                        } else {
+                          setPanValidation({ isValidating: false, error: '', isValid: false });
+                        }
+                      }}
                       className={`bg-gray-700 border-gray-600 text-white h-12 ${
-                        panCardNumber && !isValidPAN(panCardNumber) ? 'border-red-500' : ''
+                        panValidation.error ? 'border-red-500' : 
+                        panValidation.isValid ? 'border-green-500' : ''
                       }`}
                       placeholder="ABCPF1234G"
                       maxLength={10}
                     />
-                    {panCardNumber && !isValidPAN(panCardNumber) && (
-                      <p className="text-red-400 text-xs mt-2">Invalid PAN format. Format: 3 letters + entity code + 1 letter + 4 digits + 1 letter (e.g. ABCPF1234G)</p>
+                    {panValidation.isValidating && (
+                      <p className="text-blue-400 text-xs mt-2">Validating PAN card...</p>
+                    )}
+                    {panValidation.error && (
+                      <p className="text-red-400 text-xs mt-2">{panValidation.error}</p>
+                    )}
+                    {panValidation.isValid && (
+                      <p className="text-green-400 text-xs mt-2">✓ Valid PAN card number</p>
                     )}
                   </div>
                   <div className="space-y-3">

@@ -2916,6 +2916,66 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // PAN Card Validation Endpoint - Check for duplicates
+  app.post('/api/kyc/validate-pan', async (req, res) => {
+    try {
+      const { panCardNumber, playerId } = req.body;
+
+      if (!panCardNumber) {
+        return res.status(400).json({ error: 'PAN card number is required' });
+      }
+
+      // Validate PAN format: ^[A-Z]{5}[0-9]{4}[A-Z]$
+      const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+      if (!panRegex.test(panCardNumber)) {
+        return res.status(400).json({ 
+          valid: false,
+          error: 'Invalid PAN card format. Expected format: ABCDE1234F' 
+        });
+      }
+
+      // Check if PAN card already exists for another user
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.SUPABASE_DATABASE_URL });
+      await pgClient.connect();
+      
+      try {
+        const panCheckQuery = `
+          SELECT id, first_name, last_name 
+          FROM players 
+          WHERE pan_card_number = $1 AND id != $2 AND pan_card_number IS NOT NULL
+        `;
+        const panCheckResult = await pgClient.query(panCheckQuery, [panCardNumber, playerId]);
+        
+        if (panCheckResult.rows.length > 0) {
+          const existingUser = panCheckResult.rows[0];
+          console.log(`⚠️ [PAN DUPLICATE] PAN ${panCardNumber} already exists for user ${existingUser.id} (${existingUser.first_name} ${existingUser.last_name})`);
+          await pgClient.end();
+          return res.json({ 
+            valid: false,
+            error: 'This PAN card number is already registered with another account. Each PAN card can only be used once.',
+            code: 'PAN_ALREADY_EXISTS'
+          });
+        }
+
+        await pgClient.end();
+        return res.json({ 
+          valid: true,
+          message: 'PAN card number is valid and available' 
+        });
+
+      } catch (checkError) {
+        await pgClient.end();
+        console.error('❌ [PAN CHECK] Error checking duplicate PAN:', checkError);
+        return res.status(500).json({ error: 'Error validating PAN card number' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [PAN VALIDATION] Server error:', error.message);
+      return res.status(500).json({ error: 'PAN validation server error' });
+    }
+  });
+
   // KYC Document Upload Endpoint - Following the 3-document requirement
   app.post('/api/kyc/upload', async (req, res) => {
     try {
@@ -2941,6 +3001,35 @@ export function registerRoutes(app: Express) {
         const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
         if (!panRegex.test(panCardNumber)) {
           return res.status(400).json({ error: 'Invalid PAN card format. Expected format: ABCDE1234F' });
+        }
+
+        // Check if PAN card already exists for another user
+        const { Client } = await import('pg');
+        const pgClientCheck = new Client({ connectionString: process.env.SUPABASE_DATABASE_URL });
+        await pgClientCheck.connect();
+        
+        try {
+          const panCheckQuery = `
+            SELECT id, first_name, last_name 
+            FROM players 
+            WHERE pan_card_number = $1 AND id != $2 AND pan_card_number IS NOT NULL
+          `;
+          const panCheckResult = await pgClientCheck.query(panCheckQuery, [panCardNumber, playerId]);
+          
+          if (panCheckResult.rows.length > 0) {
+            const existingUser = panCheckResult.rows[0];
+            console.log(`⚠️ [PAN DUPLICATE] PAN ${panCardNumber} already exists for user ${existingUser.id} (${existingUser.first_name} ${existingUser.last_name})`);
+            await pgClientCheck.end();
+            return res.status(400).json({ 
+              error: 'This PAN card number is already registered with another account. Each PAN card can only be used once.',
+              code: 'PAN_ALREADY_EXISTS'
+            });
+          }
+          await pgClientCheck.end();
+        } catch (checkError) {
+          await pgClientCheck.end();
+          console.error('❌ [PAN CHECK] Error checking duplicate PAN:', checkError);
+          return res.status(500).json({ error: 'Error validating PAN card number' });
         }
       }
 
