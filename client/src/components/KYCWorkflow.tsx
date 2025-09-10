@@ -16,7 +16,7 @@ interface KYCWorkflowProps {
     firstName: string;
     lastName: string;
     kycStatus: string;
-    phone?: string; // Added phone to interface for clarity
+    phone: string; // Phone is required in players table
   };
   onComplete: () => void;
 }

@@ -96,6 +96,7 @@ function AppContent() {
             firstName: playerData.firstName,
             lastName: playerData.lastName,
             nickname: playerData.nickname,
+            phone: playerData.phone,
             kycStatus: playerData.kycStatus || 'pending'
           }}
           onComplete={() => {
