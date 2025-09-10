@@ -228,15 +228,12 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
           const docKey = documentType === 'government_id' ? 'governmentId' : 
                         documentType === 'utility_bill' ? 'utilityBill' : 'panCard';
 
+          // Set immediate visual feedback
           setUploadedDocs(prev => ({
             ...prev,
             [docKey]: 'uploaded' // Indicate that the upload process for this type has started/completed
           }));
 
-          // After successful upload, refresh the detailed documents list
-          await refreshDocuments();
-          await fetchDocuments(); // Fetch detailed document info to update UI immediately
-          
           console.log(`✅ [KYC] Document ${documentType} uploaded and replaced successfully`);
 
           toast({
@@ -244,13 +241,17 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
             description: `${documentType.replace('_', ' ')} uploaded successfully!`,
           });
 
-          // Check if all required documents are now uploaded and advance to step 3
-          // We need to re-evaluate uploadedDocs based on the latest fetched data
-          const currentDocStatus = await refreshDocuments(); // Re-fetch to get accurate status
-          if (currentDocStatus.governmentId && currentDocStatus.utilityBill && currentDocStatus.panCard && isValidPAN(panCardNumber)) {
-            console.log('🎯 [KYC] All documents uploaded and PAN valid - advancing to step 3');
-            setCurrentStep(3);
-          }
+          // Refresh detailed documents list in background without overriding immediate feedback
+          await fetchDocuments(); // Fetch detailed document info for display
+
+          // Check documents status after a small delay to ensure server processing
+          setTimeout(async () => {
+            const currentDocStatus = await refreshDocuments(); // Re-fetch to get accurate status
+            if (currentDocStatus.governmentId && currentDocStatus.utilityBill && currentDocStatus.panCard && isValidPAN(panCardNumber)) {
+              console.log('🎯 [KYC] All documents uploaded and PAN valid - advancing to step 3');
+              setCurrentStep(3);
+            }
+          }, 1000); // 1 second delay to allow server processing
         }
       };
       reader.readAsDataURL(file);
