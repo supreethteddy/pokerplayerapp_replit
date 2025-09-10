@@ -35,8 +35,11 @@ async function handleUserCreated(userData: any) {
   try {
     const { id, email_addresses, first_name, last_name, phone_numbers, verification } = userData;
     const primaryEmail = email_addresses?.[0]?.email_address;
-    const primaryPhone = phone_numbers?.[0]?.phone_number;
+    const primaryPhone = phone_numbers?.[0]?.phone_number || '';
     const emailVerified = email_addresses?.[0]?.verification?.status === 'verified';
+    
+    console.log('📞 [CLERK WEBHOOK] Phone numbers array:', phone_numbers);
+    console.log('📞 [CLERK WEBHOOK] Primary phone extracted:', primaryPhone);
     
     if (!primaryEmail) {
       console.error('❌ [CLERK] No primary email for user:', id);
@@ -81,8 +84,11 @@ async function handleUserUpdated(userData: any) {
   try {
     const { id, email_addresses, first_name, last_name, phone_numbers } = userData;
     const primaryEmail = email_addresses?.[0]?.email_address;
-    const primaryPhone = phone_numbers?.[0]?.phone_number;
+    const primaryPhone = phone_numbers?.[0]?.phone_number || '';
     const emailVerified = email_addresses?.[0]?.verification?.status === 'verified';
+    
+    console.log('📞 [CLERK WEBHOOK UPDATE] Phone numbers array:', phone_numbers);
+    console.log('📞 [CLERK WEBHOOK UPDATE] Primary phone extracted:', primaryPhone);
     
     // Update existing player with Clerk ID
     const { data: updatedPlayer, error: updateError } = await supabase

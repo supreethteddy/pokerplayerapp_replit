@@ -19,6 +19,15 @@ export function useClerkAuth() {
   const syncPlayerWithClerk = async (clerkUserId: string, email: string) => {
     try {
       console.log('🔗 [CLERK] Syncing player with Clerk ID:', clerkUserId);
+      console.log('🔗 [CLERK] User phone numbers:', clerkUser?.phoneNumbers);
+      console.log('🔗 [CLERK] Primary phone:', clerkUser?.primaryPhoneNumber);
+      
+      // Extract phone number with fallback logic
+      const phoneNumber = clerkUser?.primaryPhoneNumber?.phoneNumber || 
+                         clerkUser?.phoneNumbers?.[0]?.phoneNumber || 
+                         '';
+      
+      console.log('🔗 [CLERK] Extracted phone number:', phoneNumber);
       
       const response = await apiRequest('/api/clerk/sync-player', {
         method: 'POST',
@@ -26,7 +35,8 @@ export function useClerkAuth() {
           clerkUserId,
           email,
           firstName: clerkUser?.firstName || '',
-          lastName: clerkUser?.lastName || ''
+          lastName: clerkUser?.lastName || '',
+          phone: phoneNumber
         }
       });
 
@@ -91,15 +101,23 @@ export function useClerkAuth() {
         throw new Error('Clerk sign up not available');
       }
 
-      const result = await clerkSignUpBase.create({
+      const signUpData: any = {
         emailAddress: email,
         password,
         firstName,
         lastName
-      });
+      };
+
+      // Add phone number if provided
+      if (phone && phone.trim()) {
+        signUpData.phoneNumber = phone;
+      }
+
+      const result = await clerkSignUpBase.create(signUpData);
 
       if (result.status === 'complete') {
         // After successful Clerk signup, create/sync the player record
+        // Phone will be extracted from the created user object
         await syncPlayerWithClerk(result.createdUserId!, email);
         
         toast({

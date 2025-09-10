@@ -1363,7 +1363,7 @@ export function registerRoutes(app: Express) {
 
   // CRITICAL: Player authentication endpoint for login system
   // Clerk User Sync API
-  app.post("/api/players/sync-clerk", async (req, res) => {
+  app.post("/api/clerk/sync-player", async (req, res) => {
     try {
       const { clerk_user_id, email, first_name, last_name, phone } = req.body;
 
@@ -1372,6 +1372,7 @@ export function registerRoutes(app: Express) {
       }
 
       console.log(`🔍 [CLERK SYNC] Syncing Clerk user: ${email} (${clerk_user_id})`);
+      console.log(`🔍 [CLERK SYNC] Phone number received:`, phone);
 
       // Check if player already exists by Clerk ID
       const existingPlayer = await storage.getPlayerByClerkId(clerk_user_id);
@@ -1386,6 +1387,7 @@ export function registerRoutes(app: Express) {
       }
 
       // Create new player with Clerk ID
+      console.log(`✨ [CLERK SYNC] Creating new player with phone:`, phone || 'No phone provided');
       const newPlayer = await storage.createClerkPlayer({
         clerk_user_id,
         email,

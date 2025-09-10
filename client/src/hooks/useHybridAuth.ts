@@ -57,6 +57,16 @@ export function useHybridAuth() {
       try {
         console.log('🔄 [HYBRID AUTH] Syncing Clerk user with backend...');
         
+        const phoneNumber = clerkUser.primaryPhoneNumber?.phoneNumber || 
+                         clerkUser.phoneNumbers?.[0]?.phoneNumber || 
+                         '';
+        
+        console.log('📞 [HYBRID AUTH] Clerk user phone data:', {
+          primaryPhone: clerkUser.primaryPhoneNumber?.phoneNumber,
+          phoneNumbers: clerkUser.phoneNumbers,
+          extracted: phoneNumber
+        });
+
         const response = await fetch('/api/clerk/sync', {
           method: 'POST',
           headers: {
@@ -67,7 +77,7 @@ export function useHybridAuth() {
             email: clerkUser.primaryEmailAddress?.emailAddress,
             firstName: clerkUser.firstName,
             lastName: clerkUser.lastName,
-            phone: clerkUser.primaryPhoneNumber?.phoneNumber,
+            phone: phoneNumber,
             emailVerified: clerkUser.primaryEmailAddress?.verification?.status === 'verified'
           })
         });
@@ -147,6 +157,16 @@ export const createClerkSupabaseUser = async (clerkUser: any) => {
   try {
     console.log('🔄 [HYBRID AUTH] Creating/syncing Clerk user with Supabase...');
     
+    const phoneNumber = clerkUser.primaryPhoneNumber?.phoneNumber || 
+                     clerkUser.phoneNumbers?.[0]?.phoneNumber || 
+                     '';
+    
+    console.log('📞 [CREATE CLERK USER] Phone extraction:', {
+      primaryPhone: clerkUser.primaryPhoneNumber?.phoneNumber,
+      phoneNumbers: clerkUser.phoneNumbers,
+      extracted: phoneNumber
+    });
+
     const response = await fetch('/api/auth/clerk-user-sync', {
       method: 'POST',
       headers: {
@@ -157,7 +177,7 @@ export const createClerkSupabaseUser = async (clerkUser: any) => {
         email: clerkUser.primaryEmailAddress?.emailAddress,
         firstName: clerkUser.firstName || '',
         lastName: clerkUser.lastName || '',
-        phone: clerkUser.primaryPhoneNumber?.phoneNumber || '',
+        phone: phoneNumber,
         emailVerified: clerkUser.primaryEmailAddress?.verification?.status === 'verified'
       })
     });
