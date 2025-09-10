@@ -406,7 +406,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
               <div className={`p-2 rounded ${session?.callTimeAvailable ? 'bg-green-900/50 border border-green-500/50' : 'bg-slate-900/50 border border-slate-500/50'}`}>
                 <div className="flex items-center justify-between">
                   <span className={session?.callTimeAvailable ? 'text-green-400' : 'text-slate-400'}>
-                    Available
+                    Call Time Available
                   </span>
                   <span className={session?.callTimeAvailable ? 'text-green-300' : 'text-slate-300'}>
                     {session?.callTimeAvailable ? '✓' : '✗'}
@@ -418,7 +418,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
               <div className={`p-2 rounded ${session?.callTimeActive ? 'bg-orange-900/50 border border-orange-500/50' : 'bg-slate-900/50 border border-slate-500/50'}`}>
                 <div className="flex items-center justify-between">
                   <span className={session?.callTimeActive ? 'text-orange-400' : 'text-slate-400'}>
-                    Active
+                    Call Time Active
                   </span>
                   <span className={session?.callTimeActive ? 'text-orange-300' : 'text-slate-300'}>
                     {session?.callTimeActive ? `${session?.callTimeRemaining}m` : '✗'}
