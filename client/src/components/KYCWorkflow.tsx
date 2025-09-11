@@ -78,10 +78,10 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
         return;
       }
       
-      // Use the detailed document endpoint that returns formatted types and dates
-      const response = await fetch(`/api/kyc/document-details/${userId}`);
+      // Use the existing document endpoint
+      const response = await fetch(`/api/documents/player/${userId}`);
       if (!response.ok) {
-        console.error('Failed to fetch document details:', response.status);
+        console.error('Failed to fetch documents:', response.status);
         return;
       }
       
@@ -90,7 +90,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
 
       // Log document details to console
       if (docs && docs.length > 0) {
-        console.log('📋 [KYC Documents] Found documents:', docs.map(doc => 
+        console.log('📋 [KYC Documents] Found documents:', docs.map((doc: any) => 
           `${doc.formattedType || doc.document_type} uploaded on ${doc.formattedDate || doc.created_at} (Status: ${doc.status})`
         ));
       }
@@ -157,7 +157,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
           phone: playerData.phone || prev.phone
         }));
 
-        setPanCardNumber(playerData.pan_card || ''); // Assuming pan_card might be available in playerData
+        setPanCardNumber((playerData as any).panCard || ''); // Using panCard (camelCase) as that's what the server returns
 
         // Check document uploads and set initial state properly
         await fetchDocuments(); // Fetch detailed document info first
@@ -212,7 +212,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
     };
 
     initializeStep();
-  }, [playerData.id, playerData.kycStatus, playerData.firstName, playerData.lastName, playerData.email, playerData.phone, playerData.pan_card]); // Added pan_card to dependency array
+  }, [playerData.id, playerData.kycStatus, playerData.firstName, playerData.lastName, playerData.email, playerData.phone]); // Removed pan_card dependency as it's not a real property
 
   // Step 1: Save user details
   const saveUserDetails = async () => {
@@ -770,7 +770,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                     {documents.map((doc: any) => {
                       // Format document type properly
                       const formatDocumentType = (type: string) => {
-                        const typeMap = {
+                        const typeMap: Record<string, string> = {
                           'government_id': 'Government ID',
                           'address_proof': 'Address Proof', 
                           'utility_bill': 'Utility Bill',
@@ -779,7 +779,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                           'id_document': 'ID Document',
                           'photo': 'Photo'
                         };
-                        return typeMap[type] || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        return typeMap[type] || type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
                       };
 
                       // Format submission date properly
