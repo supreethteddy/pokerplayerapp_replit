@@ -173,29 +173,29 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
           <Button
             variant="outline"
             size="sm"
-            className="absolute left-0 sm:left-1 top-1/2 transform -translate-y-1/2 bg-black/60 border-gray-600 hover:bg-black/80 w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 p-0 min-w-0 z-10"
+            className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/60 border-gray-600 hover:bg-black/80 w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 p-0 min-w-0 z-10 rounded-full"
             onClick={prevSlide}
           >
-            <ChevronLeft className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-4 md:w-4 text-white" />
+            <ChevronLeft className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 text-white" />
           </Button>
           <Button
             variant="outline"
             size="sm"
-            className="absolute right-0 sm:right-1 top-1/2 transform -translate-y-1/2 bg-black/60 border-gray-600 hover:bg-black/80 w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 p-0 min-w-0 z-10"
+            className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/60 border-gray-600 hover:bg-black/80 w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 p-0 min-w-0 z-10 rounded-full"
             onClick={nextSlide}
           >
-            <ChevronRight className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-4 md:w-4 text-white" />
+            <ChevronRight className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 text-white" />
           </Button>
         </>
       )}
 
       {/* Dots indicator */}
       {displayItems.length > 1 && (
-        <div className="flex justify-center mt-2 sm:mt-3 md:mt-4 space-x-1">
+        <div className="flex justify-center mt-2 sm:mt-3 md:mt-4 space-x-1.5">
           {displayItems.map((_, index) => (
             <button
               key={index}
-              className={`w-1 h-1 sm:w-1.5 sm:h-1.5 md:w-2 md:h-2 rounded-full transition-colors duration-200 ${
+              className={`w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3 rounded-full transition-colors duration-200 ${
                 index === currentIndex ? 'bg-emerald-400' : 'bg-gray-500 hover:bg-gray-400'
               }`}
               onClick={() => setCurrentIndex(index)}
