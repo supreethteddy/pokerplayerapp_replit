@@ -59,7 +59,7 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
       }
     })) : [];
 
-  // Auto-scroll functionality
+  // Auto-scroll functionality with improved stability
   useEffect(() => {
     if (displayItems.length <= 1) return;
 
@@ -69,7 +69,7 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
         console.log('🎠 [CAROUSEL] Auto-scroll:', prevIndex, '→', nextIndex);
         return nextIndex;
       });
-    }, 5000);
+    }, 4000); // Reduced timing to prevent layout issues
 
     return () => clearInterval(interval);
   }, [displayItems.length]);
@@ -122,7 +122,7 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
     <div className="relative w-full max-w-full">
       <div className="overflow-hidden rounded-lg">
         <div 
-          className="flex transition-transform duration-300 ease-in-out"
+          className="flex transition-transform duration-500 ease-in-out"
           style={{ transform: `translateX(-${currentIndex * 100}%)` }}
         >
           {displayItems.map((item) => (
@@ -170,22 +170,18 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
       {/* Navigation buttons */}
       {displayItems.length > 1 && (
         <>
-          <Button
-            variant="outline"
-            size="sm"
-            className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/60 border-gray-600 hover:bg-black/80 w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 p-0 min-w-0 z-10 rounded-full"
+          <button
+            className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/60 border border-gray-600 hover:bg-black/80 w-8 h-8 p-0 z-10 rounded-full flex items-center justify-center transition-colors"
             onClick={prevSlide}
           >
-            <ChevronLeft className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 text-white" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/60 border-gray-600 hover:bg-black/80 w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 p-0 min-w-0 z-10 rounded-full"
+            <ChevronLeft className="h-4 w-4 text-white" />
+          </button>
+          <button
+            className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/60 border border-gray-600 hover:bg-black/80 w-8 h-8 p-0 z-10 rounded-full flex items-center justify-center transition-colors"
             onClick={nextSlide}
           >
-            <ChevronRight className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 text-white" />
-          </Button>
+            <ChevronRight className="h-4 w-4 text-white" />
+          </button>
         </>
       )}
 
