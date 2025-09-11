@@ -17,12 +17,10 @@ interface PlayerTransactionHistoryProps {
 }
 
 export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransactionHistoryProps) {
-  const [showAll, setShowAll] = useState(false);
-  
   const { data: transactions = [], isLoading } = useQuery<Transaction[]>({
-    queryKey: [`/api/player/${playerId}/transactions`, showAll ? 100 : limit],
+    queryKey: [`/api/player/${playerId}/transactions`, limit],
     queryFn: async () => {
-      const response = await fetch(`/api/player/${playerId}/transactions?limit=${showAll ? 100 : limit}`);
+      const response = await fetch(`/api/player/${playerId}/transactions?limit=${limit}`);
       if (!response.ok) {
         throw new Error('Failed to fetch transactions');
       }
@@ -104,17 +102,16 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
     <div className="bg-slate-800 border-slate-700 rounded-lg">
       <div className="px-4 py-3 border-b border-slate-700 flex justify-between items-center">
         <h3 className="text-lg font-medium text-white">
-          {showAll ? 'All Transactions' : 'Recent Transactions'}
+          Recent Transactions
         </h3>
         <button
-          onClick={() => setShowAll(!showAll)}
-          className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+          className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors cursor-default"
         >
-          {showAll ? 'Show All' : 'Show All'}
+          Last 10 Transactions
         </button>
       </div>
       <div className="space-y-3 p-4">
-        {(showAll ? transactions : transactions.slice(0, limit)).map((transaction) => (
+        {transactions.slice(0, limit).map((transaction) => (
           <div key={transaction.id} className="bg-slate-700 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3 flex-1">
