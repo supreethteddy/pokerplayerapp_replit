@@ -1623,10 +1623,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 w-full overflow-x-hidden">
+    <div className="min-h-screen bg-slate-900 w-full overflow-x-hidden dashboard-container">
       {/* Email Verification Banner */}
       {showEmailVerificationBanner && user?.email && !(user as any)?.emailVerified && (
-        <div className="bg-amber-600 border-b border-amber-500 px-6 py-3">
+        <div className="bg-amber-600 border-b border-amber-500 px-3 sm:px-6 py-3 notification-banner">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <AlertTriangle className="w-5 h-5 mr-2 text-white" />
@@ -1648,7 +1648,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
       {/* Active Game Status Banner */}
       {gameStatus.activeGameInfo && (
-        <div className={`border-b px-6 py-4 ${
+        <div className={`border-b px-3 sm:px-6 py-3 sm:py-4 notification-banner ${
           gameStatus.isInActiveGame 
             ? 'bg-gradient-to-r from-amber-600 to-amber-700 border-amber-500' 
             : 'bg-gradient-to-r from-emerald-600 to-emerald-700 border-emerald-500'
@@ -1768,9 +1768,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         </DialogContent>
       </Dialog>
 
-      <div className="max-w-full px-3 py-2 sm:px-4 sm:py-4 lg:px-6 lg:py-6">
+      <div className="max-w-full px-3 py-3 sm:px-4 sm:py-4 lg:px-6 lg:py-6 dashboard-container">
         {/* Header - Responsive */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 space-y-2 sm:space-y-0">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 space-y-3 sm:space-y-0 dashboard-header">
           <div className="w-full sm:w-auto min-w-0">
             <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-white truncate">Player Dashboard</h1>
             <p className="text-slate-400 text-xs sm:text-sm lg:text-base truncate">Welcome back, {user?.nickname || user?.firstName}!</p>
@@ -1788,52 +1788,60 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-full">
-          <TabsList className="flex w-full justify-between mb-3 sm:mb-4 bg-slate-800 border border-slate-700 rounded-lg p-1 overflow-hidden gap-1">
+          <TabsList className="flex w-full justify-between mb-4 sm:mb-6 bg-slate-800 border border-slate-700 rounded-lg p-1 overflow-hidden gap-1" data-tabs-list>
             <TabsTrigger 
               value="game" 
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              role="tab"
             >
               <Spade className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger 
               value="offers" 
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              role="tab"
             >
               <Gift className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger 
               value="food" 
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              role="tab"
             >
               <Coffee className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger 
               value="session" 
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              role="tab"
             >
               <Clock className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger 
               value="balance" 
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              role="tab"
             >
               <CreditCard className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger 
               value="profile" 
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              role="tab"
             >
               <User className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger 
               value="feedback" 
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              role="tab"
             >
               <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger 
               value="notifications" 
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 relative overflow-visible"
+              className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 relative overflow-visible"
+              role="tab"
             >
               <div className="relative flex items-center justify-center">
                 <Bell className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
@@ -1851,7 +1859,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           <div className="w-full max-w-full overflow-hidden">
 
             {/* Game Tab */}
-            <TabsContent value="game" className="space-y-3 sm:space-y-4 w-full max-w-full">
+            <TabsContent value="game" className="space-y-4 sm:space-y-6 w-full max-w-full">
               {/* Active Table Sessions - Show where player is currently seated */}
               {seatedSessions && Array.isArray(seatedSessions) && seatedSessions.length > 0 && (
                 <Card className="bg-gradient-to-r from-emerald-800 to-emerald-900 border-emerald-500 w-full max-w-full">
@@ -2235,17 +2243,17 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             </TabsContent>
 
           {/* Offers Tab - Staff Managed */}
-          <TabsContent value="offers" className="space-y-4">
+          <TabsContent value="offers" className="space-y-4 sm:space-y-6">
             <ScrollableOffersDisplay />
           </TabsContent>
 
           {/* Food & Beverage Tab */}
-          <TabsContent value="food" className="space-y-4">
+          <TabsContent value="food" className="space-y-4 sm:space-y-6">
             <FoodBeverageTab user={user} />
           </TabsContent>
 
           {/* Session Tab - Advanced Playtime Tracking */}
-          <TabsContent value="session" className="space-y-4">
+          <TabsContent value="session" className="space-y-4 sm:space-y-6">
             <div className="max-w-4xl mx-auto">
               <PlaytimeTracker 
                 playerId={user?.id?.toString() || ''} 
@@ -2255,7 +2263,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           </TabsContent>
 
           {/* Balance Tab - Simplified Cash Balance System */}
-          <TabsContent value="balance" className="space-y-4">
+          <TabsContent value="balance" className="space-y-4 sm:space-y-6">
             {/* Simplified Balance Display - Single Cash Balance Only */}
             <div className="space-y-6">
               {/* Main Balance Card */}
@@ -2355,7 +2363,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           </TabsContent>
 
           {/* Profile Tab */}
-          <TabsContent value="profile" className="space-y-4">
+          <TabsContent value="profile" className="space-y-4 sm:space-y-6">
             <div className="grid grid-cols-1 gap-4 sm:gap-6">
               {/* Profile Summary */}
               <Card className="bg-slate-800 border-slate-700">
@@ -3096,7 +3104,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
             {/* Feedback Tab */}
             <TabsContent value="feedback" className="flex-1 overflow-y-auto">
-              <div className="space-y-4">
+              <div className="space-y-4 sm:space-y-6">
                 {/* Feedback to Management */}
                 <Card className="bg-slate-800 border-slate-700">
                   <CardHeader>
@@ -3180,7 +3188,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             </TabsContent>
 
             {/* Notifications Tab */}
-            <TabsContent value="notifications" className="space-y-3 sm:space-y-4 w-full max-w-full">
+            <TabsContent value="notifications" className="space-y-4 sm:space-y-6 w-full max-w-full">
               <NotificationHistoryTab />
             </TabsContent>
 
