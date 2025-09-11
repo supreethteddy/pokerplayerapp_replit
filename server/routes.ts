@@ -2497,7 +2497,24 @@ export function registerRoutes(app: Express) {
       const pool = new Pool({
         connectionString: process.env.DATABASE_URL,
         ssl: { rejectUnauthorized: false }
+      });
 
+      await pool.query(`
+        UPDATE players
+        SET email_verified = true, verification_token = NULL, token_expiry = NULL
+        WHERE email = $1
+      `, [email]);
+
+      await pool.end();
+
+      console.log(`✅ [MANUAL VERIFICATION] Email manually verified:`, email);
+      res.json({ success: true, message: 'Email verification updated' });
+
+    } catch (error) {
+      console.error('❌ [MANUAL VERIFICATION] Error:', error);
+      res.status(500).json({ error: 'Failed to verify email' });
+    }
+  });
 
   // DEVELOPMENT EMAIL TESTING ENDPOINT
   app.post('/api/dev/test-email', async (req, res) => {
@@ -2598,25 +2615,6 @@ export function registerRoutes(app: Express) {
         error: 'Email test failed', 
         details: error.message 
       });
-    }
-  });
-
-      });
-
-      await pool.query(`
-        UPDATE players
-        SET email_verified = true, verification_token = NULL, token_expiry = NULL
-        WHERE email = $1
-      `, [email]);
-
-      await pool.end();
-
-      console.log(`✅ [MANUAL VERIFICATION] Email manually verified:`, email);
-      res.json({ success: true, message: 'Email verification updated' });
-
-    } catch (error) {
-      console.error('❌ [MANUAL VERIFICATION] Error:', error);
-      res.status(500).json({ error: 'Failed to verify email' });
     }
   });
 
