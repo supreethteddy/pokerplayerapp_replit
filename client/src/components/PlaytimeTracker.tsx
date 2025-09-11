@@ -351,14 +351,10 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
             </div>
 
             {/* Balance Info */}
-            <div className="grid grid-cols-2 gap-2 sm:gap-3">
-              <div className="bg-slate-800/50 p-2 sm:p-3 rounded text-center">
+            <div className="flex justify-center">
+              <div className="bg-slate-800/50 p-2 sm:p-3 rounded text-center w-full max-w-xs">
                 <div className="text-sm sm:text-lg font-semibold text-white">₹{(session?.buyInAmount || 1000).toLocaleString()}</div>
                 <div className="text-xs text-slate-400">Buy-in</div>
-              </div>
-              <div className="bg-slate-800/50 p-2 sm:p-3 rounded text-center">
-                <div className="text-sm sm:text-lg font-semibold text-emerald-500">₹{(session?.currentChips || 1000).toLocaleString()}</div>
-                <div className="text-xs text-slate-400">Current Chips</div>
               </div>
             </div>
 
