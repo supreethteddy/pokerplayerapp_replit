@@ -3919,6 +3919,7 @@ export function registerRoutes(app: Express) {
               call_time_ends = $2,
               cashout_window_active = false,
               cashout_window_ends = null,
+              request = 'call_time',
               updated_at = NOW()
           WHERE player_id = $3 AND status = 'seated'
           RETURNING *
@@ -4039,6 +4040,7 @@ export function registerRoutes(app: Express) {
           UPDATE seat_requests 
           SET cash_out_requested = NOW(),
               cash_out_requested_by = $1,
+              request = 'cash_out',
               updated_at = NOW(),
               notes = COALESCE(notes, '') || ' | Cash out requested at ' || NOW()
           WHERE player_id = $1 AND status = 'seated'
@@ -4559,6 +4561,7 @@ export function registerRoutes(app: Express) {
               call_time_ends = $2,
               cashout_window_active = false,
               cashout_window_ends = null,
+              request = 'call_time',
               updated_at = NOW()
           WHERE player_id = $3 AND status = 'seated'
           RETURNING *
@@ -4679,6 +4682,7 @@ export function registerRoutes(app: Express) {
           UPDATE seat_requests 
           SET cash_out_requested = NOW(),
               cash_out_requested_by = $1,
+              request = 'cash_out',
               updated_at = NOW(),
               notes = COALESCE(notes, '') || ' | Cash out requested at ' || NOW()
           WHERE player_id = $1 AND status = 'seated'
