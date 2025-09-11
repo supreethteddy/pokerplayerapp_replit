@@ -119,44 +119,44 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
   };
 
   return (
-    <div className="relative w-full">
+    <div className="relative w-full max-w-full">
       <div className="overflow-hidden rounded-lg">
         <div 
           className="flex transition-transform duration-300 ease-in-out"
           style={{ transform: `translateX(-${currentIndex * 100}%)` }}
         >
           {displayItems.map((item) => (
-            <div key={item.id} className="w-full flex-shrink-0">
+            <div key={item.id} className="w-full flex-shrink-0 min-w-0">
               <Card 
-                className="bg-gradient-to-br from-emerald-800 to-emerald-900 border-emerald-600 cursor-pointer hover:scale-105 transition-transform duration-200"
+                className="bg-gradient-to-br from-emerald-800 to-emerald-900 border-emerald-600 cursor-pointer hover:scale-[1.02] transition-transform duration-200 mx-1"
                 onClick={() => onOfferClick(item.offer_id)}
               >
                 <CardContent className="p-0">
-                  <div className="w-full h-32 sm:h-48 bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center rounded-lg relative">
-                    <Gift className="w-8 h-8 sm:w-16 sm:h-16 text-white" />
+                  <div className="w-full h-28 sm:h-40 md:h-48 bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center rounded-t-lg relative">
+                    <Gift className="w-6 h-6 sm:w-12 sm:h-12 md:w-16 md:h-16 text-white" />
                     <div className="absolute top-1 left-1 sm:top-2 sm:left-2 bg-black bg-opacity-50 rounded px-1 py-0.5 sm:px-2 sm:py-1">
-                      <span className="text-xs text-white font-medium">
+                      <span className="text-[10px] sm:text-xs text-white font-medium leading-none">
                         {item.staff_offers.offer_type?.toUpperCase()}
                       </span>
                     </div>
                     {item.staff_offers.priority > 0 && (
-                      <div className="absolute top-1 right-1 sm:top-2 sm:right-2 bg-yellow-500 rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center">
-                        <span className="text-xs text-black font-bold">
+                      <div className="absolute top-1 right-1 sm:top-2 sm:right-2 bg-yellow-500 rounded-full w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 flex items-center justify-center">
+                        <span className="text-[8px] sm:text-xs text-black font-bold leading-none">
                           {item.staff_offers.priority}
                         </span>
                       </div>
                     )}
                     <div className="absolute bottom-1 left-1 right-1 sm:bottom-2 sm:left-2 sm:right-2 text-center">
-                      <span className="text-xs text-white bg-black bg-opacity-50 rounded px-1 py-0.5 sm:px-2 sm:py-1">
+                      <span className="text-[10px] sm:text-xs text-white bg-black bg-opacity-50 rounded px-1 py-0.5 sm:px-2 sm:py-1 leading-none">
                         {item.staff_offers.target_audience?.toUpperCase()}
                       </span>
                     </div>
                   </div>
-                  <div className="p-2 sm:p-4">
-                    <h3 className="text-sm sm:text-lg font-semibold text-white mb-1 sm:mb-2">
+                  <div className="p-2 sm:p-3 md:p-4">
+                    <h3 className="text-xs sm:text-sm md:text-lg font-semibold text-white mb-1 sm:mb-2 line-clamp-2">
                       {item.staff_offers.title}
                     </h3>
-                    <p className="text-gray-300 text-xs sm:text-sm">
+                    <p className="text-gray-300 text-[10px] sm:text-xs md:text-sm line-clamp-2">
                       {item.staff_offers.description}
                     </p>
                   </div>
@@ -173,30 +173,30 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
           <Button
             variant="outline"
             size="sm"
-            className="absolute left-1 sm:left-2 top-1/2 transform -translate-y-1/2 bg-black/50 border-gray-600 hover:bg-black/70 w-6 h-6 sm:w-8 sm:h-8 p-0 min-w-0"
+            className="absolute left-0 sm:left-1 top-1/2 transform -translate-y-1/2 bg-black/60 border-gray-600 hover:bg-black/80 w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 p-0 min-w-0 z-10"
             onClick={prevSlide}
           >
-            <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
+            <ChevronLeft className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-4 md:w-4 text-white" />
           </Button>
           <Button
             variant="outline"
             size="sm"
-            className="absolute right-1 sm:right-2 top-1/2 transform -translate-y-1/2 bg-black/50 border-gray-600 hover:bg-black/70 w-6 h-6 sm:w-8 sm:h-8 p-0 min-w-0"
+            className="absolute right-0 sm:right-1 top-1/2 transform -translate-y-1/2 bg-black/60 border-gray-600 hover:bg-black/80 w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 p-0 min-w-0 z-10"
             onClick={nextSlide}
           >
-            <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
+            <ChevronRight className="h-2.5 w-2.5 sm:h-3 sm:w-3 md:h-4 md:w-4 text-white" />
           </Button>
         </>
       )}
 
       {/* Dots indicator */}
       {displayItems.length > 1 && (
-        <div className="flex justify-center mt-2 sm:mt-4 space-x-1 sm:space-x-2">
+        <div className="flex justify-center mt-2 sm:mt-3 md:mt-4 space-x-1">
           {displayItems.map((_, index) => (
             <button
               key={index}
-              className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full transition-colors ${
-                index === currentIndex ? 'bg-blue-500' : 'bg-gray-600'
+              className={`w-1 h-1 sm:w-1.5 sm:h-1.5 md:w-2 md:h-2 rounded-full transition-colors duration-200 ${
+                index === currentIndex ? 'bg-emerald-400' : 'bg-gray-500 hover:bg-gray-400'
               }`}
               onClick={() => setCurrentIndex(index)}
             />
