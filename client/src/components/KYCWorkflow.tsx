@@ -107,6 +107,48 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
         // Use dynamic player ID from props
         const playerId = playerData?.id;
 
+        // ✅ SURGICAL FIX: Verify player exists in database before proceeding
+        if (playerId) {
+          try {
+            const playerCheckResponse = await fetch(`/api/players/${playerId}`);
+            if (!playerCheckResponse.ok) {
+              if (playerCheckResponse.status === 404) {
+                console.error('❌ [KYC] Player does not exist in database:', playerId);
+                toast({
+                  title: "Account Not Found",
+                  description: "Your account could not be found. Please log in again.",
+                  variant: "destructive"
+                });
+                // Clear stored data and redirect to login
+                setTimeout(() => {
+                  sessionStorage.removeItem('kyc_redirect');
+                  sessionStorage.removeItem('kyc_flow_active');
+                  sessionStorage.removeItem('authenticated_user');
+                  localStorage.removeItem('player_auth');
+                  window.location.href = '/';
+                }, 2000);
+                return;
+              }
+            }
+          } catch (playerCheckError) {
+            console.error('❌ [KYC] Error checking player existence:', playerCheckError);
+            toast({
+              title: "Connection Error",
+              description: "Unable to verify your account. Please try logging in again.",
+              variant: "destructive"
+            });
+            // Clear stored data and redirect to login on error
+            setTimeout(() => {
+              sessionStorage.removeItem('kyc_redirect');
+              sessionStorage.removeItem('kyc_flow_active');
+              sessionStorage.removeItem('authenticated_user');
+              localStorage.removeItem('player_auth');
+              window.location.href = '/';
+            }, 2000);
+            return;
+          }
+        }
+
         // Initialize user details with existing playerData first
         setUserDetails(prev => ({
           firstName: playerData.firstName || prev.firstName,
