@@ -2982,7 +2982,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                     >
                       <option value="">Select action...</option>
                       <option value="last10">View Last 10 Transactions</option>
-                      <option value="all">View All Transactions</option>
                     </select>
 
                     {/* Transaction List */}
