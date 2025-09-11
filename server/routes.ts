@@ -3794,7 +3794,7 @@ export function registerRoutes(app: Express) {
           status: 'active',
           profitLoss: 0, // No profit/loss tracking yet
 
-          // Timing configuration from poker_tables (dynamic values)
+          // Timing configuration from poker_tables (dynamic values) - Multiple field formats for compatibility
           minPlayTimeMinutes,
           callTimeDurationMinutes,
           cashOutWindowMinutes,
@@ -3811,10 +3811,15 @@ export function registerRoutes(app: Express) {
           isLive: true,
           sessionStartTime: row.session_start_time,
 
-          // Table configuration (dynamic from poker_tables)
+          // Table configuration (dynamic from poker_tables) - Primary fields for UI
           tableMinPlayTime: minPlayTimeMinutes,
           tableCallTimeDuration: callTimeDurationMinutes,
-          tableCashOutWindow: cashOutWindowMinutes
+          tableCashOutWindow: cashOutWindowMinutes,
+
+          // Legacy field compatibility (for any hardcoded references)
+          min_play_time: minPlayTimeMinutes,
+          call_time_duration: callTimeDurationMinutes,
+          cash_out_window: cashOutWindowMinutes
         };
 
         console.log(`📊 [LIVE SESSIONS] Session data for player ${playerId}:`, {

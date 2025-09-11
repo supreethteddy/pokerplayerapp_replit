@@ -231,7 +231,8 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
     const start = new Date(session?.sessionStartTime || new Date());
     const now = new Date();
     const minutesPlayed = (now.getTime() - start.getTime()) / (1000 * 60);
-    const timeUntilMinPlay = (session?.min_play_time || session?.min_play_time_minutes || 30) - minutesPlayed;
+    const dynamicMinPlay = session?.tableMinPlayTime || session?.minPlayTimeMinutes || session?.min_play_time || 2;
+    const timeUntilMinPlay = dynamicMinPlay - minutesPlayed;
 
     return Math.max(0, Math.ceil(timeUntilMinPlay));
   };
@@ -247,11 +248,16 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
     }
     if (!session) return { phase: 'UNKNOWN', description: '', timeRemaining: 0 };
 
+    // Use dynamic table configuration values
+    const dynamicMinPlay = session?.tableMinPlayTime || session?.minPlayTimeMinutes || session?.min_play_time || 2;
+    const dynamicCallTime = session?.tableCallTimeDuration || session?.callTimeDurationMinutes || session?.call_time_duration || 2;
+    const dynamicCashWindow = session?.tableCashOutWindow || session?.cashOutWindowMinutes || session?.cash_out_window || 2;
+
     switch (session?.sessionPhase) {
       case 'MINIMUM_PLAY':
         return {
           phase: 'Minimum Play Time',
-          description: `Must play ${session?.min_play_time || session?.min_play_time_minutes || 30} minutes minimum`,
+          description: `Must play ${dynamicMinPlay} minutes minimum`,
           timeRemaining: getTimeUntilMinPlay()
         };
       case 'CALL_TIME_AVAILABLE':
@@ -263,13 +269,13 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
       case 'CALL_TIME_ACTIVE':
         return {
           phase: 'Call Time Active',
-          description: `${session?.call_time_duration || session?.call_time_play_period_minutes || 60}-minute countdown running`,
+          description: `${dynamicCallTime}-minute countdown running`,
           timeRemaining: session?.callTimeRemaining || 0
         };
       case 'CASH_OUT_WINDOW':
         return {
           phase: 'Cash Out Window',
-          description: `${session?.cash_out_window || session?.cashout_window_minutes || 15}-minute window to cash out`,
+          description: `${dynamicCashWindow}-minute window to cash out`,
           timeRemaining: session?.cashOutTimeRemaining || 0
         };
       default:
@@ -535,7 +541,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
               {session?.callTimeAvailable && !session?.callTimeActive && (
                 <div className="text-yellow-400">
                   <div className="font-medium">⏰ Call Time Available</div>
-                  <div className="mt-1 text-xs text-yellow-300">Click to start {session?.callTimeDurationMinutes || 60}-minute countdown. After completion, you'll have {session?.cashOutWindowMinutes || 15} minutes to cash out.</div>
+                  <div className="mt-1 text-xs text-yellow-300">Click to start {session?.tableCallTimeDuration || session?.callTimeDurationMinutes || 2}-minute countdown. After completion, you'll have {session?.tableCashOutWindow || session?.cashOutWindowMinutes || 2} minutes to cash out.</div>
                 </div>
               )}
               {session?.callTimeActive && (
@@ -553,7 +559,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
               {!session?.callTimeAvailable && !session?.callTimeActive && !session?.canCashOut && (
                 <div className="text-slate-300">
                   <div className="font-medium">⏱️ Minimum Play Time</div>
-                  <div className="mt-1 text-xs text-slate-400">Complete {session?.minPlayTimeMinutes || 30} minutes before call time becomes available</div>
+                  <div className="mt-1 text-xs text-slate-400">Complete {session?.tableMinPlayTime || session?.minPlayTimeMinutes || 2} minutes before call time becomes available</div>
                 </div>
               )}
             </div>
@@ -569,15 +575,15 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
               <ul className="space-y-1 text-slate-400 text-xs">
                 <li className="flex justify-between">
                   <span>• Min play:</span> 
-                  <span className="font-medium text-white">{session?.min_play_time || session?.min_play_time_minutes || 30}m</span>
+                  <span className="font-medium text-white">{session?.tableMinPlayTime || session?.minPlayTimeMinutes || session?.min_play_time || 2}m</span>
                 </li>
                 <li className="flex justify-between">
                   <span>• Call time:</span> 
-                  <span className="font-medium text-white">{session?.call_time_duration || session?.call_time_play_period_minutes || 60}m</span>
+                  <span className="font-medium text-white">{session?.tableCallTimeDuration || session?.callTimeDurationMinutes || session?.call_time_duration || 2}m</span>
                 </li>
                 <li className="flex justify-between">
                   <span>• Cash window:</span> 
-                  <span className="font-medium text-white">{session?.cash_out_window || session?.cashout_window_minutes || 15}m</span>
+                  <span className="font-medium text-white">{session?.tableCashOutWindow || session?.cashOutWindowMinutes || session?.cash_out_window || 2}m</span>
                 </li>
               </ul>
               
