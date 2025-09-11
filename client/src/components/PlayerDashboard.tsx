@@ -1137,10 +1137,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 status: 'sent'
               };
 
-              console.log('✅ GRE RECV - ADDING TO UI:', normalizedGreMessage);
+              console.log('GRE RECV - ADDING TO UI:', normalizedGreMessage);
               setUnifiedChatMessages(prev => {
                 const updated = [...prev, normalizedGreMessage];
-                console.log('✅ GRE RECV - UI STATE UPDATED:', updated.length, 'total messages');
+                console.log('GRE RECV - UI STATE UPDATED:', updated.length, 'total messages');
                 return updated;
               });
             } else {
@@ -1680,18 +1680,20 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 </div>
               </div>
             </div>
-            <Link href={`/table/${gameStatus.activeGameInfo.tableId}`}>
-              <Button 
-                className={`${
-                  gameStatus.isInActiveGame 
-                    ? 'bg-white text-amber-700 hover:bg-amber-50' 
-                    : 'bg-white text-emerald-700 hover:bg-emerald-50'
-                } font-semibold px-6`}
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                {gameStatus.isInActiveGame ? 'View Game' : 'View Table'}
-              </Button>
-            </Link>
+            <div className="flex flex-col sm:flex-row gap-3 justify-end items-end sm:items-center">
+              <Link href={`/table/${gameStatus.activeGameInfo.tableId}`}>
+                <Button 
+                  className={`${
+                    gameStatus.isInActiveGame 
+                      ? 'bg-white text-amber-700 hover:bg-amber-50' 
+                      : 'bg-white text-emerald-700 hover:bg-emerald-50'
+                  } font-semibold px-6 w-full sm:w-auto`}
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  {gameStatus.isInActiveGame ? 'View Game' : 'View Table'}
+                </Button>
+              </Link>
+            </div>
           </div>
           {gameStatus.isInActiveGame && gameStatus.restrictionMessage && (
             <div className="mt-3 p-3 bg-amber-500/20 rounded-lg border border-amber-400/30">
