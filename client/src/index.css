@@ -118,21 +118,21 @@ html, body {
 
 /* Loading screen animations */
 @keyframes loading-bar {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(0%); }
+  0% { width: 0%; }
+  100% { width: 100%; }
 }
 
 @keyframes fade-in {
-  0% { opacity: 0; transform: translateY(10px); }
+  0% { opacity: 0; transform: translateY(20px); }
   100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.8s ease-out;
 }
 
 .animate-loading-bar {
   animation: loading-bar 2s ease-in-out infinite;
-}
-
-.animate-fade-in {
-  animation: fade-in 1s ease-out forwards;
 }
 
 /* File input styling */
