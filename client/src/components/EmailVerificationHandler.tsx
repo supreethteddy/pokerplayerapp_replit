@@ -1,7 +1,7 @@
 
 import { useEffect } from "react";
 import { useLocation } from "wouter";
-import { LoadingScreen } from "./LoadingScreen";
+import LoadingScreen from "./LoadingScreen";
 
 export default function EmailVerificationHandler() {
   const [location, setLocation] = useLocation();
@@ -34,5 +34,5 @@ export default function EmailVerificationHandler() {
       });
   }, [location, setLocation]);
 
-  return <LoadingScreen message="Verifying your email..." />;
+  return <LoadingScreen onComplete={() => {}} />;
 }
