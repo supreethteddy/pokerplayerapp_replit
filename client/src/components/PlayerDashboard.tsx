@@ -1653,48 +1653,46 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             ? 'bg-gradient-to-r from-amber-600 to-amber-700 border-amber-500' 
             : 'bg-gradient-to-r from-emerald-600 to-emerald-700 border-emerald-500'
         }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className={`p-2 rounded-full ${
-                gameStatus.isInActiveGame ? 'bg-amber-500' : 'bg-emerald-500'
-              }`}>
-                <Play className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 space-y-2 sm:space-y-0">
-                  <span className="text-white font-bold text-lg">
-                    {gameStatus.isInActiveGame ? '🎮 CURRENTLY PLAYING' : '⏳ WAITING FOR GAME'}
-                  </span>
-                  {gameStatus.activeGameInfo.seatNumber && (
-                    <Badge className="bg-white text-slate-900 font-bold w-fit">
-                      Seat #{gameStatus.activeGameInfo.seatNumber}
-                    </Badge>
-                  )}
-                </div>
-                <div className="text-white/90 text-sm">
-                  <span className="font-medium">{gameStatus.activeGameInfo.tableName}</span> • 
-                  <span className="ml-1">{gameStatus.activeGameInfo.gameType}</span>
-                  {gameStatus.activeGameInfo.position && gameStatus.activeGameInfo.position > 0 && (
-                    <span className="ml-1">• Position #{gameStatus.activeGameInfo.position}</span>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col gap-3 justify-end items-end">
-              <Link href={`/table/${gameStatus.activeGameInfo.tableId}`}>
-                <Button 
-                  className={`${
-                    gameStatus.isInActiveGame 
-                      ? 'bg-white text-amber-700 hover:bg-amber-50' 
-                      : 'bg-white text-emerald-700 hover:bg-emerald-50'
-                  } font-semibold px-6 w-full`}
-                >
-                  <Eye className="w-4 h-4 mr-2" />
-                  {gameStatus.isInActiveGame ? 'View Game' : 'View Table'}
-                </Button>
-              </Link>
-            </div>
-          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 bg-emerald-500/20 rounded-full">
+                        <Play className="w-5 h-5 text-emerald-400" />
+                      </div>
+                      <div>
+                        <div className="flex flex-col space-y-2">
+                          <span className="text-white font-bold text-lg">
+                            {gameStatus.isInActiveGame ? '🎮 CURRENTLY PLAYING' : '⏳ WAITING FOR GAME'}
+                          </span>
+                          {gameStatus.activeGameInfo.seatNumber && (
+                            <Badge className="bg-white text-slate-900 font-bold w-fit">
+                              Seat #{gameStatus.activeGameInfo.seatNumber}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-white/90 text-sm mt-2">
+                          <span className="font-medium">{gameStatus.activeGameInfo.tableName}</span> • 
+                          <span className="ml-1">{gameStatus.activeGameInfo.gameType}</span>
+                          {gameStatus.activeGameInfo.position && gameStatus.activeGameInfo.position > 0 && (
+                            <span className="ml-1">• Position #{gameStatus.activeGameInfo.position}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex justify-center sm:justify-end">
+                      <Link href={`/table/${gameStatus.activeGameInfo.tableId}`}>
+                        <Button 
+                          className={`${
+                            gameStatus.isInActiveGame 
+                              ? 'bg-white text-amber-700 hover:bg-amber-50' 
+                              : 'bg-white text-emerald-700 hover:bg-emerald-50'
+                          } font-semibold px-6`}
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          {gameStatus.isInActiveGame ? 'View Game' : 'View Table'}
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
           {gameStatus.isInActiveGame && gameStatus.restrictionMessage && (
             <div className="mt-3 p-3 bg-amber-500/20 rounded-lg border border-amber-400/30">
               <div className="flex items-center text-white">
