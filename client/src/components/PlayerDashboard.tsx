@@ -2255,10 +2255,24 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           {/* Session Tab - Advanced Playtime Tracking */}
           <TabsContent value="session" className="space-y-4 sm:space-y-6">
             <div className="max-w-4xl mx-auto">
-              <PlaytimeTracker 
-                playerId={user?.id?.toString() || ''} 
-                gameStatus={gameStatus}
-              />
+              {!gameStatus.isInActiveGame && !seatedSessions?.length ? (
+                <Card className="bg-slate-800 border-slate-700">
+                  <CardContent className="p-8">
+                    <div className="text-center">
+                      <Clock className="w-12 h-12 mx-auto mb-4 text-slate-400 opacity-50" />
+                      <h3 className="text-lg font-semibold text-white mb-2">No Active Session</h3>
+                      <p className="text-slate-400">
+                        Please join a table in order to view the playtime tracker
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <PlaytimeTracker 
+                  playerId={user?.id?.toString() || ''} 
+                  gameStatus={gameStatus}
+                />
+              )}
             </div>
           </TabsContent>
 
