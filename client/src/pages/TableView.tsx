@@ -222,13 +222,12 @@ export default function TableView() {
               {/* Green Felt Surface */}
               <div className="absolute inset-2 rounded-[50%] bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-800 shadow-inner">
 
-                {/* Seat Positions - 9 seats arranged around oval, skipping 12 o'clock dealer position */}
-                {Array.from({ length: 9 }, (_, index) => {
+                {/* Dynamic Seat Positions - Based on table maxPlayers */}
+                {Array.from({ length: currentTable.maxPlayers || 6 }, (_, index) => {
                   const seatNumber = index + 1;
                   // Calculate angle skipping 12 o'clock position (dealer position)
-                  // We have 10 total positions (9 players + 1 dealer), so each position is 36 degrees apart
-                  // Start from 1:12 position (36 degrees from top) and go clockwise
-                  const totalPositions = 10; // 9 players + 1 dealer
+                  // Dynamic positioning based on number of seats
+                  const totalPositions = (currentTable.maxPlayers || 6) + 1; // players + 1 dealer
                   const angleStep = (2 * Math.PI) / totalPositions;
                   const angle = (index + 1) * angleStep - Math.PI / 2; // +1 to skip dealer at index 0
                   const radiusX = 42;
@@ -343,7 +342,7 @@ export default function TableView() {
             <CardContent className="p-4 text-center">
               <Users className="w-8 h-8 text-blue-400 mx-auto mb-2" />
               <div className="text-slate-400 text-sm">Players</div>
-              <div className="text-white text-xl font-bold">{seatedPlayersArray.length || 0}/{currentTable?.maxPlayers || 9}</div>
+              <div className="text-white text-xl font-bold">{seatedPlayersArray.length || 0}/{currentTable?.maxPlayers || 6}</div>
             </CardContent>
           </Card>
 
