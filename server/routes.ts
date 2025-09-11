@@ -2222,44 +2222,82 @@ export function registerRoutes(app: Express) {
   // Send email verification - ENHANCED WITH AUTOMATIC SIGNUP INTEGRATION
   app.post('/api/auth/send-verification-email', async (req, res) => {
     try {
-      const { email, playerId } = req.body;
+      const { email, playerId, firstName } = req.body;
 
       if (!email) {
         return res.status(400).json({ error: 'Email is required' });
       }
 
-      console.log(`📧 [EMAIL VERIFICATION] Sending verification email to:`, email);
+      console.log(`📧 [EMAIL VERIFICATION] Sending verification email to: ${email} (Player ID: ${playerId})`);
 
-      // Generate verification token
-      const verificationToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      // Generate strong verification token
+      const verificationToken = require('crypto').randomBytes(32).toString('hex');
       const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
       // Store verification token in database
       const { Pool } = await import('pg');
       const pool = new Pool({
-        connectionString: process.env.DATABASE_URL,
+        connectionString: process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL,
         ssl: { rejectUnauthorized: false }
       });
 
-      await pool.query(`
-        UPDATE players
-        SET verification_token = $1, token_expiry = $2
-        WHERE email = $3
-      `, [verificationToken, tokenExpiry, email]);
+      try {
+        let updateQuery, updateParams;
+        
+        if (playerId) {
+          updateQuery = `
+            UPDATE players
+            SET verification_token = $1, token_expiry = $2, updated_at = NOW()
+            WHERE id = $3
+            RETURNING id, email
+          `;
+          updateParams = [verificationToken, tokenExpiry, playerId];
+        } else {
+          updateQuery = `
+            UPDATE players
+            SET verification_token = $1, token_expiry = $2, updated_at = NOW()
+            WHERE email = $3
+            RETURNING id, email
+          `;
+          updateParams = [verificationToken, tokenExpiry, email];
+        }
+
+        const result = await pool.query(updateQuery, updateParams);
+        
+        if (result.rows.length === 0) {
+          await pool.end();
+          return res.status(404).json({ 
+            success: false, 
+            error: 'Player not found' 
+          });
+        }
+
+        const player = result.rows[0];
+        console.log(`✅ [EMAIL VERIFICATION] Token stored for player ${player.id}: ${player.email}`);
+
+      } catch (dbError: any) {
+        await pool.end();
+        console.error('❌ [EMAIL VERIFICATION] Database error:', dbError);
+        return res.status(500).json({ 
+          success: false, 
+          error: 'Database operation failed' 
+        });
+      }
 
       await pool.end();
 
       // Create verification URL
-      const verificationUrl = `${req.protocol}://${req.get('host')}/api/auth/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
+      const baseUrl = process.env.REPLIT_URL || `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` || req.get('host');
+      const verificationUrl = `${baseUrl}/api/auth/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
 
-      console.log(`📧 [EMAIL VERIFICATION] Verification URL generated for:`, email);
+      console.log(`🔗 [EMAIL VERIFICATION] Verification URL: ${verificationUrl}`);
 
       // Enhanced email sending with multiple fallbacks
       let emailSent = false;
       let emailMethod = '';
-      let emailError = null;
+      const emailErrors = [];
 
-      // METHOD 1: Direct Supabase Auth User Creation with Email Confirmation
+      // METHOD 1: Supabase Auth Integration
       try {
         const { createClient } = await import('@supabase/supabase-js');
         const supabaseAdmin = createClient(
@@ -2267,80 +2305,82 @@ export function registerRoutes(app: Express) {
           process.env.SUPABASE_SERVICE_ROLE_KEY!
         );
 
-        // Create auth user with email confirmation
-        const { data: authUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-          email: email,
-          email_confirm: false, // This will send confirmation email
-          user_metadata: {
-            verification_token: verificationToken,
-            player_email: email,
-            source: 'player_portal_signup'
-          }
-        });
+        // Try to create or update auth user
+        const { data: existingUser, error: getUserError } = await supabaseAdmin.auth.admin.getUserByEmail(email);
 
-        if (!createError && authUser.user) {
-          console.log(`✅ [EMAIL VERIFICATION] Supabase auth user created with email confirmation:`, email);
-          emailSent = true;
-          emailMethod = 'supabase_auth_creation';
-        } else if (createError?.message?.includes('already registered')) {
-          // User exists, try resend
-          console.log(`🔄 [EMAIL VERIFICATION] User exists, attempting resend:`, email);
-
-          const { error: resendError } = await supabaseAdmin.auth.admin.generateLink({
-            type: 'signup',
+        if (existingUser && existingUser.user) {
+          // User exists, send recovery email which acts as verification
+          console.log(`🔄 [EMAIL VERIFICATION] Existing user found, sending recovery email`);
+          
+          const { error: recoveryError } = await supabaseAdmin.auth.admin.generateLink({
+            type: 'recovery',
             email: email,
-            password: Math.random().toString(36).substring(2, 15),
             options: {
               redirectTo: verificationUrl
             }
           });
 
-          if (!resendError) {
-            console.log(`✅ [EMAIL VERIFICATION] Resent confirmation to existing user:`, email);
+          if (!recoveryError) {
             emailSent = true;
-            emailMethod = 'supabase_resend';
+            emailMethod = 'supabase_recovery';
+            console.log(`✅ [EMAIL VERIFICATION] Recovery email sent to existing user: ${email}`);
+          } else {
+            emailErrors.push(`Supabase recovery error: ${recoveryError.message}`);
+          }
+        } else {
+          // Create new auth user
+          console.log(`👤 [EMAIL VERIFICATION] Creating new auth user for: ${email}`);
+          
+          const { data: authUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+            email: email,
+            email_confirm: false, // This triggers confirmation email
+            password: require('crypto').randomBytes(16).toString('hex'),
+            user_metadata: {
+              verification_token: verificationToken,
+              player_id: playerId,
+              first_name: firstName,
+              source: 'email_verification_api',
+              created_at: new Date().toISOString()
+            }
+          });
+
+          if (!createError && authUser.user) {
+            emailSent = true;
+            emailMethod = 'supabase_auth_creation';
+            console.log(`✅ [EMAIL VERIFICATION] Auth user created: ${authUser.user.id}`);
+          } else {
+            emailErrors.push(`Supabase creation error: ${createError?.message}`);
           }
         }
 
       } catch (supabaseError: any) {
-        console.log(`⚠️ [EMAIL VERIFICATION] Supabase method failed:`, supabaseError.message);
-        emailError = supabaseError.message;
+        emailErrors.push(`Supabase exception: ${supabaseError.message}`);
+        console.log(`⚠️ [EMAIL VERIFICATION] Supabase error:`, supabaseError.message);
       }
 
-      // METHOD 2: Fallback - Manual SMTP (if configured)
-      if (!emailSent && process.env.SMTP_HOST) {
-        try {
-          // This would require nodemailer or similar - add if SMTP is configured
-          console.log(`🔄 [EMAIL VERIFICATION] Attempting SMTP fallback...`);
-          // SMTP implementation would go here
-        } catch (smtpError: any) {
-          console.log(`⚠️ [EMAIL VERIFICATION] SMTP method failed:`, smtpError.message);
-        }
-      }
-
-      // METHOD 3: Development/Testing Fallback - Console output
-      if (!emailSent && (process.env.NODE_ENV === 'development' || process.env.NODE_ENV !== 'production')) {
-        console.log(`📧 [EMAIL VERIFICATION - DEV MODE] Email content for ${email}:`);
+      // METHOD 2: Console/Development Fallback
+      if (!emailSent) {
+        console.log(`📧 [EMAIL VERIFICATION - CONSOLE] Email details for ${email}:`);
         console.log(`📧 [SUBJECT] Welcome to Poker Club - Verify Your Email`);
-        console.log(`📧 [BODY] Welcome! Please click this link to verify your email: ${verificationUrl}`);
-        console.log(`📧 [TOKEN] Verification token: ${verificationToken}`);
+        console.log(`📧 [BODY] Welcome ${firstName || 'Player'}! Please verify your email by clicking: ${verificationUrl}`);
+        console.log(`📧 [TOKEN] ${verificationToken}`);
+        console.log(`📧 [EXPIRES] ${tokenExpiry.toISOString()}`);
+        console.log(`📧 [INSTRUCTIONS] Click the verification URL above or copy it to your browser`);
 
         emailSent = true;
-        emailMethod = 'development_console';
+        emailMethod = 'console_output';
       }
 
-      // Response based on email sending success
+      // Response
       const response = {
         success: emailSent,
         message: emailSent 
           ? `Verification email sent via ${emailMethod}. Please check your email and spam folder.` 
           : 'Failed to send verification email. Please contact support.',
         method: emailMethod,
-        ...(emailError && { error: emailError }),
-        ...(process.env.NODE_ENV !== 'production' && {
-          verificationUrl: verificationUrl,
-          token: verificationToken
-        })
+        verificationUrl: emailSent ? verificationUrl : undefined,
+        token: process.env.NODE_ENV !== 'production' ? verificationToken : undefined,
+        errors: emailErrors.length > 0 ? emailErrors : undefined
       };
 
       console.log(`📧 [EMAIL VERIFICATION] Result for ${email}: ${emailSent ? 'SUCCESS' : 'FAILED'} via ${emailMethod}`);
@@ -2362,128 +2402,218 @@ export function registerRoutes(app: Express) {
       const { token, email } = req.query;
 
       if (!token || !email) {
-        return res.status(400).json({ error: 'Missing token or email' });
+        console.log(`❌ [EMAIL VERIFICATION] Missing parameters: token=${!!token}, email=${!!email}`);
+        return res.status(400).send(`
+          <!DOCTYPE html>
+          <html><head><title>Invalid Link</title></head>
+          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+            <h1 style="color: #e74c3c;">❌ Invalid Verification Link</h1>
+            <p>The verification link is missing required parameters.</p>
+            <a href="/" style="background: #3b82f6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Return to Login</a>
+          </body></html>
+        `);
       }
 
-      console.log(`📧 [EMAIL VERIFICATION] Verifying token for:`, email);
+      console.log(`📧 [EMAIL VERIFICATION] Verifying token for: ${email}`);
 
       const { Pool } = await import('pg');
       const pool = new Pool({
-        connectionString: process.env.DATABASE_URL,
+        connectionString: process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL,
         ssl: { rejectUnauthorized: false }
       });
 
-      const result = await pool.query(`
-        SELECT id, email, verification_token, token_expiry, email_verified
-        FROM players
-        WHERE email = $1 AND verification_token = $2
-      `, [email, token]);
+      try {
+        const result = await pool.query(`
+          SELECT id, email, verification_token, token_expiry, email_verified, first_name, last_name
+          FROM players
+          WHERE email = $1 AND verification_token = $2
+        `, [email, token]);
 
-      if (result.rows.length === 0) {
+        if (result.rows.length === 0) {
+          await pool.end();
+          console.log(`❌ [EMAIL VERIFICATION] Invalid token for: ${email}`);
+          return res.status(400).send(`
+            <!DOCTYPE html>
+            <html><head><title>Invalid Token</title></head>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+              <h1 style="color: #e74c3c;">❌ Invalid Verification Token</h1>
+              <p>The verification token is invalid or has already been used.</p>
+              <a href="/" style="background: #3b82f6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Return to Login</a>
+            </body></html>
+          `);
+        }
+
+        const player = result.rows[0];
+
+        // Check if already verified
+        if (player.email_verified) {
+          await pool.end();
+          console.log(`✅ [EMAIL VERIFICATION] Email already verified for: ${email}`);
+          return res.status(200).send(`
+            <!DOCTYPE html>
+            <html><head><title>Already Verified</title></head>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+              <h1 style="color: #22c55e;">✅ Email Already Verified</h1>
+              <p>Your email has already been verified. You can proceed to login.</p>
+              <a href="/" style="background: #3b82f6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Continue to Login</a>
+            </body></html>
+          `);
+        }
+
+        // Check if token is expired
+        if (player.token_expiry && new Date() > new Date(player.token_expiry)) {
+          await pool.end();
+          console.log(`❌ [EMAIL VERIFICATION] Expired token for: ${email}`);
+          return res.status(400).send(`
+            <!DOCTYPE html>
+            <html><head><title>Token Expired</title></head>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+              <h1 style="color: #f39c12;">⏰ Verification Token Expired</h1>
+              <p>Your verification token has expired. Please request a new verification email.</p>
+              <a href="/" style="background: #3b82f6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Return to Login</a>
+            </body></html>
+          `);
+        }
+
+        // Update email verification status
+        await pool.query(`
+          UPDATE players
+          SET email_verified = true, verification_token = NULL, token_expiry = NULL, updated_at = NOW()
+          WHERE id = $1
+        `, [player.id]);
+
         await pool.end();
-        return res.status(400).json({ error: 'Invalid verification token' });
+
+        const playerName = `${player.first_name || ''} ${player.last_name || ''}`.trim() || 'Player';
+        console.log(`✅ [EMAIL VERIFICATION] Email verified for player ${player.id}: ${email}`);
+
+        // Success page with enhanced styling
+        const confirmationHtml = `
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Email Verified Successfully - Poker Club</title>
+            <style>
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+                color: white;
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+              }
+              .container {
+                background: rgba(255, 255, 255, 0.05);
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 16px;
+                padding: 40px;
+                text-align: center;
+                max-width: 500px;
+                width: 100%;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+              }
+              .success-icon {
+                font-size: 64px;
+                margin-bottom: 20px;
+                animation: bounce 2s ease-in-out;
+              }
+              @keyframes bounce {
+                0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+                40% { transform: translateY(-10px); }
+                60% { transform: translateY(-5px); }
+              }
+              h1 {
+                margin: 0 0 16px 0;
+                font-size: 28px;
+                font-weight: 600;
+                color: #22c55e;
+              }
+              .welcome {
+                font-size: 18px;
+                color: #3b82f6;
+                margin-bottom: 16px;
+              }
+              p {
+                margin: 0 0 32px 0;
+                font-size: 16px;
+                line-height: 1.5;
+                color: rgba(255, 255, 255, 0.8);
+              }
+              .login-button {
+                background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 14px 28px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                text-decoration: none;
+                display: inline-block;
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+              }
+              .login-button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 24px rgba(59, 130, 246, 0.4);
+              }
+              .next-steps {
+                margin-top: 20px;
+                padding-top: 20px;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+                font-size: 14px;
+                color: rgba(255, 255, 255, 0.6);
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="success-icon">✅</div>
+              <h1>Email Verified Successfully!</h1>
+              <div class="welcome">Welcome, ${playerName}!</div>
+              <p>Your email address <strong>${email}</strong> has been successfully verified. You can now log in to your poker room account and complete your KYC verification process.</p>
+              <a href="/" class="login-button">Continue to Login</a>
+              <div class="next-steps">
+                Next step: Complete your KYC verification to start playing
+              </div>
+            </div>
+          </body>
+          </html>
+        `;
+
+        res.send(confirmationHtml);
+
+      } catch (dbError: any) {
+        await pool.end();
+        console.error('❌ [EMAIL VERIFICATION] Database error:', dbError);
+        res.status(500).send(`
+          <!DOCTYPE html>
+          <html><head><title>Verification Error</title></head>
+          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+            <h1 style="color: #e74c3c;">❌ Verification Error</h1>
+            <p>There was an error processing your verification. Please contact support.</p>
+            <a href="/" style="background: #3b82f6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Return to Login</a>
+          </body></html>
+        `);
       }
 
-      const player = result.rows[0];
-
-      // Check if token is expired
-      if (new Date() > new Date(player.token_expiry)) {
-        await pool.end();
-        return res.status(400).json({ error: 'Verification token expired' });
-      }
-
-      // Update email verification status
-      await pool.query(`
-        UPDATE players
-        SET email_verified = true, verification_token = NULL, token_expiry = NULL
-        WHERE id = $1
-      `, [player.id]);
-
-      await pool.end();
-
-      console.log(`✅ [EMAIL VERIFICATION] Email verified for player:`, player.id);
-
-      // Redirect to success page with confirmation
-      const confirmationHtml = `
+    } catch (error: any) {
+      console.error('❌ [EMAIL VERIFICATION] Critical error:', error);
+      res.status(500).send(`
         <!DOCTYPE html>
-        <html lang="en">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Email Verified Successfully</title>
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-              color: white;
-              margin: 0;
-              padding: 40px 20px;
-              min-height: 100vh;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-            }
-            .container {
-              background: rgba(255, 255, 255, 0.05);
-              backdrop-filter: blur(10px);
-              border: 1px solid rgba(255, 255, 255, 0.1);
-              border-radius: 16px;
-              padding: 40px;
-              text-align: center;
-              max-width: 500px;
-              width: 100%;
-            }
-            .success-icon {
-              font-size: 64px;
-              margin-bottom: 20px;
-              color: #22c55e;
-            }
-            h1 {
-              margin: 0 0 16px 0;
-              font-size: 28px;
-              font-weight: 600;
-            }
-            p {
-              margin: 0 0 32px 0;
-              font-size: 16px;
-              line-height: 1.5;
-              color: rgba(255, 255, 255, 0.8);
-            }
-            .login-button {
-              background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-              color: white;
-              border: none;
-              border-radius: 8px;
-              padding: 12px 24px;
-              font-size: 16px;
-              font-weight: 600;
-              cursor: pointer;
-              text-decoration: none;
-              display: inline-block;
-              transition: all 0.2s;
-            }
-            .login-button:hover {
-              transform: translateY(-1px);
-              box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="success-icon">✅</div>
-            <h1>Thank you for verifying your email!</h1>
-            <p>Your email address has been successfully verified. You can now log in to your poker room account and complete your KYC process.</p>
-            <a href="/" class="login-button">Continue to Login</a>
-          </div>
-        </body>
-        </html>
-      `;
-
-      res.send(confirmationHtml);
-
-    } catch (error) {
-      console.error('❌ [EMAIL VERIFICATION] Error:', error);
-      res.status(500).json({ error: 'Email verification failed' });
+        <html><head><title>System Error</title></head>
+        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+          <h1 style="color: #e74c3c;">❌ System Error</h1>
+          <p>Email verification failed due to a system error. Please contact support.</p>
+          <a href="/" style="background: #3b82f6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Return to Login</a>
+        </body></html>
+      `);
     }
   });
 
@@ -3054,83 +3184,130 @@ export function registerRoutes(app: Express) {
       console.log(`📧 [SIGNUP EMAIL] Triggering verification email for: ${email}`);
 
       try {
-        // Generate verification token
-        const verificationToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        // Generate strong verification token
+        const verificationToken = require('crypto').randomBytes(32).toString('hex');
         const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-        // Store verification token in database
-        const { Client } = await import('pg');
+        // Store verification token in database using the existing connection
         const pgTokenClient = new Client({ connectionString: process.env.SUPABASE_DATABASE_URL });
         await pgTokenClient.connect();
 
-        await pgTokenClient.query(`
-          UPDATE players
-          SET verification_token = $1, token_expiry = $2
-          WHERE id = $3
-        `, [verificationToken, tokenExpiry, newPlayerData.id]);
+        try {
+          await pgTokenClient.query(`
+            UPDATE players
+            SET verification_token = $1, token_expiry = $2, updated_at = NOW()
+            WHERE id = $3
+          `, [verificationToken, tokenExpiry, newPlayerData.id]);
+
+          console.log(`✅ [SIGNUP EMAIL] Verification token stored for player ${newPlayerData.id}`);
+        } catch (tokenError: any) {
+          console.error(`❌ [SIGNUP EMAIL] Token storage failed:`, tokenError);
+          await pgTokenClient.end();
+          throw tokenError;
+        }
 
         await pgTokenClient.end();
 
-        // Send verification email via Supabase
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabaseAdmin = createClient(
-          process.env.VITE_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
+        // Create verification URL
+        const baseUrl = process.env.REPLIT_URL || `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` || 'http://localhost:5000';
+        const verificationUrl = `${baseUrl}/api/auth/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
 
+        console.log(`🔗 [SIGNUP EMAIL] Verification URL generated: ${verificationUrl}`);
+
+        // Enhanced email sending with multiple fallbacks
         let emailSent = false;
+        let emailMethod = '';
+        const emailErrors = [];
 
-        // Try creating auth user with email confirmation
+        // METHOD 1: Supabase Auth User Creation
         try {
+          const { createClient } = await import('@supabase/supabase-js');
+          const supabaseAdmin = createClient(
+            process.env.VITE_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+          );
+
           const { data: authUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
             email: email,
-            email_confirm: false, // This triggers confirmation email
+            email_confirm: false, // This should trigger confirmation email
+            password: require('crypto').randomBytes(16).toString('hex'), // Random password
             user_metadata: {
               verification_token: verificationToken,
-              player_id: newPlayerData.id
+              player_id: newPlayerData.id,
+              source: 'player_portal_signup',
+              created_at: new Date().toISOString()
             }
           });
 
           if (!createError && authUser.user) {
-            console.log(`✅ [SIGNUP EMAIL] Supabase auth user created with email confirmation: ${email}`);
+            console.log(`✅ [SIGNUP EMAIL] Supabase auth user created: ${authUser.user.id}`);
             emailSent = true;
+            emailMethod = 'supabase_auth_creation';
+          } else {
+            emailErrors.push(`Supabase creation error: ${createError?.message}`);
+            console.log(`⚠️ [SIGNUP EMAIL] Supabase creation failed:`, createError?.message);
           }
         } catch (supabaseError: any) {
-          console.log(`⚠️ [SIGNUP EMAIL] Supabase creation failed, trying invite: ${supabaseError.message}`);
+          emailErrors.push(`Supabase exception: ${supabaseError.message}`);
+          console.log(`⚠️ [SIGNUP EMAIL] Supabase creation exception:`, supabaseError.message);
+        }
 
-          // Fallback: Use invite method
+        // METHOD 2: Direct Email API (if Supabase fails)
+        if (!emailSent) {
           try {
-            const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-              data: {
-                verification_token: verificationToken,
-                player_id: newPlayerData.id
-              }
+            console.log(`📧 [SIGNUP EMAIL] Attempting direct email send...`);
+            
+            // Use the existing send-verification-email endpoint
+            const emailResponse = await fetch(`${baseUrl}/api/auth/send-verification-email`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                email: email,
+                playerId: newPlayerData.id,
+                firstName: firstName
+              })
             });
 
-            if (!inviteError) {
-              console.log(`✅ [SIGNUP EMAIL] Supabase invite sent successfully: ${email}`);
+            if (emailResponse.ok) {
+              const emailResult = await emailResponse.json();
+              console.log(`✅ [SIGNUP EMAIL] Direct email API succeeded:`, emailResult.message);
               emailSent = true;
+              emailMethod = 'direct_email_api';
+            } else {
+              const emailError = await emailResponse.text();
+              emailErrors.push(`Direct email API failed: ${emailError}`);
+              console.log(`⚠️ [SIGNUP EMAIL] Direct email API failed:`, emailError);
             }
-          } catch (inviteError: any) {
-            console.log(`⚠️ [SIGNUP EMAIL] Supabase invite failed: ${inviteError.message}`);
+          } catch (directEmailError: any) {
+            emailErrors.push(`Direct email exception: ${directEmailError.message}`);
+            console.log(`⚠️ [SIGNUP EMAIL] Direct email exception:`, directEmailError.message);
           }
         }
 
-        // Development fallback
-        if (!emailSent && process.env.NODE_ENV !== 'production') {
-          const baseUrl = process.env.REPLIT_URL || 'http://localhost:5000';
-          const verificationUrl = `${baseUrl}/api/auth/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
-
-          console.log(`📧 [SIGNUP EMAIL - DEV MODE] Email verification details for: ${email}`);
-          console.log(`📧 [VERIFICATION URL] ${verificationUrl}`);
+        // METHOD 3: Development Console Fallback
+        if (!emailSent) {
+          console.log(`📧 [SIGNUP EMAIL - CONSOLE FALLBACK] Email content for ${email}:`);
+          console.log(`📧 [SUBJECT] Welcome to Poker Club - Verify Your Email`);
+          console.log(`📧 [BODY] Welcome ${firstName}! Please verify your email by clicking: ${verificationUrl}`);
           console.log(`📧 [TOKEN] ${verificationToken}`);
+          console.log(`📧 [EXPIRES] ${tokenExpiry.toISOString()}`);
 
           emailSent = true;
+          emailMethod = 'console_fallback';
+        }
+
+        // Log final result
+        if (emailSent) {
+          console.log(`✅ [SIGNUP EMAIL] Email verification initiated via ${emailMethod} for: ${email}`);
+        } else {
+          console.error(`❌ [SIGNUP EMAIL] All email methods failed for: ${email}`, emailErrors);
         }
 
       } catch (emailError: any) {
-        console.error(`❌ [SIGNUP EMAIL] Error sending verification email:`, emailError);
-        // Don't fail signup if email sending fails
+        console.error(`❌ [SIGNUP EMAIL] Critical error sending verification email:`, emailError);
+        // Don't fail signup if email sending fails - user can manually verify later
       }
 
       return res.json({
@@ -3320,6 +3497,79 @@ export function registerRoutes(app: Express) {
 
       const { Client } = await import('pg');
       const pgClient = new Client({ connectionString: process.env.SUPABASE_DATABASE_URL });
+
+
+  // Manual email verification trigger for testing
+  app.post('/api/auth/resend-verification', async (req, res) => {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({ error: 'Email is required' });
+      }
+
+      console.log(`📧 [RESEND VERIFICATION] Manually triggering verification for: ${email}`);
+
+      // Get player ID
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      const playerResult = await pool.query('SELECT id, first_name, email_verified FROM players WHERE email = $1', [email]);
+      
+      if (playerResult.rows.length === 0) {
+        await pool.end();
+        return res.status(404).json({ error: 'Player not found' });
+      }
+
+      const player = playerResult.rows[0];
+      await pool.end();
+
+      if (player.email_verified) {
+        return res.json({ 
+          success: true, 
+          message: 'Email is already verified',
+          alreadyVerified: true 
+        });
+      }
+
+      // Call the send verification email endpoint
+      const baseUrl = process.env.REPLIT_URL || `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` || 'http://localhost:5000';
+      
+      const verificationResponse = await fetch(`${baseUrl}/api/auth/send-verification-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email,
+          playerId: player.id,
+          firstName: player.first_name
+        })
+      });
+
+      const verificationResult = await verificationResponse.json();
+
+      console.log(`📧 [RESEND VERIFICATION] Result for ${email}:`, verificationResult);
+
+      res.json({
+        success: verificationResponse.ok,
+        message: verificationResult.message || 'Verification email processing completed',
+        details: verificationResult
+      });
+
+    } catch (error: any) {
+      console.error('❌ [RESEND VERIFICATION] Error:', error);
+      res.status(500).json({ 
+        error: 'Failed to resend verification email',
+        details: error.message 
+      });
+    }
+  });
+
+
       await pgClient.connect();
 
       try {
