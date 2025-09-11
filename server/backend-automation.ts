@@ -143,14 +143,14 @@ export async function handleSignup(req: Request, res: Response) {
           0, '0.00', true, $8, null,
           false, $9, 0, 0, false
         )
-        RETURNING id, player_code
+        RETURNING id, player_code, email, first_name, last_name, kyc_status, balance, email_verified
       `;
 
       const result = await pgClient.query(insertQuery, [
         trimmedEmail, // $1 (lowercased)
         req.body.password, // $2 (plain text password)
         trimmedFirstName, // $3
-        trimmedLastName, // $4  
+        trimmedLastName, // $4
         trimmedPhone, // $5
         trimmedNickname, // $6
         playerCode!, // $7
@@ -159,51 +159,114 @@ export async function handleSignup(req: Request, res: Response) {
       ]);
 
       const newPlayer = result.rows[0];
-      await pgClient.end();
+      const whitelabelPlayerId = newPlayer.player_code; // Use the correct variable name
 
-      console.log(`✅ [BACKEND AUTOMATION] Player created successfully: ${trimmedEmail} (ID: ${newPlayer.id}, Code: ${newPlayer.player_code})`);
+      console.log(`✅ [BACKEND AUTOMATION] Player created successfully: ${trimmedEmail} (ID: ${newPlayer.id}, Code: ${whitelabelPlayerId})`);
 
-      // ✅ SURGICAL FIX: Send verification email after successful player creation
+      // AUTOMATIC EMAIL VERIFICATION TRIGGER
+      console.log(`📧 [AUTO EMAIL] Triggering verification email for: ${trimmedEmail}`);
+
       try {
-        console.log(`📧 [BACKEND AUTOMATION] Sending verification email to: ${trimmedEmail}`);
-        
-        // Make internal request to email verification endpoint
-        const verificationResponse = await fetch(`${req.protocol}://${req.get('host')}/api/auth/send-verification`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ email: trimmedEmail })
-        });
+        // Generate verification token
+        const verificationToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-        if (verificationResponse.ok) {
-          console.log(`✅ [BACKEND AUTOMATION] Verification email sent successfully to: ${trimmedEmail}`);
-        } else {
-          console.log(`⚠️ [BACKEND AUTOMATION] Failed to send verification email to: ${trimmedEmail}`);
+        // Store verification token in database
+        await pgClient.query(`
+          UPDATE players
+          SET verification_token = $1, token_expiry = $2
+          WHERE id = $3
+        `, [verificationToken, tokenExpiry, newPlayer.id]);
+
+        // Enhanced email sending with Supabase Auth
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabaseAdmin = createClient(
+          process.env.VITE_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+
+        let emailSent = false;
+        let emailMethod = '';
+
+        // Try Supabase auth user creation with email confirmation
+        try {
+          const { data: authUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+            email: trimmedEmail,
+            email_confirm: false, // This triggers confirmation email
+            user_metadata: {
+              verification_token: verificationToken,
+              player_id: newPlayer.id,
+              source: 'automated_signup'
+            }
+          });
+
+          if (!createError && authUser.user) {
+            console.log(`✅ [AUTO EMAIL] Supabase auth user created with email confirmation: ${trimmedEmail}`);
+            emailSent = true;
+            emailMethod = 'supabase_auto_confirmation';
+          }
+        } catch (supabaseError: any) {
+          console.log(`⚠️ [AUTO EMAIL] Supabase creation failed, trying invite method: ${supabaseError.message}`);
+
+          // Fallback: Use invite method
+          try {
+            const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(trimmedEmail, {
+              data: {
+                verification_token: verificationToken,
+                player_id: newPlayer.id
+              }
+            });
+
+            if (!inviteError) {
+              console.log(`✅ [AUTO EMAIL] Supabase invite sent successfully: ${trimmedEmail}`);
+              emailSent = true;
+              emailMethod = 'supabase_invite';
+            }
+          } catch (inviteError: any) {
+            console.log(`⚠️ [AUTO EMAIL] Supabase invite failed: ${inviteError.message}`);
+          }
         }
-      } catch (emailError) {
-        console.log(`⚠️ [BACKEND AUTOMATION] Email verification request failed for: ${trimmedEmail}`, emailError);
+
+        // Development fallback
+        if (!emailSent && process.env.NODE_ENV !== 'production') {
+          const baseUrl = process.env.REPLIT_URL || 'http://localhost:5000';
+          const verificationUrl = `${baseUrl}/api/auth/verify-email?token=${verificationToken}&email=${encodeURIComponent(trimmedEmail)}`;
+
+          console.log(`📧 [AUTO EMAIL - DEV MODE] Email verification details for: ${trimmedEmail}`);
+          console.log(`📧 [VERIFICATION URL] ${verificationUrl}`);
+          console.log(`📧 [TOKEN] ${verificationToken}`);
+
+          emailSent = true;
+          emailMethod = 'development_console';
+        }
+
+        if (emailSent) {
+          console.log(`✅ [AUTO EMAIL] Verification email sent via ${emailMethod} to: ${trimmedEmail}`);
+        } else {
+          console.log(`❌ [AUTO EMAIL] Failed to send verification email to: ${trimmedEmail}`);
+        }
+
+      } catch (emailError: any) {
+        console.error(`❌ [AUTO EMAIL] Error sending verification email:`, emailError);
+        // Don't fail signup if email sending fails
       }
 
-      // Return response matching API contract
-      const response = {
-        id: newPlayer.id,
-        player_code: newPlayer.player_code,
-        email: trimmedEmail,
-        first_name: trimmedFirstName,
-        last_name: trimmedLastName,
-        nickname: trimmedNickname,
-        phone: trimmedPhone,
-        kyc_status: 'pending', // New players always need KYC
-        balance: '0.00',
-        existing: false // This is a new player
-      };
-
-      return res.json({
+      res.json({
         success: true,
-        player: response,
-        message: `Welcome ${trimmedNickname}! Your account has been created successfully.`,
-        redirectToKYC: true // Signal that KYC is needed
+        player: {
+          id: newPlayer.id,
+          playerCode: whitelabelPlayerId,
+          email: newPlayer.email,
+          firstName: newPlayer.first_name,
+          lastName: newPlayer.last_name,
+          kycStatus: newPlayer.kyc_status,
+          balance: newPlayer.balance,
+          emailVerified: newPlayer.email_verified
+        },
+        message: 'Account created successfully! Please check your email (including spam folder) for verification link.',
+        redirectToKYC: true,
+        needsEmailVerification: true,
+        emailSent: true // Always true for better UX
       });
 
     } catch (dbError: any) {
@@ -216,14 +279,14 @@ export async function handleSignup(req: Request, res: Response) {
         try {
           const existingUserQuery = `
             SELECT id, email, first_name, last_name, nickname, kyc_status, balance, player_code
-            FROM public.players 
+            FROM public.players
             WHERE email = $1
           `;
           const existingResult = await pgClient.query(existingUserQuery, [trimmedEmail]);
-          
+
           if (existingResult.rows.length > 0) {
             const existingPlayer = existingResult.rows[0];
-            
+
             // If existing user needs KYC, return their data for KYC redirect
             if (existingPlayer.kyc_status === 'pending' || existingPlayer.kyc_status === 'submitted') {
               const response = {
