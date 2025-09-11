@@ -1661,12 +1661,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 <Play className="w-5 h-5 text-white" />
               </div>
               <div>
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 space-y-2 sm:space-y-0">
                   <span className="text-white font-bold text-lg">
                     {gameStatus.isInActiveGame ? '🎮 CURRENTLY PLAYING' : '⏳ WAITING FOR GAME'}
                   </span>
                   {gameStatus.activeGameInfo.seatNumber && (
-                    <Badge className="bg-white text-slate-900 font-bold">
+                    <Badge className="bg-white text-slate-900 font-bold w-fit">
                       Seat #{gameStatus.activeGameInfo.seatNumber}
                     </Badge>
                   )}
@@ -1680,14 +1680,14 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 </div>
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3 justify-end items-end sm:items-center">
+            <div className="flex flex-col gap-3 justify-end items-end">
               <Link href={`/table/${gameStatus.activeGameInfo.tableId}`}>
                 <Button 
                   className={`${
                     gameStatus.isInActiveGame 
                       ? 'bg-white text-amber-700 hover:bg-amber-50' 
                       : 'bg-white text-emerald-700 hover:bg-emerald-50'
-                  } font-semibold px-6 w-full sm:w-auto`}
+                  } font-semibold px-6 w-full`}
                 >
                   <Eye className="w-4 h-4 mr-2" />
                   {gameStatus.isInActiveGame ? 'View Game' : 'View Table'}
