@@ -163,6 +163,28 @@ export async function handleSignup(req: Request, res: Response) {
 
       console.log(`✅ [BACKEND AUTOMATION] Player created successfully: ${trimmedEmail} (ID: ${newPlayer.id}, Code: ${newPlayer.player_code})`);
 
+      // ✅ SURGICAL FIX: Send verification email after successful player creation
+      try {
+        console.log(`📧 [BACKEND AUTOMATION] Sending verification email to: ${trimmedEmail}`);
+        
+        // Make internal request to email verification endpoint
+        const verificationResponse = await fetch(`${req.protocol}://${req.get('host')}/api/auth/send-verification`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email: trimmedEmail })
+        });
+
+        if (verificationResponse.ok) {
+          console.log(`✅ [BACKEND AUTOMATION] Verification email sent successfully to: ${trimmedEmail}`);
+        } else {
+          console.log(`⚠️ [BACKEND AUTOMATION] Failed to send verification email to: ${trimmedEmail}`);
+        }
+      } catch (emailError) {
+        console.log(`⚠️ [BACKEND AUTOMATION] Email verification request failed for: ${trimmedEmail}`, emailError);
+      }
+
       // Return response matching API contract
       const response = {
         id: newPlayer.id,
