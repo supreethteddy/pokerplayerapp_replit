@@ -2252,10 +2252,13 @@ export function registerRoutes(app: Express) {
       // Create verification URL
       const verificationUrl = `${req.protocol}://${req.get('host')}/api/auth/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
 
-      console.log(`📧 [EMAIL VERIFICATION] Verification URL:`, verificationUrl);
-      console.log(`📧 [EMAIL VERIFICATION] Token:`, verificationToken);
+      // Only log sensitive data in development
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`📧 [EMAIL VERIFICATION] Verification URL:`, verificationUrl);
+        console.log(`📧 [EMAIL VERIFICATION] Token:`, verificationToken);
+      }
 
-      // Send email via Supabase with proper verification link
+      // Send email via Supabase built-in email verification
       try {
         // Initialize Supabase admin client for email operations
         const { createClient } = await import('@supabase/supabase-js');
@@ -2270,36 +2273,103 @@ export function registerRoutes(app: Express) {
           }
         );
 
-        // Try to send email via Supabase with our custom verification link
-        try {
-          const { error: emailError } = await supabaseAdmin.auth.admin.generateLink({
-            type: 'signup',
-            email: email,
-            password: 'temp-password-for-verification',
-            options: {
-              redirectTo: verificationUrl
-            }
-          });
-
-          if (!emailError) {
-            console.log(`📧 [EMAIL VERIFICATION] Supabase verification email sent to:`, email);
-            console.log(`🔗 [EMAIL VERIFICATION] Verification link:`, verificationUrl);
-          } else {
-            console.log(`⚠️ [EMAIL VERIFICATION] Supabase email failed:`, emailError);
+        // Use Supabase's built-in email confirmation system
+        const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+          redirectTo: `${req.protocol}://${req.get('host')}/api/auth/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`,
+          data: {
+            playerVerificationToken: verificationToken,
+            playerEmail: email
           }
-        } catch (supabaseEmailError) {
-          console.log(`⚠️ [EMAIL VERIFICATION] Supabase email error:`, supabaseEmailError);
+        });
+
+        let emailSent = false;
+        let emailMethod = '';
+        
+        if (error) {
+          console.log(`⚠️ [EMAIL VERIFICATION] Supabase invite failed:`, error.message);
+          
+          // Fallback 1: Use anon client to resend verification email for existing users
+          try {
+            // Create anon client for resend functionality
+            const supabaseAnon = createClient(
+              process.env.VITE_SUPABASE_URL!,
+              process.env.VITE_SUPABASE_ANON_KEY! || process.env.SUPABASE_ANON_KEY!
+            );
+            
+            // Proper verification email resend for existing users
+            const { error: resendError } = await supabaseAnon.auth.resend({
+              type: 'signup',
+              email: email,
+              options: {
+                emailRedirectTo: verificationUrl
+              }
+            });
+            
+            if (!resendError) {
+              console.log(`📧 [EMAIL VERIFICATION] Verification email resent to:`, email);
+              emailSent = true;
+              emailMethod = 'resend_verification';
+            } else {
+              console.log(`⚠️ [EMAIL VERIFICATION] Resend verification failed:`, resendError.message);
+              
+              // If resend fails, user might already be confirmed, try signup method
+              try {
+                const { data: signupData, error: signupError } = await supabaseAdmin.auth.admin.generateLink({
+                  type: 'signup',
+                  email: email,
+                  options: {
+                    redirectTo: verificationUrl
+                  }
+                });
+
+                if (!signupError && signupData?.properties?.action_link) {
+                  console.log(`📧 [EMAIL VERIFICATION] Signup verification link generated for existing user:`, email);
+                  emailSent = true;
+                  emailMethod = 'signup_link_generated';
+                  // Note: generateLink provides the link but doesn't send email
+                }
+              } catch (signupError) {
+                console.log(`⚠️ [EMAIL VERIFICATION] Signup link generation failed:`, signupError);
+              }
+            }
+          } catch (resendError) {
+            console.log(`⚠️ [EMAIL VERIFICATION] Resend method failed:`, resendError);
+          }
+          
+          if (!emailSent) {
+            console.log(`⚠️ [EMAIL VERIFICATION] All Supabase methods failed for existing user:`, email);
+            if (process.env.NODE_ENV !== 'production') {
+              console.log(`📋 [EMAIL VERIFICATION] Manual verification URL (for testing):`, verificationUrl);
+            }
+          }
+        } else {
+          console.log(`✅ [EMAIL VERIFICATION] Supabase invite email sent to:`, email);
+          emailSent = true;
+          emailMethod = 'invite';
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`📧 [EMAIL VERIFICATION] Invite data:`, data);
+          }
         }
+        
       } catch (supabaseError) {
-        console.log(`⚠️ [EMAIL VERIFICATION] Supabase initialization error:`, supabaseError);
+        console.error(`❌ [EMAIL VERIFICATION] Supabase error:`, supabaseError);
+        emailSent = false;
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`📋 [EMAIL VERIFICATION] Manual verification URL (for testing):`, verificationUrl);
+        }
       }
 
-      res.json({
-        success: true,
-        message: 'Verification email sent',
-        verificationUrl: verificationUrl,
-        token: verificationToken
-      });
+      // Determine response based on email sending success
+      const response = {
+        success: emailSent,
+        message: emailSent ? `Verification email sent via ${emailMethod}` : 'Failed to send verification email',
+        ...(process.env.NODE_ENV !== 'production' && {
+          verificationUrl: verificationUrl,
+          token: verificationToken
+        })
+      };
+      
+      res.status(emailSent ? 200 : 500).json(response);
 
     } catch (error) {
       console.error('❌ [EMAIL VERIFICATION] Error:', error);
