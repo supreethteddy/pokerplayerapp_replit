@@ -2184,7 +2184,7 @@ export function registerRoutes(app: Express) {
   });
 
   // Helper functions for document formatting
-  function formatDocumentType(type) {
+  function formatDocumentType(type: string) {
     const typeMap = {
       'government_id': 'Government ID',
       'address_proof': 'Address Proof',
@@ -2194,10 +2194,10 @@ export function registerRoutes(app: Express) {
       'id_document': 'ID Document',
       'photo': 'Photo'
     };
-    return typeMap[type] || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return typeMap[type] || type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
   }
 
-  function formatSubmissionDate(dateString) {
+  function formatSubmissionDate(dateString: string) {
     if (!dateString) return 'Invalid Date';
 
     try {
@@ -2289,6 +2289,7 @@ export function registerRoutes(app: Express) {
           const { error: resendError } = await supabaseAdmin.auth.admin.generateLink({
             type: 'signup',
             email: email,
+            password: Math.random().toString(36).substring(2, 15),
             options: {
               redirectTo: verificationUrl
             }

@@ -1,19 +1,20 @@
 
 import { useEffect, useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, AlertCircle } from "lucide-react";
 
 export default function EmailVerificationPage() {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const [location, setLocation] = useLocation();
   const [verificationStatus, setVerificationStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    const success = searchParams.get('success');
-    const error = searchParams.get('error');
+    // Parse URL search parameters manually
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get('success');
+    const error = urlParams.get('error');
 
     if (success === 'true') {
       setVerificationStatus('success');
@@ -25,10 +26,10 @@ export default function EmailVerificationPage() {
       setVerificationStatus('error');
       setMessage('Invalid verification link or token has expired.');
     }
-  }, [searchParams]);
+  }, [location]);
 
   const handleContinue = () => {
-    navigate('/auth');
+    setLocation('/auth');
   };
 
   return (
