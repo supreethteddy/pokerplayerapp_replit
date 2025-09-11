@@ -2185,7 +2185,7 @@ export function registerRoutes(app: Express) {
 
   // Helper functions for document formatting
   function formatDocumentType(type: string) {
-    const typeMap = {
+    const typeMap: { [key: string]: string } = {
       'government_id': 'Government ID',
       'address_proof': 'Address Proof',
       'utility_bill':'Utility Bill',

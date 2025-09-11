@@ -1,18 +1,19 @@
 
 import { useEffect } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useLocation } from "wouter";
 import { LoadingScreen } from "./LoadingScreen";
 
 export default function EmailVerificationHandler() {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const [location, setLocation] = useLocation();
 
   useEffect(() => {
-    const token = searchParams.get('token');
-    const email = searchParams.get('email');
+    // Parse URL search parameters manually
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    const email = urlParams.get('email');
 
     if (!token || !email) {
-      navigate('/email-verified?error=Invalid verification link');
+      setLocation('/email-verified?error=Invalid verification link');
       return;
     }
 
@@ -20,7 +21,7 @@ export default function EmailVerificationHandler() {
     fetch(`/api/auth/verify?token=${token}&email=${encodeURIComponent(email)}`)
       .then(response => {
         if (response.ok) {
-          navigate('/email-verified?success=true');
+          setLocation('/email-verified?success=true');
         } else {
           return response.json().then(data => {
             throw new Error(data.error || 'Verification failed');
@@ -29,9 +30,9 @@ export default function EmailVerificationHandler() {
       })
       .catch(error => {
         console.error('Email verification error:', error);
-        navigate(`/email-verified?error=${encodeURIComponent(error.message)}`);
+        setLocation(`/email-verified?error=${encodeURIComponent(error.message)}`);
       });
-  }, [searchParams, navigate]);
+  }, [location, setLocation]);
 
   return <LoadingScreen message="Verifying your email..." />;
 }
