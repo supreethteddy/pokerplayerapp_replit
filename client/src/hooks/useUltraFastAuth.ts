@@ -50,6 +50,9 @@ export interface AuthResult {
   existing?: boolean;
   player?: any;
   playerData?: any;
+  isFullyVerified?: boolean;
+  needsEmailVerification?: boolean;
+  message?: string;
 }
 
 export function useUltraFastAuth() {
@@ -300,6 +303,39 @@ export function useUltraFastAuth() {
 
       console.log('✅ [ULTRA-FAST AUTH] Integrated auth successful:', user.email);
 
+      // Check user verification status
+      if (user) {
+        console.log(`🔍 [ULTRA AUTH] Player found - KYC Status: ${user.kyc_status}, Email Verified: ${user.email_verified}`);
+
+        // Check if email is verified first
+        if (!user.email_verified) {
+          return {
+            success: false,
+            error: "Please verify your email address before signing in. Check your inbox for the verification link.",
+            needsEmailVerification: true
+          };
+        }
+
+        if (user.kyc_status === 'approved') {
+          return {
+            success: true,
+            isFullyVerified: true,
+            redirectToKYC: false,
+            player: user,
+            message: "Welcome back! Your account is fully verified."
+          };
+        } else {
+          return {
+            success: true,
+            isFullyVerified: false,
+            redirectToKYC: true,
+            player: user,
+            message: "Please complete your KYC verification to continue."
+          };
+        }
+      }
+
+
       // Set user data directly from our integrated backend
       const enhancedUserData: AuthUser = {
         ...user,
@@ -336,7 +372,7 @@ export function useUltraFastAuth() {
         console.log('✅ [DEBUG] User state verified and locked in');
       }, 50);
 
-      // Log authentication activity  
+      // Log authentication activity
       logAuthActivity('login', email, user.supabaseId || user.id);
 
       // Set session storage flag for loading screen
@@ -503,6 +539,9 @@ export function useUltraFastAuth() {
       console.log('✅ [BACKEND AUTOMATION] Signup successful:', player?.email);
       console.log('🎯 [BACKEND AUTOMATION] Player created with nickname:', player?.nickname);
 
+      // Send welcome email after successful signup
+      await sendWelcomeEmail(player?.email || email, player?.firstName || firstName);
+
       // Handle backend automation response
       if (success && player) {
         // Check if this is an existing player or new player based on KYC status
@@ -599,6 +638,15 @@ export function useUltraFastAuth() {
             description: "Successfully signed in to your account.",
           });
 
+          // Log authentication activity for successful sign-up
+          logAuthActivity('signup', email, player.id);
+
+          // Redirect to dashboard after successful signup and verification
+          setTimeout(() => {
+            console.log('🚀 [SIGNUP SUCCESS] Redirecting to dashboard...');
+            window.location.href = '/dashboard';
+          }, 500);
+
           return {
             success: true,
             existing: true,
@@ -685,7 +733,7 @@ export function useUltraFastAuth() {
         await logAuthActivity('logout', user.email, user.id);
       }
 
-      // PURE SUPABASE: Skip Supabase authsignOut since we're not using sessions
+      // PURE SUPABASE: Skip Supabase auth signOut since we're not using sessions
       console.log('🎯 [PURE SUPABASE] Skipping Supabase session signOut - using players table only');
 
       // Show success toast BEFORE clearing state

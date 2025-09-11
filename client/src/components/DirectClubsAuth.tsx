@@ -67,6 +67,30 @@ export default function DirectClubsAuth() {
         );
 
         if (result.success) {
+          // Send verification email
+          try {
+            const emailResponse = await fetch('/api/auth/send-verification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: email,
+                playerId: result.player?.id,
+                firstName: firstName
+              })
+            });
+
+            if (emailResponse.ok) {
+              toast({
+                title: "Registration Successful!",
+                description: "Please check your email and click the verification link to complete your account setup.",
+              });
+            } else {
+              console.error('Failed to send verification email');
+            }
+          } catch (emailError) {
+            console.error('Email verification error:', emailError);
+          }
+
           // Check if we need to redirect to KYC process
           if (result.redirectToKYC) {
             console.log(

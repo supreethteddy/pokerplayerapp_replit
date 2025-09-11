@@ -43,6 +43,38 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
   const { toast } = useToast();
   const [documents, setDocuments] = useState([]); // State to store fetched documents
 
+  // Fetch player ID from props
+  const playerId = playerData?.id;
+
+  // Check if email is verified before allowing KYC
+  useEffect(() => {
+    const checkEmailVerification = async () => {
+      try {
+        const response = await fetch(`/api/players/${playerId}`);
+        if (response.ok) {
+          const player = await response.json();
+          if (!player.email_verified) {
+            toast({
+              title: "Email Verification Required",
+              description: "Please verify your email address before completing KYC. Check your inbox for the verification link.",
+              variant: "destructive"
+            });
+            // Redirect to auth page or show appropriate message
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Error checking email verification:', error);
+      }
+    };
+
+    if (playerId) {
+      checkEmailVerification();
+    }
+  }, [playerId, toast]);
+
+  // Remove authentication check - let App.tsx routing handle redirects
+
   // Function to refresh documents (professional version - no state overwrites)
   const refreshDocuments = async () => {
     try {
@@ -52,7 +84,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
         if (docsResponse.ok) {
           const docs = await docsResponse.json();
           setDocuments(docs);
-          
+
           // Build document status for return but DON'T overwrite uploadedDocs state
           // This prevents visual inconsistencies and random state refreshes
           const docStatus = {
@@ -77,14 +109,14 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
         console.error('User ID not available to fetch documents.');
         return;
       }
-      
+
       // Use the existing document endpoint
       const response = await fetch(`/api/documents/player/${userId}`);
       if (!response.ok) {
         console.error('Failed to fetch documents:', response.status);
         return;
       }
-      
+
       const docs = await response.json();
       setDocuments(docs || []);
 
@@ -162,7 +194,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
         // Check document uploads and set initial state properly
         await fetchDocuments(); // Fetch detailed document info first
         const currentDocStatus = await refreshDocuments(); // Get current status
-        
+
         // Set initial upload state based on existing documents (professional initial load)
         setUploadedDocs({
           governmentId: currentDocStatus.governmentId ? 'uploaded' : null,
@@ -785,7 +817,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                       // Format submission date properly
                       const formatSubmissionDate = (dateString: string) => {
                         if (!dateString) return 'Invalid Date';
-                        
+
                         try {
                           const date = new Date(dateString);
                           // Format as "Aug 30, 2025 at 6:39 AM"

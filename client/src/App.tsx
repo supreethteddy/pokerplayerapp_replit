@@ -22,6 +22,8 @@ import { useState, useEffect } from "react";
 import NotFound from "@/pages/not-found";
 import ThankYou from "@/pages/thank-you";
 import InteractiveThankYouPage from "./components/InteractiveThankYouPage";
+import EmailVerificationPage from "./components/EmailVerificationPage";
+import EmailVerificationHandler from "./components/EmailVerificationHandler";
 
 function AppContent() {
   // Use legacy authentication for user interface, but signup will create users in both systems
@@ -221,6 +223,8 @@ function AppContent() {
             playerName="Player" 
           />
         </Route>
+        <Route path="/email-verified" element={<EmailVerificationPage />} />
+        <Route path="/verify-email" element={<EmailVerificationHandler />} />
         <Route path="/sign-in">
           {useClerk ? <ClerkAuthWrapper><div /></ClerkAuthWrapper> : <AuthWrapper />}
         </Route>

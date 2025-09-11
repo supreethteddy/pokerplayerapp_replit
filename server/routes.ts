@@ -2285,7 +2285,7 @@ export function registerRoutes(app: Express) {
         } else if (createError?.message?.includes('already registered')) {
           // User exists, try resend
           console.log(`🔄 [EMAIL VERIFICATION] User exists, attempting resend:`, email);
-          
+
           const { error: resendError } = await supabaseAdmin.auth.admin.generateLink({
             type: 'signup',
             email: email,
@@ -2293,14 +2293,14 @@ export function registerRoutes(app: Express) {
               redirectTo: verificationUrl
             }
           });
-          
+
           if (!resendError) {
             console.log(`✅ [EMAIL VERIFICATION] Resent confirmation to existing user:`, email);
             emailSent = true;
             emailMethod = 'supabase_resend';
           }
         }
-        
+
       } catch (supabaseError: any) {
         console.log(`⚠️ [EMAIL VERIFICATION] Supabase method failed:`, supabaseError.message);
         emailError = supabaseError.message;
@@ -2323,7 +2323,7 @@ export function registerRoutes(app: Express) {
         console.log(`📧 [SUBJECT] Welcome to Poker Club - Verify Your Email`);
         console.log(`📧 [BODY] Welcome! Please click this link to verify your email: ${verificationUrl}`);
         console.log(`📧 [TOKEN] Verification token: ${verificationToken}`);
-        
+
         emailSent = true;
         emailMethod = 'development_console';
       }
@@ -2341,7 +2341,7 @@ export function registerRoutes(app: Express) {
           token: verificationToken
         })
       };
-      
+
       console.log(`📧 [EMAIL VERIFICATION] Result for ${email}: ${emailSent ? 'SUCCESS' : 'FAILED'} via ${emailMethod}`);
       res.status(emailSent ? 200 : 500).json(response);
 
@@ -2524,7 +2524,7 @@ export function registerRoutes(app: Express) {
 
     try {
       const { email } = req.body;
-      
+
       if (!email) {
         return res.status(400).json({ error: 'Email is required' });
       }
@@ -2571,7 +2571,7 @@ export function registerRoutes(app: Express) {
         if (!error && data.user) {
           testResults.emailServiceAvailable = true;
           console.log(`✅ [EMAIL TEST] Email service available`);
-          
+
           // Clean up test user
           await supabaseAdmin.auth.admin.deleteUser(data.user.id);
         } else {
@@ -2612,8 +2612,7 @@ export function registerRoutes(app: Express) {
       console.error('❌ [EMAIL TEST] Critical error:', error);
       res.status(500).json({ 
         success: false, 
-        error: 'Email test failed', 
-        details: error.message 
+        error: 'Email test failed',         details: error.message 
       });
     }
   });
@@ -3052,7 +3051,7 @@ export function registerRoutes(app: Express) {
 
       // AUTOMATIC EMAIL VERIFICATION TRIGGER FOR REGULAR SIGNUP
       console.log(`📧 [SIGNUP EMAIL] Triggering verification email for: ${email}`);
-      
+
       try {
         // Generate verification token
         const verificationToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
@@ -3062,13 +3061,13 @@ export function registerRoutes(app: Express) {
         const { Client } = await import('pg');
         const pgTokenClient = new Client({ connectionString: process.env.SUPABASE_DATABASE_URL });
         await pgTokenClient.connect();
-        
+
         await pgTokenClient.query(`
           UPDATE players
           SET verification_token = $1, token_expiry = $2
           WHERE id = $3
         `, [verificationToken, tokenExpiry, newPlayerData.id]);
-        
+
         await pgTokenClient.end();
 
         // Send verification email via Supabase
@@ -3087,8 +3086,7 @@ export function registerRoutes(app: Express) {
             email_confirm: false, // This triggers confirmation email
             user_metadata: {
               verification_token: verificationToken,
-              player_id: newPlayerData.id,
-              source: 'regular_signup'
+              player_id: newPlayerData.id
             }
           });
 
@@ -3098,7 +3096,7 @@ export function registerRoutes(app: Express) {
           }
         } catch (supabaseError: any) {
           console.log(`⚠️ [SIGNUP EMAIL] Supabase creation failed, trying invite: ${supabaseError.message}`);
-          
+
           // Fallback: Use invite method
           try {
             const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
@@ -3107,7 +3105,7 @@ export function registerRoutes(app: Express) {
                 player_id: newPlayerData.id
               }
             });
-            
+
             if (!inviteError) {
               console.log(`✅ [SIGNUP EMAIL] Supabase invite sent successfully: ${email}`);
               emailSent = true;
@@ -3121,11 +3119,11 @@ export function registerRoutes(app: Express) {
         if (!emailSent && process.env.NODE_ENV !== 'production') {
           const baseUrl = process.env.REPLIT_URL || 'http://localhost:5000';
           const verificationUrl = `${baseUrl}/api/auth/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
-          
+
           console.log(`📧 [SIGNUP EMAIL - DEV MODE] Email verification details for: ${email}`);
           console.log(`📧 [VERIFICATION URL] ${verificationUrl}`);
           console.log(`📧 [TOKEN] ${verificationToken}`);
-          
+
           emailSent = true;
         }
 
@@ -3224,7 +3222,7 @@ export function registerRoutes(app: Express) {
       const { Client } = await import('pg');
       const pgClient = new Client({ connectionString: process.env.SUPABASE_DATABASE_URL });
       await pgClient.connect();
-      
+
       try {
         const panCheckQuery = `
           SELECT id, first_name, last_name 
@@ -3232,7 +3230,7 @@ export function registerRoutes(app: Express) {
           WHERE pan_card_number = $1 AND id != $2 AND pan_card_number IS NOT NULL
         `;
         const panCheckResult = await pgClient.query(panCheckQuery, [panCardNumber, playerId]);
-        
+
         if (panCheckResult.rows.length > 0) {
           const existingUser = panCheckResult.rows[0];
           console.log(`⚠️ [PAN DUPLICATE] PAN ${panCardNumber} already exists for user ${existingUser.id} (${existingUser.first_name} ${existingUser.last_name})`);
@@ -3293,7 +3291,7 @@ export function registerRoutes(app: Express) {
         const { Client } = await import('pg');
         const pgClientCheck = new Client({ connectionString: process.env.SUPABASE_DATABASE_URL });
         await pgClientCheck.connect();
-        
+
         try {
           const panCheckQuery = `
             SELECT id, first_name, last_name 
@@ -3301,7 +3299,7 @@ export function registerRoutes(app: Express) {
             WHERE pan_card_number = $1 AND id != $2 AND pan_card_number IS NOT NULL
           `;
           const panCheckResult = await pgClientCheck.query(panCheckQuery, [panCardNumber, playerId]);
-          
+
           if (panCheckResult.rows.length > 0) {
             const existingUser = panCheckResult.rows[0];
             console.log(`⚠️ [PAN DUPLICATE] PAN ${panCardNumber} already exists for user ${existingUser.id} (${existingUser.first_name} ${existingUser.last_name})`);
@@ -3753,7 +3751,6 @@ export function registerRoutes(app: Express) {
             p.first_name, p.last_name
           FROM seat_requests sr
           LEFT JOIN poker_tables pt ON sr.table_id::uuid = pt.id
-          LEFT JOIN players p ON sr.player_id = p.id
           WHERE sr.player_id = $1 
             AND sr.status = 'seated' 
             AND pt.status = 'active' 
@@ -3975,7 +3972,7 @@ export function registerRoutes(app: Express) {
                   // Clear expired windows in database
                   await pgClient.query(`
                     UPDATE seat_requests 
-                    SET call_time_started = NULL, call_time_ends = NULL, 
+                    SET call_time_started = NULL, call_time_ends = NULL,
                         cashout_window_active = false, cashout_window_ends = NULL,
                         updated_at = NOW()
                     WHERE id = $1
@@ -4084,7 +4081,7 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Call Time Request API - STATE MACHINE IMPLEMENTATION
+  // Call Time Start API - Initiate call time countdown
   app.post("/api/call-time/start", async (req, res) => {
     try {
       const { playerId, sessionId } = req.body;
@@ -4175,17 +4172,7 @@ export function registerRoutes(app: Express) {
 
         await pgClient.end();
 
-        // Send real-time notification via Pusher
-        await pusher.trigger(`player-${playerId}`, 'call_time_started', {
-          playerId: playerId,
-          callTimeStarted: callTimeStarted.toISOString(),
-          callTimeEnds: callTimeEnds.toISOString(),
-          duration: callTimeDuration,
-          tableName: seatInfo.table_name,
-          message: `Call time started: ${callTimeDuration} minutes`
-        });
-
-        // Also notify staff portal
+        // Send real-time notification to staff portal via Pusher
         await pusher.trigger('staff-portal', 'call_time_started', {
           playerId: playerId,
           tableName: seatInfo.table_name,
@@ -4817,17 +4804,7 @@ export function registerRoutes(app: Express) {
 
         await pgClient.end();
 
-        // Send real-time notification via Pusher
-        await pusher.trigger(`player-${playerId}`, 'call_time_started', {
-          playerId: playerId,
-          callTimeStarted: callTimeStarted.toISOString(),
-          callTimeEnds: callTimeEnds.toISOString(),
-          duration: callTimeDuration,
-          tableName: seatInfo.table_name,
-          message: `Call time started: ${callTimeDuration} minutes`
-        });
-
-        // Also notify staff portal
+        // Send real-time notification to staff portal via Pusher
         await pusher.trigger('staff-portal', 'call_time_started', {
           playerId: playerId,
           tableName: seatInfo.table_name,
