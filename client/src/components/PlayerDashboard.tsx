@@ -1350,10 +1350,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // PAN Card management
   // PAN Card state - Initialize with existing PAN card number from user data
-  const [panCardNumber, setPanCardNumber] = useState(user?.pan_card_number || '');
+  const [panCardNumber, setPanCardNumber] = useState('');
   const [showTransactions, setShowTransactions] = useState<'last10' | 'all' | null>(null);
 
-  // Update PAN card state when user data loads
+  // Update PAN card state when user data loads - this ensures the field shows existing data
   useEffect(() => {
     if (user?.pan_card_number) {
       setPanCardNumber(user.pan_card_number);
@@ -2823,12 +2823,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         PAN Card Number
                       </label>
                       <Input
-                        value={panCardNumber}
+                        value={panCardNumber || user?.pan_card_number || ''}
                         onChange={(e) => setPanCardNumber(e.target.value.toUpperCase())}
                         className={`bg-slate-700 border-slate-600 text-white h-12 ${
                           panCardNumber && !isValidPAN(panCardNumber) ? 'border-red-500' : ''
                         }`}
-                        placeholder="ABCPF1234G"
+                        placeholder={user?.pan_card_number ? user.pan_card_number : "ABCPF1234G"}
                         maxLength={10}
                       />
                       {panCardNumber && !isValidPAN(panCardNumber) && (
