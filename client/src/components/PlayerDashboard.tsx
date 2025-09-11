@@ -996,14 +996,14 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         });
 
         const channel = pusher.subscribe(`player-${user.id}`);
-        
+
         // Listen for table assignment notifications
         channel.bind('table_assigned', (data: any) => {
           console.log('🪑 [TABLE ASSIGNMENT] Assignment notification received:', data);
-          
+
           setAssignmentDetails(data);
           setShowAssignmentNotification(true);
-          
+
           // Show toast notification
           toast({
             title: "Table Assignment!",
@@ -1349,8 +1349,17 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   };
 
   // PAN Card management
-  const [panCardNumber, setPanCardNumber] = useState("");
+  // PAN Card state - Initialize with existing PAN card number from user data
+  const [panCardNumber, setPanCardNumber] = useState(user?.pan_card_number || '');
   const [showTransactions, setShowTransactions] = useState<'last10' | 'all' | null>(null);
+
+  // Update PAN card state when user data loads
+  useEffect(() => {
+    if (user?.pan_card_number) {
+      setPanCardNumber(user.pan_card_number);
+    }
+  }, [user?.pan_card_number]);
+
 
   // Transaction color helpers
   const getTransactionAmountColor = (type: string) => {
@@ -1745,7 +1754,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   <Eye className="w-4 h-4 mr-2" />
                   View Table
                 </Button>
-                
+
                 <Button
                   onClick={() => setShowAssignmentNotification(false)}
                   variant="outline"
