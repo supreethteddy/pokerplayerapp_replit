@@ -76,14 +76,14 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
 
   if (isLoading) {
     return (
-      <div className="flex space-x-4 overflow-hidden">
+      <div className="flex space-x-2 sm:space-x-4 overflow-hidden">
         {[1, 2, 3].map((i) => (
-          <Card key={i} className="min-w-[300px] bg-gradient-to-br from-gray-800 to-gray-900 animate-pulse">
+          <Card key={i} className="min-w-[200px] sm:min-w-[300px] bg-gradient-to-br from-gray-800 to-gray-900 animate-pulse">
             <CardContent className="p-0">
-              <div className="w-full h-48 bg-gray-700 rounded-lg"></div>
-              <div className="p-4">
-                <div className="h-4 bg-gray-600 rounded mb-2"></div>
-                <div className="h-3 bg-gray-600 rounded w-2/3"></div>
+              <div className="w-full h-32 sm:h-48 bg-gray-700 rounded-lg"></div>
+              <div className="p-2 sm:p-4">
+                <div className="h-3 sm:h-4 bg-gray-600 rounded mb-1 sm:mb-2"></div>
+                <div className="h-2 sm:h-3 bg-gray-600 rounded w-2/3"></div>
               </div>
             </CardContent>
           </Card>
@@ -132,31 +132,31 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
                 onClick={() => onOfferClick(item.offer_id)}
               >
                 <CardContent className="p-0">
-                  <div className="w-full h-48 bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center rounded-lg relative">
-                    <Gift className="w-16 h-16 text-white" />
-                    <div className="absolute top-2 left-2 bg-black bg-opacity-50 rounded px-2 py-1">
+                  <div className="w-full h-32 sm:h-48 bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center rounded-lg relative">
+                    <Gift className="w-8 h-8 sm:w-16 sm:h-16 text-white" />
+                    <div className="absolute top-1 left-1 sm:top-2 sm:left-2 bg-black bg-opacity-50 rounded px-1 py-0.5 sm:px-2 sm:py-1">
                       <span className="text-xs text-white font-medium">
                         {item.staff_offers.offer_type?.toUpperCase()}
                       </span>
                     </div>
                     {item.staff_offers.priority > 0 && (
-                      <div className="absolute top-2 right-2 bg-yellow-500 rounded-full w-6 h-6 flex items-center justify-center">
+                      <div className="absolute top-1 right-1 sm:top-2 sm:right-2 bg-yellow-500 rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center">
                         <span className="text-xs text-black font-bold">
                           {item.staff_offers.priority}
                         </span>
                       </div>
                     )}
-                    <div className="absolute bottom-2 left-2 right-2 text-center">
-                      <span className="text-xs text-white bg-black bg-opacity-50 rounded px-2 py-1">
+                    <div className="absolute bottom-1 left-1 right-1 sm:bottom-2 sm:left-2 sm:right-2 text-center">
+                      <span className="text-xs text-white bg-black bg-opacity-50 rounded px-1 py-0.5 sm:px-2 sm:py-1">
                         {item.staff_offers.target_audience?.toUpperCase()}
                       </span>
                     </div>
                   </div>
-                  <div className="p-4">
-                    <h3 className="text-lg font-semibold text-white mb-2">
+                  <div className="p-2 sm:p-4">
+                    <h3 className="text-sm sm:text-lg font-semibold text-white mb-1 sm:mb-2">
                       {item.staff_offers.title}
                     </h3>
-                    <p className="text-gray-300 text-sm">
+                    <p className="text-gray-300 text-xs sm:text-sm">
                       {item.staff_offers.description}
                     </p>
                   </div>
@@ -172,30 +172,30 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
         <>
           <Button
             variant="outline"
-            size="icon"
-            className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 border-gray-600 hover:bg-black/70"
+            size="sm"
+            className="absolute left-1 sm:left-2 top-1/2 transform -translate-y-1/2 bg-black/50 border-gray-600 hover:bg-black/70 w-6 h-6 sm:w-8 sm:h-8 p-0 min-w-0"
             onClick={prevSlide}
           >
-            <ChevronLeft className="h-4 w-4 text-white" />
+            <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
           </Button>
           <Button
             variant="outline"
-            size="icon"
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 border-gray-600 hover:bg-black/70"
+            size="sm"
+            className="absolute right-1 sm:right-2 top-1/2 transform -translate-y-1/2 bg-black/50 border-gray-600 hover:bg-black/70 w-6 h-6 sm:w-8 sm:h-8 p-0 min-w-0"
             onClick={nextSlide}
           >
-            <ChevronRight className="h-4 w-4 text-white" />
+            <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
           </Button>
         </>
       )}
 
       {/* Dots indicator */}
       {displayItems.length > 1 && (
-        <div className="flex justify-center mt-4 space-x-2">
+        <div className="flex justify-center mt-2 sm:mt-4 space-x-1 sm:space-x-2">
           {displayItems.map((_, index) => (
             <button
               key={index}
-              className={`w-2 h-2 rounded-full transition-colors ${
+              className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full transition-colors ${
                 index === currentIndex ? 'bg-blue-500' : 'bg-gray-600'
               }`}
               onClick={() => setCurrentIndex(index)}
