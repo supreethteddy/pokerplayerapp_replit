@@ -309,6 +309,7 @@ export function useUltraFastAuth() {
 
         // Check if email is verified first
         if (!user.email_verified) {
+          setLoading(false);
           return {
             success: false,
             error: "Please verify your email address before signing in. Check your inbox for the verification link.",
@@ -316,27 +317,22 @@ export function useUltraFastAuth() {
           };
         }
 
-        if (user.kyc_status === 'approved') {
+        // CRITICAL: Only allow login for users with approved KYC status
+        if (user.kyc_status !== 'approved') {
+          setLoading(false);
           return {
-            success: true,
-            isFullyVerified: true,
-            redirectToKYC: false,
-            player: user,
-            message: "Welcome back! Your account is fully verified."
-          };
-        } else {
-          return {
-            success: true,
-            isFullyVerified: false,
+            success: false,
+            error: "Please complete your KYC verification before signing in. You'll need to submit your documents and wait for approval.",
             redirectToKYC: true,
-            player: user,
-            message: "Please complete your KYC verification to continue."
+            player: user
           };
         }
+
+        // User is fully verified - proceed with login
+        console.log('✅ [SIGNIN SECURITY] User has approved KYC status - allowing login');
       }
 
-
-      // Set user data directly from our integrated backend
+      // Set user data directly from our integrated backend (only reached if user.kyc_status === 'approved')
       const enhancedUserData: AuthUser = {
         ...user,
         fullName: `${user.firstName || ''} ${user.lastName || ''}`.trim(), // Concatenate first and last name
@@ -573,31 +569,12 @@ export function useUltraFastAuth() {
           sessionStorage.setItem('kyc_redirect', JSON.stringify(kycData));
           sessionStorage.setItem('kyc_flow_active', 'true');
 
-          // Store authenticated user for KYC flow
-          const kycUserData: AuthUser = {
-            id: player.id.toString(),
-            email: player.email || email,
-            firstName: player.first_name || player.firstName || firstName,
-            lastName: player.last_name || player.lastName || lastName,
-            fullName: `${player.first_name || firstName} ${player.last_name || lastName}`.trim(),
-            nickname: player.nickname || nickname,
-            phone: player.phone || phone || '',
-            kycStatus: player.kyc_status || 'pending',
-            balance: '0.00',
-            realBalance: '0.00',
-            creditBalance: '0.00',
-            creditLimit: '0.00',
-            creditApproved: false,
-            totalBalance: '0.00',
-            supabaseOnly: true,
-            player_id: player.id.toString()
-          };
-
-          sessionStorage.setItem('authenticated_user', JSON.stringify(kycUserData));
+          // DO NOT store authenticated_user - users must complete KYC before being logged in
+          console.log('🚫 [SIGNUP SECURITY] User NOT logged in - must complete KYC verification first');
 
           toast({
             title: isNewPlayer ? "Account Created Successfully!" : "Welcome back!",
-            description: isNewPlayer ? `Welcome ${player.nickname || nickname}! Please check your email to verify your account before proceeding.` : "Please complete your KYC verification.",
+            description: isNewPlayer ? `Welcome ${player.nickname || nickname}! Please check your email to verify your account before proceeding to KYC.` : "Please complete your KYC verification.",
           });
 
           // Force immediate redirect to KYC workflow

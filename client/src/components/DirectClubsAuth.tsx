@@ -47,7 +47,22 @@ export default function DirectClubsAuth() {
           });
           // Success is handled by useAuth hook - redirect will happen automatically
         } else {
-          throw new Error(result.error || "Sign in failed");
+          // Handle specific authentication failures
+          if (result.redirectToKYC) {
+            toast({
+              title: "KYC Verification Required",
+              description: result.error || "Please complete your KYC verification before signing in.",
+              variant: "destructive",
+            });
+          } else if (result.needsEmailVerification) {
+            toast({
+              title: "Email Verification Required",
+              description: result.error || "Please verify your email address before signing in.",
+              variant: "destructive",
+            });
+          } else {
+            throw new Error(result.error || "Sign in failed");
+          }
         }
       } else {
         // Concatenate first and last name for full_name
