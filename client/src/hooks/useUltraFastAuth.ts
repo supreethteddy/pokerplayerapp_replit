@@ -558,7 +558,7 @@ export function useUltraFastAuth() {
 
           toast({
             title: isNewPlayer ? "Account Created Successfully!" : "Welcome back!",
-            description: isNewPlayer ? `Welcome ${player.nickname || nickname}! Please complete your verification.` : "Please complete your KYC verification.",
+            description: isNewPlayer ? `Welcome ${player.nickname || nickname}! Please check your email to verify your account before proceeding.` : "Please complete your KYC verification.",
           });
 
           // Force immediate redirect to KYC workflow
