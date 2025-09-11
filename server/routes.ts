@@ -2293,7 +2293,7 @@ export function registerRoutes(app: Express) {
             // Create anon client for resend functionality
             const supabaseAnon = createClient(
               process.env.VITE_SUPABASE_URL!,
-              process.env.VITE_SUPABASE_ANON_KEY! || process.env.SUPABASE_ANON_KEY!
+              process.env.VITE_SUPABASE_ANON_KEY!
             );
             
             // Proper verification email resend for existing users
@@ -2312,25 +2312,8 @@ export function registerRoutes(app: Express) {
             } else {
               console.log(`⚠️ [EMAIL VERIFICATION] Resend verification failed:`, resendError.message);
               
-              // If resend fails, user might already be confirmed, try signup method
-              try {
-                const { data: signupData, error: signupError } = await supabaseAdmin.auth.admin.generateLink({
-                  type: 'signup',
-                  email: email,
-                  options: {
-                    redirectTo: verificationUrl
-                  }
-                });
-
-                if (!signupError && signupData?.properties?.action_link) {
-                  console.log(`📧 [EMAIL VERIFICATION] Signup verification link generated for existing user:`, email);
-                  emailSent = true;
-                  emailMethod = 'signup_link_generated';
-                  // Note: generateLink provides the link but doesn't send email
-                }
-              } catch (signupError) {
-                console.log(`⚠️ [EMAIL VERIFICATION] Signup link generation failed:`, signupError);
-              }
+              // If resend fails, log the issue - no more broken fallbacks
+              console.log(`❌ [EMAIL VERIFICATION] Cannot resend to existing unconfirmed user:`, email);
             }
           } catch (resendError) {
             console.log(`⚠️ [EMAIL VERIFICATION] Resend method failed:`, resendError);
