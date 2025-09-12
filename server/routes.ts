@@ -1247,7 +1247,7 @@ export function registerRoutes(app: Express) {
       try {
         // Step 1: Get unresolved chat sessions for the player
         const sessionsQuery = `
-          SELECT cs.id, cs.player_id, cs.player_name, cs.status, cs.created_at
+          SELECT cs.id, cs.player_id, cs.player_name, cs.status, cs.created_at, cs.initial_message
           FROM chat_sessions cs
           WHERE cs.player_id = $1 AND cs.status != 'resolved'
           ORDER BY cs.created_at DESC
@@ -1286,6 +1286,8 @@ export function registerRoutes(app: Express) {
               subject: `Chat with ${session.player_name}`,
               status: session.status,
               created_at: session.created_at,
+              initial_message: session.initial_message,
+              player_name: session.player_name,
               chat_messages: formattedMessages
             });
           }
