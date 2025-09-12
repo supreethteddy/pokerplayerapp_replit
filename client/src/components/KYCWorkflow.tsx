@@ -529,13 +529,35 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                 />
               </div>
 
-              <Button
-                onClick={saveUserDetails} // Changed from setCurrentStep(2) to call saveUserDetails
-                disabled={!isStep1Complete()}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12"
-              >
-                Save Details & Continue
-              </Button>
+              <div className="space-y-3">
+                <Button
+                  onClick={saveUserDetails} // Changed from setCurrentStep(2) to call saveUserDetails
+                  disabled={!isStep1Complete()}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12"
+                >
+                  Save Details & Continue
+                </Button>
+                <Button
+                  onClick={() => {
+                    console.log('🔄 [KYC] Back to Login clicked - cleaning up and redirecting');
+                    
+                    // Clear all KYC and authentication data
+                    sessionStorage.removeItem('kyc_redirect');
+                    sessionStorage.removeItem('kyc_flow_active');
+                    sessionStorage.removeItem('kyc_step_progress');
+                    sessionStorage.removeItem('authenticated_user');
+                    sessionStorage.removeItem('just_signed_in');
+                    localStorage.removeItem('player_auth');
+                    
+                    // Redirect to login page
+                    window.location.href = '/';
+                  }}
+                  variant="outline"
+                  className="w-full border-gray-600 hover:bg-gray-700 text-white h-12"
+                >
+                  Back to Login
+                </Button>
+              </div>
             </div>
           )}
 
