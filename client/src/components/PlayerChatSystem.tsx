@@ -43,11 +43,11 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
       console.log('📚 [PLAYER CHAT] Loading chat history for player:', playerId);
       const response = await fetch(`/api/chat-history/${playerId}`);
       const data = await response.json();
-      
+
       if (data.success && data.conversations && data.conversations.length > 0) {
         // Get all messages from all active conversations (not resolved)
         const allMessages: ChatMessage[] = [];
-        
+
         data.conversations.forEach((conversation: any) => {
           if (conversation.status !== 'resolved') { // Only load non-resolved conversations
             // Add initial_message as the first message if it exists
@@ -62,7 +62,7 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
               };
               allMessages.push(initialMessage);
             }
-            
+
             const conversationMessages = conversation.chat_messages?.map((msg: any) => ({
               id: msg.id,
               message: msg.message_text,
@@ -71,17 +71,17 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
               timestamp: msg.timestamp,
               isFromStaff: msg.sender === 'staff'
             })) || [];
-            
+
             allMessages.push(...conversationMessages);
           }
         });
-        
+
         // Sort messages by timestamp
         allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-        
+
         setMessages(allMessages);
         console.log('✅ [PLAYER CHAT] Loaded', allMessages.length, 'messages from active conversations');
-        
+
         // Update session status based on latest conversation
         const latestConversation = data.conversations[0];
         if (latestConversation && latestConversation.status !== 'resolved') {
@@ -99,22 +99,22 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
 
   useEffect(() => {
     if (!playerId || !playerName) return;
-    
+
     console.log('🚀 [PLAYER CHAT] Initializing for player:', playerId, playerName);
-    
+
     // Initialize Pusher with environment variables to match Staff Portal
     if (!import.meta.env.VITE_PUSHER_KEY) {
       console.error('❌ [PUSHER CONFIG] VITE_PUSHER_KEY not found in environment');
       return;
     }
-    
+
     const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, {
       cluster: import.meta.env.VITE_PUSHER_CLUSTER || 'ap2',
       forceTLS: true
     });
-    
+
     pusherRef.current = pusher;
-    
+
     pusher.connection.bind('connected', () => {
       setIsConnected(true);
       console.log('✅ [PLAYER CHAT] Connected to Pusher');
@@ -124,23 +124,23 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
       setIsConnected(false);
       console.log('❌ [PLAYER CHAT] Disconnected from Pusher');
     });
-    
+
     // Subscribe to UNIFIED channels for bidirectional communication
     const playerChannel = pusher.subscribe(`player-${playerId}`);
     const staffChannel = pusher.subscribe('staff-portal');
-    
+
     console.log('📡 [PLAYER CHAT] Subscribed to channels:', `player-${playerId}`, 'staff-portal');
-    
+
     // UNIFIED event handler for all message types - PREVENT DUPLICATION
     const handleIncomingMessage = (data: any) => {
       console.log('📨 [PLAYER CHAT] Message received:', data);
-      
+
       // CRITICAL: Prevent duplicate messages from player confirmation
       if (data.type === 'player-confirmation' && data.player_id === playerId) {
         console.log('⚠️ [PLAYER CHAT] Skipping duplicate player confirmation message');
         return; // Don't add player's own messages back to chat
       }
-      
+
       // Handle different data formats from staff portal
       const messageData = {
         id: data.id || data.messageId || `msg-${Date.now()}`,
@@ -150,7 +150,7 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
         timestamp: data.timestamp || new Date().toISOString(),
         isFromStaff: data.sender === 'staff' || data.senderType === 'staff' || data.sender_name !== playerName
       };
-      
+
       // ONLY add messages from staff - prevent player message echoing
       if (messageData.message && messageData.isFromStaff) {
         setMessages(prev => {
@@ -160,44 +160,44 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
             (msg.message === messageData.message && 
              Math.abs(new Date(msg.timestamp).getTime() - new Date(messageData.timestamp).getTime()) < 5000)
           );
-          
+
           if (isDuplicate) {
             console.log('⚠️ [PLAYER CHAT] Duplicate staff message detected, ignoring');
             return prev;
           }
-          
+
           return [...prev, messageData].sort((a, b) => 
             new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
           );
         });
-        
+
         // Mark as unread if chat is closed
         if (!isInDialog) {
           setHasUnread(true);
         }
-        
+
         setSessionStatus('active');
       }
     };
-    
+
     // Listen for messages on player channel (staff → player)
     playerChannel.bind('chat-message-received', handleIncomingMessage);
     playerChannel.bind('new-staff-message', handleIncomingMessage);
     playerChannel.bind('new-message', handleIncomingMessage);
-    
+
     // Listen for messages on staff channel (broadcast messages)
     staffChannel.bind('chat-message-received', (data: any) => {
       if (data.type === 'staff-to-player' && data.playerId == playerId) {
         handleIncomingMessage(data);
       }
     });
-    
+
     // Listen for status updates
     playerChannel.bind('chat-status-updated', (data: any) => {
       console.log('📊 [PLAYER CHAT] Status updated:', data);
       if (data.playerId == playerId) {
         setSessionStatus(data.status || 'active');
-        
+
         // If conversation is resolved, clear messages
         if (data.status === 'resolved') {
           console.log('✅ [PLAYER CHAT] Conversation resolved, clearing messages');
@@ -209,7 +209,7 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
 
     // Load existing messages on initialization
     loadChatHistory();
-    
+
     return () => {
       pusher.unsubscribe(`player-${playerId}`);
       pusher.unsubscribe('staff-portal');
@@ -228,11 +228,11 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !isConnected) return;
-    
+
     const messageText = newMessage.trim();
     const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const timestamp = new Date().toISOString();
-    
+
     // Immediate UI update (optimistic) - ZERO delay for user
     const optimisticMsg: ChatMessage = {
       id: messageId,
@@ -242,14 +242,14 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
       timestamp: timestamp,
       isFromStaff: false
     };
-    
+
     setMessages(prev => [...prev, optimisticMsg]);
     setNewMessage('');
     setSessionStatus('pending');
-    
+
     try {
       console.log('⚡ [OPTIMIZED V1.2] Sending message to staff portal:', messageText);
-      
+
       // Fire and forget - don't wait for response
       fetch('/api/staff-chat-integration/send', {
         method: 'POST',
@@ -270,7 +270,7 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
       }).catch((error) => {
         console.error('❌ [OPTIMIZED V1.2] Network error (non-critical):', error);
       });
-      
+
     } catch (error) {
       console.error('❌ [OPTIMIZED V1.2] Send error:', error);
     }
