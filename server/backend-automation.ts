@@ -166,6 +166,10 @@ export async function handleSignup(req: Request, res: Response) {
       // AUTOMATIC EMAIL VERIFICATION TRIGGER
       console.log(`📧 [AUTO EMAIL] Triggering verification email for: ${trimmedEmail}`);
 
+      // Declare email tracking variables at proper scope
+      let emailSent = false;
+      let emailMethod = '';
+
       try {
         // Generate verification token
         const verificationToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
@@ -185,60 +189,33 @@ export async function handleSignup(req: Request, res: Response) {
           process.env.SUPABASE_SERVICE_ROLE_KEY!
         );
 
-        let emailSent = false;
-        let emailMethod = '';
+        // Variables now declared at broader scope above
 
-        // Try Supabase auth user creation with email confirmation
+        // FIXED: Use only the working email method - inviteUserByEmail
         try {
-          const { data: authUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-            email: trimmedEmail,
-            email_confirm: false, // This triggers confirmation email
-            user_metadata: {
+          const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(trimmedEmail, {
+            data: {
               verification_token: verificationToken,
               player_id: newPlayer.id,
               source: 'automated_signup'
             }
           });
 
-          if (!createError && authUser.user) {
-            console.log(`✅ [AUTO EMAIL] Supabase auth user created with email confirmation: ${trimmedEmail}`);
+          if (!inviteError) {
+            console.log(`✅ [AUTO EMAIL] Supabase invite sent successfully: ${trimmedEmail}`);
             emailSent = true;
-            emailMethod = 'supabase_auto_confirmation';
+            emailMethod = 'supabase_invite';
+          } else {
+            console.log(`❌ [AUTO EMAIL] Supabase invite failed:`, inviteError.message);
+            emailSent = false;
           }
-        } catch (supabaseError: any) {
-          console.log(`⚠️ [AUTO EMAIL] Supabase creation failed, trying invite method: ${supabaseError.message}`);
-
-          // Fallback: Use invite method
-          try {
-            const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(trimmedEmail, {
-              data: {
-                verification_token: verificationToken,
-                player_id: newPlayer.id
-              }
-            });
-
-            if (!inviteError) {
-              console.log(`✅ [AUTO EMAIL] Supabase invite sent successfully: ${trimmedEmail}`);
-              emailSent = true;
-              emailMethod = 'supabase_invite';
-            }
-          } catch (inviteError: any) {
-            console.log(`⚠️ [AUTO EMAIL] Supabase invite failed: ${inviteError.message}`);
-          }
+        } catch (inviteError: any) {
+          console.log(`❌ [AUTO EMAIL] Supabase invite error:`, inviteError.message);
+          emailSent = false;
         }
 
-        // Development fallback
-        if (!emailSent && process.env.NODE_ENV !== 'production') {
-          const baseUrl = process.env.REPLIT_URL || 'http://localhost:5000';
-          const verificationUrl = `${baseUrl}/api/auth/verify-email?token=${verificationToken}&email=${encodeURIComponent(trimmedEmail)}`;
-
-          console.log(`📧 [AUTO EMAIL - DEV MODE] Email verification details for: ${trimmedEmail}`);
-          console.log(`📧 [VERIFICATION URL] ${verificationUrl}`);
-          console.log(`📧 [TOKEN] ${verificationToken}`);
-
-          emailSent = true;
-          emailMethod = 'development_console';
-        }
+        // REMOVED: Fake console fallback that lies about email delivery
+        // No fallback - if Supabase invite fails, we report honest failure
 
         if (emailSent) {
           console.log(`✅ [AUTO EMAIL] Verification email sent via ${emailMethod} to: ${trimmedEmail}`);
@@ -266,7 +243,7 @@ export async function handleSignup(req: Request, res: Response) {
         message: 'Account created successfully! Please check your email (including spam folder) for verification link.',
         redirectToKYC: true,
         needsEmailVerification: true,
-        emailSent: true // Always true for better UX
+        emailSent: emailSent // FIXED: Honest reporting - only true when email actually sent
       });
 
     } catch (dbError: any) {
