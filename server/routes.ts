@@ -944,69 +944,86 @@ export function registerRoutes(app: Express) {
 
           console.log(`📧 [CHAT SESSION] Retrieved player email: ${playerEmail} for player ${playerId}`);
 
-          // Execute all operations in parallel for microsecond performance
-          const results = await Promise.allSettled([
-            // Session management (parallel)
-            (async () => {
-              let sessionId = requestId;
+          // SEQUENTIAL EXECUTION to fix race condition and FK violations
+          
+          // Step 1: Session management (MUST complete first)
+          let finalSessionId;
+          try {
+            // Check existing session
+            const { data: existingSession } = await supabase
+              .from('chat_sessions')
+              .select('id')
+              .eq('player_id', playerId)
+              .in('status', ['waiting', 'active'])
+              .limit(1);
 
-              // Check existing session
-              const { data: existingSession } = await supabase
-                .from('chat_sessions')
-                .select('id')
-                .eq('player_id', playerId)
-                .in('status', ['waiting', 'active'])
-                .limit(1);
-
-              if (existingSession && existingSession.length > 0) {
-                return existingSession[0].id;
-              }
-
-              // Create new session if none exists with player email
-              sessionId = requestId || `session-${playerId}-${Date.now()}`;
+            if (existingSession && existingSession.length > 0) {
+              finalSessionId = existingSession[0].id;
+              console.log(`🔄 [CHAT SESSION] Using existing session: ${finalSessionId}`);
+            } else {
+              // Create new session
+              finalSessionId = requestId || `session-${playerId}-${Date.now()}`;
               const { error: sessionError } = await supabase
                 .from('chat_sessions')
                 .upsert({
-                  id: sessionId,
+                  id: finalSessionId,
                   player_id: playerId,
                   player_name: fullPlayerName,
                   player_email: playerEmail,
                   initial_message: message,
                   status: 'waiting',
-                  priority: 'normal',
-                  created_at: new Date().toISOString(),
-                  last_activity: new Date().toISOString()
+                  priority: 'normal'
                 });
 
               if (sessionError) {
                 console.error('❌ [CHAT SESSION] Error creating session:', sessionError);
                 throw sessionError;
               }
+              console.log(`✅ [CHAT SESSION] Created session ${finalSessionId} with email: ${playerEmail}`);
+            }
+          } catch (sessionError) {
+            console.error('❌ [CHAT SESSION] Session operation failed:', sessionError);
+            throw sessionError;
+          }
 
-              console.log(`✅ [CHAT SESSION] Created session ${sessionId} with email: ${playerEmail}`);
-              return sessionId;
-            })(),
-
-            // Message insertion (parallel) - FIXED to use correct schema
-            (async () => {
-              const sessionId = requestId || `session-${playerId}-${Date.now()}`;
-              return supabase.from('chat_messages').insert({
+          // Step 2: Message insertion (uses the resolved session ID) + update session activity
+          try {
+            // Insert message and update session activity in parallel (both use same session ID)
+            const [messageResult, sessionUpdateResult] = await Promise.all([
+              supabase.from('chat_messages').insert({
                 id: messageId,
-                chat_session_id: sessionId,
+                chat_session_id: finalSessionId, // Use the actual session ID
                 sender_id: playerId.toString(),
                 sender_type: 'player',
                 sender_name: fullPlayerName,
                 message_text: message,
-                message_type: 'text',
-                created_at: timestamp,
-                updated_at: timestamp
-              });
-            })(),
+                message_type: 'text'
+                // created_at and updated_at use schema defaults
+              }),
+              supabase.from('chat_sessions')
+                .update({ last_activity: new Date().toISOString() })
+                .eq('id', finalSessionId)
+            ]);
 
-            // Pusher broadcast (parallel) - Multiple channels simultaneously
-            Promise.all([
+            if (messageResult.error) {
+              console.error('❌ [CHAT MESSAGE] Error inserting message:', messageResult.error);
+              throw messageResult.error;
+            }
+            if (sessionUpdateResult.error) {
+              console.error('❌ [CHAT SESSION] Error updating activity:', sessionUpdateResult.error);
+              // Non-critical, don't throw
+            }
+            console.log(`✅ [CHAT MESSAGE] Saved message ${messageId} to session ${finalSessionId}`);
+          } catch (messageError) {
+            console.error('❌ [CHAT MESSAGE] Message insertion failed:', messageError);
+            throw messageError;
+          }
+
+          // Step 3: Pusher broadcast (non-blocking)
+          try {
+            await Promise.all([
               pusher.trigger('staff-portal', 'new-player-message', {
-                sessionId: requestId || `session-${playerId}-${Date.now()}`,
+                sessionId: finalSessionId,
                 playerId: playerId,
                 playerName: fullPlayerName,
                 message: message,
@@ -1020,16 +1037,14 @@ export function registerRoutes(app: Express) {
                 timestamp: timestamp,
                 status: 'delivered'
               })
-            ])
-          ]);
+            ]);
+            console.log(`📡 [PUSHER] Broadcast completed for session ${finalSessionId}`);
+          } catch (pusherError) {
+            console.error('❌ [PUSHER] Broadcast error (non-critical):', pusherError);
+          }
 
           const processingTime = Number(process.hrtime.bigint() - startTime) / 1000000;
-          console.log(`⚡ [OPTIMIZED V1.2] Background processing completed in ${processingTime.toFixed(2)}ms`);
-
-          // Log any background errors (doesn't affect user experience)
-          if (results[0].status === 'rejected') console.error('Session error:', results[0].reason);
-          if (results[1].status === 'rejected') console.error('Message error:', results[1].reason);
-          if (results[2].status === 'rejected') console.error('Pusher error:', results[2].reason);
+          console.log(`⚡ [SEQUENTIAL V2.0] Background processing completed in ${processingTime.toFixed(2)}ms`);
 
         } catch (backgroundError) {
           console.error('❌ [OPTIMIZED V1.2] Background error:', backgroundError);
