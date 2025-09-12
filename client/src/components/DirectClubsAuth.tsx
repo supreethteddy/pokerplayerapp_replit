@@ -375,7 +375,7 @@ export default function DirectClubsAuth() {
                   id="remember"
                   checked={rememberPassword}
                   onCheckedChange={(v) => setRememberPassword(!!v)}
-                  className="h-3 w-3 shrink-0 rounded border-gray-600 bg-gray-800 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 data-[state=checked]:text-white"
+                  className="h-4 w-4 min-h-[16px] min-w-[16px] max-h-[16px] max-w-[16px] shrink-0 rounded border-gray-600 bg-gray-800 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 data-[state=checked]:text-white"
                 />
                 <label
                   htmlFor="remember"
