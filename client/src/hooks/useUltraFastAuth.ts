@@ -543,18 +543,18 @@ export function useUltraFastAuth() {
 
       // Handle backend automation response
       if (success && player) {
-        // Check if this is an existing player or new player based on KYC status
-        const isNewPlayer = !player.existing && player.kyc_status === 'pending';
-        const needsKYC = player.kyc_status === 'pending' || player.kyc_status === 'submitted';
-
+        // CRITICAL FIX: ALL SIGNUPS must go to KYC - never auto-login after signup
+        const isNewPlayer = !player.existing;
+        
         console.log('🎯 [SIGNUP FLOW] Player status:', {
           isNewPlayer,
           kycStatus: player.kyc_status,
-          needsKYC,
-          existing: player.existing
+          existing: player.existing,
+          signupFlow: 'ALWAYS_REDIRECT_TO_KYC'
         });
 
-        if (needsKYC) {
+        // FIXED: Always redirect signups to KYC verification (never auto-login)
+        if (true) { // Always true for signup flow
           // Store KYC redirect data with proper field mapping
           const kycData = {
             id: player.id,
@@ -593,48 +593,8 @@ export function useUltraFastAuth() {
             player,
             playerData: player
           };
-        } else {
-          // User is fully verified - proceed to dashboard
-          const enhancedUserData: AuthUser = {
-            ...player,
-            fullName: `${player.firstName || player.first_name || ''} ${player.lastName || player.last_name || ''}`.trim(),
-            nickname: player.nickname || nickname,
-            realBalance: player.balance || '0.00',
-            creditBalance: player.creditBalance || '0.00',
-            creditLimit: player.creditLimit || '0.00',
-            creditApproved: player.creditApproved || false,
-            totalBalance: player.totalBalance || '0.00',
-            isClerkSynced: true,
-            player_id: player.player_id || player.id
-          };
-
-          setUser(enhancedUserData);
-          setLoading(false);
-          sessionStorage.setItem('authenticated_user', JSON.stringify(enhancedUserData));
-          sessionStorage.setItem('just_signed_in', 'true');
-
-          toast({
-            title: "Welcome back!",
-            description: "Successfully signed in to your account.",
-          });
-
-          // Log authentication activity for successful sign-up
-          logAuthActivity('signup', email, player.id);
-
-          // Redirect to dashboard after successful signup and verification
-          setTimeout(() => {
-            console.log('🚀 [SIGNUP SUCCESS] Redirecting to dashboard...');
-            window.location.href = '/dashboard';
-          }, 500);
-
-          return {
-            success: true,
-            existing: true,
-            redirectToKYC: false,
-            player,
-            playerData: player
-          };
         }
+        // REMOVED: Auto-login branch that was bypassing KYC workflow
       }
 
       // This should never execute for backend automation since we handle KYC above

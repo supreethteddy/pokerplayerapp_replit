@@ -185,7 +185,31 @@ function AppContent() {
           {user ? <Redirect to="/dashboard" /> : (useClerk ? <ClerkAuthWrapper><div /></ClerkAuthWrapper> : <AuthWrapper />)}
         </Route>
         <Route path="/dashboard">
-          {user ? <PlayerDashboard key={`dashboard-${user.id}`} user={user} /> : <Redirect to="/" />}
+          {user ? (
+            // CRITICAL GUARD: Only allow dashboard access for verified KYC users
+            user.kyc_status === 'verified' ? (
+              <PlayerDashboard key={`dashboard-${user.id}`} user={user} />
+            ) : (
+              // Redirect pending/unverified users to KYC workflow
+              (() => {
+                console.log('🚫 [DASHBOARD GUARD] User has pending KYC - redirecting to KYC workflow', user.kyc_status);
+                // Set up KYC redirect data for pending users
+                sessionStorage.setItem('kyc_flow_active', 'true');
+                sessionStorage.setItem('kyc_redirect', JSON.stringify({
+                  id: user.id,
+                  playerId: user.id,
+                  email: user.email,
+                  firstName: user.firstName,
+                  lastName: user.lastName,
+                  nickname: user.nickname,
+                  kycStatus: user.kyc_status
+                }));
+                return <Redirect to="/kyc" />;
+              })()
+            )
+          ) : (
+            <Redirect to="/" />
+          )}
         </Route>
         <Route path="/thank-you">
           <ThankYou />
