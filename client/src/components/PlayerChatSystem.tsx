@@ -300,7 +300,7 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
   // If in dialog mode, render chat content directly without the blue bubble
   if (isInDialog) {
     return (
-      <div className="flex flex-col h-[500px]">
+      <div className="flex flex-col h-[600px] max-h-[80vh]">
         {/* Status Bar */}
         <div className={`px-3 py-2 text-sm ${getStatusColor()} bg-slate-900 border-b border-slate-600 flex items-center justify-between`}>
           <span>
@@ -316,7 +316,7 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-750">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-750 min-h-0">
           {messages.length === 0 ? (
             <div className="text-center text-slate-400 py-12">
               <MessageCircle size={48} className="mx-auto mb-4 opacity-50" />
@@ -349,8 +349,8 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
         </div>
 
         {/* Input */}
-        <div className="p-4 border-t border-slate-600 bg-slate-800">
-          <div className="flex space-x-3">
+        <div className="p-4 sm:p-6 border-t border-slate-600 bg-slate-800 flex-shrink-0">
+          <div className="flex gap-3 items-end">
             <input
               type="text"
               value={newMessage}
@@ -358,17 +358,17 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
               onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
               placeholder={isConnected ? "Type your message..." : "Connecting..."}
               disabled={!isConnected}
-              className="flex-1 px-4 py-3 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-700 text-white placeholder-slate-400 disabled:opacity-50"
+              className="flex-1 px-4 py-3 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-700 text-white placeholder-slate-400 disabled:opacity-50 min-h-[44px]"
             />
             <button
               onClick={sendMessage}
               disabled={!newMessage.trim() || !isConnected}
-              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg transition-colors font-medium"
+              className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg transition-colors font-medium min-h-[44px] min-w-[44px] flex items-center justify-center flex-shrink-0"
             >
               <Send size={18} />
             </button>
           </div>
-          <div className="mt-2 text-xs text-slate-400">
+          <div className="mt-3 text-xs text-slate-400">
             {isConnected ? 'Connected to Guest Relations' : 'Connecting...'}
           </div>
         </div>
