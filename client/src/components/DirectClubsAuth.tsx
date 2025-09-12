@@ -82,29 +82,11 @@ export default function DirectClubsAuth() {
         );
 
         if (result.success) {
-          // Send verification email
-          try {
-            const emailResponse = await fetch('/api/auth/send-verification', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                email: email,
-                playerId: result.player?.id,
-                firstName: firstName
-              })
-            });
-
-            if (emailResponse.ok) {
-              toast({
-                title: "Registration Successful!",
-                description: "Please check your email and click the verification link to complete your account setup.",
-              });
-            } else {
-              console.error('Failed to send verification email');
-            }
-          } catch (emailError) {
-            console.error('Email verification error:', emailError);
-          }
+          // Backend already sends verification email, show success message
+          toast({
+            title: "Registration Successful!",
+            description: "Please check your email and click the verification link to complete your account setup.",
+          });
 
           // Check if we need to redirect to KYC process
           if (result.redirectToKYC) {
@@ -112,7 +94,23 @@ export default function DirectClubsAuth() {
               "🎯 [AUTH] Redirecting to KYC process for player:",
               result.player?.id,
             );
-            // KYC redirect will be handled by the parent component
+            
+            // CRITICAL FIX: Explicit redirect to KYC page without auto-login
+            sessionStorage.setItem('kyc_flow_active', 'true');
+            sessionStorage.setItem('kyc_redirect', JSON.stringify({
+              id: result.player?.id,
+              playerId: result.player?.id,
+              email: result.player?.email || email,
+              firstName: result.player?.firstName || firstName,
+              lastName: result.player?.lastName || lastName,
+              nickname: result.player?.nickname || nickname,
+              kycStatus: result.player?.kyc_status || 'pending'
+            }));
+            
+            // Force immediate redirect to KYC page
+            setTimeout(() => {
+              window.location.href = '/kyc';
+            }, 500);
           }
         } else {
           throw new Error(result.error || "Sign up failed");

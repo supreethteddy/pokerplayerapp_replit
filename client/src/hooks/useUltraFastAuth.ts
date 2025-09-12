@@ -90,15 +90,11 @@ export function useUltraFastAuth() {
       const justSignedIn = sessionStorage.getItem('just_signed_in');
       const kycFlowActive = sessionStorage.getItem('kyc_flow_active');
 
-      // CRITICAL FIX: Restore authentication for both login and KYC flows
-      if (storedUser && (justSignedIn || kycFlowActive)) {
+      // CRITICAL FIX: Only restore authentication for actual login, NOT during KYC flow
+      if (storedUser && justSignedIn) {
         try {
           const userData = JSON.parse(storedUser);
-          console.log('🔄 [SESSION RESTORE] Restoring user from session:', userData.email);
-
-          if (kycFlowActive) {
-            console.log('🔐 [KYC AUTH] Authentication restored for KYC workflow');
-          }
+          console.log('🔄 [SESSION RESTORE] Restoring user from login session:', userData.email);
 
           setUser(userData);
           setAuthChecked(true);
@@ -108,8 +104,15 @@ export function useUltraFastAuth() {
           console.error('❌ [SESSION RESTORE] Failed to parse stored user:', error);
           sessionStorage.removeItem('authenticated_user');
           sessionStorage.removeItem('just_signed_in');
-          sessionStorage.removeItem('kyc_flow_active');
         }
+      }
+
+      // Handle KYC flow without auto-login
+      if (kycFlowActive) {
+        console.log('🚫 [KYC SECURITY] KYC flow active - user NOT logged in, proceeding to KYC workflow');
+        setAuthChecked(true);
+        setLoading(false);
+        return;
       }
 
       // PURE PLAYERS TABLE AUTH: Skip Supabase auth session checking
@@ -317,8 +320,8 @@ export function useUltraFastAuth() {
           };
         }
 
-        // CRITICAL: Only allow login for users with approved KYC status
-        if (user.kyc_status !== 'approved') {
+        // CRITICAL: Only allow login for users with verified KYC status
+        if (user.kyc_status !== 'verified') {
           setLoading(false);
           return {
             success: false,
@@ -329,10 +332,10 @@ export function useUltraFastAuth() {
         }
 
         // User is fully verified - proceed with login
-        console.log('✅ [SIGNIN SECURITY] User has approved KYC status - allowing login');
+        console.log('✅ [SIGNIN SECURITY] User has verified KYC status - allowing login');
       }
 
-      // Set user data directly from our integrated backend (only reached if user.kyc_status === 'approved')
+      // Set user data directly from our integrated backend (only reached if user.kyc_status === 'verified')
       const enhancedUserData: AuthUser = {
         ...user,
         fullName: `${user.firstName || ''} ${user.lastName || ''}`.trim(), // Concatenate first and last name
