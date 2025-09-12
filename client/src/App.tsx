@@ -79,7 +79,13 @@ function AppContent() {
   const kycRedirect = sessionStorage.getItem('kyc_redirect');
   const kycFlowActive = sessionStorage.getItem('kyc_flow_active');
 
-  if (kycRedirect && kycFlowActive === 'true') {
+  // CRITICAL: If user is already verified, clear old KYC session data and proceed to dashboard
+  if (user && user.kycStatus === 'verified') {
+    console.log('🚫 [DASHBOARD GUARD] User has verified KYC - clearing old session data and proceeding to dashboard');
+    sessionStorage.removeItem('kyc_redirect');
+    sessionStorage.removeItem('kyc_flow_active');
+    // Continue to dashboard (don't return early)
+  } else if (kycRedirect && kycFlowActive === 'true') {
     try {
       const playerData = JSON.parse(kycRedirect);
       console.log('🎯 [AUTH] Redirecting to KYC process for player:', playerData.nickname || playerData.id);

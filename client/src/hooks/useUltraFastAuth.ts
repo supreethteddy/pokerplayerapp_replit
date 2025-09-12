@@ -316,8 +316,8 @@ export function useUltraFastAuth() {
           setLoading(false);
           return {
             success: false,
-            error: "Please complete your KYC verification before signing in. You'll need to submit your documents and wait for approval.",
-            redirectToKYC: true,
+            error: "KYC Verification is still pending",
+            redirectToKYC: false,
             player: user
           };
         }

@@ -2982,7 +2982,7 @@ export function registerRoutes(app: Express) {
         firstName: player.first_name,
         lastName: player.last_name,
         phone: player.phone,
-        kycStatus: player.kyc_status,
+        kycStatus: player.kyc_status || 'pending',
         balance: player.balance,
         emailVerified: player.email_verified || false,
         clerkUserId: player.clerk_user_id,
