@@ -19,6 +19,7 @@ interface ChatMessage {
 }
 
 const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerName, isInDialog = false, onClose }) => {
+  console.log('🚀 [CHAT DEBUG] PlayerChatSystem rendering with:', { playerId, playerName, isInDialog });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isConnected, setIsConnected] = useState(false);
@@ -218,7 +219,9 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
 
   // Load messages whenever dialog opens (if in dialog mode)
   useEffect(() => {
+    console.log('🔍 [CHAT DEBUG] Dialog useEffect firing:', { isInDialog, playerId });
     if (isInDialog && playerId) {
+      console.log('✅ [CHAT DEBUG] Calling loadChatHistory from dialog useEffect');
       loadChatHistory();
     }
   }, [isInDialog, playerId]);
