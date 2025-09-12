@@ -987,17 +987,21 @@ export function registerRoutes(app: Express) {
               return sessionId;
             })(),
 
-            // Message insertion (parallel)
-            supabase.from('chat_messages').insert({
-              player_id: parseInt(playerId.toString()),
-              sender: 'player',
-              sender_name: fullPlayerName,
-              message_text: message,
-              timestamp: timestamp,
-              status: 'sent',
-              created_at: timestamp,
-              updated_at: timestamp
-            }),
+            // Message insertion (parallel) - FIXED to use correct schema
+            (async () => {
+              const sessionId = requestId || `session-${playerId}-${Date.now()}`;
+              return supabase.from('chat_messages').insert({
+                id: messageId,
+                chat_session_id: sessionId,
+                sender_id: playerId.toString(),
+                sender_type: 'player',
+                sender_name: fullPlayerName,
+                message_text: message,
+                message_type: 'text',
+                created_at: timestamp,
+                updated_at: timestamp
+              });
+            })(),
 
             // Pusher broadcast (parallel) - Multiple channels simultaneously
             Promise.all([
