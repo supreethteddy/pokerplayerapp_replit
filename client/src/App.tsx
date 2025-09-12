@@ -193,12 +193,12 @@ function AppContent() {
         <Route path="/dashboard">
           {user ? (
             // CRITICAL GUARD: Only allow dashboard access for verified KYC users
-            user.kyc_status === 'verified' ? (
+            user.kycStatus === 'verified' ? (
               <PlayerDashboard key={`dashboard-${user.id}`} user={user} />
             ) : (
               // Redirect pending/unverified users to KYC workflow
               (() => {
-                console.log('🚫 [DASHBOARD GUARD] User has pending KYC - redirecting to KYC workflow', user.kyc_status);
+                console.log('🚫 [DASHBOARD GUARD] User has pending KYC - redirecting to KYC workflow', user.kycStatus);
                 // Set up KYC redirect data for pending users
                 sessionStorage.setItem('kyc_flow_active', 'true');
                 sessionStorage.setItem('kyc_redirect', JSON.stringify({
@@ -208,7 +208,7 @@ function AppContent() {
                   firstName: user.firstName,
                   lastName: user.lastName,
                   nickname: user.nickname,
-                  kycStatus: user.kyc_status
+                  kycStatus: user.kycStatus
                 }));
                 return <Redirect to="/kyc" />;
               })()
