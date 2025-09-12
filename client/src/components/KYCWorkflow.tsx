@@ -46,32 +46,6 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
   // Fetch player ID from props
   const playerId = playerData?.id;
 
-  // Check if email is verified before allowing KYC
-  useEffect(() => {
-    const checkEmailVerification = async () => {
-      try {
-        const response = await fetch(`/api/players/${playerId}`);
-        if (response.ok) {
-          const player = await response.json();
-          if (!player.email_verified) {
-            toast({
-              title: "Email Verification Required",
-              description: "Please verify your email address before completing KYC. Check your inbox for the verification link.",
-              variant: "destructive"
-            });
-            // Redirect to auth page or show appropriate message
-            return;
-          }
-        }
-      } catch (error) {
-        console.error('Error checking email verification:', error);
-      }
-    };
-
-    if (playerId) {
-      checkEmailVerification();
-    }
-  }, [playerId, toast]);
 
   // Remove authentication check - let App.tsx routing handle redirects
 

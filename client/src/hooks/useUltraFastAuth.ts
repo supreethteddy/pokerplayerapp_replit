@@ -310,15 +310,6 @@ export function useUltraFastAuth() {
       if (user) {
         console.log(`🔍 [ULTRA AUTH] Player found - KYC Status: ${user.kyc_status}, Email Verified: ${user.email_verified}`);
 
-        // Check if email is verified first
-        if (!user.email_verified) {
-          setLoading(false);
-          return {
-            success: false,
-            error: "Please verify your email address before signing in. Check your inbox for the verification link.",
-            needsEmailVerification: true
-          };
-        }
 
         // CRITICAL: Only allow login for users with verified KYC status
         if (user.kyc_status !== 'verified') {
