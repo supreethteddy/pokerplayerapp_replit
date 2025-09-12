@@ -49,6 +49,19 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
         
         data.conversations.forEach((conversation: any) => {
           if (conversation.status !== 'resolved') { // Only load non-resolved conversations
+            // Add initial_message as the first message if it exists
+            if (conversation.initial_message) {
+              const initialMessage: ChatMessage = {
+                id: `initial-${conversation.id}`,
+                message: conversation.initial_message,
+                sender: 'player',
+                sender_name: conversation.player_name || playerName,
+                timestamp: conversation.created_at || new Date().toISOString(),
+                isFromStaff: false
+              };
+              allMessages.push(initialMessage);
+            }
+            
             const conversationMessages = conversation.chat_messages?.map((msg: any) => ({
               id: msg.id,
               message: msg.message_text,
