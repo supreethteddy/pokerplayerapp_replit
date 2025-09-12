@@ -308,11 +308,11 @@ export function useUltraFastAuth() {
 
       // Check user verification status
       if (user) {
-        console.log(`🔍 [ULTRA AUTH] Player found - KYC Status: ${user.kyc_status}, Email Verified: ${user.email_verified}`);
+        console.log(`🔍 [ULTRA AUTH] Player found - KYC Status: ${user.kycStatus}, Email Verified: ${user.email_verified}`);
 
 
         // CRITICAL: Only allow login for users with verified KYC status
-        if (user.kyc_status !== 'verified') {
+        if (user.kycStatus !== 'verified') {
           setLoading(false);
           return {
             success: false,
