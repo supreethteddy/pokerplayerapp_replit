@@ -193,7 +193,46 @@ export async function handleSignup(req: Request, res: Response) {
 
         // FIXED: Use only the working email method - inviteUserByEmail
         try {
+          // Secure dynamic redirect URL with strict hostname validation
+          const rawDomains = (process.env.REPLIT_DOMAINS?.split(',') || [])
+            .concat(process.env.VITE_APP_URL ? [process.env.VITE_APP_URL] : [])
+            .map(d => d?.trim())
+            .filter(Boolean);
+          
+          // Extract hostnames from domains (handle both URLs and hostnames)
+          const allowedHosts = rawDomains.map(domain => {
+            try {
+              return domain.startsWith('http') ? new URL(domain).hostname : domain;
+            } catch {
+              return domain; // Treat as hostname if URL parsing fails
+            }
+          }).filter(Boolean);
+          
+          let redirectUrl = process.env.VITE_APP_URL || 'http://localhost:3000';
+          
+          const requestHost = req.get('origin') || req.get('host');
+          if (requestHost && allowedHosts.length > 0) {
+            try {
+              const candidateUrl = requestHost.startsWith('http') ? requestHost : `https://${requestHost}`;
+              const parsedUrl = new URL(candidateUrl);
+              
+              // Strict hostname matching (exact match or subdomain)
+              const isAllowed = allowedHosts.some(allowedHost => 
+                parsedUrl.hostname === allowedHost || 
+                parsedUrl.hostname.endsWith('.' + allowedHost)
+              );
+              
+              // Only accept HTTPS origins and allowed hostnames
+              if (isAllowed && parsedUrl.protocol === 'https:') {
+                redirectUrl = parsedUrl.origin;
+              }
+            } catch {
+              // Fall back to default if any URL parsing fails
+            }
+          }
+          
           const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(trimmedEmail, {
+            redirectTo: redirectUrl,
             data: {
               verification_token: verificationToken,
               player_id: newPlayer.id,
