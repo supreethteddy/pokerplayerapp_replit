@@ -14,7 +14,8 @@ export default function DirectClubsAuth() {
   const [loading, setLoading] = useState(false);
 
   // Form states
-  const [email, setEmail] = useState("");
+  const [signinEmail, setSigninEmail] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -81,15 +82,15 @@ export default function DirectClubsAuth() {
   // Debounce validation calls
   useEffect(() => {
     if (activeTab === 'signup') {
-      if (email) {
-        const timer = setTimeout(() => validateField('email', email), 500);
+      if (signupEmail) {
+        const timer = setTimeout(() => validateField('email', signupEmail), 500);
         return () => clearTimeout(timer);
       } else {
         // Clear error immediately when email is empty
         setEmailError("");
       }
     }
-  }, [email, activeTab, validateField]);
+  }, [signupEmail, activeTab, validateField]);
 
   useEffect(() => {
     if (activeTab === 'signup') {
@@ -125,11 +126,11 @@ export default function DirectClubsAuth() {
 
     try {
       if (activeTab === "signin") {
-        if (!email) {
+        if (!signinEmail) {
           throw new Error("Please enter your email");
         }
 
-        const result = await signIn(email, password);
+        const result = await signIn(signinEmail, password);
 
         if (result.success) {
           toast({
@@ -153,7 +154,7 @@ export default function DirectClubsAuth() {
         // Concatenate first and last name for full_name
         const fullName = `${firstName} ${lastName}`;
         
-        if (!email || !firstName || !lastName || !phone || !nickname) {
+        if (!signupEmail || !firstName || !lastName || !phone || !nickname) {
           throw new Error("Please fill in all required fields");
         }
 
@@ -168,7 +169,7 @@ export default function DirectClubsAuth() {
         }
 
         const result = await signUp(
-          email,
+          signupEmail,
           password,
           firstName, // Pass the first name
           lastName, // Pass the last name
@@ -195,7 +196,7 @@ export default function DirectClubsAuth() {
             sessionStorage.setItem('kyc_redirect', JSON.stringify({
               id: result.player?.id,
               playerId: result.player?.id,
-              email: result.player?.email || email,
+              email: result.player?.email || signupEmail,
               firstName: result.player?.firstName || firstName,
               lastName: result.player?.lastName || lastName,
               nickname: result.player?.nickname || nickname,
@@ -331,13 +332,13 @@ export default function DirectClubsAuth() {
               <Input
                 type="email"
                 placeholder="Enter Email Address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={activeTab === "signin" ? signinEmail : signupEmail}
+                onChange={(e) => activeTab === "signin" ? setSigninEmail(e.target.value) : setSignupEmail(e.target.value)}
                 className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
-                data-testid="input-email"
+                data-testid={activeTab === "signin" ? "input-email-signin" : "input-email-signup"}
                 required
               />
-              {(emailError || validatingEmail) && (
+              {activeTab === "signup" && (emailError || validatingEmail) && (
                 <p className="text-red-500 text-xs mt-1 ml-1">
                   {validatingEmail ? "Checking..." : emailError}
                 </p>
@@ -374,7 +375,7 @@ export default function DirectClubsAuth() {
                   id="remember"
                   checked={rememberPassword}
                   onCheckedChange={(v) => setRememberPassword(!!v)}
-                  className="h-4 w-4 rounded border-gray-600 bg-gray-800 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                  className="h-3 w-3 shrink-0 rounded border-gray-600 bg-gray-800 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 data-[state=checked]:text-white"
                 />
                 <label
                   htmlFor="remember"
