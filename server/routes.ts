@@ -123,6 +123,59 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Player field validation API - Check if email, nickname, or phone already exist
+  app.post("/api/players/validate", async (req, res) => {
+    try {
+      const { field, value } = req.body;
+      
+      if (!field || !value) {
+        return res.status(400).json({ error: 'Field and value are required' });
+      }
+
+      // Validate allowed fields
+      const allowedFields = ['email', 'nickname', 'phone'];
+      if (!allowedFields.includes(field)) {
+        return res.status(400).json({ error: 'Invalid field for validation' });
+      }
+
+      console.log(`🔍 [VALIDATION API] Checking ${field} for duplicates`);
+
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        // Map field names to database column names
+        const fieldMap = {
+          email: 'email',
+          nickname: 'nickname', 
+          phone: 'phone'
+        };
+
+        const dbField = fieldMap[field as keyof typeof fieldMap];
+        const result = await pgClient.query(
+          `SELECT COUNT(*) as count FROM players WHERE ${dbField} = $1`,
+          [value]
+        );
+
+        const exists = parseInt(result.rows[0].count) > 0;
+        await pgClient.end();
+
+        console.log(`✅ [VALIDATION API] ${field} duplicate check completed - exists: ${exists}`);
+        res.json({ exists, field });
+
+      } catch (dbError: any) {
+        await pgClient.end();
+        console.error('❌ [VALIDATION API] Database error:', dbError);
+        return res.status(500).json({ error: 'Database query failed' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [VALIDATION API] Server error:', error);
+      res.status(500).json({ error: 'Failed to validate field' });
+    }
+  });
+
   // Get Player Data by ID (for KYC workflow initialization) - PostgreSQL Direct
   app.get("/api/players/:playerId", async (req, res) => {
     try {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,8 +21,99 @@ export default function DirectClubsAuth() {
   const [lastName, setLastName] = useState("");
   const [nickname, setNickname] = useState(""); // Added nickname state
 
+  // Validation states
+  const [emailError, setEmailError] = useState("");
+  const [nicknameError, setNicknameError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [validatingEmail, setValidatingEmail] = useState(false);
+  const [validatingNickname, setValidatingNickname] = useState(false);
+  const [validatingPhone, setValidatingPhone] = useState(false);
+
   const { signIn, signUp } = useUltraFastAuth();
   const { toast } = useToast();
+
+  // Debounced validation function
+  const validateField = useCallback(async (field: string, value: string) => {
+    if (!value.trim()) {
+      // Clear error if field is empty
+      if (field === 'email') setEmailError("");
+      if (field === 'nickname') setNicknameError("");
+      if (field === 'phone') setPhoneError("");
+      return;
+    }
+
+    try {
+      // Set loading state
+      if (field === 'email') setValidatingEmail(true);
+      if (field === 'nickname') setValidatingNickname(true);
+      if (field === 'phone') setValidatingPhone(true);
+
+      const response = await fetch('/api/players/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field, value: value.trim() })
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.exists) {
+        const errorMessage = `This ${field} is already registered`;
+        if (field === 'email') setEmailError(errorMessage);
+        if (field === 'nickname') setNicknameError(errorMessage);
+        if (field === 'phone') setPhoneError(errorMessage);
+      } else {
+        // Clear error if no duplicate found
+        if (field === 'email') setEmailError("");
+        if (field === 'nickname') setNicknameError("");
+        if (field === 'phone') setPhoneError("");
+      }
+    } catch (error) {
+      console.error(`Validation error for ${field}:`, error);
+      // Don't show validation errors on network failure
+    } finally {
+      // Clear loading state
+      if (field === 'email') setValidatingEmail(false);
+      if (field === 'nickname') setValidatingNickname(false);
+      if (field === 'phone') setValidatingPhone(false);
+    }
+  }, []);
+
+  // Debounce validation calls
+  useEffect(() => {
+    if (activeTab === 'signup') {
+      if (email) {
+        const timer = setTimeout(() => validateField('email', email), 500);
+        return () => clearTimeout(timer);
+      } else {
+        // Clear error immediately when email is empty
+        setEmailError("");
+      }
+    }
+  }, [email, activeTab, validateField]);
+
+  useEffect(() => {
+    if (activeTab === 'signup') {
+      if (nickname) {
+        const timer = setTimeout(() => validateField('nickname', nickname), 500);
+        return () => clearTimeout(timer);
+      } else {
+        // Clear error immediately when nickname is empty
+        setNicknameError("");
+      }
+    }
+  }, [nickname, activeTab, validateField]);
+
+  useEffect(() => {
+    if (activeTab === 'signup') {
+      if (phone) {
+        const timer = setTimeout(() => validateField('phone', phone), 500);
+        return () => clearTimeout(timer);
+      } else {
+        // Clear error immediately when phone is empty
+        setPhoneError("");
+      }
+    }
+  }, [phone, activeTab, validateField]);
 
   // Remove authentication check - let App.tsx routing handle redirects
 
@@ -54,12 +145,6 @@ export default function DirectClubsAuth() {
               description: result.error || "Please complete your KYC verification before signing in.",
               variant: "destructive",
             });
-          } else if (result.needsEmailVerification) {
-            toast({
-              title: "Email Verification Required",
-              description: result.error || "Please verify your email address before signing in.",
-              variant: "destructive",
-            });
           } else {
             throw new Error(result.error || "Sign in failed");
           }
@@ -70,6 +155,16 @@ export default function DirectClubsAuth() {
         
         if (!email || !firstName || !lastName || !phone || !nickname) {
           throw new Error("Please fill in all required fields");
+        }
+
+        // Check for validation errors or ongoing validation
+        if (emailError || nicknameError || phoneError) {
+          throw new Error("Please fix the validation errors before submitting");
+        }
+
+        // Block submission if validation is in progress
+        if (validatingEmail || validatingNickname || validatingPhone) {
+          throw new Error("Please wait for validation to complete");
         }
 
         const result = await signUp(
@@ -197,33 +292,57 @@ export default function DirectClubsAuth() {
                     required
                   />
                 </div>
-                <Input
-                  type="tel"
-                  placeholder="Phone Number"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
-                />
+                <div>
+                  <Input
+                    type="tel"
+                    placeholder="Phone Number"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
+                    data-testid="input-phone"
+                  />
+                  {(phoneError || validatingPhone) && (
+                    <p className="text-red-500 text-xs mt-1 ml-1">
+                      {validatingPhone ? "Checking..." : phoneError}
+                    </p>
+                  )}
+                </div>
                 {/* Nickname Input */}
-                <Input
-                  type="text"
-                  placeholder="Nickname"
-                  value={nickname}
-                  onChange={(e) => setNickname(e.target.value)}
-                  className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
-                  required
-                />
+                <div>
+                  <Input
+                    type="text"
+                    placeholder="Nickname"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
+                    data-testid="input-nickname"
+                    required
+                  />
+                  {(nicknameError || validatingNickname) && (
+                    <p className="text-red-500 text-xs mt-1 ml-1">
+                      {validatingNickname ? "Checking..." : nicknameError}
+                    </p>
+                  )}
+                </div>
               </>
             )}
 
-            <Input
-              type="email"
-              placeholder="Enter Email Address"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
-              required
-            />
+            <div>
+              <Input
+                type="email"
+                placeholder="Enter Email Address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
+                data-testid="input-email"
+                required
+              />
+              {(emailError || validatingEmail) && (
+                <p className="text-red-500 text-xs mt-1 ml-1">
+                  {validatingEmail ? "Checking..." : emailError}
+                </p>
+              )}
+            </div>
 
             <div className="relative">
               <Input
