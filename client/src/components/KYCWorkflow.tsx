@@ -553,7 +553,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                     window.location.href = '/';
                   }}
                   variant="outline"
-                  className="w-full border-gray-600 hover:bg-gray-700 text-white h-12"
+                  className="w-full bg-gray-800 border-gray-600 hover:bg-gray-700 hover:border-gray-500 text-gray-300 hover:text-white h-12 transition-all duration-200"
                 >
                   Back to Login
                 </Button>
