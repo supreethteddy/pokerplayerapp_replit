@@ -231,12 +231,17 @@ export async function handleSignup(req: Request, res: Response) {
             }
           }
           
-          const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(trimmedEmail, {
-            redirectTo: redirectUrl,
-            data: {
-              verification_token: verificationToken,
-              player_id: newPlayer.id,
-              source: 'automated_signup'
+          const { error: inviteError } = await supabaseAdmin.auth.admin.generateLink({
+            type: 'signup',
+            email: trimmedEmail,
+            password: require('crypto').randomBytes(16).toString('hex'),
+            options: {
+              redirectTo: redirectUrl,
+              data: {
+                verification_token: verificationToken,
+                player_id: newPlayer.id,
+                source: 'automated_signup'
+              }
             }
           });
 

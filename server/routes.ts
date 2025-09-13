@@ -2863,10 +2863,15 @@ export function registerRoutes(app: Express) {
 
       // Test 3: Send actual test email
       try {
-        const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-          data: {
-            test: true,
-            timestamp: new Date().toISOString()
+        const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'signup',
+          email: email,
+          password: require('crypto').randomBytes(16).toString('hex'),
+          options: {
+            data: {
+              test: true,
+              timestamp: new Date().toISOString()
+            }
           }
         });
 
