@@ -123,53 +123,6 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // SIMPLE EMAIL VERIFICATION SUCCESS HANDLER - Called by Supabase after successful verification
-  app.get("/api/verify-success", async (req, res) => {
-    try {
-      const email = String(req.query.email || '').toLowerCase().trim();
-      
-      if (!email) {
-        console.error('❌ [VERIFY SUCCESS] Missing email parameter');
-        return res.redirect('/?error=missing-email');
-      }
-
-      console.log(`✅ [VERIFY SUCCESS] Supabase verified email, updating database: ${email}`);
-
-      const { Client } = await import('pg');
-      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
-      await pgClient.connect();
-
-      try {
-        // Update email_verified=true for this email (idempotent)
-        const result = await pgClient.query(
-          'UPDATE players SET email_verified = true WHERE email = $1 RETURNING id, email',
-          [email]
-        );
-
-        await pgClient.end();
-
-        const player = result.rows[0];
-        if (player) {
-          console.log(`✅ [VERIFY SUCCESS] Database updated for player ${player.id}: ${player.email}`);
-        } else {
-          console.log(`⚠️ [VERIFY SUCCESS] No player found for ${email} - user may not be created yet`);
-        }
-        
-        // Always redirect to success (idempotent)
-        res.redirect('/?verified=true');
-
-      } catch (dbError: any) {
-        await pgClient.end();
-        console.error('❌ [VERIFY SUCCESS] Database error:', dbError);
-        // Still redirect to success - Supabase verification worked
-        res.redirect('/?verified=true');
-      }
-
-    } catch (error: any) {
-      console.error('❌ [VERIFY SUCCESS] Server error:', error);
-      res.redirect('/?verified=true');
-    }
-  });
 
   // Player field validation API - Check if email, nickname, or phone already exist
   app.post("/api/players/validate", async (req, res) => {

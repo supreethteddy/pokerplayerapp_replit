@@ -550,7 +550,7 @@ export function useUltraFastAuth() {
       // STEP 1: CLIENT-SIDE SUPABASE SIGNUP (SENDS CONFIRMATION EMAIL)
       console.log('📧 [EMAIL VERIFICATION] Using client-side signUp to send confirmation email');
       
-      const emailRedirectTo = `${window.location.origin}/api/verify-success?email=${encodeURIComponent(email)}`;
+      const emailRedirectTo = `${window.location.origin}/?verified=true`;
       console.log('🔗 [EMAIL VERIFICATION] Redirect URL:', emailRedirectTo);
 
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({

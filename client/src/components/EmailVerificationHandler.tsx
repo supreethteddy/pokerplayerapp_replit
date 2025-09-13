@@ -19,8 +19,8 @@ export default function EmailVerificationHandler() {
       return;
     }
 
-    // Call verification endpoint - use the correct backend route
-    fetch(`/api/email-verification/verify-email?token=${token}&email=${encodeURIComponent(email)}`)
+    // Call verification endpoint - use the correct secure backend route
+    fetch(`/api/auth/verify-email?token=${token}&email=${encodeURIComponent(email)}`)
       .then(response => {
         if (response.ok) {
           console.log('✅ Email verification successful');
