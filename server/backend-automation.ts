@@ -173,8 +173,8 @@ export async function handleSignup(req: Request, res: Response) {
 
       // Always attempt to send verification email
       try {
-        // FIX: Use correct backend URL for email verification
-        const emailResponse = await fetch(`${process.env.BACKEND_URL}/api/auth/send-verification`, {
+        // FIX: Use published app URL for email verification
+        const emailResponse = await fetch(`https://poker-room-tracker-galyxisworkhub.replit.app/api/auth/send-verification`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -283,7 +283,7 @@ export async function handleSignup(req: Request, res: Response) {
                 let reSendEmailSent = false;
                 let reSendEmailMethod = '';
                 try {
-                  const reSendEmailResponse = await fetch(`${process.env.BACKEND_URL}/api/auth/send-verification`, {
+                  const reSendEmailResponse = await fetch(`https://poker-room-tracker-galyxisworkhub.replit.app/api/auth/send-verification`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
