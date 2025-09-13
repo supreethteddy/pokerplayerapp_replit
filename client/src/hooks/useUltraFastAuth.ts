@@ -147,12 +147,15 @@ export function useUltraFastAuth() {
           
           // Simple API call to update email_verified
           try {
-            const response = await fetch('/api/auth/verify-email', {
+            const response = await fetch('/api/email-verification/verify-email', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${session.access_token}`
-              }
+              },
+              body: JSON.stringify({
+                email: userEmail
+              })
             });
 
             if (response.ok) {

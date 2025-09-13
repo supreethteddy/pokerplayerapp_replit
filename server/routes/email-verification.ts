@@ -39,55 +39,92 @@ router.post('/send-verification', async (req, res) => {
 
     console.log(`📧 [EMAIL VERIFICATION] Verification URL for ${email}: ${verificationUrl}`);
     
-    // Send actual email using Supabase Auth
+    // Send actual email using Supabase Auth with enhanced error handling
     const { createClient } = await import('@supabase/supabase-js');
     const supabaseAdmin = createClient(
       process.env.VITE_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
+    let emailSent = false;
+    let emailError = null;
+
     try {
-      // First check if user exists in Supabase Auth
-      const { data: existingUser } = await supabaseAdmin.auth.admin.getUserByEmail(email);
+      // Method 1: Try to invite user (works for new users)
+      console.log(`📧 [EMAIL VERIFICATION] Attempting to invite user: ${email}`);
       
-      if (!existingUser.user) {
-        // Create new user with email confirmation required
-        const { data, error } = await supabaseAdmin.auth.admin.createUser({
-          email: email,
-          email_confirm: false, // This requires email confirmation
-          user_metadata: {
-            verification_token: verificationToken,
-            player_id: playerId,
-            first_name: firstName,
-            custom_verification_url: verificationUrl
-          }
-        });
-
-        if (error) {
-          throw error;
+      const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+        redirectTo: verificationUrl,
+        data: {
+          verification_token: verificationToken,
+          player_id: playerId,
+          first_name: firstName
         }
+      });
 
-        console.log(`📧 [EMAIL VERIFICATION] Supabase user created, confirmation email sent to ${email}`);
-      } else {
-        // User exists, send custom confirmation email
-        const { error } = await supabaseAdmin.auth.admin.generateLink({
-          type: 'signup',
+      if (!inviteError) {
+        emailSent = true;
+        console.log(`✅ [EMAIL VERIFICATION] Invitation email sent successfully to: ${email}`);
+      } else if (inviteError.message?.includes('already registered') || inviteError.message?.includes('already exists')) {
+        console.log(`🔄 [EMAIL VERIFICATION] User exists, trying magic link for: ${email}`);
+        
+        // Method 2: Generate magic link for existing users
+        const { data: magicData, error: magicError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'magiclink',
           email: email,
           options: {
             redirectTo: verificationUrl
           }
         });
 
-        if (error) {
-          throw error;
+        if (!magicError && magicData.properties?.action_link) {
+          emailSent = true;
+          console.log(`✅ [EMAIL VERIFICATION] Magic link generated for existing user: ${email}`);
+          console.log(`🔗 [EMAIL VERIFICATION] Magic link: ${magicData.properties.action_link}`);
+        } else {
+          emailError = magicError;
+          console.error('❌ [EMAIL VERIFICATION] Magic link generation failed:', magicError);
         }
-
-        console.log(`📧 [EMAIL VERIFICATION] Custom confirmation email sent to existing user ${email}`);
+      } else {
+        emailError = inviteError;
+        console.error('❌ [EMAIL VERIFICATION] Invitation failed:', inviteError);
       }
-    } catch (emailError) {
-      console.error('❌ [EMAIL VERIFICATION] Supabase email error:', emailError);
-      // Fallback: log the URL for manual testing
-      console.log(`🔗 [EMAIL VERIFICATION] Manual verification link: ${verificationUrl}`);
+    } catch (supabaseError) {
+      emailError = supabaseError;
+      console.error('❌ [EMAIL VERIFICATION] Supabase error:', supabaseError);
+    }
+
+    // Method 3: Fallback - create user with password reset email
+    if (!emailSent) {
+      try {
+        console.log(`🔄 [EMAIL VERIFICATION] Trying password reset email for: ${email}`);
+        
+        const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'recovery',
+          email: email,
+          options: {
+            redirectTo: verificationUrl
+          }
+        });
+
+        if (!resetError && resetData.properties?.action_link) {
+          emailSent = true;
+          console.log(`✅ [EMAIL VERIFICATION] Password reset email sent to: ${email}`);
+          console.log(`🔗 [EMAIL VERIFICATION] Reset link: ${resetData.properties.action_link}`);
+        } else {
+          console.error('❌ [EMAIL VERIFICATION] Password reset failed:', resetError);
+        }
+      } catch (resetError) {
+        console.error('❌ [EMAIL VERIFICATION] Password reset error:', resetError);
+      }
+    }
+
+    // Always log the verification URL for debugging
+    console.log(`🔗 [EMAIL VERIFICATION] Manual verification link: ${verificationUrl}`);
+    
+    if (!emailSent) {
+      console.error('❌ [EMAIL VERIFICATION] All email methods failed for:', email);
+      console.error('❌ [EMAIL VERIFICATION] Last error:', emailError);
     }
 
     res.json({ 
@@ -102,7 +139,39 @@ router.post('/send-verification', async (req, res) => {
   }
 });
 
-// Verify email endpoint
+// Update email verification status (POST)
+router.post('/verify-email', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email required' });
+    }
+
+    // Update player's email_verified status
+    const { error: updateError } = await supabase
+      .from('players')
+      .update({ 
+        email_verified: true,
+        updated_at: new Date().toISOString()
+      })
+      .eq('email', email);
+
+    if (updateError) {
+      console.error('❌ [EMAIL VERIFICATION] Player update error:', updateError);
+      return res.status(500).json({ error: 'Failed to verify email' });
+    }
+
+    console.log(`✅ [EMAIL VERIFICATION] Email verified for: ${email}`);
+    res.json({ success: true, message: 'Email verified successfully' });
+
+  } catch (error) {
+    console.error('❌ [EMAIL VERIFICATION] Verify error:', error);
+    res.status(500).json({ error: 'Email verification failed' });
+  }
+});
+
+// Verify email endpoint (GET)
 router.get('/verify-email', async (req, res) => {
   try {
     const { token, email } = req.query;

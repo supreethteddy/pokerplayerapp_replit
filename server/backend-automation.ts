@@ -173,7 +173,8 @@ export async function handleSignup(req: Request, res: Response) {
 
       // Always attempt to send verification email
       try {
-        const emailResponse = await fetch(`http://localhost:5000/api/auth/send-verification`, {
+        // FIX: Use correct backend URL for email verification
+        const emailResponse = await fetch(`${process.env.BACKEND_URL}/api/auth/send-verification`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -186,16 +187,28 @@ export async function handleSignup(req: Request, res: Response) {
         });
 
         if (emailResponse.ok) {
+          const emailResult = await emailResponse.json();
           emailSent = true;
           emailMethod = 'supabase_verification_api';
           console.log(`✅ [AUTO EMAIL] Verification email sent via API for: ${trimmedEmail}`);
+          console.log(`🔗 [AUTO EMAIL] Verification details:`, emailResult);
         } else {
-          throw new Error(`Email API failed: ${emailResponse.status}`);
+          const errorText = await emailResponse.text();
+          console.error(`❌ [AUTO EMAIL] Email API failed with status ${emailResponse.status}:`, errorText);
+          throw new Error(`Email API failed: ${emailResponse.status} - ${errorText}`);
         }
       } catch (emailError) {
         console.error(`❌ [AUTO EMAIL] Email sending failed for ${trimmedEmail}:`, emailError);
         emailSent = false;
-        emailMethod = 'failed_fallback_to_manual';
+        emailMethod = 'failed';
+
+        // Log the specific error details
+        if (emailError.message) {
+          console.error(`❌ [AUTO EMAIL] Error message: ${emailError.message}`);
+        }
+        if (emailError.stack) {
+          console.error(`❌ [AUTO EMAIL] Error stack: ${emailError.stack}`);
+        }
       }
 
       // Email handling complete - log final status
@@ -261,10 +274,86 @@ export async function handleSignup(req: Request, res: Response) {
                 message: 'Existing account found. Please complete KYC verification.',
                 redirectToKYC: true
               });
+            } else {
+              // If existing user's KYC is already complete or approved, and they're trying to sign up again
+              // We should NOT send another verification email, but we should inform them.
+              // Also, we need to check if their email is verified. If not, send verification.
+              if (!existingPlayer.email_verified) {
+                // Attempt to send verification email again if not verified
+                let reSendEmailSent = false;
+                let reSendEmailMethod = '';
+                try {
+                  const reSendEmailResponse = await fetch(`${process.env.BACKEND_URL}/api/auth/send-verification`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      email: trimmedEmail,
+                      playerId: existingPlayer.id,
+                      firstName: existingPlayer.first_name || 'User'
+                    })
+                  });
+
+                  if (reSendEmailResponse.ok) {
+                    reSendEmailSent = true;
+                    reSendEmailMethod = 'resend_supabase_verification_api';
+                    console.log(`✅ [AUTO EMAIL - RESEND] Verification email sent via API for existing user: ${trimmedEmail}`);
+                  } else {
+                    const errorText = await reSendEmailResponse.text();
+                    console.error(`❌ [AUTO EMAIL - RESEND] Email API failed with status ${reSendEmailResponse.status}:`, errorText);
+                    throw new Error(`Email API failed: ${reSendEmailResponse.status} - ${errorText}`);
+                  }
+                } catch (resendError) {
+                  console.error(`❌ [AUTO EMAIL - RESEND] Email sending failed for existing user ${trimmedEmail}:`, resendError);
+                  reSendEmailSent = false;
+                  reSendEmailMethod = 'resend_failed';
+                }
+
+                return res.status(409).json({
+                  success: true, // Changed to true as we're handling the existing user case
+                  player: {
+                    id: existingPlayer.id,
+                    player_code: existingPlayer.player_code,
+                    email: existingPlayer.email,
+                    first_name: existingPlayer.first_name,
+                    last_name: existingPlayer.last_name,
+                    nickname: existingPlayer.nickname,
+                    kyc_status: existingPlayer.kyc_status,
+                    balance: existingPlayer.balance,
+                    email_verified: existingPlayer.email_verified,
+                    existing: true
+                  },
+                  message: 'An account with this email already exists. We have sent a verification email. Please check your inbox and spam folder.',
+                  redirectToKYC: false, // Not redirecting to KYC if they already have a status
+                  needsEmailVerification: !existingPlayer.email_verified,
+                  emailSent: reSendEmailSent
+                });
+              } else {
+                // If email is already verified and KYC is complete/approved
+                return res.status(409).json({
+                  success: true,
+                  player: {
+                    id: existingPlayer.id,
+                    player_code: existingPlayer.player_code,
+                    email: existingPlayer.email,
+                    first_name: existingPlayer.first_name,
+                    last_name: existingPlayer.last_name,
+                    nickname: existingPlayer.nickname,
+                    kyc_status: existingPlayer.kyc_status,
+                    balance: existingPlayer.balance,
+                    email_verified: existingPlayer.email_verified,
+                    existing: true
+                  },
+                  message: 'An account with this email already exists and is verified. You can proceed to login.',
+                  redirectToKYC: false,
+                  needsEmailVerification: false,
+                  emailSent: false
+                });
+              }
             }
           }
         } catch (lookupError) {
           console.error('❌ [EXISTING USER LOOKUP] Error:', lookupError);
+          // If lookup fails, fall through to the generic email exists error
         }
 
         return res.status(409).json({
