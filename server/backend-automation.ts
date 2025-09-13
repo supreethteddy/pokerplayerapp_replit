@@ -171,14 +171,31 @@ export async function handleSignup(req: Request, res: Response) {
       let emailSent = false;
       let emailMethod = '';
 
-      if (skipEmail) {
-        console.log(`✅ [AUTO EMAIL] Client-side email verification active - skipping backend email for: ${trimmedEmail}`);
-        emailSent = true;
-        emailMethod = 'client_supabase_signup';
-      } else {
-        console.log(`⚠️ [AUTO EMAIL] Backend email disabled - client should handle email verification for: ${trimmedEmail}`);
+      // Always attempt to send verification email
+      try {
+        const emailResponse = await fetch(`${process.env.VITE_APP_URL || 'http://localhost:5173'}/api/auth/send-verification`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: trimmedEmail,
+            playerId: createdPlayerId,
+            firstName: trimmedFirstName || 'User'
+          })
+        });
+
+        if (emailResponse.ok) {
+          emailSent = true;
+          emailMethod = 'supabase_verification_api';
+          console.log(`✅ [AUTO EMAIL] Verification email sent via API for: ${trimmedEmail}`);
+        } else {
+          throw new Error(`Email API failed: ${emailResponse.status}`);
+        }
+      } catch (emailError) {
+        console.error(`❌ [AUTO EMAIL] Email sending failed for ${trimmedEmail}:`, emailError);
         emailSent = false;
-        emailMethod = 'disabled_use_client_signup';
+        emailMethod = 'failed_fallback_to_manual';
       }
 
       // Email handling complete - log final status

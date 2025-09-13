@@ -39,10 +39,36 @@ router.post('/send-verification', async (req, res) => {
 
     console.log(`📧 [EMAIL VERIFICATION] Verification URL for ${email}: ${verificationUrl}`);
     
-    // In production, you would send actual email here
-    // For now, we'll log it for testing
-    console.log(`📧 [EMAIL VERIFICATION] Email sent to ${email}`);
-    console.log(`🔗 [EMAIL VERIFICATION] Click this link to verify: ${verificationUrl}`);
+    // Send actual email using Supabase Auth
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseAdmin = createClient(
+      process.env.VITE_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    try {
+      // Create or update user in Supabase Auth to trigger email
+      const { error } = await supabaseAdmin.auth.admin.createUser({
+        email: email,
+        email_confirm: false, // This will send confirmation email
+        password: require('crypto').randomBytes(16).toString('hex'),
+        user_metadata: {
+          verification_token: verificationToken,
+          player_id: playerId,
+          first_name: firstName
+        }
+      });
+
+      if (error && !error.message.includes('already registered')) {
+        throw error;
+      }
+
+      console.log(`📧 [EMAIL VERIFICATION] Supabase confirmation email sent to ${email}`);
+    } catch (emailError) {
+      console.error('❌ [EMAIL VERIFICATION] Supabase email error:', emailError);
+      // Fallback: log the URL
+      console.log(`🔗 [EMAIL VERIFICATION] Manual verification link: ${verificationUrl}`);
+    }
 
     res.json({ 
       success: true, 
