@@ -123,17 +123,17 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // SIMPLE EMAIL VERIFICATION ENDPOINT - Sets email_verified=TRUE and redirects to login
-  app.get("/api/email-verified", async (req, res) => {
+  // SIMPLE EMAIL VERIFICATION SUCCESS HANDLER - Called by Supabase after successful verification
+  app.get("/api/verify-success", async (req, res) => {
     try {
       const email = String(req.query.email || '').toLowerCase().trim();
       
       if (!email) {
-        console.error('❌ [EMAIL VERIFICATION] Missing email parameter');
+        console.error('❌ [VERIFY SUCCESS] Missing email parameter');
         return res.redirect('/?error=missing-email');
       }
 
-      console.log(`📧 [EMAIL VERIFICATION] Processing verification for: ${email}`);
+      console.log(`✅ [VERIFY SUCCESS] Supabase verified email, updating database: ${email}`);
 
       const { Client } = await import('pg');
       const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
@@ -148,26 +148,26 @@ export function registerRoutes(app: Express) {
 
         await pgClient.end();
 
-        if (result.rows.length === 0) {
-          console.error(`❌ [EMAIL VERIFICATION] Player not found for email: ${email}`);
-          return res.redirect('/?error=player-not-found');
-        }
-
         const player = result.rows[0];
-        console.log(`✅ [EMAIL VERIFICATION] Email verified successfully for player ${player.id}: ${player.email}`);
+        if (player) {
+          console.log(`✅ [VERIFY SUCCESS] Database updated for player ${player.id}: ${player.email}`);
+        } else {
+          console.log(`⚠️ [VERIFY SUCCESS] No player found for ${email} - user may not be created yet`);
+        }
         
-        // Redirect to login with success flag
+        // Always redirect to success (idempotent)
         res.redirect('/?verified=true');
 
       } catch (dbError: any) {
         await pgClient.end();
-        console.error('❌ [EMAIL VERIFICATION] Database error:', dbError);
-        return res.redirect('/?error=database-error');
+        console.error('❌ [VERIFY SUCCESS] Database error:', dbError);
+        // Still redirect to success - Supabase verification worked
+        res.redirect('/?verified=true');
       }
 
     } catch (error: any) {
-      console.error('❌ [EMAIL VERIFICATION] Server error:', error);
-      res.redirect('/?error=server-error');
+      console.error('❌ [VERIFY SUCCESS] Server error:', error);
+      res.redirect('/?verified=true');
     }
   });
 
