@@ -123,6 +123,54 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // SIMPLE EMAIL VERIFICATION ENDPOINT - Sets email_verified=TRUE and redirects to login
+  app.get("/api/email-verified", async (req, res) => {
+    try {
+      const email = String(req.query.email || '').toLowerCase().trim();
+      
+      if (!email) {
+        console.error('❌ [EMAIL VERIFICATION] Missing email parameter');
+        return res.redirect('/?error=missing-email');
+      }
+
+      console.log(`📧 [EMAIL VERIFICATION] Processing verification for: ${email}`);
+
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        // Update email_verified=true for this email (idempotent)
+        const result = await pgClient.query(
+          'UPDATE players SET email_verified = true WHERE email = $1 RETURNING id, email',
+          [email]
+        );
+
+        await pgClient.end();
+
+        if (result.rows.length === 0) {
+          console.error(`❌ [EMAIL VERIFICATION] Player not found for email: ${email}`);
+          return res.redirect('/?error=player-not-found');
+        }
+
+        const player = result.rows[0];
+        console.log(`✅ [EMAIL VERIFICATION] Email verified successfully for player ${player.id}: ${player.email}`);
+        
+        // Redirect to login with success flag
+        res.redirect('/?verified=true');
+
+      } catch (dbError: any) {
+        await pgClient.end();
+        console.error('❌ [EMAIL VERIFICATION] Database error:', dbError);
+        return res.redirect('/?error=database-error');
+      }
+
+    } catch (error: any) {
+      console.error('❌ [EMAIL VERIFICATION] Server error:', error);
+      res.redirect('/?error=server-error');
+    }
+  });
+
   // Player field validation API - Check if email, nickname, or phone already exist
   app.post("/api/players/validate", async (req, res) => {
     try {
