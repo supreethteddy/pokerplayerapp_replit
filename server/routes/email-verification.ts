@@ -83,7 +83,7 @@ router.post('/send-verification', async (req, res) => {
 });
 
 // Verify email endpoint
-router.get('/verify', async (req, res) => {
+router.get('/verify-email', async (req, res) => {
   try {
     const { token, email } = req.query;
 

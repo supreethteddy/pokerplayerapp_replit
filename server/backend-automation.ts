@@ -173,7 +173,7 @@ export async function handleSignup(req: Request, res: Response) {
 
       // Always attempt to send verification email
       try {
-        const emailResponse = await fetch(`${process.env.VITE_APP_URL || 'http://localhost:5173'}/api/auth/send-verification`, {
+        const emailResponse = await fetch(`http://localhost:5000/api/auth/send-verification`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
