@@ -2458,52 +2458,39 @@ export function registerRoutes(app: Express) {
           process.env.SUPABASE_SERVICE_ROLE_KEY!
         );
 
-        // Try to create or update auth user
-        const { data: existingUser, error: getUserError } = await supabaseAdmin.auth.admin.getUserByEmail(email);
+        // Try to invite user (sends email automatically)
+        console.log(`📧 [EMAIL VERIFICATION] Inviting user via Supabase admin: ${email}`);
+        
+        const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+          redirectTo: `${baseUrl}/?verified=true`
+        });
 
-        if (existingUser && existingUser.user) {
-          // User exists, send recovery email which acts as verification
-          console.log(`🔄 [EMAIL VERIFICATION] Existing user found, sending recovery email`);
+        if (!inviteError) {
+          emailSent = true;
+          emailMethod = 'supabase_invite';
+          console.log(`✅ [EMAIL VERIFICATION] Invitation sent successfully to: ${email}`);
+        } else if (inviteError.message?.includes('already exists') || inviteError.message?.includes('already registered')) {
+          // User exists, try magic link
+          console.log(`🔄 [EMAIL VERIFICATION] User exists, generating magic link for: ${email}`);
           
-          const { error: recoveryError } = await supabaseAdmin.auth.admin.generateLink({
-            type: 'recovery',
+          const { data: magicData, error: magicError } = await supabaseAdmin.auth.admin.generateLink({
+            type: 'magiclink',
             email: email,
             options: {
               redirectTo: `${baseUrl}/?verified=true`
             }
           });
 
-          if (!recoveryError) {
+          if (!magicError && magicData.properties) {
             emailSent = true;
-            emailMethod = 'supabase_recovery';
-            console.log(`✅ [EMAIL VERIFICATION] Recovery email sent to existing user: ${email}`);
+            emailMethod = 'supabase_magiclink';
+            console.log(`✅ [EMAIL VERIFICATION] Magic link generated for existing user: ${email}`);
+            console.log(`🔗 [EMAIL VERIFICATION] Magic link: ${magicData.properties.action_link}`);
           } else {
-            emailErrors.push(`Supabase recovery error: ${recoveryError.message}`);
+            emailErrors.push(`Supabase magic link error: ${magicError?.message}`);
           }
         } else {
-          // Create new auth user
-          console.log(`👤 [EMAIL VERIFICATION] Creating new auth user for: ${email}`);
-          
-          const { data: authUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-            email: email,
-            email_confirm: false, // This triggers confirmation email
-            password: require('crypto').randomBytes(16).toString('hex'),
-            user_metadata: {
-              verification_token: verificationToken,
-              player_id: playerId,
-              first_name: firstName,
-              source: 'email_verification_api',
-              created_at: new Date().toISOString()
-            }
-          });
-
-          if (!createError && authUser.user) {
-            emailSent = true;
-            emailMethod = 'supabase_auth_creation';
-            console.log(`✅ [EMAIL VERIFICATION] Auth user created: ${authUser.user.id}`);
-          } else {
-            emailErrors.push(`Supabase creation error: ${createError?.message}`);
-          }
+          emailErrors.push(`Supabase invite error: ${inviteError.message}`);
         }
 
       } catch (supabaseError: any) {
