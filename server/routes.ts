@@ -2172,10 +2172,14 @@ export function registerRoutes(app: Express) {
         );
 
         // Send confirmation email using Supabase's built-in email service
+        const baseUrl = process.env.REPLIT_URL || `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` || req.get('host');
         const { error: emailError } = await supabaseServiceClient.auth.admin.generateLink({
           type: 'signup',
           email: email,
-          password: 'temp-password-123' // Required parameter for Supabase
+          password: 'temp-password-123', // Required parameter for Supabase
+          options: {
+            redirectTo: `${baseUrl}/?verified=true`
+          }
         });
 
         if (emailError) {
@@ -2465,7 +2469,7 @@ export function registerRoutes(app: Express) {
             type: 'recovery',
             email: email,
             options: {
-              redirectTo: verificationUrl
+              redirectTo: `${baseUrl}/?verified=true`
             }
           });
 
