@@ -47,26 +47,46 @@ router.post('/send-verification', async (req, res) => {
     );
 
     try {
-      // Create or update user in Supabase Auth to trigger email
-      const { error } = await supabaseAdmin.auth.admin.createUser({
-        email: email,
-        email_confirm: false, // This will send confirmation email
-        password: require('crypto').randomBytes(16).toString('hex'),
-        user_metadata: {
-          verification_token: verificationToken,
-          player_id: playerId,
-          first_name: firstName
+      // First check if user exists in Supabase Auth
+      const { data: existingUser } = await supabaseAdmin.auth.admin.getUserByEmail(email);
+      
+      if (!existingUser.user) {
+        // Create new user with email confirmation required
+        const { data, error } = await supabaseAdmin.auth.admin.createUser({
+          email: email,
+          email_confirm: false, // This requires email confirmation
+          user_metadata: {
+            verification_token: verificationToken,
+            player_id: playerId,
+            first_name: firstName,
+            custom_verification_url: verificationUrl
+          }
+        });
+
+        if (error) {
+          throw error;
         }
-      });
 
-      if (error && !error.message.includes('already registered')) {
-        throw error;
+        console.log(`📧 [EMAIL VERIFICATION] Supabase user created, confirmation email sent to ${email}`);
+      } else {
+        // User exists, send custom confirmation email
+        const { error } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'signup',
+          email: email,
+          options: {
+            redirectTo: verificationUrl
+          }
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        console.log(`📧 [EMAIL VERIFICATION] Custom confirmation email sent to existing user ${email}`);
       }
-
-      console.log(`📧 [EMAIL VERIFICATION] Supabase confirmation email sent to ${email}`);
     } catch (emailError) {
       console.error('❌ [EMAIL VERIFICATION] Supabase email error:', emailError);
-      // Fallback: log the URL
+      // Fallback: log the URL for manual testing
       console.log(`🔗 [EMAIL VERIFICATION] Manual verification link: ${verificationUrl}`);
     }
 
@@ -121,6 +141,21 @@ router.get('/verify-email', async (req, res) => {
     if (updateError) {
       console.error('❌ [EMAIL VERIFICATION] Player update error:', updateError);
       return res.status(500).json({ error: 'Failed to verify email' });
+    }
+
+    // Also update Supabase Auth user if exists
+    try {
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabaseAdmin = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      await supabaseAdmin.auth.admin.updateUserById(tokenData.player_id.toString(), {
+        email_confirm: true
+      });
+    } catch (authUpdateError) {
+      console.warn('⚠️ [EMAIL VERIFICATION] Could not update Supabase Auth user:', authUpdateError);
     }
 
     // Delete used token
