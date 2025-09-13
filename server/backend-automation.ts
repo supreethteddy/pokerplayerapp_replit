@@ -129,33 +129,33 @@ export async function handleSignup(req: Request, res: Response) {
       // Build full_name (step 1)
       const fullName = `${trimmedFirstName} ${trimmedLastName}`.trim();
 
-      // Insert into public.players with exact fields from specification
+      // Insert into public.players - SECURITY FIX: Removed plaintext password storage
+      // Using Supabase Auth as single source of truth for authentication
       const insertQuery = `
         INSERT INTO public.players (
-          email, password, first_name, last_name, phone, nickname, player_code, kyc_status,
+          email, first_name, last_name, phone, nickname, player_code, kyc_status,
           balance, total_deposits, total_withdrawals, total_losses, total_winnings,
           games_played, hours_played, is_active, full_name, last_login_at,
           credit_eligible, clerk_user_id, current_credit, credit_limit, email_verified
         )
         VALUES (
-          $1, $2, $3, $4, $5, $6, $7, 'pending',
+          $1, $2, $3, $4, $5, $6, 'pending',
           '0.00', '0.00', '0.00', '0.00', '0.00',
-          0, '0.00', true, $8, null,
-          false, $9, 0, 0, false
+          0, '0.00', true, $7, null,
+          false, $8, 0, 0, false
         )
         RETURNING id, player_code, email, first_name, last_name, kyc_status, balance, email_verified
       `;
 
       const result = await pgClient.query(insertQuery, [
         trimmedEmail, // $1 (lowercased)
-        req.body.password, // $2 (plain text password)
-        trimmedFirstName, // $3
-        trimmedLastName, // $4
-        trimmedPhone, // $5
-        trimmedNickname, // $6
-        playerCode!, // $7
-        fullName, // $8
-        trimmedClerkUserId // $9
+        trimmedFirstName, // $2
+        trimmedLastName, // $3
+        trimmedPhone, // $4
+        trimmedNickname, // $5
+        playerCode!, // $6
+        fullName, // $7
+        trimmedClerkUserId // $8
       ]);
 
       const newPlayer = result.rows[0];
@@ -163,111 +163,29 @@ export async function handleSignup(req: Request, res: Response) {
 
       console.log(`✅ [BACKEND AUTOMATION] Player created successfully: ${trimmedEmail} (ID: ${newPlayer.id}, Code: ${whitelabelPlayerId})`);
 
-      // AUTOMATIC EMAIL VERIFICATION TRIGGER
-      console.log(`📧 [AUTO EMAIL] Triggering verification email for: ${trimmedEmail}`);
+      // EMAIL VERIFICATION HANDLING
+      const skipEmail = req.headers['x-skip-email'] === 'true';
+      console.log(`📧 [AUTO EMAIL] Email handling mode - Skip: ${skipEmail} for: ${trimmedEmail}`);
 
       // Declare email tracking variables at proper scope
       let emailSent = false;
       let emailMethod = '';
 
-      try {
-        // Generate verification token
-        const verificationToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-        const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      if (skipEmail) {
+        console.log(`✅ [AUTO EMAIL] Client-side email verification active - skipping backend email for: ${trimmedEmail}`);
+        emailSent = true;
+        emailMethod = 'client_supabase_signup';
+      } else {
+        console.log(`⚠️ [AUTO EMAIL] Backend email disabled - client should handle email verification for: ${trimmedEmail}`);
+        emailSent = false;
+        emailMethod = 'disabled_use_client_signup';
+      }
 
-        // Store verification token in database
-        await pgClient.query(`
-          UPDATE players
-          SET verification_token = $1, token_expiry = $2
-          WHERE id = $3
-        `, [verificationToken, tokenExpiry, newPlayer.id]);
-
-        // Enhanced email sending with Supabase Auth
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabaseAdmin = createClient(
-          process.env.VITE_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
-
-        // Variables now declared at broader scope above
-
-        // FIXED: Use only the working email method - inviteUserByEmail
-        try {
-          // Secure dynamic redirect URL with strict hostname validation
-          const rawDomains = (process.env.REPLIT_DOMAINS?.split(',') || [])
-            .concat(process.env.VITE_APP_URL ? [process.env.VITE_APP_URL] : [])
-            .map(d => d?.trim())
-            .filter(Boolean);
-          
-          // Extract hostnames from domains (handle both URLs and hostnames)
-          const allowedHosts = rawDomains.map(domain => {
-            try {
-              return domain.startsWith('http') ? new URL(domain).hostname : domain;
-            } catch {
-              return domain; // Treat as hostname if URL parsing fails
-            }
-          }).filter(Boolean);
-          
-          let redirectUrl = process.env.VITE_APP_URL || 'http://localhost:3000';
-          
-          const requestHost = req.get('origin') || req.get('host');
-          if (requestHost && allowedHosts.length > 0) {
-            try {
-              const candidateUrl = requestHost.startsWith('http') ? requestHost : `https://${requestHost}`;
-              const parsedUrl = new URL(candidateUrl);
-              
-              // Strict hostname matching (exact match or subdomain)
-              const isAllowed = allowedHosts.some(allowedHost => 
-                parsedUrl.hostname === allowedHost || 
-                parsedUrl.hostname.endsWith('.' + allowedHost)
-              );
-              
-              // Only accept HTTPS origins and allowed hostnames
-              if (isAllowed && parsedUrl.protocol === 'https:') {
-                redirectUrl = parsedUrl.origin;
-              }
-            } catch {
-              // Fall back to default if any URL parsing fails
-            }
-          }
-          
-          const { data: authUser, error: inviteError } = await supabaseAdmin.auth.admin.createUser({
-            email: trimmedEmail,
-            email_confirm: false, // This triggers confirmation email
-            password: require('crypto').randomBytes(16).toString('hex'),
-            user_metadata: {
-              verification_token: verificationToken,
-              player_id: newPlayer.id,
-              source: 'automated_signup',
-              redirect_to: redirectUrl
-            }
-          });
-
-          if (!inviteError) {
-            console.log(`✅ [AUTO EMAIL] Supabase invite sent successfully: ${trimmedEmail}`);
-            emailSent = true;
-            emailMethod = 'supabase_invite';
-          } else {
-            console.log(`❌ [AUTO EMAIL] Supabase invite failed:`, inviteError.message);
-            emailSent = false;
-          }
-        } catch (inviteError: any) {
-          console.log(`❌ [AUTO EMAIL] Supabase invite error:`, inviteError.message);
-          emailSent = false;
-        }
-
-        // REMOVED: Fake console fallback that lies about email delivery
-        // No fallback - if Supabase invite fails, we report honest failure
-
-        if (emailSent) {
-          console.log(`✅ [AUTO EMAIL] Verification email sent via ${emailMethod} to: ${trimmedEmail}`);
-        } else {
-          console.log(`❌ [AUTO EMAIL] Failed to send verification email to: ${trimmedEmail}`);
-        }
-
-      } catch (emailError: any) {
-        console.error(`❌ [AUTO EMAIL] Error sending verification email:`, emailError);
-        // Don't fail signup if email sending fails
+      // Email handling complete - log final status
+      if (emailSent) {
+        console.log(`✅ [AUTO EMAIL] Email verification handled via ${emailMethod} for: ${trimmedEmail}`);
+      } else {
+        console.log(`⚠️ [AUTO EMAIL] Email verification not sent for: ${trimmedEmail} (method: ${emailMethod})`);
       }
 
       res.json({

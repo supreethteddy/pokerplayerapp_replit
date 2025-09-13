@@ -547,12 +547,48 @@ export function useUltraFastAuth() {
       // Generate the new player code
       const newPlayerCode = await generatePlayerId(existingPlayerCodes);
 
-      // PRODUCTION-GRADE BACKEND AUTOMATION SIGNUP
+      // STEP 1: CLIENT-SIDE SUPABASE SIGNUP (SENDS CONFIRMATION EMAIL)
+      console.log('📧 [EMAIL VERIFICATION] Using client-side signUp to send confirmation email');
+      
+      const emailRedirectTo = `${window.location.origin}/auth/verify-email`;
+      console.log('🔗 [EMAIL VERIFICATION] Redirect URL:', emailRedirectTo);
+
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: emailRedirectTo,
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+            nickname: nickname,
+            phone: phone
+          }
+        }
+      });
+
+      // Handle existing user case - resend confirmation email
+      if (signUpError?.message?.includes('already registered')) {
+        console.log('📧 [EMAIL VERIFICATION] User exists, resending confirmation email');
+        await supabase.auth.resend({
+          type: 'signup',
+          email: email,
+          options: { emailRedirectTo: emailRedirectTo }
+        });
+        console.log('✅ [EMAIL VERIFICATION] Confirmation email resent');
+      } else if (signUpError) {
+        throw new Error(`Email verification setup failed: ${signUpError.message}`);
+      } else {
+        console.log('✅ [EMAIL VERIFICATION] Confirmation email sent via client-side signUp');
+      }
+
+      // STEP 2: BACKEND PLAYER CREATION (WITHOUT EMAIL SENDING)
       // Use our backend automation endpoint with POKEPLAYER whitelabeling system
       const response = await fetch('/api/auth/signup-automation', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Skip-Email': 'true' // Flag to skip email sending in backend
         },
         body: JSON.stringify({
           email,
@@ -561,7 +597,8 @@ export function useUltraFastAuth() {
           last_name: lastName,
           phone,
           nickname,
-          clerk_user_id: `user_${email.replace('@', '_').replace('.', '_')}_${Date.now()}`
+          clerk_user_id: `user_${email.replace('@', '_').replace('.', '_')}_${Date.now()}`,
+          supabase_user_id: signUpData?.user?.id
         }),
       });
 
