@@ -13,26 +13,44 @@ export default function EmailVerificationHandler() {
     const email = urlParams.get('email');
 
     if (!token || !email) {
-      setLocation('/email-verified?error=Invalid verification link');
+      console.error('Missing verification parameters');
+      // Redirect to login with error
+      setTimeout(() => setLocation('/auth?error=Invalid verification link'), 2000);
       return;
     }
 
-    // Call verification endpoint
-    fetch(`/api/auth/verify?token=${token}&email=${encodeURIComponent(email)}`)
+    // Call verification endpoint - use the correct backend route
+    fetch(`/api/auth/verify-email?token=${token}&email=${encodeURIComponent(email)}`)
       .then(response => {
         if (response.ok) {
-          setLocation('/email-verified?success=true');
+          console.log('✅ Email verification successful');
+          // Redirect to login with success message
+          setTimeout(() => setLocation('/auth?verified=true'), 2000);
         } else {
-          return response.json().then(data => {
-            throw new Error(data.error || 'Verification failed');
+          return response.text().then(data => {
+            // Backend might return HTML error page, so handle both
+            if (data.includes('Invalid') || data.includes('expired')) {
+              throw new Error('Verification link invalid or expired');
+            } else {
+              throw new Error('Verification failed');
+            }
           });
         }
       })
       .catch(error => {
         console.error('Email verification error:', error);
-        setLocation(`/email-verified?error=${encodeURIComponent(error.message)}`);
+        // Redirect to login with error
+        setTimeout(() => setLocation(`/auth?error=${encodeURIComponent(error.message)}`), 2000);
       });
-  }, [location, setLocation]);
+  }, [setLocation]);
 
-  return <LoadingScreen onComplete={() => {}} />;
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto mb-4"></div>
+        <h2 className="text-xl font-semibold text-white mb-2">Verifying Your Email...</h2>
+        <p className="text-slate-400">Please wait while we confirm your email address.</p>
+      </div>
+    </div>
+  );
 }

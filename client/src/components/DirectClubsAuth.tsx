@@ -33,6 +33,11 @@ export default function DirectClubsAuth() {
   const { signIn, signUp } = useUltraFastAuth();
   const { toast } = useToast();
 
+  // Check for verification status from URL params
+  const urlParams = new URLSearchParams(window.location.search);
+  const isVerified = urlParams.get('verified') === 'true';
+  const verificationError = urlParams.get('error');
+
   // Debounced validation function
   const validateField = useCallback(async (field: string, value: string) => {
     if (!value.trim()) {
@@ -153,7 +158,7 @@ export default function DirectClubsAuth() {
       } else {
         // Concatenate first and last name for full_name
         const fullName = `${firstName} ${lastName}`;
-        
+
         if (!signupEmail || !firstName || !lastName || !phone || !nickname) {
           throw new Error("Please fill in all required fields");
         }
@@ -190,7 +195,7 @@ export default function DirectClubsAuth() {
               "🎯 [AUTH] Redirecting to KYC process for player:",
               result.player?.id,
             );
-            
+
             // CRITICAL FIX: Explicit redirect to KYC page without auto-login
             sessionStorage.setItem('kyc_flow_active', 'true');
             sessionStorage.setItem('kyc_redirect', JSON.stringify({
@@ -202,7 +207,7 @@ export default function DirectClubsAuth() {
               nickname: result.player?.nickname || nickname,
               kycStatus: result.player?.kyc_status || 'pending'
             }));
-            
+
             // Force immediate redirect to KYC page
             setTimeout(() => {
               window.location.href = '/kyc';
@@ -236,7 +241,23 @@ export default function DirectClubsAuth() {
           <X className="w-5 h-5" />
         </Button>
 
-        <CardHeader className="text-center pb-4">
+        {/* Verification Success Message */}
+        {isVerified && (
+          <div className="mb-6 p-4 bg-emerald-600/20 border border-emerald-500/30 rounded-lg text-center">
+            <div className="text-emerald-300 font-medium mb-1">✅ Email Verified!</div>
+            <div className="text-sm text-emerald-400">Your email has been successfully verified. You can now sign in.</div>
+          </div>
+        )}
+
+        {/* Verification Error Message */}
+        {verificationError && (
+          <div className="mb-6 p-4 bg-red-600/20 border border-red-500/30 rounded-lg text-center">
+            <div className="text-red-300 font-medium mb-1">❌ Verification Failed</div>
+            <div className="text-sm text-red-400">{decodeURIComponent(verificationError)}</div>
+          </div>
+        )}
+
+        <CardHeader className="text-center mb-8">
           {/* Logo */}
           <div className="flex justify-center mb-6">
             <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
