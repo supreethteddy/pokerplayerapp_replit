@@ -1395,20 +1395,44 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Supabase email verification completion endpoint
+  // Supabase email verification completion endpoint (SECURE)
   app.post("/api/auth/verify-supabase", async (req, res) => {
     try {
-      const { email } = req.body;
-
-      if (!email) {
-        return res.status(400).json({ error: "Email is required" });
+      const authHeader = req.headers.authorization;
+      
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: "Authorization token required" });
       }
 
-      console.log(`📧 [EMAIL VERIFICATION] Processing Supabase verification for: ${email}`);
+      const accessToken = authHeader.split(' ')[1];
+      
+      if (!accessToken) {
+        return res.status(401).json({ error: "Valid access token required" });
+      }
 
-      // Update player's email_verified status directly in players table
+      console.log(`📧 [EMAIL VERIFICATION] Validating Supabase access token...`);
+
+      // Initialize Supabase Admin client for token validation
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabaseAdmin = createClient(
+        process.env.VITE_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Validate the access token and get user
+      const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
+      
+      if (authError || !user || !user.email) {
+        console.error('❌ [EMAIL VERIFICATION] Invalid access token:', authError);
+        return res.status(401).json({ error: "Invalid or expired access token" });
+      }
+
+      const email = user.email;
+      console.log(`📧 [EMAIL VERIFICATION] Processing Supabase verification for validated user: ${email}`);
+
+      // Update player's email_verified status using correct DATABASE_URL
       const { Client } = await import('pg');
-      const pgClient = new Client({ connectionString: process.env.SUPABASE_DATABASE_URL });
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
       await pgClient.connect();
 
       try {
