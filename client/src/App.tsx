@@ -73,6 +73,22 @@ function AppContent() {
     }
   }, [user, loading, hasShownLoadingScreen]);
 
+  // Handle email verification success - MUST BE BEFORE ANY CONDITIONAL RETURNS
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const verified = urlParams.get('verified');
+    if (verified === 'true') {
+      toast({
+        title: "Email Verified Successfully! ✅",
+        description: "Your email has been verified. Please sign in to continue.",
+        duration: 6000,
+        className: "bg-green-600 text-white",
+      });
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [toast]);
+
   // Debug logging for routing
   console.log('🔍 [APP ROUTING] user:', !!user, 'loading:', loading, 'authChecked:', authChecked);
   if (user) {
@@ -184,22 +200,6 @@ function AppContent() {
       />
     );
   }
-
-  // Handle email verification success
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const verified = urlParams.get('verified');
-    if (verified === 'true') {
-      toast({
-        title: "Email Verified Successfully! ✅",
-        description: "Your email has been verified. Please sign in to continue.",
-        duration: 6000,
-        className: "bg-green-600 text-white",
-      });
-      // Clean up URL
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, [toast]);
 
   return (
     <div className="dark">
