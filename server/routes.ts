@@ -1395,42 +1395,35 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Supabase email verification completion endpoint (SECURE)
-  app.post("/api/auth/verify-supabase", async (req, res) => {
+  // Simple secure email verification - validate token, update database
+  app.post("/api/auth/verify-email", async (req, res) => {
     try {
       const authHeader = req.headers.authorization;
       
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: "Authorization token required" });
+        return res.status(401).json({ error: "Access token required" });
       }
 
       const accessToken = authHeader.split(' ')[1];
-      
-      if (!accessToken) {
-        return res.status(401).json({ error: "Valid access token required" });
-      }
+      console.log(`📧 [EMAIL VERIFICATION] Validating Supabase token...`);
 
-      console.log(`📧 [EMAIL VERIFICATION] Validating Supabase access token...`);
-
-      // Initialize Supabase Admin client for token validation
+      // Quick validation with Supabase
       const { createClient } = await import('@supabase/supabase-js');
       const supabaseAdmin = createClient(
         process.env.VITE_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      // Validate the access token and get user
       const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
       
       if (authError || !user || !user.email) {
-        console.error('❌ [EMAIL VERIFICATION] Invalid access token:', authError);
-        return res.status(401).json({ error: "Invalid or expired access token" });
+        return res.status(401).json({ error: "Invalid token" });
       }
 
       const email = user.email;
-      console.log(`📧 [EMAIL VERIFICATION] Processing Supabase verification for validated user: ${email}`);
+      console.log(`📧 [EMAIL VERIFICATION] Simple verification for: ${email}`);
 
-      // Update player's email_verified status using correct DATABASE_URL
+      // Simple database update
       const { Client } = await import('pg');
       const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
       await pgClient.connect();
@@ -1443,8 +1436,6 @@ export function registerRoutes(app: Express) {
           RETURNING id, email, email_verified
         `, [email]);
 
-        await pgClient.end();
-
         if (updateResult.rows.length === 0) {
           console.log(`❌ [EMAIL VERIFICATION] No player found with email: ${email}`);
           return res.status(404).json({ error: "Player not found" });
@@ -1455,7 +1446,7 @@ export function registerRoutes(app: Express) {
 
         res.json({
           success: true,
-          message: "Email verification completed successfully",
+          message: "Email verification completed",
           player: {
             id: updatedPlayer.id,
             email: updatedPlayer.email,
@@ -1464,9 +1455,10 @@ export function registerRoutes(app: Express) {
         });
 
       } catch (dbError: any) {
-        await pgClient.end();
         console.error('❌ [EMAIL VERIFICATION] Database error:', dbError);
         return res.status(500).json({ error: 'Failed to update email verification status' });
+      } finally {
+        await pgClient.end();
       }
 
     } catch (error: any) {

@@ -131,24 +131,23 @@ export function useUltraFastAuth() {
 
   const checkEmailVerification = async () => {
     try {
-      // Use existing Supabase client singleton to avoid multiple instances
+      // Simple check - look for Supabase session after email verification
       const { supabase } = await import('@/lib/supabase');
-
-      const { data: { session }, error } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       
-      if (session && session.user && session.user.email && session.access_token) {
+      if (session && session.user && session.user.email) {
         const userEmail = session.user.email;
-        const verificationKey = `supabase_verification_checked:${userEmail}`;
+        const verificationKey = `email_verified:${userEmail}`;
         
-        // Check if this verification has already been processed for this user
+        // Check if already processed for this user
         const alreadyProcessed = sessionStorage.getItem(verificationKey);
         
         if (!alreadyProcessed) {
-          console.log('📧 [EMAIL VERIFICATION] Detected fresh Supabase session, updating email verification status');
+          console.log('📧 [EMAIL VERIFICATION] Detected email verification, updating database');
           
-          // Call backend with Authorization header for security
+          // Simple API call to update email_verified
           try {
-            const response = await fetch('/api/auth/verify-supabase', {
+            const response = await fetch('/api/auth/verify-email', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -157,27 +156,24 @@ export function useUltraFastAuth() {
             });
 
             if (response.ok) {
-              const result = await response.json();
-              console.log('✅ [EMAIL VERIFICATION] Successfully updated email verification:', result);
+              console.log('✅ [EMAIL VERIFICATION] Email verified successfully');
               
-              // Show success message
               toast({
                 title: "Email Verified!",
-                description: "Your email has been successfully verified. You can now continue with your account setup.",
+                description: "Your email has been verified. You can now continue.",
               });
 
-              // Mark this verification as processed ONLY on success
+              // Mark as processed
               sessionStorage.setItem(verificationKey, 'true');
 
-              // Sign out from Supabase auth since we only use it for verification
+              // Clean up Supabase session
               await supabase.auth.signOut();
-              console.log('🚪 [EMAIL VERIFICATION] Signed out from Supabase after verification');
               
             } else {
-              console.error('❌ [EMAIL VERIFICATION] Failed to update verification status:', response.status);
+              console.error('❌ [EMAIL VERIFICATION] Failed to verify email');
             }
           } catch (apiError) {
-            console.error('❌ [EMAIL VERIFICATION] API call failed:', apiError);
+            console.error('❌ [EMAIL VERIFICATION] API error:', apiError);
           }
         }
       }
