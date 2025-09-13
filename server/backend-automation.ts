@@ -129,33 +129,33 @@ export async function handleSignup(req: Request, res: Response) {
       // Build full_name (step 1)
       const fullName = `${trimmedFirstName} ${trimmedLastName}`.trim();
 
-      // Insert into public.players - SECURITY FIX: Removed plaintext password storage
-      // Using Supabase Auth as single source of truth for authentication
+      // Insert into public.players - Include password field as per database schema
       const insertQuery = `
         INSERT INTO public.players (
-          email, first_name, last_name, phone, nickname, player_code, kyc_status,
+          email, password, first_name, last_name, phone, nickname, player_code, kyc_status,
           balance, total_deposits, total_withdrawals, total_losses, total_winnings,
           games_played, hours_played, is_active, full_name, last_login_at,
           credit_eligible, clerk_user_id, current_credit, credit_limit, email_verified
         )
         VALUES (
-          $1, $2, $3, $4, $5, $6, 'pending',
+          $1, $2, $3, $4, $5, $6, $7, 'pending',
           '0.00', '0.00', '0.00', '0.00', '0.00',
-          0, '0.00', true, $7, null,
-          false, $8, 0, 0, false
+          0, '0.00', true, $8, null,
+          false, $9, 0, 0, false
         )
         RETURNING id, player_code, email, first_name, last_name, kyc_status, balance, email_verified
       `;
 
       const result = await pgClient.query(insertQuery, [
         trimmedEmail, // $1 (lowercased)
-        trimmedFirstName, // $2
-        trimmedLastName, // $3
-        trimmedPhone, // $4
-        trimmedNickname, // $5
-        playerCode!, // $6
-        fullName, // $7
-        trimmedClerkUserId // $8
+        req.body.password || '', // $2 (password from request)
+        trimmedFirstName, // $3
+        trimmedLastName, // $4
+        trimmedPhone, // $5
+        trimmedNickname, // $6
+        playerCode!, // $7
+        fullName, // $8
+        trimmedClerkUserId // $9
       ]);
 
       const newPlayer = result.rows[0];
@@ -173,8 +173,8 @@ export async function handleSignup(req: Request, res: Response) {
 
       // Always attempt to send verification email
       try {
-        // FIX: Use published app URL for email verification
-        const emailResponse = await fetch(`https://poker-room-tracker-galyxisworkhub.replit.app/api/auth/send-verification`, {
+        // FIX: Use local backend URL for email verification
+        const emailResponse = await fetch(`http://localhost:5000/api/email-verification/send-verification`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -283,7 +283,7 @@ export async function handleSignup(req: Request, res: Response) {
                 let reSendEmailSent = false;
                 let reSendEmailMethod = '';
                 try {
-                  const reSendEmailResponse = await fetch(`https://poker-room-tracker-galyxisworkhub.replit.app/api/auth/send-verification`, {
+                  const reSendEmailResponse = await fetch(`http://localhost:5000/api/email-verification/send-verification`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

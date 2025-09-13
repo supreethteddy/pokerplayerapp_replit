@@ -139,13 +139,39 @@ router.post('/send-verification', async (req, res) => {
   }
 });
 
-// Update email verification status (POST)
+// Update email verification status (POST) - handles both token and direct verification
 router.post('/verify-email', async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, token } = req.body;
 
     if (!email) {
       return res.status(400).json({ error: 'Email required' });
+    }
+
+    // If token provided, validate it first
+    if (token) {
+      const { data: tokenData, error: tokenError } = await supabase
+        .from('email_verification_tokens')
+        .select('*')
+        .eq('token', token)
+        .eq('email', email)
+        .single();
+
+      if (tokenError || !tokenData) {
+        console.error('❌ [EMAIL VERIFICATION] Invalid token:', token);
+        return res.status(400).json({ error: 'Invalid or expired verification token' });
+      }
+
+      // Check if token is expired
+      if (new Date(tokenData.expires_at) < new Date()) {
+        return res.status(400).json({ error: 'Verification token has expired' });
+      }
+
+      // Delete used token
+      await supabase
+        .from('email_verification_tokens')
+        .delete()
+        .eq('token', token);
     }
 
     // Update player's email_verified status
