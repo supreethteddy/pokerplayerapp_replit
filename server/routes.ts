@@ -1395,6 +1395,65 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Supabase email verification completion endpoint
+  app.post("/api/auth/verify-supabase", async (req, res) => {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      console.log(`📧 [EMAIL VERIFICATION] Processing Supabase verification for: ${email}`);
+
+      // Update player's email_verified status directly in players table
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.SUPABASE_DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        const updateResult = await pgClient.query(`
+          UPDATE public.players 
+          SET email_verified = true, updated_at = NOW()
+          WHERE email = $1
+          RETURNING id, email, email_verified
+        `, [email]);
+
+        await pgClient.end();
+
+        if (updateResult.rows.length === 0) {
+          console.log(`❌ [EMAIL VERIFICATION] No player found with email: ${email}`);
+          return res.status(404).json({ error: "Player not found" });
+        }
+
+        const updatedPlayer = updateResult.rows[0];
+        console.log(`✅ [EMAIL VERIFICATION] Email verified for player ID: ${updatedPlayer.id}, email: ${updatedPlayer.email}`);
+
+        res.json({
+          success: true,
+          message: "Email verification completed successfully",
+          player: {
+            id: updatedPlayer.id,
+            email: updatedPlayer.email,
+            email_verified: updatedPlayer.email_verified
+          }
+        });
+
+      } catch (dbError: any) {
+        await pgClient.end();
+        console.error('❌ [EMAIL VERIFICATION] Database error:', dbError);
+        return res.status(500).json({ error: 'Failed to update email verification status' });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [EMAIL VERIFICATION] Error:', error);
+      res.status(500).json({
+        error: "Email verification failed",
+        details: error.message
+      });
+    }
+  });
+
   // Player existence check endpoint (prevents duplicate signups)
   app.get("/api/players/check", async (req, res) => {
     try {

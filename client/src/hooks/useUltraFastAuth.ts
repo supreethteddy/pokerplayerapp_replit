@@ -85,6 +85,9 @@ export function useUltraFastAuth() {
 
   const checkSessionUltraFast = async () => {
     try {
+      // CHECK FOR EMAIL VERIFICATION FIRST
+      await checkEmailVerification();
+
       // Check if user is stored in sessionStorage from recent login
       const storedUser = sessionStorage.getItem('authenticated_user');
       const justSignedIn = sessionStorage.getItem('just_signed_in');
@@ -123,6 +126,61 @@ export function useUltraFastAuth() {
       console.error('❌ [ULTRA-FAST AUTH] Session check error:', error);
       setLoading(false);
       setAuthChecked(true);
+    }
+  };
+
+  const checkEmailVerification = async () => {
+    try {
+      // Check if user just completed email verification by checking Supabase session
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        import.meta.env.VITE_SUPABASE_URL!,
+        import.meta.env.VITE_SUPABASE_ANON_KEY!
+      );
+
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (session && session.user && session.user.email) {
+        // Check if this is a fresh verification (user wasn't logged in before)
+        const previousSession = sessionStorage.getItem('supabase_verification_checked');
+        
+        if (!previousSession) {
+          console.log('📧 [EMAIL VERIFICATION] Detected fresh Supabase session, updating email verification status');
+          
+          // Call backend to update email_verified in players table
+          try {
+            const response = await fetch('/api/auth/verify-supabase', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                email: session.user.email
+              })
+            });
+
+            if (response.ok) {
+              const result = await response.json();
+              console.log('✅ [EMAIL VERIFICATION] Successfully updated email verification:', result);
+              
+              // Show success message
+              toast({
+                title: "Email Verified!",
+                description: "Your email has been successfully verified. You can now continue with your account setup.",
+              });
+            } else {
+              console.error('❌ [EMAIL VERIFICATION] Failed to update verification status');
+            }
+          } catch (apiError) {
+            console.error('❌ [EMAIL VERIFICATION] API call failed:', apiError);
+          }
+
+          // Mark that we've processed this verification
+          sessionStorage.setItem('supabase_verification_checked', 'true');
+        }
+      }
+    } catch (error) {
+      console.error('❌ [EMAIL VERIFICATION] Check failed:', error);
     }
   };
 
