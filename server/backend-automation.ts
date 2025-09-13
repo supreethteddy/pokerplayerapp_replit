@@ -180,7 +180,7 @@ export async function handleSignup(req: Request, res: Response) {
           },
           body: JSON.stringify({
             email: trimmedEmail,
-            playerId: createdPlayerId,
+            playerId: newPlayer.id,
             firstName: trimmedFirstName || 'User'
           })
         });

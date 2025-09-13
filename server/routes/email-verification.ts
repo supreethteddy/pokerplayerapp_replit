@@ -131,8 +131,8 @@ router.get('/verify', async (req, res) => {
 
     console.log(`✅ [EMAIL VERIFICATION] Email verified for player ${tokenData.player_id}`);
 
-    // Redirect to success page
-    res.redirect(`${process.env.VITE_APP_URL || 'http://localhost:5173'}/email-verified?success=true`);
+    // Redirect to login page with success message
+    res.redirect(`${process.env.VITE_APP_URL || 'http://localhost:5173'}/?verified=true`);
 
   } catch (error) {
     console.error('❌ [EMAIL VERIFICATION] Verify error:', error);
