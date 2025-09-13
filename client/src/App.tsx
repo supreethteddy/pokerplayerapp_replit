@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useUltraFastAuth } from "./hooks/useUltraFastAuth";
 import { useHybridAuth } from "./hooks/useHybridAuth";
+import { useToast } from "@/hooks/use-toast";
 import { ClerkProvider } from '@clerk/clerk-react';
 
 import AuthWrapper from "./components/AuthWrapper";
@@ -31,6 +32,9 @@ function AppContent() {
 
   // Use legacy authentication for smooth user experience
   const { user, loading, authChecked } = useUltraFastAuth();
+  
+  // Toast hook for notifications
+  const { toast } = useToast();
 
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL LOGIC
   const [showLoadingScreen, setShowLoadingScreen] = useState(false);
