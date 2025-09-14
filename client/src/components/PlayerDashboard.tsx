@@ -1355,7 +1355,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Update PAN card state when user data loads - this ensures the field shows existing data
   useEffect(() => {
-    if (user?.pan_card_number && !panCardNumber) {
+    if (user?.pan_card_number) {
       setPanCardNumber(user.pan_card_number);
     }
   }, [user?.pan_card_number]);
@@ -2845,7 +2845,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         PAN Card Number
                       </label>
                       <Input
-                        value={panCardNumber || user?.pan_card_number || ''}
+                        value={panCardNumber || ''}
                         onChange={(e) => setPanCardNumber(e.target.value.toUpperCase())}
                         className={`bg-slate-700 border-slate-600 text-white h-12 ${
                           panCardNumber && !isValidPAN(panCardNumber) ? 'border-red-500' : ''
