@@ -1776,7 +1776,15 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             <p className="text-slate-400 text-xs sm:text-sm lg:text-base truncate">Welcome back, {user?.nickname || user?.firstName}!</p>
           </div>
           <Button
-            onClick={signOut}
+            onClick={async () => {
+              try {
+                await signOut();
+                // Force redirect to login page after successful sign out
+                window.location.href = '/';
+              } catch (error) {
+                console.error('Sign out error:', error);
+              }
+            }}
             variant="outline"
             size="sm"
             className="border-slate-600 text-slate-400 hover:bg-slate-700 hover:text-white w-full sm:w-auto flex-shrink-0"
