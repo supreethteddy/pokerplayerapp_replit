@@ -1,46 +1,68 @@
 // STEP 1: CLIENT-SIDE EMAIL VERIFICATION (FALLBACK)
-      // Send verification email using Supabase client-side signUp
       console.log('📧 [EMAIL VERIFICATION] Using client-side signUp to send confirmation email');
 
-      const emailRedirectTo = `${window.location.origin}/api/email-verification/confirm-bridge?email=${encodeURIComponent(email)}`;
+      const emailRedirectTo =
+        `${window.location.origin}/api/email-verification/confirm-bridge?email=${encodeURIComponent(email)}`;
+
       console.log('🔗 [EMAIL VERIFICATION] Redirect URL:', emailRedirectTo);
 
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: emailRedirectTo,
-          data: {
-            first_name: firstName,
-            last_name: lastName,
-            nickname: nickname,
-            phone: phone
-          }
-        }
-      });
+      let supabaseUserId: string | undefined;
 
-      // Handle existing user case - resend confirmation email
-      if (signUpError?.message?.includes('already registered')) {
-        console.log('📧 [EMAIL VERIFICATION] User exists, resending confirmation email');
-        await supabase.auth.resend({
-          type: 'signup',
-          email: email,
-          options: { emailRedirectTo: emailRedirectTo }
+      try {
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo,
+            data: {
+              first_name: firstName,
+              last_name: lastName,
+              nickname,
+              phone,
+            },
+          },
         });
-        console.log('✅ [EMAIL VERIFICATION] Confirmation email resent');
-      } else if (signUpError) {
-        throw new Error(`Email verification setup failed: ${signUpError.message}`);
-      } else {
-        console.log('✅ [EMAIL VERIFICATION] Confirmation email sent via client-side signUp');
+
+        // capture id if present (note: session will be null when email confirmation is required)
+        supabaseUserId = signUpData?.user?.id;
+
+        if (signUpError) {
+          const msg = String(signUpError.message || '').toLowerCase();
+          const status = (signUpError as any).status ?? 0;
+
+          // If the account already exists, resend the confirm-signup email
+          if (msg.includes('already') || msg.includes('exists') || status === 422) {
+            console.log('📧 [EMAIL VERIFICATION] User exists, resending confirmation email');
+            const { error: resendErr } = await supabase.auth.resend({
+              type: 'signup',
+              email,
+              options: { emailRedirectTo },
+            });
+            if (resendErr) {
+              console.error('❌ [EMAIL VERIFICATION] Resend failed:', resendErr);
+              throw new Error(resendErr.message || 'Failed to resend confirmation email');
+            }
+            console.log('✅ [EMAIL VERIFICATION] Confirmation email resent');
+          } else if (status === 429 || msg.includes('rate') || msg.includes('limit')) {
+            // Friendly message on rate limits
+            throw new Error('Too many attempts. Please wait a minute and try again.');
+          } else {
+            throw new Error(`Email verification setup failed: ${signUpError.message}`);
+          }
+        } else {
+          console.log('✅ [EMAIL VERIFICATION] Confirmation email sent via client-side signUp');
+        }
+      } catch (e: any) {
+        console.error('❌ [EMAIL VERIFICATION] signUp/resend error:', e);
+        throw e; // bubble up to your existing catch to toast the user nicely
       }
 
       // STEP 2: BACKEND PLAYER CREATION (WITHOUT EMAIL SENDING)
-      // Use our backend automation endpoint with POKEPLAYER whitelabeling system
       const response = await fetch('/api/auth/signup-automation', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Skip-Email': 'true' // Flag to skip email sending in backend
+          'X-Skip-Email': 'true', // IMPORTANT: avoid duplicate emails (server won't send)
         },
         body: JSON.stringify({
           email,
@@ -49,8 +71,8 @@
           last_name: lastName,
           phone,
           nickname,
-          clerk_user_id: `user_${email.replace('@', '_').replace('.', '_')}_${Date.now()}`,
-          supabase_user_id: signUpData?.user?.id
+          clerk_user_id: `user_${email.replace(/[@.]/g, '_')}_${Date.now()}`, // safe id
+          supabase_user_id: supabaseUserId, // may be undefined if user existed
         }),
       });
 
