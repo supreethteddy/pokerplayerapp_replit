@@ -4745,9 +4745,7 @@ export function registerRoutes(app: Express) {
         // Update seat_requests with cash out request
         const updateResult = await pgClient.query(`
           UPDATE seat_requests 
-          SET cash_out_requested = NOW(),
-              cash_out_requested_by = $1,
-              request = 'cash_out',
+          SET request = 'cash_out',
               updated_at = NOW(),
               notes = COALESCE(notes, '') || ' | Cash out requested at ' || NOW()
           WHERE player_id = $1 AND status = 'seated'
@@ -4762,7 +4760,7 @@ export function registerRoutes(app: Express) {
         await pgClient.end();
 
         // Send notifications to staff and player via Pusher
-        await pusher.trigger('staff-portal', 'cash_out_requested', {
+        await pusher.trigger('staff-portal', 'request', {
           playerId,
           playerName: `Player ${playerId}`,
           tableId: seatInfo.table_id,
@@ -4772,7 +4770,7 @@ export function registerRoutes(app: Express) {
           message: `Player ${playerId} has requested to cash out from ${seatInfo.table_name}`
         });
 
-        await pusher.trigger(`player-${playerId}`, 'cash_out_requested', {
+        await pusher.trigger(`player-${playerId}`, 'request', {
           message: 'Your cash out request has been sent to management',
           requestedAt: new Date().toISOString()
         });
@@ -5377,9 +5375,7 @@ export function registerRoutes(app: Express) {
         // Update seat_requests with cash out request
         const updateResult = await pgClient.query(`
           UPDATE seat_requests 
-          SET cash_out_requested = NOW(),
-              cash_out_requested_by = $1,
-              request = 'cash_out',
+          SET request = 'cash_out',
               updated_at = NOW(),
               notes = COALESCE(notes, '') || ' | Cash out requested at ' || NOW()
           WHERE player_id = $1 AND status = 'seated'
@@ -5394,7 +5390,7 @@ export function registerRoutes(app: Express) {
         await pgClient.end();
 
         // Send notifications to staff and player via Pusher
-        await pusher.trigger('staff-portal', 'cash_out_requested', {
+        await pusher.trigger('staff-portal', 'request', {
           playerId,
           playerName: `Player ${playerId}`,
           tableId: seatInfo.table_id,
@@ -5404,7 +5400,7 @@ export function registerRoutes(app: Express) {
           message: `Player ${playerId} has requested to cash out from ${seatInfo.table_name}`
         });
 
-        await pusher.trigger(`player-${playerId}`, 'cash_out_requested', {
+        await pusher.trigger(`player-${playerId}`, 'request', {
           message: 'Your cash out request has been sent to management',
           requestedAt: new Date().toISOString()
         });
