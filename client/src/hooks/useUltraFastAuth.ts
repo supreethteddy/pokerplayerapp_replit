@@ -1,4 +1,30 @@
-// STEP 1: CLIENT-SIDE EMAIL VERIFICATION (FALLBACK)
+import { useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/lib/supabase';
+
+export function useUltraFastAuth() {
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const { toast } = useToast();
+
+  const handleSignOut = async () => {
+    setUser(null);
+    setAuthChecked(true);
+    sessionStorage.removeItem('authenticated_user');
+    sessionStorage.removeItem('kyc_redirect');
+    sessionStorage.removeItem('kyc_flow_active');
+  };
+
+  const signIn = async (email: string, password: string) => {
+    // TODO: Implement signIn function
+    console.log('🔑 [ULTRA-FAST AUTH] SignIn not yet implemented');
+    return { success: false, error: 'SignIn not implemented' };
+  };
+
+  const signUp = async (email: string, password: string, firstName: string, lastName: string, nickname: string, phone: string) => {
+    try {
+      // STEP 1: CLIENT-SIDE EMAIL VERIFICATION (FALLBACK)
       console.log('📧 [EMAIL VERIFICATION] Using client-side signUp to send confirmation email');
 
       const emailRedirectTo =
