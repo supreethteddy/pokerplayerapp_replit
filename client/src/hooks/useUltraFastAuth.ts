@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 
@@ -7,6 +7,35 @@ export function useUltraFastAuth() {
   const [loading, setLoading] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const { toast } = useToast();
+
+  // Initialize authentication state on mount
+  useEffect(() => {
+    console.log('🚀 [ULTRA-FAST AUTH] Initializing...');
+    
+    // Check for any existing authentication state
+    const checkAuthState = async () => {
+      try {
+        // Check for any stored user data or sessions
+        const storedUser = sessionStorage.getItem('authenticated_user');
+        if (storedUser) {
+          try {
+            const userData = JSON.parse(storedUser);
+            setUser(userData);
+            console.log('🎯 [ULTRA-FAST AUTH] Found stored user session');
+          } catch (e) {
+            sessionStorage.removeItem('authenticated_user');
+          }
+        }
+      } catch (error) {
+        console.error('❌ [ULTRA-FAST AUTH] Auth state check failed:', error);
+      } finally {
+        setAuthChecked(true);
+        console.log('✅ [ULTRA-FAST AUTH] Authentication check completed');
+      }
+    };
+
+    checkAuthState();
+  }, []);
 
   const handleSignOut = async () => {
     setUser(null);
