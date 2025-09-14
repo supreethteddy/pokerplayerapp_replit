@@ -319,7 +319,10 @@ export default function DirectClubsAuth() {
                     type="tel"
                     placeholder="Phone Number"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '');
+                      setPhone(value);
+                    }}
                     className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
                     data-testid="input-phone"
                   />
