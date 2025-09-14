@@ -1,0 +1,743 @@
+    playerInfo: null as any,
+    pendingAmount: ''
+  });
+  const [assignDialog, setAssignDialog] = useState({ isOpen: false, entry: null as WaitlistEntry | null });
+  const [selectedTable, setSelectedTable] = useState('');
+  const [buyInAmount, setBuyInAmount] = useState('');
+  const [seatNumber, setSeatNumber] = useState('');
+
+  // Role-based permissions
+  const canAssignPlayers = staffMember?.role && ['admin', 'super_admin', 'manager', 'cashier'].includes(staffMember.role);
+  const canRemovePlayers = staffMember?.role && ['admin', 'super_admin', 'manager'].includes(staffMember.role);
+  const canManage = staffMember?.role && ['admin', 'super_admin', 'manager', 'cashier'].includes(staffMember.role); // Combined permission for managing seated players
+
+  // Fetch waitlist data
+  const { data: waitlistEntries = [], isLoading, refetch } = useQuery({
+    queryKey: ['/api/waitlist', tableId],
+    queryFn: async () => {
+      const url = tableId ? `/api/waitlist?tableId=${tableId}` : '/api/waitlist';
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch waitlist');
+      return response.json();
+    },
+    refetchInterval: 5000, // Refresh every 5 seconds
+  });
+
+  // Real-time Pusher updates for table status changes
+  useEffect(() => {
+    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, {
+      cluster: import.meta.env.VITE_PUSHER_CLUSTER,
+    });
+
+    const channel = pusher.subscribe('table-updates');
+
+    // Listen for table status changes
+    channel.bind('table-updated', (data: any) => {
+      console.log('🔔 Table update received:', data);
+      // Invalidate and refetch waitlist data when tables are updated
+      queryClient.invalidateQueries({ queryKey: ['/api/waitlist'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tables'] });
+    });
+
+    // Listen for table activation events
+    channel.bind('table-status-changed', (data: any) => {
+      console.log('🔔 Table activation received:', data);
+      // Immediate refresh for activation events
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['/api/tables'] });
+    });
+
+    return () => {
+      channel.unbind_all();
+      channel.unsubscribe();
+      pusher.disconnect();
+    };
+  }, [queryClient, refetch]);
+
+  // Fetch available players
+  const { data: availablePlayers = [] } = useQuery({
+    queryKey: ['/api/players'],
+    queryFn: async () => {
+      const response = await fetch('/api/players');
+      if (!response.ok) throw new Error('Failed to fetch players');
+      return response.json();
+    },
+  });
+
+  // Fetch available tables for assignment
+  const { data: tables = [] } = useQuery({
+    queryKey: ['/api/tables'],
+    queryFn: async () => {
+      const response = await fetch('/api/tables');
+      if (!response.ok) throw new Error('Failed to fetch tables');
+      return response.json();
+    },
+  });
+
+  // Call Time Mutation
+  const { mutate: callTimeMutation, isPending: isCallTimeLoading } = useMutation({
+    mutationFn: async ({ seatRequestId }: { seatRequestId: number }) => {
+      const response = await fetch(`/api/seat-requests/${seatRequestId}/approve-call-time`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to approve call time');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/waitlist'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tables'] });
+      toast({
+        title: "Call Time Approved",
+        description: "Player can continue playing with a fresh 30-minute window.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Cash Out Mutation with warning handling
+  const { mutate: cashOutMutation, isPending: isCashOutLoading } = useMutation({
+    mutationFn: async ({ seatRequestId, cashOutAmount, forceConfirm }: { seatRequestId: number; cashOutAmount: number; forceConfirm?: boolean }) => {
+      const response = await fetch(`/api/seat-requests/${seatRequestId}/approve-cash-out`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cashOutAmount, forceConfirm })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to approve cash out');
+      }
+
+      return data;
+    },
+    onSuccess: (data) => {
+      // Check if response requires confirmation
+      if (data.requiresConfirmation) {
+        setWarningDialog({
+          isOpen: true,
+          message: data.warningMessage,
+          playerInfo: data.playerInfo,
+          pendingAmount: cashOutAmount
+        });
+        return;
+      }
+
+      // Successful cash out
+      queryClient.invalidateQueries({ queryKey: ['/api/waitlist'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tables'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/players'] });
+      setCashOutDialog({ isOpen: false, entry: null });
+      setCashOutAmount('');
+      setWarningDialog({ isOpen: false, message: '', playerInfo: null, pendingAmount: '' });
+
+      toast({
+        title: "Cash Out Completed",
+        description: data.message,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Assign Player to Table Mutation
+  const { mutate: assignPlayerMutation, isPending: isAssignLoading } = useMutation({
+    mutationFn: async ({ playerId, tableId, buyIn, seat }: { playerId: number; tableId: string; buyIn: number; seat: number }) => {
+      const response = await fetch('/api/waitlist/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          player_id: playerId, 
+          table_id: tableId, 
+          buy_in_amount: buyIn, 
+          seat_number: seat 
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to assign player to table');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/waitlist'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tables'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/players'] });
+      setAssignDialog({ isOpen: false, entry: null });
+      setSelectedTable('');
+      setBuyInAmount('');
+      setSeatNumber('');
+      
+      toast({ 
+        title: 'Player assigned successfully',
+        description: `Player seated at table with ₹${data.buyInAmount?.toLocaleString() || '0'} buy-in`
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Assignment Failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Handler functions
+  const handleCallTime = (seatRequestId: number) => {
+    callTimeMutation({ seatRequestId });
+  };
+
+  const handleCashOut = (entry: WaitlistEntry) => {
+    setCashOutDialog({ isOpen: true, entry });
+    setCashOutAmount('');
+  };
+
+  const handleAssignTable = (entry: WaitlistEntry) => {
+    setAssignDialog({ isOpen: true, entry });
+    setSelectedTable('');
+    setBuyInAmount(entry.minBuyIn?.toString() || '');
+    setSeatNumber('');
+  };
+
+  const processCashOut = (forceConfirm = false) => {
+    if (!cashOutDialog.entry || !cashOutAmount || parseFloat(cashOutAmount) <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid cash out amount greater than 0.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    cashOutMutation({
+      seatRequestId: cashOutDialog.entry.id,
+      cashOutAmount: parseFloat(cashOutAmount),
+      forceConfirm
+    });
+  };
+
+  const confirmCashOut = () => {
+    if (!warningDialog.playerInfo) return;
+
+    cashOutMutation({
+      seatRequestId: cashOutDialog.entry?.id || 0,
+      cashOutAmount: parseFloat(warningDialog.pendingAmount),
+      forceConfirm: true
+    });
+  };
+
+  // Calculate counts from original data for tab labels
+  const totalCount = waitlistEntries?.length || 0;
+  const waitingCount = waitlistEntries?.filter((entry: WaitlistEntry) => 
+    entry.status === 'waiting' || entry.status === 'pending' || !entry.status
+  ).length || 0;
+  const seatedCount = waitlistEntries?.filter((entry: WaitlistEntry) => 
+    entry.status === 'seated'
+  ).length || 0;
+
+  // Filter waitlist entries
+  const filteredWaitlist = waitlistEntries?.filter((entry: WaitlistEntry) => {
+    const matchesSearch = !searchTerm ||
+      entry.playerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      entry.playerEmail?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      entry.playerPhone?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesGame = gameFilter === 'all' || entry.gameType === gameFilter;
+
+    let matchesTab = true;
+    if (activeTab === 'waiting') {
+      matchesTab = entry.status === 'waiting' || entry.status === 'pending' || !entry.status;
+    } else if (activeTab === 'seated') {
+      matchesTab = entry.status === 'seated';
+    }
+
+    return matchesSearch && matchesGame && matchesTab;
+  }) || [];
+
+  // Helper function to format wait time
+  const formatWaitTime = (dateString: string): string => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 60) {
+      return `${diffMins}m`;
+    } else {
+      const hours = Math.floor(diffMins / 60);
+      const mins = diffMins % 60;
+      return `${hours}h ${mins}m`;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="text-center py-12">
+        <div className="animate-spin w-8 h-8 border-4 border-yellow-400 border-t-transparent rounded-full mx-auto" />
+        <p className="text-gray-400 mt-4">Loading waitlist...</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="w-full max-w-none overflow-x-hidden">
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="space-y-2">
+              <h1 className="text-3xl font-bold text-white">Waitlist Management</h1>
+              <p className="text-gray-400">Monitor and manage player queue for table assignments</p>
+            </div>
+          </div>
+
+          {/* Search and Filters */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="Search by player name, email, or phone..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={gameFilter} onValueChange={setGameFilter}>
+              <SelectTrigger className="w-48">
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Games</SelectItem>
+                <SelectItem value="Texas Hold'em">Texas Hold'em</SelectItem>
+                <SelectItem value="Omaha">Omaha</SelectItem>
+                <SelectItem value="Seven Card Stud">Seven Card Stud</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Tabs for different views */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-4 mb-6">
+              <TabsTrigger value="total" className="flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Total ({totalCount})
+              </TabsTrigger>
+              <TabsTrigger value="waiting" className="flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                Waiting ({waitingCount})
+              </TabsTrigger>
+              <TabsTrigger value="seated" className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" />
+                Seated ({seatedCount})
+              </TabsTrigger>
+              <TabsTrigger value="available" className="flex items-center gap-2">
+                <UserCheck className="w-4 h-4" />
+                Available ({availablePlayers.length})
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Waitlist Content */}
+            <TabsContent value={activeTab} className="space-y-4">
+              {filteredWaitlist.length === 0 ? (
+                <div className="text-center py-12">
+                  <Clock className="w-12 h-12 text-yellow-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-medium text-white mb-2">No Players Found</h3>
+                  <p className="text-gray-400">Players will appear here when they join from the Player Portal</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {filteredWaitlist.map((entry: WaitlistEntry, index) => (
+                    <div key={entry.id} className="bg-gradient-to-br from-gray-800 to-gray-850 border border-gray-600 rounded-xl p-4 space-y-3 shadow-lg hover:shadow-xl transition-all duration-200">
+                      {/* Header Section */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                          <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white px-4 py-2 rounded-lg font-bold text-lg shadow-md">
+                            #{index + 1}
+                          </div>
+                          <div>
+                            <h3 className="text-white font-bold text-xl tracking-wide">
+                              {entry.playerName}
+                            </h3>
+                            <p className="text-gray-400 text-sm">({entry.playerNickname})</p>
+                          </div>
+                        </div>
+
+                        {/* Status Badge */}
+                        <Badge className={
+                          entry.status === 'seated'
+                            ? 'bg-green-600 hover:bg-green-700 text-white px-3 py-1 text-sm font-medium'
+                            : entry.status === 'waiting'
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 text-sm font-medium'
+                            : 'bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 text-sm font-medium'
+                        }>
+                          {entry.status === 'seated' ? '✅ Seated' : '⏳ Waiting'}
+                        </Badge>
+                      </div>
+
+                      {/* Player Details Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-gray-750 rounded-lg p-3">
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                            <span className="font-medium text-gray-300">Email:</span>
+                            <span className="text-white font-mono text-sm">{entry.playerEmail}</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                            <span className="font-medium text-gray-300">Phone:</span>
+                            <span className="text-white font-mono text-sm">{entry.playerPhone}</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                            <span className="font-medium text-gray-300">Game:</span>
+                            <span className="text-white font-semibold">{entry.gameType}</span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                            <span className="font-medium text-gray-300">Buy-in:</span>
+                            <span className="text-green-400 font-bold">₹{(entry.minBuyIn || 0).toLocaleString()} - ₹{(entry.maxBuyIn || 0).toLocaleString()}</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
+                            <span className="font-medium text-gray-300">Session Time:</span>
+                            <span className="text-blue-400 font-bold">{entry.waitTime}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Table Assignment Badge */}
+                      {entry.status === 'seated' && (
+                        <div className="flex justify-center">
+                          <Badge className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-2 text-sm font-medium shadow-md">
+                            🪑 {entry.tableName} - Seat {entry.seatNumber}
+                          </Badge>
+                        </div>
+                      )}
+
+                      {/* Action Buttons */}
+                      {canManage && entry.status === 'seated' && (
+                        <div className="flex justify-center space-x-3 pt-2 border-t border-gray-600">
+                          <Button
+                            size="sm"
+                            onClick={() => handleCallTime(entry.id)}
+                            disabled={isCallTimeLoading}
+                            className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white px-6 py-2 font-medium shadow-md transition-all duration-200"
+                          >
+                            <Phone className="w-4 h-4 mr-2" />
+                            Call Time
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleCashOut(entry)}
+                            disabled={isCashOutLoading}
+                            className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-2 font-medium shadow-md transition-all duration-200"
+                          >
+                            <DollarSign className="w-4 h-4 mr-2" />
+                            Cash Out
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Assign Table Button for Waiting Players */}
+                      {canAssignPlayers && (entry.status === 'waiting' || entry.status === 'pending' || !entry.status) && (
+                        <div className="flex justify-center pt-2 border-t border-gray-600">
+                          <Button
+                            size="sm"
+                            onClick={() => handleAssignTable(entry)}
+                            disabled={isAssignLoading}
+                            className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-6 py-2 font-medium shadow-md transition-all duration-200"
+                          >
+                            <Chair className="w-4 h-4 mr-2" />
+                            Assign Table
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+
+      {/* Cash Out Dialog */}
+      <Dialog open={cashOutDialog.isOpen} onOpenChange={(open) => setCashOutDialog({ isOpen: open, entry: null })}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cash Out Player</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {cashOutDialog.entry && (
+              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <p className="font-medium">{cashOutDialog.entry.playerName}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Table: {cashOutDialog.entry.tableName} | Seat: {cashOutDialog.entry.seatNumber}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Buy-in: ₹{cashOutDialog.entry.sessionBuyInAmount?.toLocaleString() || '0'}
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="cashOutAmount">Cash Out Amount (₹)</Label>
+              <Input
+                id="cashOutAmount"
+                type="number"
+                value={cashOutAmount}
+                onChange={(e) => setCashOutAmount(e.target.value)}
+                placeholder="Enter amount to credit to player balance"
+                min="1"
+                step="1"
+              />
+            </div>
+
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setCashOutDialog({ isOpen: false, entry: null })}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => processCashOut(false)}
+                disabled={isCashOutLoading || !cashOutAmount || parseFloat(cashOutAmount) <= 0}
+                variant="destructive"
+              >
+                {isCashOutLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                ) : (
+                  <DollarSign className="w-4 h-4 mr-2" />
+                )}
+                Cash Out ₹{cashOutAmount}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Warning Confirmation Dialog */}
+      <Dialog open={warningDialog.isOpen} onOpenChange={(open) => setWarningDialog({ isOpen: open, message: '', playerInfo: null, pendingAmount: '' })}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center">
+              <AlertCircle className="w-5 h-5 text-orange-500 mr-2" />
+              Confirm Cash Out
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+              <p className="text-orange-800 dark:text-orange-200">{warningDialog.message}</p>
+            </div>
+
+            {warningDialog.playerInfo && (
+              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <p className="font-medium">Cash Out Details</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Buy-in: ₹{warningDialog.playerInfo.buyInAmount?.toLocaleString() || '0'}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Cash Out: ₹{warningDialog.playerInfo.cashOutAmount?.toLocaleString() || '0'}
+                </p>
+                <p className={`text-sm font-medium ${
+                  (warningDialog.playerInfo.cashOutAmount - warningDialog.playerInfo.buyInAmount) >= 0
+                    ? 'text-green-600'
+                    : 'text-red-600'
+                }`}>
+                  {(warningDialog.playerInfo.cashOutAmount - warningDialog.playerInfo.buyInAmount) >= 0 ? 'Profit' : 'Loss'}:
+                  ₹{Math.abs(warningDialog.playerInfo.cashOutAmount - warningDialog.playerInfo.buyInAmount)?.toLocaleString() || '0'}
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setWarningDialog({ isOpen: false, message: '', playerInfo: null, pendingAmount: '' })}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmCashOut}
+                disabled={isCashOutLoading}
+                variant="destructive"
+              >
+                {isCashOutLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                ) : (
+                  <DollarSign className="w-4 h-4 mr-2" />
+                )}
+                Confirm Cash Out
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign Table Dialog */}
+      <Dialog open={assignDialog.isOpen} onOpenChange={(open) => setAssignDialog({ isOpen: open, entry: null })}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign Player to Table</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {assignDialog.entry && (
+              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <p className="font-medium">{assignDialog.entry.playerName}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Game: {assignDialog.entry.gameType}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Buy-in Range: ₹{assignDialog.entry.minBuyIn?.toLocaleString() || '0'} - ₹{assignDialog.entry.maxBuyIn?.toLocaleString() || '0'}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Player Balance: ₹{assignDialog.entry.totalFunds?.toLocaleString() || '0'}
+                </p>
+              </div>
+            )}
+
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="table">Table</Label>
+                <Select value={selectedTable} onValueChange={setSelectedTable}>
+                  <SelectTrigger className="bg-gray-700 border-gray-600">
+                    <SelectValue placeholder="Select table" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-700 border-gray-600">
+                    {tables.filter(table => table.status === 'active' || table.status === 'waiting').map(table => (
+                      <SelectItem key={table.id} value={table.id}>
+                        <div className="flex items-center gap-2">
+                          <span>{table.name}</span>
+                          <Badge variant={table.status === 'active' ? 'default' : 'secondary'}>
+                            {table.status}
+                          </Badge>
+                          <span className="text-xs text-gray-400">
+                            ({table.current_players || 0}/{table.max_players || 9})
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="buyIn">Buy-in Amount (₹)</Label>
+                <Input
+                  id="buyIn"
+                  type="number"
+                  value={buyInAmount}
+                  onChange={(e) => setBuyInAmount(e.target.value)}
+                  placeholder="Enter buy-in amount"
+                  min={assignDialog.entry?.minBuyIn || 0}
+                  max={assignDialog.entry?.maxBuyIn || Infinity}
+                  className="bg-gray-700 border-gray-600"
+                />
+                {assignDialog.entry && buyInAmount && (
+                  <>
+                    {parseFloat(buyInAmount) < (assignDialog.entry.minBuyIn || 0) && (
+                      <p className="text-red-500 text-xs">
+                        Minimum buy-in: ₹{(assignDialog.entry.minBuyIn || 0).toLocaleString()}
+                      </p>
+                    )}
+                    {parseFloat(buyInAmount) > (assignDialog.entry.maxBuyIn || Infinity) && (
+                      <p className="text-red-500 text-xs">
+                        Maximum buy-in: ₹{(assignDialog.entry.maxBuyIn || 0).toLocaleString()}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="seat">Seat Number</Label>
+                <Select value={seatNumber} onValueChange={setSeatNumber}>
+                  <SelectTrigger className="bg-gray-700 border-gray-600">
+                    <SelectValue placeholder="Select seat" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-700 border-gray-600">
+                    {selectedTable && (() => {
+                      const table = tables.find(t => t.id === selectedTable);
+                      const maxSeats = table?.max_players || 9;
+                      const preferredSeat = assignDialog.entry?.seatNumber;
+                      
+                      return Array.from({ length: maxSeats }, (_, i) => i + 1).map(seat => (
+                        <SelectItem key={seat} value={seat.toString()}>
+                          <div className="flex items-center gap-2">
+                            <span>Seat {seat}</span>
+                            {preferredSeat === seat && (
+                              <Badge variant="outline" className="text-yellow-400 border-yellow-400">
+                                Preferred
+                              </Badge>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ));
+                    })()}
+                  </SelectContent>
+                </Select>
+                {assignDialog.entry?.seatNumber && (
+                  <p className="text-sm text-yellow-400">
+                    Player's preferred seat: {assignDialog.entry.seatNumber}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setAssignDialog({ isOpen: false, entry: null })}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (assignDialog.entry && selectedTable && buyInAmount && seatNumber) {
+                    assignPlayerMutation.mutate({
+                      playerId: assignDialog.entry.playerId,
+                      tableId: selectedTable,
+                      buyIn: parseInt(buyInAmount),
+                      seat: parseInt(seatNumber)
+                    });
+                  }
+                }}
+                disabled={
+                  !assignDialog.entry ||
+                  !selectedTable ||
+                  !buyInAmount ||
+                  !seatNumber ||
+                  isAssignLoading ||
+                  (assignDialog.entry && buyInAmount && (
+                    parseFloat(buyInAmount) < (assignDialog.entry.minBuyIn || 0) ||
+                    parseFloat(buyInAmount) > (assignDialog.entry.maxBuyIn || Infinity)
+                  ))
+                }
+                className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
+              >
+                {isAssignLoading ? 'Assigning...' : 'Assign Player'}
+              </Button>
+            </div>
+          </div>
