@@ -1,4 +1,9 @@
-RedirectTo);
+// STEP 1: CLIENT-SIDE EMAIL VERIFICATION (FALLBACK)
+      // Send verification email using Supabase client-side signUp
+      console.log('📧 [EMAIL VERIFICATION] Using client-side signUp to send confirmation email');
+
+      const emailRedirectTo = `${window.location.origin}/api/email-verification/confirm-bridge?email=${encodeURIComponent(email)}`;
+      console.log('🔗 [EMAIL VERIFICATION] Redirect URL:', emailRedirectTo);
 
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
@@ -76,7 +81,7 @@ RedirectTo);
       if (success && player) {
         // CRITICAL FIX: ALL SIGNUPS must go to KYC - never auto-login after signup
         const isNewPlayer = !player.existing;
-        
+
         console.log('🎯 [SIGNUP FLOW] Player status:', {
           isNewPlayer,
           kycStatus: player.kyc_status,
