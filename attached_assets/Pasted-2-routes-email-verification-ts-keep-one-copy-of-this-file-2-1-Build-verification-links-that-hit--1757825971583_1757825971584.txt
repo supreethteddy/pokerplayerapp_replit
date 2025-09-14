@@ -1,0 +1,121 @@
+2) routes/email-verification.ts (keep one copy of this file)
+2.1. Build verification links that hit your backend GET endpoint
+
+We want the email button to land on your backend first, so we can update → delete token → redirect.
+
+Change the verification URL:
+
+- const verificationUrl = `${process.env.VITE_APP_URL || 'http://localhost:5173'}/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
++ const verificationUrl = `${process.env.PUBLIC_API_URL}/api/email-verification/verify-email?token=${encodeURIComponent(verificationToken)}&email=${encodeURIComponent(email)}`;
+
+
+Env required:
+PUBLIC_APP_URL=https://<your-frontend-repl>.repl.co
+PUBLIC_API_URL=https://<your-backend-repl>.repl.co
+
+2.2. (Important) Ensure single active token per user
+
+Before inserting a new token, delete previous tokens for that player/email. This prevents multiple valid links.
+
+Inside POST /send-verification, right before generating or inserting the new token, add:
+
+// Remove any existing tokens for this player/email to keep a single active token
+await supabase
+  .from('email_verification_tokens')
+  .delete()
+  .eq('player_id', playerId)
+  .eq('email', email);
+
+
+Then keep your existing upsert for the new token.
+
+2.3. Keep email sending simple (no Clerk; Supabase-only mail is fine)
+
+You can keep your current Supabase email-sending block if you want (invite → magiclink → recovery). It will send an email that, upon click, redirects to our verificationUrl (which now points to your backend). No extra changes are strictly required there.
+
+If you later want to avoid Supabase mail rate limits, swap this block to Resend/SendGrid and send verificationUrl yourself. No other parts change.
+
+2.4. POST /verify-email — update first, then delete token (no redirect here)
+
+Make sure we don’t delete the token before the player row is updated. Also, keep POST as a pure API (no redirect).
+
+router.post('/verify-email', async (req, res) => {
+  try {
+    const { email, token } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email required' });
+
+    if (token) {
+      const { data: tokenData, error: tokenError } = await supabase
+        .from('email_verification_tokens')
+        .select('*')
+        .eq('token', token)
+        .eq('email', email)
+        .single();
+      if (tokenError || !tokenData) return res.status(400).json({ error: 'Invalid or expired verification token' });
+      if (new Date(tokenData.expires_at) < new Date()) return res.status(400).json({ error: 'Verification token has expired' });
+    }
+
+-   // Old: delete token first (remove this if present)
+
+    // 1) UPDATE FIRST
+    const { error: updateError } = await supabase
+      .from('players')
+      .update({ email_verified: true, updated_at: new Date().toISOString() })
+      .eq('email', email);
+    if (updateError) return res.status(500).json({ error: 'Failed to verify email' });
+
+    // 2) THEN DELETE TOKEN (if provided)
++   if (token) {
++     await supabase.from('email_verification_tokens').delete().eq('token', token).eq('email', email);
++   }
+
+    return res.json({ success: true, message: 'Email verified successfully' });
+  } catch (error) {
+    return res.status(500).json({ error: 'Email verification failed' });
+  }
+});
+
+2.5. GET /verify-email — update → delete → redirect to login
+
+The GET route is what your email button hits (see 2.1). We do the update and then redirect the user to the login page on the frontend.
+
+router.get('/verify-email', async (req, res) => {
+  try {
+-   const { token, email } = req.query;
++   const token = String(req.query.token || '');
++   const email = String(req.query.email || '');
+    if (!token || !email) return res.status(400).json({ error: 'Token and email required' });
+
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('email_verification_tokens')
+      .select('*')
+      .eq('token', token)
+      .eq('email', email)
+      .single();
+    if (tokenError || !tokenData) return res.status(400).json({ error: 'Invalid or expired verification token' });
+    if (new Date(tokenData.expires_at) < new Date()) return res.status(400).json({ error: 'Verification token has expired' });
+
+    // 1) UPDATE FIRST
+    const { error: updateError } = await supabase
+      .from('players')
+      .update({ email_verified: true, updated_at: new Date().toISOString() })
+      .eq('id', tokenData.player_id);
+    if (updateError) return res.status(500).json({ error: 'Failed to verify email' });
+
+-   // Remove: do not attempt supabaseAdmin.auth.admin.updateUserById(tokenData.player_id.toString(), ...)
+-   // (player_id is not an Auth user id; and you said no Clerk for verification)
+
+    // 2) DELETE TOKEN
+    await supabase
+      .from('email_verification_tokens')
+      .delete()
+      .eq('token', token)
+      .eq('email', email);
+
+    // 3) REDIRECT TO LOGIN PAGE ON FRONTEND
+-   return res.redirect(`${process.env.VITE_APP_URL || 'http://localhost:5173'}/?verified=true`);
++   return res.redirect(`${process.env.PUBLIC_APP_URL}/?verified=true`);
+  } catch (error) {
+    return res.status(500).json({ error: 'Email verification failed' });
+  }
+});
