@@ -64,9 +64,13 @@ export function useUltraFastAuth() {
         throw new Error(errorData.error || 'Invalid credentials');
       }
 
-      const { success, player } = await response.json();
+      const responseData = await response.json();
+      console.log('🎯 [ULTRA-FAST AUTH] Backend response:', responseData);
+      
+      const { success, player } = responseData;
 
       if (!success || !player) {
+        console.error('❌ [ULTRA-FAST AUTH] Invalid response format:', { success, player });
         throw new Error('Login failed');
       }
 
