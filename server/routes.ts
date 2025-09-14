@@ -4,88 +4,10 @@ import { Client } from 'pg';
 
 const router = express.Router();
 
-// Sign in endpoint
-router.post('/api/auth/signin', async (req, res) => {
-  try {
-    const { email, password } = req.body;
+// Sign in endpoint - MOVED TO registerRoutes function
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
-    }
-
-    // Connect to database
-    const pgClient = new Client({ connectionString: process.env.SUPABASE_DATABASE_URL });
-    await pgClient.connect();
-
-    try {
-      // Find user by email
-      const userQuery = `
-        SELECT id, email, password, first_name, last_name, phone, kyc_status, 
-               balance, current_credit, credit_limit, credit_approved, email_verified,
-               is_active
-        FROM public.players 
-        WHERE email = $1
-      `;
-      
-      const result = await pgClient.query(userQuery, [email.toLowerCase()]);
-
-      if (result.rows.length === 0) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
-
-      const user = result.rows[0];
-
-      // Check if account is active
-      if (!user.is_active) {
-        return res.status(401).json({ error: 'Account is deactivated' });
-      }
-
-      // Check KYC status - only block if NOT verified
-      if (user.kyc_status !== 'verified') {
-        return res.status(401).json({ error: 'Account verification required. Please complete KYC process.' });
-      }
-
-      // Simple password comparison (no bcrypt)
-      const isValidPassword = user.password === password;
-      if (!isValidPassword) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
-
-      // Update last login
-      await pgClient.query(
-        'UPDATE public.players SET last_login_at = NOW() WHERE id = $1',
-        [user.id]
-      );
-
-      // Return user data in format expected by frontend
-      res.json({
-        success: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          phone: user.phone,
-          kycStatus: user.kyc_status,
-          balance: user.balance,
-          currentCredit: user.current_credit,
-          creditLimit: user.credit_limit,
-          creditApproved: user.credit_approved,
-          emailVerified: user.email_verified
-        }
-      });
-
-    } finally {
-      await pgClient.end();
-    }
-
-  } catch (error: any) {
-    console.error('❌ [AUTH] Sign in error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-export default router;
+// Export empty router for compatibility - all routes now in registerRoutes function
+export default express.Router();
 
 import type { Express } from "express";
 import { createServer } from "http";
@@ -154,6 +76,87 @@ import { scanBufferForMalware } from './malware-scanner';
 import { foodBeverageItems, adsOffers, orders } from '@shared/schema';
 
 export function registerRoutes(app: Express) {
+  // Database-only authentication endpoint (no Clerk)
+  app.post('/api/auth/signin', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      console.log('🔐 [PLAYERS TABLE AUTH] Login attempt:', email);
+
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required' });
+      }
+
+      // Connect to database using consistent DATABASE_URL
+      const { Client } = await import('pg');
+      const pgClient = new Client({ connectionString: process.env.DATABASE_URL });
+      await pgClient.connect();
+
+      try {
+        // Find user by email
+        const userQuery = `
+          SELECT id, email, password, first_name, last_name, phone, kyc_status, 
+                 balance, current_credit, credit_limit, credit_approved, email_verified,
+                 is_active
+          FROM public.players 
+          WHERE email = $1
+        `;
+        
+        const result = await pgClient.query(userQuery, [email.toLowerCase()]);
+
+        if (result.rows.length === 0) {
+          return res.status(401).json({ error: 'Invalid email or password' });
+        }
+
+        const user = result.rows[0];
+        console.log('✅ [PLAYERS TABLE AUTH] Player found:', user.id);
+
+        // Check if account is active
+        if (!user.is_active) {
+          return res.status(401).json({ error: 'Account is deactivated' });
+        }
+
+        // Simple password comparison (no bcrypt)
+        const isValidPassword = user.password === password;
+        if (!isValidPassword) {
+          return res.status(401).json({ error: 'Invalid email or password' });
+        }
+
+        console.log('✅ [PLAYERS TABLE AUTH] Authentication successful using players table only:', email);
+
+        // Update last login
+        await pgClient.query(
+          'UPDATE public.players SET last_login_at = NOW() WHERE id = $1',
+          [user.id]
+        );
+
+        // Return user data in camelCase format expected by frontend
+        res.json({
+          success: true,
+          player: {
+            id: user.id,
+            email: user.email,
+            firstName: user.first_name,
+            lastName: user.last_name,
+            phone: user.phone,
+            kycStatus: user.kyc_status,
+            balance: user.balance,
+            currentCredit: user.current_credit,
+            creditLimit: user.credit_limit,
+            creditApproved: user.credit_approved,
+            emailVerified: user.email_verified
+          }
+        });
+
+      } finally {
+        await pgClient.end();
+      }
+
+    } catch (error: any) {
+      console.error('❌ [AUTH] Sign in error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // SIMPLE CASH BALANCE SYSTEM - MANAGER HANDLES TABLE OPERATIONS
 
   // ========== LEGACY ENDPOINT REMOVED - USE /api/balance/:playerId INSTEAD ==========

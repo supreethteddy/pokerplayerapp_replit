@@ -67,26 +67,26 @@ export function useUltraFastAuth() {
       const responseData = await response.json();
       console.log('🎯 [ULTRA-FAST AUTH] Backend response:', responseData);
       
-      const { success, user } = responseData;
+      const { success, player } = responseData;
 
-      if (!success || !user) {
-        console.error('❌ [ULTRA-FAST AUTH] Invalid response format:', { success, user });
+      if (!success || !player) {
+        console.error('❌ [ULTRA-FAST AUTH] Invalid response format:', { success, player });
         throw new Error('Login failed');
       }
 
-      // Set user data
+      // Set user data (backend returns camelCase player object)
       const userData = {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        phone: user.phone || '',
-        kycStatus: user.kycStatus || 'pending',
-        balance: user.balance || '0.00',
-        currentCredit: user.currentCredit || '0.00',
-        creditLimit: user.creditLimit || '0.00',
-        creditApproved: user.creditApproved || false,
-        emailVerified: user.emailVerified || false
+        id: player.id,
+        email: player.email,
+        firstName: player.firstName || '',
+        lastName: player.lastName || '',
+        phone: player.phone || '',
+        kycStatus: player.kycStatus || 'pending',
+        balance: player.balance || '0.00',
+        currentCredit: player.currentCredit || '0.00',
+        creditLimit: player.creditLimit || '0.00',
+        creditApproved: player.creditApproved || false,
+        emailVerified: player.emailVerified || false
       };
 
       setUser(userData);
@@ -95,6 +95,13 @@ export function useUltraFastAuth() {
       // Store session
       sessionStorage.setItem('authenticated_user', JSON.stringify(userData));
       sessionStorage.setItem('just_signed_in', 'true');
+
+      // Handle KYC redirect for non-verified users
+      if (userData.kycStatus !== 'verified') {
+        console.log('🎯 [ULTRA-FAST AUTH] User needs KYC verification, setting up redirect');
+        sessionStorage.setItem('kyc_redirect', JSON.stringify(userData));
+        sessionStorage.setItem('kyc_flow_active', 'true');
+      }
 
       console.log('✅ [ULTRA-FAST AUTH] Sign in successful:', userData.email);
 
