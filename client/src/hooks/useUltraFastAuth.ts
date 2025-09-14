@@ -57,7 +57,7 @@ export function useUltraFastAuth() {
       console.log('📧 [EMAIL VERIFICATION] Using client-side signUp to send confirmation email');
 
       const emailRedirectTo =
-        `${window.location.origin.replace(':3000', ':5000')}/api/email-verification/confirm-bridge?email=${encodeURIComponent(email)}`;
+        `${import.meta.env.VITE_PUBLIC_API_URL}/api/email-verification/confirm-bridge?email=${encodeURIComponent(email)}`;
 
       console.log('🔗 [EMAIL VERIFICATION] Redirect URL:', emailRedirectTo);
 
