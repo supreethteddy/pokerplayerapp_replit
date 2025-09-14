@@ -1,0 +1,117 @@
+Got it—let’s switch to Supabase “Confirm signup” (not “Invite user”) and still set players.email_verified = TRUE before landing on login.
+
+Below are minimal edits.
+
+1) backend-automation.ts → pass the user’s password to the mail endpoint
+
+So we can call auth.signUp() (which sends the Confirm signup email).
+
+- body: JSON.stringify({
+-   email: trimmedEmail,
+-   playerId: newPlayer.id,
+-   firstName: trimmedFirstName || 'User'
+- })
++ body: JSON.stringify({
++   email: trimmedEmail,
++   playerId: newPlayer.id,
++   firstName: trimmedFirstName || 'User',
++   password: req.body.password || ''
++ })
+
+
+(No other logic change here.)
+
+2) routes/email-verification.ts → send Confirm signup (not Invite)
+2.1 Replace /send-verification with auth.signUp (+ auth.resend if already registered)
+router.post('/send-verification', async (req, res) => {
+  try {
+-   const { email, playerId, firstName } = req.body;
++   const { email, playerId, firstName, password } = req.body;
+
+    if (!email || !playerId) {
+      return res.status(400).json({ error: 'Email and playerId required' });
+    }
+
+-   // (REMOVE: custom token generation + upsert + invite/magic/recovery flow)
+-   // ... all that code goes away ...
+
++   // Use Supabase "Confirm signup" email
++   const { createClient } = await import('@supabase/supabase-js');
++   const supabaseAnon = createClient(
++     process.env.VITE_SUPABASE_URL!,
++     process.env.SUPABASE_ANON_KEY!  // anon key required for signUp()
++   );
++
++   // After the user confirms, Supabase will redirect here so we can set players.email_verified=TRUE, then we redirect to login.
++   const redirectAfterConfirm =
++     `${process.env.PUBLIC_API_URL}/api/email-verification/confirm-bridge?email=${encodeURIComponent(email)}`;
++
++   // 1) Try to sign up (sends "Confirm signup" email using your Supabase SMTP/templates)
++   const { data: signData, error: signErr } = await supabaseAnon.auth.signUp({
++     email,
++     password: password || (await (await import('nanoid')).nanoid(16)),
++     options: { emailRedirectTo: redirectAfterConfirm }
++   });
++
++   // 2) If already registered and not confirmed: resend confirm-signup email
++   if (signErr && /registered|exists/i.test(signErr.message || '')) {
++     const { data: reData, error: reErr } = await supabaseAnon.auth.resend({
++       type: 'signup',
++       email,
++       options: { emailRedirectTo: redirectAfterConfirm }
++     });
++     if (reErr) {
++       console.error('❌ [RESEND SIGNUP] ', reErr);
++       return res.status(500).json({ error: 'Failed to resend confirmation email' });
++     }
++   } else if (signErr) {
++     console.error('❌ [SIGNUP EMAIL] ', signErr);
++     return res.status(500).json({ error: 'Failed to send confirmation email' });
++   }
+
+    return res.json({
+      success: true,
+-     message: 'Verification email sent',
+-     verificationUrl: verificationUrl // (remove any debug link)
++     message: 'Confirmation email sent'
+    });
+  } catch (error) {
+    console.error('❌ [EMAIL VERIFICATION] Send error:', error);
+    res.status(500).json({ error: 'Failed to send confirmation email' });
+  }
+});
+
+
+Notes
+• This uses your Supabase Email → Confirm signup template automatically.
+• No invite/magic link/recovery calls anymore.
+• We don’t need your custom token table for this flow.
+
+2.2 Add a tiny bridge endpoint that marks verified before redirecting to login
+// GET /api/email-verification/confirm-bridge?email=...
+router.get('/confirm-bridge', async (req, res) => {
+  try {
+    const email = String(req.query.email || '');
+    if (!email) return res.status(400).json({ error: 'Email required' });
+
+    // 1) UPDATE FIRST
+    const { error: updateError } = await supabase
+      .from('players')
+      .update({ email_verified: true, updated_at: new Date().toISOString() })
+      .eq('email', email);
+
+    if (updateError) {
+      console.error('❌ [CONFIRM BRIDGE] Player update error:', updateError);
+      return res.status(500).json({ error: 'Failed to verify email' });
+    }
+
+    // 2) REDIRECT TO LOGIN/APP
+    return res.redirect(`${process.env.PUBLIC_APP_URL}/?verified=true`);
+  } catch (e) {
+    console.error('❌ [CONFIRM BRIDGE] Error:', e);
+    return res.status(500).json({ error: 'Bridge error' });
+  }
+});
+
+
+This satisfies your rule: “once the link is clicked we first set email_verified = TRUE, then redirect to the login page.”
