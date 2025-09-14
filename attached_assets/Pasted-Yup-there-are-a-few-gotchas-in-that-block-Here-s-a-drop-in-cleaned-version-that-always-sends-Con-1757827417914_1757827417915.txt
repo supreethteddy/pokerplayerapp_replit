@@ -1,0 +1,114 @@
+Yup—there are a few gotchas in that block. Here’s a drop-in, cleaned version that:
+
+always sends Confirm signup (client-side)
+
+properly handles “already registered” with auth.resend({ type: 'signup' })
+
+guards against nulls, weird error shapes, and rate-limit errors
+
+then creates the player without sending any more emails (backend gets X-Skip-Email: true)
+
+// STEP 1: CLIENT-SIDE EMAIL VERIFICATION (FALLBACK)
+console.log('📧 [EMAIL VERIFICATION] Using client-side signUp to send confirmation email');
+
+const emailRedirectTo =
+  `${window.location.origin}/api/email-verification/confirm-bridge?email=${encodeURIComponent(email)}`;
+
+console.log('🔗 [EMAIL VERIFICATION] Redirect URL:', emailRedirectTo);
+
+let supabaseUserId: string | undefined;
+
+try {
+  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo,
+      data: {
+        first_name: firstName,
+        last_name: lastName,
+        nickname,
+        phone,
+      },
+    },
+  });
+
+  // capture id if present (note: session will be null when email confirmation is required)
+  supabaseUserId = signUpData?.user?.id;
+
+  if (signUpError) {
+    const msg = String(signUpError.message || '').toLowerCase();
+    const status = (signUpError as any).status ?? 0;
+
+    // If the account already exists, resend the confirm-signup email
+    if (msg.includes('already') || msg.includes('exists') || status === 422) {
+      console.log('📧 [EMAIL VERIFICATION] User exists, resending confirmation email');
+      const { error: resendErr } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: { emailRedirectTo },
+      });
+      if (resendErr) {
+        console.error('❌ [EMAIL VERIFICATION] Resend failed:', resendErr);
+        throw new Error(resendErr.message || 'Failed to resend confirmation email');
+      }
+      console.log('✅ [EMAIL VERIFICATION] Confirmation email resent');
+    } else if (status === 429 || msg.includes('rate') || msg.includes('limit')) {
+      // Friendly message on rate limits
+      throw new Error('Too many attempts. Please wait a minute and try again.');
+    } else {
+      throw new Error(`Email verification setup failed: ${signUpError.message}`);
+    }
+  } else {
+    console.log('✅ [EMAIL VERIFICATION] Confirmation email sent via client-side signUp');
+  }
+} catch (e: any) {
+  console.error('❌ [EMAIL VERIFICATION] signUp/resend error:', e);
+  throw e; // bubble up to your existing catch to toast the user nicely
+}
+
+// STEP 2: BACKEND PLAYER CREATION (WITHOUT EMAIL SENDING)
+const response = await fetch('/api/auth/signup-automation', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Skip-Email': 'true', // IMPORTANT: avoid duplicate emails (server won't send)
+  },
+  body: JSON.stringify({
+    email,
+    password,
+    first_name: firstName,
+    last_name: lastName,
+    phone,
+    nickname,
+    clerk_user_id: `user_${email.replace(/[@.]/g, '_')}_${Date.now()}`, // safe id
+    supabase_user_id: supabaseUserId, // may be undefined if user existed
+  }),
+});
+
+if (!response.ok) {
+  const errorData = await response.json().catch(() => ({ error: 'Signup failed' }));
+  if (response.status === 409 && errorData.code === 'EMAIL_EXISTS') {
+    throw new Error('This email is already registered. Please use the login form instead.');
+  }
+  throw new Error(errorData.error || 'Signup failed');
+}
+
+const { success, player } = await response.json();
+if (!success) throw new Error('Signup failed');
+
+console.log('✅ [BACKEND AUTOMATION] Signup successful:', player?.email);
+console.log('🎯 [BACKEND AUTOMATION] Player created with nickname:', player?.nickname);
+
+// Keep your existing KYC redirect logic below...
+
+
+Tiny notes:
+
+I normalized the duplicate “already registered” cases and added a 429/rate limit branch.
+
+supabase_user_id is passed if we just created the auth user; if the user already existed, it may be undefined (that’s fine).
+
+We keep X-Skip-Email: true so your backend doesn’t send any more emails (avoids double sends/conflicts).
+
+If you want to simplify even further, you can drop the client-side email entirely and keep only the server /send-verification (with auth.signUp/auth.resend)—but the snippet above fixes the errors in your current client flow.
