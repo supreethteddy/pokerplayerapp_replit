@@ -182,7 +182,8 @@ export async function handleSignup(req: Request, res: Response) {
           body: JSON.stringify({
             email: trimmedEmail,
             playerId: newPlayer.id,
-            firstName: trimmedFirstName || 'User'
+            firstName: trimmedFirstName || 'User',
+            password: req.body.password || ''
           })
         });
 
@@ -289,7 +290,8 @@ export async function handleSignup(req: Request, res: Response) {
                     body: JSON.stringify({
                       email: trimmedEmail,
                       playerId: existingPlayer.id,
-                      firstName: existingPlayer.first_name || 'User'
+                      firstName: existingPlayer.first_name || 'User',
+                      password: req.body.password || ''
                     })
                   });
 
