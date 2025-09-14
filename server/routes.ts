@@ -95,7 +95,7 @@ export function registerRoutes(app: Express) {
         // Find user by email
         const userQuery = `
           SELECT id, email, password, first_name, last_name, phone, kyc_status, 
-                 balance, current_credit, credit_limit, credit_approved, email_verified,
+                 balance, current_credit, credit_limit, email_verified,
                  is_active
           FROM public.players 
           WHERE email = $1
@@ -142,7 +142,7 @@ export function registerRoutes(app: Express) {
             balance: user.balance,
             currentCredit: user.current_credit,
             creditLimit: user.credit_limit,
-            creditApproved: user.credit_approved,
+            creditApproved: false, // Default value since column doesn't exist
             emailVerified: user.email_verified
           }
         });

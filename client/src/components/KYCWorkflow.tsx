@@ -113,8 +113,13 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
         // Use dynamic player ID from props
         const playerId = playerData?.id;
 
-        // ✅ SURGICAL FIX: Verify player exists in database before proceeding
-        if (playerId) {
+        // Check if this is a fresh signup or page refresh
+        const kycFlowActive = sessionStorage.getItem('kyc_flow_active');
+        const isRefresh = !kycFlowActive || kycFlowActive !== 'true';
+        
+        // Only verify player exists on page refresh, not on fresh signup
+        if (playerId && isRefresh) {
+          console.log('🔍 [KYC] Page refresh detected - verifying player exists');
           try {
             const playerCheckResponse = await fetch(`/api/players/${playerId}`);
             if (!playerCheckResponse.ok) {
@@ -125,7 +130,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                   description: "Your account could not be found. Please log in again.",
                   variant: "destructive"
                 });
-                // Clear stored data and redirect to login immediately
+                // Clear stored data and redirect to login only on refresh
                 sessionStorage.removeItem('kyc_redirect');
                 sessionStorage.removeItem('kyc_flow_active');
                 sessionStorage.removeItem('authenticated_user');
@@ -135,13 +140,13 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
               }
             }
           } catch (playerCheckError) {
-            console.error('❌ [KYC] Error checking player existence:', playerCheckError);
+            console.error('❌ [KYC] Error checking player existence on refresh:', playerCheckError);
             toast({
               title: "Connection Error",
               description: "Unable to verify your account. Please try logging in again.",
               variant: "destructive"
             });
-            // Clear stored data and redirect to login on error immediately
+            // Clear stored data and redirect to login only on refresh
             sessionStorage.removeItem('kyc_redirect');
             sessionStorage.removeItem('kyc_flow_active');
             sessionStorage.removeItem('authenticated_user');
@@ -149,6 +154,10 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
             window.location.href = '/';
             return;
           }
+        } else if (playerId && !isRefresh) {
+          console.log('🎯 [KYC] Fresh signup detected - skipping player existence check');
+          // Clear the kyc_flow_active flag so subsequent refreshes are detected as refreshes
+          sessionStorage.removeItem('kyc_flow_active');
         }
 
         // Initialize user details with existing playerData first
@@ -172,9 +181,7 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
           panCard: currentDocStatus.panCard ? 'uploaded' : null
         });
 
-        // FIXED: Check if this is from a fresh signup (KYC flow active)
-        const kycFlowActive = sessionStorage.getItem('kyc_flow_active');
-
+        // FIXED: Check if this is from a fresh signup (KYC flow active) - reuse existing variable
         if (kycFlowActive === 'true') {
           // Fresh signup - always start from step 1 to allow confirmation
           console.log('🎯 [KYC] Fresh signup detected - starting from step 1 for confirmation');
