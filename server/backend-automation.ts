@@ -204,11 +204,11 @@ export async function handleSignup(req: Request, res: Response) {
         emailMethod = 'failed';
 
         // Log the specific error details
-        if (emailError.message) {
-          console.error(`❌ [AUTO EMAIL] Error message: ${emailError.message}`);
+        if ((emailError as any).message) {
+          console.error(`❌ [AUTO EMAIL] Error message: ${(emailError as any).message}`);
         }
-        if (emailError.stack) {
-          console.error(`❌ [AUTO EMAIL] Error stack: ${emailError.stack}`);
+        if ((emailError as any).stack) {
+          console.error(`❌ [AUTO EMAIL] Error stack: ${(emailError as any).stack}`);
         }
       }
 
