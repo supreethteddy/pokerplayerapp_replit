@@ -1,7 +1,5 @@
 
-import express from 'express';
 import { Client } from 'pg';
-import bcrypt from 'bcrypt';
 
 const router = express.Router();
 
@@ -41,8 +39,8 @@ router.post('/api/auth/signin', async (req, res) => {
         return res.status(401).json({ error: 'Account is deactivated' });
       }
 
-      // Verify password
-      const isValidPassword = await bcrypt.compare(password, user.password);
+      // Simple password comparison (no bcrypt)
+      const isValidPassword = user.password === password;
       if (!isValidPassword) {
         return res.status(401).json({ error: 'Invalid email or password' });
       }

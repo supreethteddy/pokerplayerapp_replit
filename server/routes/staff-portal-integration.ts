@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { storage } from "../supabase-only-storage";
+import { supabaseOnlyStorage as storage } from "../supabase-only-storage";
 
 const router = Router();
 
