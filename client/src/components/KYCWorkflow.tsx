@@ -113,52 +113,8 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
         // Use dynamic player ID from props
         const playerId = playerData?.id;
 
-        // Check if this is a fresh signup or page refresh
-        const kycFlowActive = sessionStorage.getItem('kyc_flow_active');
-        const isRefresh = !kycFlowActive || kycFlowActive !== 'true';
-        
-        // Only verify player exists on page refresh, not on fresh signup
-        if (playerId && isRefresh) {
-          console.log('🔍 [KYC] Page refresh detected - verifying player exists');
-          try {
-            const playerCheckResponse = await fetch(`/api/players/${playerId}`);
-            if (!playerCheckResponse.ok) {
-              if (playerCheckResponse.status === 404) {
-                console.error('❌ [KYC] Player does not exist in database:', playerId);
-                toast({
-                  title: "Account Not Found",
-                  description: "Your account could not be found. Please log in again.",
-                  variant: "destructive"
-                });
-                // Clear stored data and redirect to login only on refresh
-                sessionStorage.removeItem('kyc_redirect');
-                sessionStorage.removeItem('kyc_flow_active');
-                sessionStorage.removeItem('authenticated_user');
-                localStorage.removeItem('player_auth');
-                window.location.href = '/';
-                return;
-              }
-            }
-          } catch (playerCheckError) {
-            console.error('❌ [KYC] Error checking player existence on refresh:', playerCheckError);
-            toast({
-              title: "Connection Error",
-              description: "Unable to verify your account. Please try logging in again.",
-              variant: "destructive"
-            });
-            // Clear stored data and redirect to login only on refresh
-            sessionStorage.removeItem('kyc_redirect');
-            sessionStorage.removeItem('kyc_flow_active');
-            sessionStorage.removeItem('authenticated_user');
-            localStorage.removeItem('player_auth');
-            window.location.href = '/';
-            return;
-          }
-        } else if (playerId && !isRefresh) {
-          console.log('🎯 [KYC] Fresh signup detected - skipping player existence check');
-          // Clear the kyc_flow_active flag so subsequent refreshes are detected as refreshes
-          sessionStorage.removeItem('kyc_flow_active');
-        }
+        // Removed all player existence checks - users should stay in KYC workflow
+        console.log('🎯 [KYC] Initializing workflow - no account existence checks');
 
         // Initialize user details with existing playerData first
         setUserDetails(prev => ({
@@ -181,42 +137,28 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
           panCard: currentDocStatus.panCard ? 'uploaded' : null
         });
 
-        // FIXED: Check if this is from a fresh signup (KYC flow active) - reuse existing variable
-        if (kycFlowActive === 'true') {
-          // Fresh signup - always start from step 1 to allow confirmation
-          console.log('🎯 [KYC] Fresh signup detected - starting from step 1 for confirmation');
-          setCurrentStep(1);
+        // Determine step based on KYC status and existing data
+        if (playerData.kycStatus === 'approved') {
+          setCurrentStep(4); // Already approved
+        } else if (playerData.kycStatus === 'submitted') {
+          setCurrentStep(4); // Waiting for approval
+        } else if (uploadedDocs.governmentId && uploadedDocs.utilityBill && uploadedDocs.panCard && isValidPAN(panCardNumber)) {
+          setCurrentStep(3); // Ready to submit
+        } else if (playerData.phone || userDetails.phone) { // Check both initial and potentially updated userDetails
+          setCurrentStep(2); // Ready for document upload
         } else {
-          // Returning user - determine step based on status
-          if (playerData.kycStatus === 'approved') {
-            setCurrentStep(4); // Already approved
-          } else if (playerData.kycStatus === 'submitted') {
-            setCurrentStep(4); // Waiting for approval
-          } else if (uploadedDocs.governmentId && uploadedDocs.utilityBill && uploadedDocs.panCard && isValidPAN(panCardNumber)) {
-            setCurrentStep(3); // Ready to submit
-          } else if (playerData.phone || userDetails.phone) { // Check both initial and potentially updated userDetails
-            setCurrentStep(2); // Ready for document upload
-          } else {
-            setCurrentStep(1); // Need user details
-          }
+          setCurrentStep(1); // Need user details
         }
       } catch (error) {
         console.error('Error initializing KYC step:', error);
 
         toast({
-          title: "Connection Error",
-          description: "Unable to verify your account. Please try logging in again.",
+          title: "Connection Error", 
+          description: "There was an issue loading your KYC data. Please refresh the page.",
           variant: "destructive"
         });
 
-        // Clear stored data and redirect to login on error
-        setTimeout(() => {
-          sessionStorage.removeItem('kyc_redirect');
-          sessionStorage.removeItem('kyc_flow_active');
-          sessionStorage.removeItem('authenticated_user');
-          localStorage.removeItem('player_auth');
-          window.location.href = '/';
-        }, 2000);
+        // Removed redirect to login - users should stay in KYC workflow
       }
     };
 
