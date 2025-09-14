@@ -125,14 +125,12 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
                   description: "Your account could not be found. Please log in again.",
                   variant: "destructive"
                 });
-                // Clear stored data and redirect to login
-                setTimeout(() => {
-                  sessionStorage.removeItem('kyc_redirect');
-                  sessionStorage.removeItem('kyc_flow_active');
-                  sessionStorage.removeItem('authenticated_user');
-                  localStorage.removeItem('player_auth');
-                  window.location.href = '/';
-                }, 2000);
+                // Clear stored data and redirect to login immediately
+                sessionStorage.removeItem('kyc_redirect');
+                sessionStorage.removeItem('kyc_flow_active');
+                sessionStorage.removeItem('authenticated_user');
+                localStorage.removeItem('player_auth');
+                window.location.href = '/';
                 return;
               }
             }
@@ -143,14 +141,12 @@ export default function KYCWorkflow({ playerData, onComplete }: KYCWorkflowProps
               description: "Unable to verify your account. Please try logging in again.",
               variant: "destructive"
             });
-            // Clear stored data and redirect to login on error
-            setTimeout(() => {
-              sessionStorage.removeItem('kyc_redirect');
-              sessionStorage.removeItem('kyc_flow_active');
-              sessionStorage.removeItem('authenticated_user');
-              localStorage.removeItem('player_auth');
-              window.location.href = '/';
-            }, 2000);
+            // Clear stored data and redirect to login on error immediately
+            sessionStorage.removeItem('kyc_redirect');
+            sessionStorage.removeItem('kyc_flow_active');
+            sessionStorage.removeItem('authenticated_user');
+            localStorage.removeItem('player_auth');
+            window.location.href = '/';
             return;
           }
         }
