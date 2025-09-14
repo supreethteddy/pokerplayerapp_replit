@@ -96,11 +96,20 @@ export function useUltraFastAuth() {
       sessionStorage.setItem('authenticated_user', JSON.stringify(userData));
       sessionStorage.setItem('just_signed_in', 'true');
 
-      // Handle KYC redirect for non-verified users
+      // Handle redirect based on KYC status
       if (userData.kycStatus !== 'verified') {
         console.log('🎯 [ULTRA-FAST AUTH] User needs KYC verification, setting up redirect');
         sessionStorage.setItem('kyc_redirect', JSON.stringify(userData));
         sessionStorage.setItem('kyc_flow_active', 'true');
+      } else {
+        console.log('🎯 [ULTRA-FAST AUTH] User has verified KYC - redirecting to dashboard');
+        // Clear any existing KYC redirect data
+        sessionStorage.removeItem('kyc_redirect');
+        sessionStorage.removeItem('kyc_flow_active');
+        // Trigger page reload to let App.tsx routing handle dashboard redirect
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
       }
 
       console.log('✅ [ULTRA-FAST AUTH] Sign in successful:', userData.email);
