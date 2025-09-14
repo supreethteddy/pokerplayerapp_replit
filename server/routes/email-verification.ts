@@ -18,6 +18,13 @@ router.post('/send-verification', async (req, res) => {
     const verificationToken = nanoid(32);
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
+    // Remove any existing tokens for this player/email to keep a single active token
+    await supabase
+      .from('email_verification_tokens')
+      .delete()
+      .eq('player_id', playerId)
+      .eq('email', email);
+
     // Store verification token
     const { error: tokenError } = await supabase
       .from('email_verification_tokens')
@@ -35,7 +42,7 @@ router.post('/send-verification', async (req, res) => {
     }
 
     // Create verification URL
-    const verificationUrl = `${process.env.VITE_APP_URL || 'http://localhost:5173'}/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
+    const verificationUrl = `${process.env.PUBLIC_API_URL}/api/email-verification/verify-email?token=${encodeURIComponent(verificationToken)}&email=${encodeURIComponent(email)}`;
 
     console.log(`📧 [EMAIL VERIFICATION] Verification URL for ${email}: ${verificationUrl}`);
     
@@ -167,14 +174,9 @@ router.post('/verify-email', async (req, res) => {
         return res.status(400).json({ error: 'Verification token has expired' });
       }
 
-      // Delete used token
-      await supabase
-        .from('email_verification_tokens')
-        .delete()
-        .eq('token', token);
-    }
+      }
 
-    // Update player's email_verified status
+    // 1) UPDATE FIRST
     const { error: updateError } = await supabase
       .from('players')
       .update({ 
@@ -186,6 +188,15 @@ router.post('/verify-email', async (req, res) => {
     if (updateError) {
       console.error('❌ [EMAIL VERIFICATION] Player update error:', updateError);
       return res.status(500).json({ error: 'Failed to verify email' });
+    }
+
+    // 2) THEN DELETE TOKEN (if provided)
+    if (token) {
+      await supabase
+        .from('email_verification_tokens')
+        .delete()
+        .eq('token', token)
+        .eq('email', email);
     }
 
     console.log(`✅ [EMAIL VERIFICATION] Email verified for: ${email}`);
@@ -200,7 +211,8 @@ router.post('/verify-email', async (req, res) => {
 // Verify email endpoint (GET)
 router.get('/verify-email', async (req, res) => {
   try {
-    const { token, email } = req.query;
+    const token = String(req.query.token || '');
+    const email = String(req.query.email || '');
 
     if (!token || !email) {
       return res.status(400).json({ error: 'Token and email required' });
@@ -224,7 +236,7 @@ router.get('/verify-email', async (req, res) => {
       return res.status(400).json({ error: 'Verification token has expired' });
     }
 
-    // Update player's email_verified status
+    // 1) UPDATE FIRST
     const { error: updateError } = await supabase
       .from('players')
       .update({ 
@@ -238,31 +250,17 @@ router.get('/verify-email', async (req, res) => {
       return res.status(500).json({ error: 'Failed to verify email' });
     }
 
-    // Also update Supabase Auth user if exists
-    try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabaseAdmin = createClient(
-        process.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      await supabaseAdmin.auth.admin.updateUserById(tokenData.player_id.toString(), {
-        email_confirm: true
-      });
-    } catch (authUpdateError) {
-      console.warn('⚠️ [EMAIL VERIFICATION] Could not update Supabase Auth user:', authUpdateError);
-    }
-
-    // Delete used token
+    // 2) DELETE TOKEN
     await supabase
       .from('email_verification_tokens')
       .delete()
-      .eq('token', token);
+      .eq('token', token)
+      .eq('email', email);
 
     console.log(`✅ [EMAIL VERIFICATION] Email verified for player ${tokenData.player_id}`);
 
-    // Redirect to login page with success message
-    res.redirect(`${process.env.VITE_APP_URL || 'http://localhost:5173'}/?verified=true`);
+    // 3) REDIRECT TO LOGIN PAGE ON FRONTEND
+    res.redirect(`${process.env.PUBLIC_APP_URL}/?verified=true`);
 
   } catch (error) {
     console.error('❌ [EMAIL VERIFICATION] Verify error:', error);
