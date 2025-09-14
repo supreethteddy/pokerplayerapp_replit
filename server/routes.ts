@@ -1,4 +1,5 @@
 
+import express from 'express';
 import { Client } from 'pg';
 
 const router = express.Router();
@@ -37,6 +38,11 @@ router.post('/api/auth/signin', async (req, res) => {
       // Check if account is active
       if (!user.is_active) {
         return res.status(401).json({ error: 'Account is deactivated' });
+      }
+
+      // Check KYC status - only block if NOT verified
+      if (user.kyc_status !== 'verified') {
+        return res.status(401).json({ error: 'Account verification required. Please complete KYC process.' });
       }
 
       // Simple password comparison (no bcrypt)
