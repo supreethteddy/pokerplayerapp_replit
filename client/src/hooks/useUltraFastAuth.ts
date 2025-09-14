@@ -67,26 +67,26 @@ export function useUltraFastAuth() {
       const responseData = await response.json();
       console.log('🎯 [ULTRA-FAST AUTH] Backend response:', responseData);
       
-      const { success, player } = responseData;
+      const { success, user } = responseData;
 
-      if (!success || !player) {
-        console.error('❌ [ULTRA-FAST AUTH] Invalid response format:', { success, player });
+      if (!success || !user) {
+        console.error('❌ [ULTRA-FAST AUTH] Invalid response format:', { success, user });
         throw new Error('Login failed');
       }
 
       // Set user data
       const userData = {
-        id: player.id,
-        email: player.email,
-        firstName: player.first_name || player.firstName,
-        lastName: player.last_name || player.lastName,
-        phone: player.phone || '',
-        kycStatus: player.kyc_status || 'pending',
-        balance: player.balance || '0.00',
-        currentCredit: player.current_credit || '0.00',
-        creditLimit: player.credit_limit || '0.00',
-        creditApproved: player.credit_approved || false,
-        emailVerified: player.email_verified || false
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone || '',
+        kycStatus: user.kycStatus || 'pending',
+        balance: user.balance || '0.00',
+        currentCredit: user.currentCredit || '0.00',
+        creditLimit: user.creditLimit || '0.00',
+        creditApproved: user.creditApproved || false,
+        emailVerified: user.emailVerified || false
       };
 
       setUser(userData);
@@ -107,7 +107,6 @@ export function useUltraFastAuth() {
 
     } catch (error: any) {
       console.error('❌ [ULTRA-FAST AUTH] Sign in error:', error);
-      setLoading(false);
 
       toast({
         title: "Sign In Failed",

@@ -57,21 +57,21 @@ router.post('/api/auth/signin', async (req, res) => {
         [user.id]
       );
 
-      // Return user data
+      // Return user data in format expected by frontend
       res.json({
         success: true,
-        player: {
+        user: {
           id: user.id,
           email: user.email,
-          first_name: user.first_name,
-          last_name: user.last_name,
+          firstName: user.first_name,
+          lastName: user.last_name,
           phone: user.phone,
-          kyc_status: user.kyc_status,
+          kycStatus: user.kyc_status,
           balance: user.balance,
-          current_credit: user.current_credit,
-          credit_limit: user.credit_limit,
-          credit_approved: user.credit_approved,
-          email_verified: user.email_verified
+          currentCredit: user.current_credit,
+          creditLimit: user.credit_limit,
+          creditApproved: user.credit_approved,
+          emailVerified: user.email_verified
         }
       });
 
