@@ -174,7 +174,7 @@ export async function handleSignup(req: Request, res: Response) {
       // Always attempt to send verification email
       try {
         // FIX: Use published API URL for email verification
-        const emailResponse = await fetch(`${process.env.PUBLIC_API_URL}/api/email-verification/send-verification`, {
+        const emailResponse = await fetch(`http://localhost:5000/api/email-verification/send-verification`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
