@@ -46,9 +46,75 @@ export function useUltraFastAuth() {
   };
 
   const signIn = async (email: string, password: string) => {
-    // TODO: Implement signIn function
-    console.log('🔑 [ULTRA-FAST AUTH] SignIn not yet implemented');
-    return { success: false, error: 'SignIn not implemented' };
+    setLoading(true);
+    try {
+      console.log('🔑 [ULTRA-FAST AUTH] Signing in:', email);
+
+      // Use backend authentication endpoint
+      const response = await fetch('/api/auth/signin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Login failed' }));
+        throw new Error(errorData.error || 'Invalid credentials');
+      }
+
+      const { success, player } = await response.json();
+
+      if (!success || !player) {
+        throw new Error('Login failed');
+      }
+
+      // Set user data
+      const userData = {
+        id: player.id,
+        email: player.email,
+        firstName: player.first_name || player.firstName,
+        lastName: player.last_name || player.lastName,
+        phone: player.phone || '',
+        kycStatus: player.kyc_status || 'pending',
+        balance: player.balance || '0.00',
+        currentCredit: player.current_credit || '0.00',
+        creditLimit: player.credit_limit || '0.00',
+        creditApproved: player.credit_approved || false,
+        emailVerified: player.email_verified || false
+      };
+
+      setUser(userData);
+      setAuthChecked(true);
+
+      // Store session
+      sessionStorage.setItem('authenticated_user', JSON.stringify(userData));
+      sessionStorage.setItem('just_signed_in', 'true');
+
+      console.log('✅ [ULTRA-FAST AUTH] Sign in successful:', userData.email);
+
+      toast({
+        title: "Welcome back!",
+        description: `Signed in successfully as ${userData.firstName}`,
+      });
+
+      return { success: true, user: userData };
+
+    } catch (error: any) {
+      console.error('❌ [ULTRA-FAST AUTH] Sign in error:', error);
+      setLoading(false);
+
+      toast({
+        title: "Sign In Failed",
+        description: error.message || 'Invalid email or password',
+        variant: "destructive",
+      });
+
+      return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
+    }
   };
 
   const signUp = async (email: string, password: string, firstName: string, lastName: string, nickname: string, phone: string) => {

@@ -1,3 +1,88 @@
+
+import express from 'express';
+import { Client } from 'pg';
+import bcrypt from 'bcrypt';
+
+const router = express.Router();
+
+// Sign in endpoint
+router.post('/api/auth/signin', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    // Connect to database
+    const pgClient = new Client({ connectionString: process.env.SUPABASE_DATABASE_URL });
+    await pgClient.connect();
+
+    try {
+      // Find user by email
+      const userQuery = `
+        SELECT id, email, password, first_name, last_name, phone, kyc_status, 
+               balance, current_credit, credit_limit, credit_approved, email_verified,
+               is_active
+        FROM public.players 
+        WHERE email = $1
+      `;
+      
+      const result = await pgClient.query(userQuery, [email.toLowerCase()]);
+
+      if (result.rows.length === 0) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+
+      const user = result.rows[0];
+
+      // Check if account is active
+      if (!user.is_active) {
+        return res.status(401).json({ error: 'Account is deactivated' });
+      }
+
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+
+      // Update last login
+      await pgClient.query(
+        'UPDATE public.players SET last_login_at = NOW() WHERE id = $1',
+        [user.id]
+      );
+
+      // Return user data
+      res.json({
+        success: true,
+        player: {
+          id: user.id,
+          email: user.email,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          phone: user.phone,
+          kyc_status: user.kyc_status,
+          balance: user.balance,
+          current_credit: user.current_credit,
+          credit_limit: user.credit_limit,
+          credit_approved: user.credit_approved,
+          email_verified: user.email_verified
+        }
+      });
+
+    } finally {
+      await pgClient.end();
+    }
+
+  } catch (error: any) {
+    console.error('❌ [AUTH] Sign in error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+export default router;
+
 import type { Express } from "express";
 import { createServer } from "http";
 import { supabaseOnlyStorage as storage } from "./supabase-only-storage";

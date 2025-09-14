@@ -3,6 +3,12 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import Pusher from 'pusher';
 
+// Import routes
+import staffPortalRoutes from './routes/staff-portal-integration';
+import clerkRoutes from './routes/clerk-integration';
+import emailRoutes from './routes/email-verification';
+import authRoutes from './routes';
+
 // Single Pusher instance for entire application
 export const pusher = new Pusher({
   appId: process.env.PUSHER_APP_ID!,
@@ -45,7 +51,7 @@ console.log('📱 [ONESIGNAL] Single instance initialized for push notifications
 async function initializeApp() {
   // Initialize OneSignal first
   await initializeOneSignal();
-  
+
   const app = express();
   // Increase payload limits for file uploads (10MB limit)
   app.use(express.json({ limit: '10mb' }));
@@ -86,6 +92,12 @@ async function initializeApp() {
   await supabaseStorage.initializeSampleData();
 
   const server = await registerRoutes(app);
+
+  // Use routes
+  app.use('/', staffPortalRoutes);
+  app.use('/', clerkRoutes);
+  app.use('/', emailRoutes);
+  app.use('/', authRoutes);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
