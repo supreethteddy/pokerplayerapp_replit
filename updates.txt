@@ -1,0 +1,226 @@
+
+# POKER PLATFORM COMPREHENSIVE FUNCTIONALITY MAP
+# Generated: September 15, 2025
+# System: Local Poker Club - Player Portal & Staff Portal Integration
+
+## EXECUTIVE SUMMARY
+
+This document provides a complete functionality map for the Poker Platform, detailing every feature, API endpoint, database interaction, and role-based access control across the entire system.
+
+**Architecture**: React + TypeScript + Vite (Frontend) | Express.js + TypeScript (Backend) | Supabase PostgreSQL (Database) | Clerk Authentication | Pusher Real-time | OneSignal Push Notifications
+
+**Portals**: Player Portal + Staff Portal + Master Admin Portal (shared database)
+
+**Authentication**: Hybrid Clerk + Supabase with Row Level Security (RLS)
+
+---
+
+# COMPREHENSIVE FUNCTIONALITY MAP TABLE
+
+| FEATURE/BUTTON | SCREEN/ROUTE | API METHOD & ENDPOINT | BACKEND LOGIC | SUPABASE TABLES | SAMPLE REQUEST | SAMPLE RESPONSE | ROLE ACCESS & RLS | AUDIT LOG ENTRY |
+|---|---|---|---|---|---|---|---|---|
+| **AUTHENTICATION SYSTEM** |
+| Sign In Button | `/` (AuthWrapper) | `POST /api/auth/signin` | PostgreSQL direct query, password validation, session creation | `players` | `{"email": "player@test.com", "password": "pass123"}` | `{"success": true, "user": {"id": 1, "email": "...", "kycStatus": "verified"}}` | **Player**: RLS policy "Players can view own data" | `{action: "user_signin", user_id: 1, timestamp: "...", ip: "..."}` |
+| Sign Up Button | `/` (AuthWrapper) | `POST /api/auth/signup` | Create player record, optional Clerk sync, email verification trigger | `players`, `auth.users` (Clerk) | `{"email": "new@test.com", "password": "pass123", "firstName": "John", "lastName": "Doe", "phone": "1234567890", "nickname": "JohnD"}` | `{"success": true, "player": {"id": 2, "email": "..."}, "redirectToKYC": true}` | **Public**: No RLS (creation) | `{action: "user_signup", user_id: 2, email: "new@test.com", timestamp: "..."}` |
+| Sign Out Button | PlayerDashboard header | Client-side session clear | Session cleanup, localStorage clear | None | N/A | N/A | **Player**: Authenticated users only | `{action: "user_signout", user_id: 1, timestamp: "..."}` |
+| Email Verification Link | Email → `/api/auth/verify-email` | `GET /api/auth/verify-email?token=...` | Token validation, email_verified flag update | `players` | `?token=abc123&email=test@test.com` | HTML success page with redirect | **Public**: Token-based access | `{action: "email_verified", user_id: 1, email: "...", timestamp: "..."}` |
+| **KYC SYSTEM** |
+| Upload Government ID | `/kyc` (KYCWorkflow) | `POST /api/documents/upload` | File validation, malware scan, Supabase storage upload | `kyc_documents` | `{"playerId": 1, "documentType": "government_id", "fileName": "id.jpg", "fileData": "base64..."}` | `{"success": true, "document": {"id": 1, "status": "pending"}}` | **Player**: Own documents only via RLS | `{action: "kyc_document_uploaded", user_id: 1, doc_type: "government_id", timestamp: "..."}` |
+| Upload Address Proof | `/kyc` (KYCWorkflow) | `POST /api/documents/upload` | Same as above, different document type | `kyc_documents` | `{"playerId": 1, "documentType": "address_proof", "fileName": "bill.pdf", "fileData": "base64..."}` | `{"success": true, "document": {"id": 2, "status": "pending"}}` | **Player**: Own documents only via RLS | `{action: "kyc_document_uploaded", user_id: 1, doc_type: "address_proof", timestamp: "..."}` |
+| Upload PAN Card | `/kyc` (KYCWorkflow) | `POST /api/documents/upload` | PAN validation, duplicate check, storage | `kyc_documents`, `players` (pan_card_number) | `{"playerId": 1, "documentType": "pan_card", "fileName": "pan.jpg", "fileData": "base64...", "panCardNumber": "ABCDE1234F"}` | `{"success": true, "document": {"id": 3, "status": "pending"}}` | **Player**: Own documents only via RLS | `{action: "kyc_document_uploaded", user_id: 1, doc_type: "pan_card", pan_number: "ABCDE1234F", timestamp: "..."}` |
+| Submit KYC Button | `/kyc` (KYCWorkflow) | `POST /api/kyc/submit` | Status update to 'submitted', email notification trigger | `players` (kyc_status) | `{"playerId": 1, "firstName": "John", "lastName": "Doe"}` | `{"success": true, "message": "KYC submitted for review"}` | **Player**: Own KYC only via RLS | `{action: "kyc_submitted", user_id: 1, timestamp: "..."}` |
+| **DASHBOARD & BALANCE** |
+| View Dashboard | `/dashboard` (PlayerDashboard) | `GET /api/players/supabase/:supabaseId` | Player data fetch with KYC gate check | `players` | N/A (route param) | `{"id": 1, "balance": "5000.00", "kycStatus": "verified"}` | **Player**: Own data only via RLS | `{action: "dashboard_accessed", user_id: 1, timestamp: "..."}` |
+| View Balance Card | PlayerDashboard | `GET /api/balance/:playerId` | Direct PostgreSQL balance query | `players` (balance, current_credit) | N/A (route param) | `{"cashBalance": "5000.00", "creditBalance": "0.00", "totalBalance": "5000.00"}` | **Player**: Own balance only via RLS | `{action: "balance_viewed", user_id: 1, balance: "5000.00", timestamp: "..."}` |
+| Transfer Credit to Cash | DualBalanceDisplay | `POST /api/player/:playerId/credit-transfer` | Credit validation, balance update, transaction record | `players` (balance, current_credit), `transactions` | `{"amount": 1000}` | `{"success": true, "newCashBalance": "6000.00", "newCreditBalance": "0.00"}` | **Player**: Own transfers only via RLS | `{action: "credit_transfer", user_id: 1, amount: 1000, timestamp: "..."}` |
+| View Transaction History | PlayerDashboard | `GET /api/player/:playerId/transactions` | Transaction history query with pagination | `transactions` | N/A (route param + ?limit=10) | `[{"id": 1, "type": "credit_transfer", "amount": "1000.00", "created_at": "..."}]` | **Player**: Own transactions only via RLS | `{action: "transaction_history_viewed", user_id: 1, timestamp: "..."}` |
+| **LIVE TABLES & WAITLIST** |
+| View Live Tables | PlayerDashboard | `GET /api/tables` | Live poker tables from staff portal | `poker_tables` | N/A | `[{"id": "uuid", "name": "Table 1", "gameType": "Texas Hold'em", "currentPlayers": 5, "maxPlayers": 9}]` | **Player**: Public read access | `{action: "tables_viewed", user_id: 1, timestamp: "..."}` |
+| Join Waitlist Button | PlayerDashboard | `POST /api/seat-requests` | Waitlist validation, position assignment | `seat_requests`, `poker_tables` | `{"playerId": 1, "tableId": "uuid", "gameType": "Texas Hold'em"}` | `{"success": true, "seatRequest": {"position": 3, "estimatedWait": 30}}` | **Player**: Own requests only via RLS | `{action: "waitlist_joined", user_id: 1, table_id: "uuid", position: 3, timestamp: "..."}` |
+| Leave Waitlist Button | PlayerDashboard | `DELETE /api/seat-requests/:playerId/:tableId` | Waitlist removal, position rebalancing | `seat_requests` | N/A (route params) | `{"success": true, "message": "Successfully left waitlist"}` | **Player**: Own requests only via RLS | `{action: "waitlist_left", user_id: 1, table_id: "uuid", timestamp: "..."}` |
+| View Waitlist Status | PlayerDashboard | `GET /api/seat-requests/:playerId` | Personal waitlist query | `seat_requests`, `poker_tables` | N/A (route param) | `[{"id": 1, "tableId": "uuid", "status": "waiting", "position": 3}]` | **Player**: Own requests only via RLS | `{action: "waitlist_status_viewed", user_id: 1, timestamp: "..."}` |
+| **LIVE SESSION MANAGEMENT** |
+| View Active Session | PlayerDashboard | `GET /api/live-sessions/:playerId` | Active session query with state machine | `seat_requests`, `poker_tables` | N/A (route param) | `{"hasActiveSession": true, "session": {"tableId": "uuid", "sessionPhase": "CALL_TIME_AVAILABLE"}}` | **Player**: Own sessions only via RLS | `{action: "session_status_viewed", user_id: 1, timestamp: "..."}` |
+| Start Call Time Button | PlaytimeTracker | `POST /api/call-time/start` | Call time countdown initialization | `seat_requests` (call_time_started, call_time_ends) | `{"playerId": 1, "sessionId": 1}` | `{"success": true, "callTimeEnds": "2025-09-15T17:32:07.682Z", "duration": 60}` | **Player**: Own sessions only via RLS | `{action: "call_time_started", user_id: 1, table_id: "uuid", duration: 60, timestamp: "..."}` |
+| Request Cash Out Button | PlaytimeTracker | `POST /api/cash-out/request` | Cash out request submission | `seat_requests` (request, notes) | `{"playerId": 1, "sessionId": 1}` | `{"success": true, "message": "Cash out request sent to management"}` | **Player**: Own sessions only via RLS | `{action: "cashout_requested", user_id: 1, table_id: "uuid", timestamp: "..."}` |
+| **REAL-TIME CHAT SYSTEM** |
+| Open Chat Dialog | PlayerDashboard (chat icon) | N/A (UI only) | Chat dialog state management | None | N/A | N/A | **Player**: Authenticated users only | `{action: "chat_opened", user_id: 1, timestamp: "..."}` |
+| Send Chat Message | PlayerChatSystem | `POST /api/staff-chat-integration/send` | Message processing, Pusher broadcast, session management | `chat_sessions`, `chat_messages` | `{"playerId": 1, "message": "Hello support", "playerName": "John Doe"}` | `{"success": true, "message": {"id": "uuid", "timestamp": "..."}}` | **Player**: Own messages only via RLS | `{action: "chat_message_sent", user_id: 1, message_id: "uuid", timestamp: "..."}` |
+| Load Chat History | PlayerChatSystem | `GET /api/player-chat-integration/messages/:playerId` | Chat history with session grouping | `chat_sessions`, `chat_messages` | N/A (route param) | `{"success": true, "conversations": [{"id": "uuid", "chat_messages": [...]}]}` | **Player**: Own chat history only via RLS | `{action: "chat_history_loaded", user_id: 1, timestamp: "..."}` |
+| Clear Chat History | PlayerChatSystem | `DELETE /api/unified-chat/clear/:playerId` | Chat history deletion | `chat_sessions`, `chat_messages` | N/A (route param) | `{"success": true, "message": "Chat history cleared"}` | **Player**: Own chat history only via RLS | `{action: "chat_history_cleared", user_id: 1, timestamp: "..."}` |
+| **OFFERS & PROMOTIONS** |
+| View Offer Carousel | PlayerDashboard | `GET /api/staff-offers` | Active offers query | `offers` | N/A | `[{"id": 1, "title": "Welcome Bonus", "description": "50% bonus", "status": "active"}]` | **Player**: Public read access | `{action: "offers_viewed", user_id: 1, timestamp: "..."}` |
+| Click Offer Banner | OfferCarousel | `POST /api/offer-views` | Offer view tracking | `offer_views` | `{"offer_id": 1}` | `{"success": true}` | **Player**: Public access | `{action: "offer_clicked", user_id: 1, offer_id: 1, timestamp: "..."}` |
+| View Offer Detail | `/offer/:id` (OfferDetail) | `GET /api/staff-offers` | Specific offer query | `offers` | N/A (route param in offers query) | `{"id": 1, "title": "Welcome Bonus", "terms": "...", "click_url": "..."}` | **Player**: Public read access | `{action: "offer_detail_viewed", user_id: 1, offer_id: 1, timestamp: "..."}` |
+| **PUSH NOTIFICATIONS** |
+| View Notifications | PlayerDashboard | `GET /api/push-notifications/:playerId` | Notifications query with audience filtering | `push_notifications` | N/A (route param) | `[{"id": 1, "title": "Table Ready", "message": "Your table is ready", "status": "sent"}]` | **Player**: Targeted notifications only via RLS | `{action: "notifications_viewed", user_id: 1, timestamp: "..."}` |
+| Mark Notification Read | NotificationBubbleManager | `PUT /api/push-notifications/:id/read` | Notification read status update | `push_notifications` (read_at) | N/A (route param) | `{"success": true, "read_at": "2025-09-15T17:32:07.682Z"}` | **Player**: Own notifications only via RLS | `{action: "notification_read", user_id: 1, notification_id: 1, timestamp: "..."}` |
+| **TOURNAMENTS** |
+| View Tournament List | PlayerDashboard | `GET /api/tournaments` | Active tournaments query | `tournaments` | N/A | `[{"id": 1, "name": "Daily Freeroll", "buyIn": "0.00", "startTime": "..."}]` | **Player**: Public read access | `{action: "tournaments_viewed", user_id: 1, timestamp: "..."}` |
+| Register for Tournament | PlayerDashboard | `POST /api/tournaments/:id/register` | Tournament registration processing | `tournament_registrations`, `players` (balance) | `{"playerId": 1}` | `{"success": true, "registered": true, "seat": 15}` | **Player**: Own registrations only via RLS | `{action: "tournament_registered", user_id: 1, tournament_id: 1, timestamp: "..."}` |
+| **FINANCIAL OPERATIONS** |
+| Submit Cash Out Request | CashOutRequest | `POST /api/cash-out-request` | Cash out request creation | `cash_out_requests` | `{"playerId": 1, "amount": 2000, "requestedAt": "..."}` | `{"success": true, "request": {"id": 1, "status": "pending"}}` | **Player**: Own requests only via RLS | `{action: "cashout_request_submitted", user_id: 1, amount: 2000, timestamp: "..."}` |
+| View Cash Out History | PlayerDashboard | `GET /api/cash-out-requests/:playerId` | Cash out history query | `cash_out_requests` | N/A (route param) | `[{"id": 1, "amount": "2000.00", "status": "approved", "requested_at": "..."}]` | **Player**: Own requests only via RLS | `{action: "cashout_history_viewed", user_id: 1, timestamp: "..."}` |
+| Request Credit Line | CreditRequestCard | `POST /api/credit-requests` | Credit request submission | `credit_requests` | `{"playerId": 1, "requestedAmount": 5000, "reason": "Extended play session"}` | `{"success": true, "request": {"id": 1, "status": "pending"}}` | **Player**: Own requests only via RLS | `{action: "credit_requested", user_id: 1, amount: 5000, timestamp: "..."}` |
+| **FEEDBACK SYSTEM** |
+| Submit Feedback | PlayerDashboard | `POST /api/feedback` | Feedback submission to staff | `player_feedback` | `{"playerId": 1, "message": "Great experience, but need more tables"}` | `{"success": true, "feedbackId": 1, "message": "Feedback submitted successfully"}` | **Player**: Own feedback only via RLS | `{action: "feedback_submitted", user_id: 1, feedback_id: 1, timestamp: "..."}` |
+| **VIP SHOP** |
+| View VIP Shop | `/vip-shop` (VipShop) | `GET /api/vip-items` | VIP items query | `vip_items` | N/A | `[{"id": 1, "name": "Premium Chips", "price": 100, "description": "..."}]` | **Player**: Public read access | `{action: "vip_shop_viewed", user_id: 1, timestamp: "..."}` |
+| Purchase VIP Item | VipShop | `POST /api/vip-items/:id/purchase` | VIP item purchase processing | `vip_purchases`, `players` (balance) | `{"playerId": 1, "itemId": 1}` | `{"success": true, "purchase": {"id": 1, "status": "completed"}}` | **Player**: Own purchases only via RLS | `{action: "vip_item_purchased", user_id: 1, item_id: 1, price: 100, timestamp: "..."}` |
+| **TABLE OPERATIONS** |
+| View Table Details | `/table/:tableId` (TableView) | `GET /api/tables/:tableId/details` | Detailed table information | `poker_tables`, `seat_requests` | N/A (route param) | `{"id": "uuid", "name": "Table 1", "pot": "15000.00", "seatedPlayers": [...]}` | **Player**: Public read access | `{action: "table_details_viewed", user_id: 1, table_id: "uuid", timestamp: "..."}` |
+| Check Table Status | TableView | `GET /api/table-status/:tableId` | Real-time table status | `poker_tables`, `seat_requests` | N/A (route param) | `{"gameStarted": true, "currentPlayers": 7, "canJoinNow": true}` | **Player**: Public read access | `{action: "table_status_checked", user_id: 1, table_id: "uuid", timestamp: "..."}` |
+| **HEALTH MONITORING** |
+| System Health Check | HealthMonitor | `GET /api/health` | System health diagnostics | Multiple (read-only) | N/A | `{"status": "healthy", "database": "connected", "pusher": "active"}` | **Player**: Public read access | `{action: "health_check", user_id: 1, status: "healthy", timestamp: "..."}` |
+
+---
+
+# STAFF PORTAL INTEGRATION ENDPOINTS
+
+| FEATURE/BUTTON | API METHOD & ENDPOINT | BACKEND LOGIC | ROLE ACCESS | AUDIT LOG ENTRY |
+|---|---|---|---|---|
+| **KYC Management** |
+| Approve KYC Document | `POST /api/staff/kyc/approve` | Document status update, player notification | **Staff**: Admin/Manager via RLS | `{action: "kyc_approved", staff_id: 1, player_id: 1, doc_id: 1, timestamp: "..."}` |
+| Reject KYC Document | `POST /api/staff/kyc/reject` | Document status update, rejection reason | **Staff**: Admin/Manager via RLS | `{action: "kyc_rejected", staff_id: 1, player_id: 1, doc_id: 1, reason: "...", timestamp: "..."}` |
+| **Player Management** |
+| View All Players | `GET /api/staff/players` | Player list with filters | **Staff**: All staff via RLS | `{action: "players_list_viewed", staff_id: 1, filter: "active", timestamp: "..."}` |
+| Update Player Balance | `POST /api/staff/player/:id/balance` | Balance adjustment, transaction record | **Staff**: Cashier/Admin via RLS | `{action: "balance_updated", staff_id: 1, player_id: 1, old_balance: "5000", new_balance: "6000", timestamp: "..."}` |
+| **Chat Management** |
+| View Chat Requests | `GET /api/staff-chat-integration/requests` | Active chat sessions query | **Staff**: GRE/Admin via RLS | `{action: "chat_requests_viewed", staff_id: 1, active_sessions: 5, timestamp: "..."}` |
+| Respond to Player | `POST /api/staff-chat-integration/reply` | Staff message to player | **Staff**: GRE/Admin via RLS | `{action: "staff_message_sent", staff_id: 1, player_id: 1, message_id: "uuid", timestamp: "..."}` |
+| **Table Management** |
+| Assign Player to Table | `POST /api/staff/assign-seat` | Seat assignment, waitlist update | **Staff**: Floor Manager via RLS | `{action: "seat_assigned", staff_id: 1, player_id: 1, table_id: "uuid", seat: 3, timestamp: "..."}` |
+| Process Cash Out | `POST /api/cashier/process-cash-out` | Balance deduction, cash out approval | **Staff**: Cashier/Admin via RLS | `{action: "cashout_processed", staff_id: 1, player_id: 1, amount: 2000, timestamp: "..."}` |
+
+---
+
+# REAL-TIME SYSTEM ARCHITECTURE
+
+## Pusher Channels Configuration
+
+| Channel Name | Events | Purpose | Access Control |
+|---|---|---|---|
+| `player-{playerId}` | `balance_updated`, `table_assigned`, `message_sent` | Player-specific real-time updates | **Player**: Own channel only |
+| `staff-portal` | `new-player-message`, `new-waitlist-entry`, `call_time_started` | Staff portal real-time notifications | **Staff**: All staff members |
+| `cross-portal-sync` | `player_balance_update`, `kyc_status_change` | Cross-portal synchronization | **System**: Internal only |
+| `cashier-notifications` | `new_cash_out_request`, `cash_out_processed` | Cashier-specific alerts | **Staff**: Cashier role only |
+
+## WebSocket Event Flow
+
+1. **Player Action** → Frontend sends API request
+2. **Backend Processing** → Database update + business logic
+3. **Pusher Broadcast** → Real-time event to relevant channels
+4. **Frontend Update** → UI updates via WebSocket listeners
+5. **Audit Log** → Action recorded in audit system
+
+---
+
+# DATABASE SCHEMA REFERENCE
+
+## Core Tables with RLS Policies
+
+| Table Name | Primary Key | RLS Policy | Access Pattern |
+|---|---|---|---|
+| `players` | `id` (serial) | Players can view/update own data, Staff full access | `auth.uid()::text = email OR auth.role() = 'service_role'` |
+| `kyc_documents` | `id` (serial) | Players own documents, Staff full access | `player_id IN (SELECT id FROM players WHERE auth.uid()::text = email)` |
+| `seat_requests` | `id` (serial) | Players own requests, Staff full access | `player_id IN (SELECT id FROM players WHERE auth.uid()::text = email)` |
+| `chat_sessions` | `id` (text) | Players own sessions, Staff full access | `player_id IN (SELECT id FROM players WHERE auth.uid()::text = email)` |
+| `chat_messages` | `id` (text) | Players own messages, Staff full access | Via chat_sessions relationship |
+| `transactions` | `id` (serial) | Players own transactions, Staff full access | `player_id IN (SELECT id FROM players WHERE auth.uid()::text = email)` |
+| `push_notifications` | `id` (serial) | Players targeted notifications, Staff full access | `target_player_id = auth.uid()::text::integer OR broadcast_to_all = TRUE` |
+
+---
+
+# ENVIRONMENT VARIABLES REFERENCE
+
+## Required Configuration
+
+```
+# Database
+DATABASE_URL=postgresql://...
+VITE_SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGci...
+
+# Authentication  
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+
+# Real-time Messaging
+VITE_PUSHER_KEY=xxx
+VITE_PUSHER_CLUSTER=ap2
+PUSHER_APP_ID=xxx
+PUSHER_KEY=xxx  
+PUSHER_SECRET=xxx
+
+# Push Notifications
+VITE_ONESIGNAL_APP_ID=xxx
+ONESIGNAL_API_KEY=xxx
+```
+
+---
+
+# ERROR HANDLING & AUDIT LOGGING
+
+## Standard Error Response Format
+
+```json
+{
+  "error": "Error message for user",
+  "code": "ERROR_CODE",
+  "details": "Technical details (dev mode only)",
+  "timestamp": "2025-09-15T17:32:07.682Z",
+  "requestId": "uuid"
+}
+```
+
+## Audit Log Schema
+
+```sql
+CREATE TABLE audit_logs (
+  id SERIAL PRIMARY KEY,
+  action VARCHAR(100) NOT NULL,
+  user_id INTEGER,
+  staff_id INTEGER,
+  table_id TEXT,
+  details JSONB,
+  ip_address INET,
+  user_agent TEXT,
+  timestamp TIMESTAMP DEFAULT NOW()
+);
+```
+
+## Success Response Format
+
+```json
+{
+  "success": true,
+  "data": { /* Response data */ },
+  "message": "Operation completed successfully",
+  "timestamp": "2025-09-15T17:32:07.682Z"
+}
+```
+
+---
+
+# DEPLOYMENT & PRODUCTION NOTES
+
+## Port Configuration
+- **Development**: Port 5000 (forwarded to 80/443 in production)
+- **Binding**: 0.0.0.0 for accessibility on Replit
+- **WebSocket**: Same port as HTTP server
+
+## Performance Optimization
+- **Database Connections**: PostgreSQL connection pooling
+- **Real-time Updates**: Efficient Pusher channel management
+- **File Uploads**: Direct Supabase storage with malware scanning
+- **API Rate Limiting**: Implemented for production security
+
+## Security Features
+- **Row Level Security (RLS)**: Enforced on all sensitive tables
+- **JWT Validation**: Clerk tokens validated on protected endpoints
+- **Input Validation**: Zod schemas for all API inputs
+- **File Scanning**: ClamAV malware detection for uploads
+
+---
+
+This comprehensive functionality map covers every interactive element in your poker platform, providing complete visibility into the system architecture, API endpoints, database interactions, and security model. The document serves as both a reference guide and audit trail for the entire application.
