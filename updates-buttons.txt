@@ -1,0 +1,605 @@
+
+# COMPREHENSIVE BUTTON FUNCTIONALITY MAPPING
+# Poker Room Player Portal - Complete Button Reference
+# Generated: January 2025
+
+================================================================================
+## AUTHENTICATION & SIGN IN/OUT BUTTONS
+================================================================================
+
+### Sign In Buttons
+1. **Submit Sign In** (Email/Password)
+   - File: client/src/components/AuthWrapper.tsx
+   - Endpoint: POST /api/auth/signin
+   - Function: handleEmailAuth()
+   - Action: Direct PostgreSQL authentication with email/password
+
+2. **Google Sign In**
+   - File: client/src/components/ClubsPokerAuth.tsx
+   - Endpoint: Not implemented (placeholder)
+   - Function: handleGoogleAuth()
+   - Action: Shows placeholder toast message
+
+3. **Clerk Sign In** (Multiple Components)
+   - File: client/src/components/ClerkSignInPage.tsx
+   - Endpoint: Clerk Auth SDK
+   - Function: Clerk SignIn component
+   - Action: Clerk authentication flow
+
+### Sign Up Buttons
+1. **Submit Sign Up** (Email/Password)
+   - File: client/src/components/AuthWrapper.tsx
+   - Endpoint: POST /api/auth/signup
+   - Function: handleEmailAuth() with isSignUp=true
+   - Action: Creates new player account
+
+2. **Clerk Sign Up** (Multiple Components)
+   - File: client/src/components/ClerkSignUpPage.tsx
+   - Endpoint: Clerk Auth SDK
+   - Function: Clerk SignUp component
+   - Action: Clerk registration flow
+
+### Logout Buttons
+1. **Log Out** (Main Dashboard)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: None (client-side)
+   - Function: signOut()
+   - Action: Clears session and redirects to login
+
+2. **Back to Login** (KYC Workflow)
+   - File: client/src/components/KYCWorkflow.tsx
+   - Endpoint: None (client-side)
+   - Function: Clears KYC data and redirects
+   - Action: Returns to login page
+
+================================================================================
+## NAVIGATION & TAB BUTTONS
+================================================================================
+
+### Dashboard Tab Navigation
+1. **Game Tab**
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: None (UI state)
+   - Function: setActiveTab('game')
+   - Action: Shows tables and gaming content
+
+2. **VIP Tab**
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: None (UI state)
+   - Function: setActiveTab('vip')
+   - Action: Shows VIP points and rewards
+
+3. **Profile Tab**
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: None (UI state)
+   - Function: setActiveTab('profile')
+   - Action: Shows player profile and KYC
+
+4. **Offers Tab**
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: None (UI state)
+   - Function: setActiveTab('offers')
+   - Action: Shows promotional offers
+
+5. **Chat Tab**
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: None (UI state)
+   - Function: setActiveTab('chat')
+   - Action: Shows GRE chat interface
+
+6. **Notifications Tab**
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: None (UI state)
+   - Function: setActiveTab('notifications')
+   - Action: Shows notification history
+
+7. **Food & Beverage Tab**
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: None (UI state)
+   - Function: setActiveTab('food')
+   - Action: Shows food ordering interface
+
+### Page Navigation
+1. **Back to Dashboard** (VIP Shop)
+   - File: client/src/pages/VipShop.tsx
+   - Endpoint: None (routing)
+   - Function: Link to "/"
+   - Action: Returns to main dashboard
+
+2. **View Table** (Table Assignment)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: None (routing)
+   - Function: Link to `/table/${tableId}`
+   - Action: Opens table view page
+
+================================================================================
+## TABLE & GAMING BUTTONS
+================================================================================
+
+### Waitlist Management
+1. **Join Waitlist** (Table Cards)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: POST /api/seat-requests
+   - Function: joinWaitListMutation.mutate()
+   - Action: Adds player to table waitlist
+
+2. **Leave Waitlist** (Table Cards)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: DELETE /api/seat-requests/{playerId}/{tableId}
+   - Function: leaveWaitListMutation.mutate()
+   - Action: Removes player from waitlist
+
+3. **Join Table** (Alternative)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: None (routing)
+   - Function: handleJoinWaitList()
+   - Action: Navigates to table view for seat selection
+
+### Table Operations
+1. **Buy-in Submit** (Table Operations)
+   - File: client/src/components/TableOperations.tsx
+   - Endpoint: POST /api/table/buy-in
+   - Function: buyInMutation.mutate()
+   - Action: Deducts balance for table buy-in
+
+2. **Cash-out Submit** (Table Operations)
+   - File: client/src/components/TableOperations.tsx
+   - Endpoint: POST /api/table/cash-out
+   - Function: cashOutMutation.mutate()
+   - Action: Adds chips back to balance
+
+### Seat Assignment
+1. **Accept Assignment** (Assignment Dialog)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: None (routing)
+   - Function: Navigate to table view
+   - Action: Goes to assigned table
+
+2. **View Game** (Active Game Banner)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: None (routing)
+   - Function: Link to table view
+   - Action: Opens current game table
+
+================================================================================
+## BALANCE & FINANCIAL BUTTONS
+================================================================================
+
+### Balance Management
+1. **Refresh Balance** (Balance Display)
+   - File: client/src/components/PlayerBalanceDisplay.tsx
+   - Endpoint: GET /api/balance/{playerId}
+   - Function: queryClient.invalidateQueries()
+   - Action: Refreshes balance from server
+
+2. **View Transactions** (Balance Card)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: GET /api/player/{playerId}/transactions
+   - Function: setShowTransactions()
+   - Action: Shows transaction history
+
+3. **Show Last 10 Transactions**
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: GET /api/player/{playerId}/transactions?limit=10
+   - Function: setShowTransactions('last10')
+   - Action: Displays recent transactions
+
+4. **Show All Transactions**
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: GET /api/player/{playerId}/transactions?limit=100
+   - Function: setShowTransactions('all')
+   - Action: Displays all transactions
+
+### Cash-Out System
+1. **Request Cash-Out** (Initial Button)
+   - File: client/src/components/CashOutRequest.tsx
+   - Endpoint: None (UI state)
+   - Function: setIsRequesting(true)
+   - Action: Shows cash-out form
+
+2. **Submit Cash-Out Request**
+   - File: client/src/components/CashOutRequest.tsx
+   - Endpoint: POST /api/cash-out-request
+   - Function: requestCashOut.mutate()
+   - Action: Submits withdrawal request
+
+3. **Cancel Cash-Out**
+   - File: client/src/components/CashOutRequest.tsx
+   - Endpoint: None (UI state)
+   - Function: setIsRequesting(false)
+   - Action: Cancels cash-out form
+
+### Credit System
+1. **Request Credit** (Initial Button)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: None (UI state)
+   - Function: setShowCreditForm(true)
+   - Action: Shows credit request form
+
+2. **Submit Credit Request**
+   - File: client/src/components/CreditRequestCard.tsx
+   - Endpoint: POST /api/credit-requests
+   - Function: submitCreditRequestMutation.mutate()
+   - Action: Requests credit from admin
+
+3. **Cancel Credit Request**
+   - File: client/src/components/CreditRequestCard.tsx
+   - Endpoint: None (UI state)
+   - Function: setShowCreditForm(false)
+   - Action: Cancels credit form
+
+4. **Add to Available Balance** (Credit Transfer)
+   - File: client/src/components/CreditTransfer.tsx
+   - Endpoint: POST /api/player/{playerId}/credit-transfer
+   - Function: transferMutation.mutate()
+   - Action: Transfers credit to cash balance
+
+5. **Max Transfer** (Credit Transfer)
+   - File: client/src/components/CreditTransfer.tsx
+   - Endpoint: None (UI state)
+   - Function: handleMaxTransfer()
+   - Action: Sets transfer amount to max credit
+
+================================================================================
+## KYC & DOCUMENT MANAGEMENT BUTTONS
+================================================================================
+
+### KYC Workflow Navigation
+1. **Save Details & Continue** (Step 1)
+   - File: client/src/components/KYCWorkflow.tsx
+   - Endpoint: PUT /api/players/{playerId}
+   - Function: saveUserDetails()
+   - Action: Saves personal information
+
+2. **Submit Documents** (Step 2)
+   - File: client/src/components/KYCWorkflow.tsx
+   - Endpoint: POST /api/kyc/submit
+   - Function: submitKYC()
+   - Action: Submits KYC for review
+
+3. **Submit KYC for Review** (Step 3)
+   - File: client/src/components/KYCWorkflow.tsx
+   - Endpoint: POST /api/kyc/submit
+   - Function: submitKYC()
+   - Action: Final KYC submission
+
+4. **Complete Registration** (Step 4)
+   - File: client/src/components/KYCWorkflow.tsx
+   - Endpoint: None (cleanup)
+   - Function: onComplete() + redirect
+   - Action: Finishes KYC process
+
+### Document Upload
+1. **Government ID Upload** (File Input)
+   - File: client/src/components/KYCWorkflow.tsx
+   - Endpoint: POST /api/documents/upload
+   - Function: handleFileUpload('government_id', file)
+   - Action: Uploads ID document
+
+2. **Address Proof Upload** (File Input)
+   - File: client/src/components/KYCWorkflow.tsx
+   - Endpoint: POST /api/documents/upload
+   - Function: handleFileUpload('utility_bill', file)
+   - Action: Uploads address proof
+
+3. **PAN Card Upload** (File Input)
+   - File: client/src/components/KYCWorkflow.tsx
+   - Endpoint: POST /api/documents/upload
+   - Function: handleFileUpload('pan_card', file)
+   - Action: Uploads PAN card
+
+4. **Profile Document Upload** (Dashboard)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: POST /api/documents/upload
+   - Function: handleKycDocumentUpload()
+   - Action: Uploads various document types
+
+### PAN Card Management
+1. **Update PAN Card** (Profile)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: POST /api/players/{playerId}/pan-card
+   - Function: updatePanCardMutation.mutate()
+   - Action: Updates PAN card number
+
+================================================================================
+## CHAT & COMMUNICATION BUTTONS
+================================================================================
+
+### GRE Chat System
+1. **Open Chat Dialog** (Dashboard)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: None (UI state)
+   - Function: setChatDialogOpen(true)
+   - Action: Opens chat interface
+
+2. **Send Message** (Chat Interface)
+   - File: client/src/components/PlayerChatSystem.tsx
+   - Endpoint: POST /api/staff-chat-integration/send
+   - Function: sendMessage()
+   - Action: Sends message to staff
+
+3. **Send Message** (Dashboard Quick Chat)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: POST /api/unified-chat/send
+   - Function: sendChatMessage()
+   - Action: Sends message via WebSocket/REST
+
+4. **Close Chat** (Chat Dialog)
+   - File: client/src/components/PlayerChatSystem.tsx
+   - Endpoint: None (UI state)
+   - Function: onClose()
+   - Action: Closes chat interface
+
+5. **Clear Chat History**
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: DELETE /api/unified-chat/clear/{playerId}
+   - Function: clearChatHistory()
+   - Action: Clears conversation history
+
+### Feedback System
+1. **Submit Feedback** (Dashboard)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: POST /api/feedback
+   - Function: submitFeedback()
+   - Action: Sends feedback to management
+
+================================================================================
+## TOURNAMENT & VIP BUTTONS
+================================================================================
+
+### Tournament Management
+1. **Express Interest** (Tournament Cards)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: POST /api/unified-chat/send
+   - Function: handleTournamentInterest()
+   - Action: Sends interest message to GRE
+
+2. **Register for Tournament**
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: POST /api/tournaments/register
+   - Function: handleTournamentRegister()
+   - Action: Registers for tournament
+
+3. **Show/Hide Tournaments**
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: None (UI state)
+   - Function: setShowTournaments()
+   - Action: Toggles tournament display
+
+### VIP Points System
+1. **Tournament Ticket Redemption** (VIP Shop)
+   - File: client/src/pages/VipShop.tsx
+   - Endpoint: POST /api/vip-points/redeem
+   - Function: redeemPoints.mutate()
+   - Action: Redeems 500 points for tournament ticket
+
+2. **Buy-in Discount Redemption** (VIP Shop)
+   - File: client/src/pages/VipShop.tsx
+   - Endpoint: POST /api/vip-points/redeem
+   - Function: redeemPoints.mutate()
+   - Action: Redeems 300 points for discount
+
+3. **Premium Product Redemption** (VIP Shop)
+   - File: client/src/pages/VipShop.tsx
+   - Endpoint: POST /api/vip-points/redeem
+   - Function: redeemPoints.mutate()
+   - Action: Redeems 1000 points for products
+
+4. **VIP Redemption Buttons** (Dashboard VIP Display)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: POST /api/vip-club/redeem
+   - Function: handleVipRedeem()
+   - Action: Various VIP reward redemptions
+
+================================================================================
+## OFFERS & PROMOTIONS BUTTONS
+================================================================================
+
+### Offer Interaction
+1. **View Offer Details** (Offer Cards)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: POST /api/offer-views (tracking)
+   - Function: trackOfferView.mutate()
+   - Action: Tracks offer engagement and redirects
+
+2. **Visit Offer** (External Links)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: External URL or offer detail page
+   - Function: window.open() or navigation
+   - Action: Opens offer link or details
+
+### Offer Carousel Navigation
+1. **Previous Slide** (Carousel)
+   - File: client/src/components/OfferCarousel.tsx
+   - Endpoint: None (UI state)
+   - Function: prevSlide()
+   - Action: Shows previous offer
+
+2. **Next Slide** (Carousel)
+   - File: client/src/components/OfferCarousel.tsx
+   - Endpoint: None (UI state)
+   - Function: nextSlide()
+   - Action: Shows next offer
+
+3. **Pagination Dots** (Carousel)
+   - File: client/src/components/OfferCarousel.tsx
+   - Endpoint: None (UI state)
+   - Function: setCurrentIndex()
+   - Action: Jumps to specific offer
+
+4. **Offer Click** (Carousel Items)
+   - File: client/src/components/OfferCarousel.tsx
+   - Endpoint: POST /api/offer-views + navigation
+   - Function: onOfferClick()
+   - Action: Tracks view and opens offer
+
+================================================================================
+## NOTIFICATION & UI BUTTONS
+================================================================================
+
+### Notification Management
+1. **Dismiss Notification** (Notification Bubbles)
+   - File: client/src/components/NotificationBubbleManager.tsx
+   - Endpoint: None (UI state)
+   - Function: removeNotification()
+   - Action: Removes notification from display
+
+2. **Mark as Read** (Notification History)
+   - File: client/src/components/NotificationHistoryTab.tsx
+   - Endpoint: PATCH /api/notifications/{notificationId}/read
+   - Function: markAsRead.mutate()
+   - Action: Marks notification as read
+
+3. **Close Notification Banner** (Email Verification)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: None (UI state)
+   - Function: setShowEmailVerificationBanner(false)
+   - Action: Hides verification banner
+
+4. **Close Assignment Notification**
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: None (UI state)
+   - Function: setShowAssignmentNotification(false)
+   - Action: Closes assignment dialog
+
+### Modal and Dialog Controls
+1. **Close Dialog** (Various Modals)
+   - Multiple Files: PlayerDashboard.tsx, various components
+   - Endpoint: None (UI state)
+   - Function: Various setState(false) calls
+   - Action: Closes modal dialogs
+
+2. **Open Modal** (Various Triggers)
+   - Multiple Files: PlayerDashboard.tsx, various components
+   - Endpoint: None (UI state)
+   - Function: Various setState(true) calls
+   - Action: Opens modal dialogs
+
+================================================================================
+## FORM SUBMISSION BUTTONS
+================================================================================
+
+### Generic Form Controls
+1. **Submit Button** (Various Forms)
+   - Multiple Files: KYCWorkflow.tsx, PlayerDashboard.tsx, etc.
+   - Endpoints: Various POST endpoints
+   - Function: handleSubmit() variations
+   - Action: Submits form data
+
+2. **Cancel Button** (Various Forms)
+   - Multiple Files: KYCWorkflow.tsx, CashOutRequest.tsx, etc.
+   - Endpoint: None (UI state)
+   - Function: Reset form state
+   - Action: Cancels form and resets
+
+3. **Max Button** (Amount Inputs)
+   - File: client/src/components/CreditTransfer.tsx
+   - Endpoint: None (UI state)
+   - Function: handleMaxTransfer()
+   - Action: Sets input to maximum value
+
+================================================================================
+## REFRESH & SYNC BUTTONS
+================================================================================
+
+### Data Refresh
+1. **Refresh Tables** (Implicit via Query)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: GET /api/tables
+   - Function: useQuery refetch
+   - Action: Refreshes table data every 30 seconds
+
+2. **Refresh Balance** (Implicit via Query)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: GET /api/balance/{playerId}
+   - Function: useQuery refetch
+   - Action: Refreshes balance every 15 seconds
+
+3. **Refresh Notifications** (Implicit via Query)
+   - File: client/src/components/PlayerDashboard.tsx
+   - Endpoint: GET /api/push-notifications/{playerId}
+   - Function: useQuery refetch
+   - Action: Refreshes notifications every 30 seconds
+
+4. **Manual Query Invalidation** (Various Actions)
+   - Multiple Files: Various mutation onSuccess callbacks
+   - Endpoint: None (cache management)
+   - Function: queryClient.invalidateQueries()
+   - Action: Forces data refresh after mutations
+
+================================================================================
+## DEVELOPMENT & TESTING BUTTONS
+================================================================================
+
+### Health Monitoring
+1. **Health Check** (Development)
+   - File: client/src/components/HealthMonitor.tsx
+   - Endpoint: GET /api/health
+   - Function: Health monitoring query
+   - Action: Checks system health status
+
+================================================================================
+## SUMMARY BY ENDPOINT GROUPS
+================================================================================
+
+### Authentication Endpoints
+- POST /api/auth/signin (AuthWrapper.tsx)
+- POST /api/auth/signup (AuthWrapper.tsx)
+- POST /api/auth/clerk-sync (Clerk components)
+
+### Player Management Endpoints
+- GET /api/players/{playerId} (PlayerDashboard.tsx)
+- PUT /api/players/{playerId} (KYCWorkflow.tsx)
+- POST /api/players/{playerId}/pan-card (PlayerDashboard.tsx)
+
+### Balance & Financial Endpoints
+- GET /api/balance/{playerId} (PlayerDashboard.tsx, BalanceDisplay components)
+- GET /api/player/{playerId}/transactions (PlayerDashboard.tsx)
+- POST /api/cash-out-request (CashOutRequest.tsx)
+- POST /api/credit-requests (CreditRequestCard.tsx)
+- POST /api/player/{playerId}/credit-transfer (CreditTransfer.tsx)
+
+### Table & Gaming Endpoints
+- GET /api/tables (PlayerDashboard.tsx)
+- POST /api/seat-requests (PlayerDashboard.tsx)
+- DELETE /api/seat-requests/{playerId}/{tableId} (PlayerDashboard.tsx)
+- POST /api/table/buy-in (TableOperations.tsx)
+- POST /api/table/cash-out (TableOperations.tsx)
+
+### Chat & Communication Endpoints
+- POST /api/staff-chat-integration/send (PlayerChatSystem.tsx)
+- POST /api/unified-chat/send (PlayerDashboard.tsx)
+- DELETE /api/unified-chat/clear/{playerId} (PlayerDashboard.tsx)
+- POST /api/feedback (PlayerDashboard.tsx)
+
+### KYC & Document Endpoints
+- POST /api/documents/upload (KYCWorkflow.tsx, PlayerDashboard.tsx)
+- GET /api/documents/player/{playerId} (PlayerDashboard.tsx)
+- POST /api/kyc/submit (KYCWorkflow.tsx)
+
+### Tournament & VIP Endpoints
+- GET /api/tournaments (PlayerDashboard.tsx)
+- POST /api/tournaments/register (PlayerDashboard.tsx)
+- GET /api/vip-points/calculate/{playerId} (VipShop.tsx, PlayerDashboard.tsx)
+- POST /api/vip-points/redeem (VipShop.tsx)
+- POST /api/vip-club/redeem (PlayerDashboard.tsx)
+
+### Offers & Promotions Endpoints
+- GET /api/staff-offers (PlayerDashboard.tsx, OfferCarousel.tsx)
+- POST /api/offer-views (PlayerDashboard.tsx, OfferCarousel.tsx)
+
+### Notification Endpoints
+- GET /api/push-notifications/{playerId} (PlayerDashboard.tsx)
+- PATCH /api/notifications/{notificationId}/read (NotificationHistoryTab.tsx)
+
+================================================================================
+END OF COMPREHENSIVE BUTTON FUNCTIONALITY MAPPING
+================================================================================
+
+Total Buttons Documented: 80+
+Unique Endpoints Referenced: 25+
+Components Analyzed: 15+
+Functional Groups: 11
+
+Last Updated: January 2025
+Version: 2.0 (Production Ready)
