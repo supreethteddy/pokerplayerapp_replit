@@ -917,16 +917,16 @@
 - **credit_requests**: Credit applications for admin approval
 - **offer_banners**: Promotional offers and marketing content
 - **offer_views**: Offer engagement analytics and tracking
-- **tournaments**: Tournament information and registration data
-- **tournament_registrations**: Player tournament entries
-- **vip_transactions**: VIP point redemptions and reward history
-- **feedback_submissions**: Player feedback and service reviews
+- **tournaments**: Tournament information and registration data (untouched)
+- **tournament_registrations**: Player tournament entries (untouched)
+- **vip_transactions**: VIP point redemptions and reward history (untouched)
+- **feedback_submissions**: Player feedback and service reviews (untouched)
 
 ### Cross-Portal Integration Tables:
-- **staff_portal_sync**: Data synchronization between portals
-- **audit_logs**: Comprehensive audit trail for all operations
-- **session_tracking**: User session management and security
-- **real_time_events**: Event logging for real-time operations
+- **staff_portal_sync**: Data synchronization between portals (untouched)
+- **audit_logs**: Comprehensive audit trail for all operations (untouched)
+- **session_tracking**: User session management and security (untouched)
+- **real_time_events**: Event logging for real-time operations (untouched)
 
 ================================================================================
 END OF COMPREHENSIVE FUNCTIONALITY MAP
