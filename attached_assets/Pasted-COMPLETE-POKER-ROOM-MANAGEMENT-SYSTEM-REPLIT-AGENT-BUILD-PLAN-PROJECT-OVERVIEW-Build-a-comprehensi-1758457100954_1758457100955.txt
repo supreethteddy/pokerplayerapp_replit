@@ -1,0 +1,550 @@
+COMPLETE POKER ROOM MANAGEMENT SYSTEM - REPLIT AGENT BUILD PLAN
+PROJECT OVERVIEW
+Build a comprehensive poker room management system with 8 integrated portals using React, Express, TypeScript, and Supabase. The system manages real-time poker operations including player tracking, table management, financial transactions, and staff operations.
+TECHNOLOGY STACK
+Frontend: React 18, TypeScript, TailwindCSS, shadcn/ui, React Query
+Backend: Express.js, TypeScript, Node.js
+Database: Supabase PostgreSQL
+Authentication: Supabase Auth
+Real-time: Pusher Channels
+File Storage: Supabase Storage
+Payment: Stripe (optional)
+
+DATABASE SCHEMA
+Core Tables Required
+1. players
+- id (serial primary key)
+- email (unique)
+- full_name
+- phone
+- balance (decimal)
+- kyc_status (pending/verified/rejected)
+- credit_limit (decimal)
+- credit_eligible (boolean)
+- universal_id (uuid)
+- player_code (unique)
+- created_at
+- updated_at
+
+2. staff_members
+- id (uuid primary key)
+- email (unique)
+- full_name
+- role (super_admin/admin/manager/cashier/hr/fnb_manager/gre)
+- staff_id (unique, e.g., STAFF-0001)
+- last_login_at
+- last_logout_at
+- is_active
+
+3. poker_tables
+- id (uuid primary key)
+- name
+- game_type (Texas Hold'em/PLO/ OMAHA)
+- min_buy_in
+- max_buy_in
+- max_players (9)
+- current_players
+- status (waiting/active/closed)
+- dealer_id
+- is_active
+
+4. Tournament_tables
+- id (uuid primary key)
+- name
+- game_type (Poker Tournament Tables)
+- min_buy_in
+- max_buy_in
+- max_players
+- current_players
+- status (waiting/active/closed)
+- dealer_id
+- is_active
+
+5. transactions
+- id (serial primary key)
+- player_id
+- type (deposit/withdrawal/buy_in/cash_out/credit)
+- amount
+- balance_before
+- balance_after
+- processed_by (staff_id)
+- player_name
+- staff_name
+- created_at
+
+6. waitlist
+- id (uuid primary key)
+- player_id
+- table_id
+- position
+- status (waiting/seated/cancelled)
+- requested_at
+- seated_at
+
+7. table_sessions
+- id (uuid primary key)
+- table_id
+- player_id
+- buy_in_amount
+- cash_out_amount
+- session_start
+- session_end
+- status (active/completed)
+
+8. dealers
+- id (uuid primary key)
+- full_name
+- email
+- phone
+- specialization[]
+- hourly_rate
+- is_active
+- current_table_id
+
+9. chat_sessions
+- id (text primary key)
+- player_id
+- player_name
+- initial_message
+- status (waiting/active/resolved)
+- gre_staff_id, Managar_staff_id
+- created_at
+
+10. chat_messages
+- id (uuid primary key)
+- chat_session_id
+- sender_type (player/staff)
+- sender_name
+- message_text
+- created_at
+
+11. kyc_documents
+- id (uuid primary key)
+- player_id
+- document_type
+- file_url
+- status
+- reviewed_by
+- created_at
+
+12. push_notifications
+- id (uuid primary key)
+- recipient_type (player/staff/all)
+- recipient_id
+- title
+- message
+- read (boolean)
+- created_at
+
+13. rake_entries
+- id (uuid primary key)
+- table_id
+- session_id
+- amount
+- created_at
+
+14. offers
+- id (uuid primary key)
+- title
+- description
+- media_url
+- is_active
+- created_at
+
+15. feedback
+- id (uuid primary key)
+- player_id
+- message
+- rating
+- is_anonymous
+- created_at
+
+PORTAL SPECIFICATIONS
+1. PLAYER PORTAL
+Authentication:
+* Supabase Auth email/password signup/login
+* Email verification required
+* Password reset functionality
+Dashboard Features:
+1. Games Tab
+- View available tables
+- Join waitlist for tables
+- See current position in waitlist
+- Real-time table status updates
+
+2. Transactions Tab
+- View balance
+- Transaction history
+- Request deposits/withdrawals
+- See pending approvals
+
+3. Profile Tab
+- Update personal information
+- Change password
+- View player code
+- Membership status
+
+4. KYC Tab
+- Upload documents (Aadhaar, PAN)
+- Check verification status
+- Download submitted documents
+- Re-upload if rejected
+
+5. Chat Tab (GRE/ Manager verified players only)
+- Start support chat
+- View chat history
+- Real-time messaging with staff
+
+6. Notifications Tab
+- View all notifications
+- Mark as read
+- Real-time push notifications
+
+7. Session Tracker
+- Current table assignment
+- Live session timer
+- Buy-in amount
+- Request cash-out
+
+API Endpoints Needed:
+POST /api/auth/player/signup
+POST /api/auth/player/login
+GET /api/player/profile
+PUT /api/player/profile
+GET /api/player/balance
+GET /api/player/transactions
+POST /api/waitlist/join
+GET /api/waitlist/position
+POST /api/player/cash-out-request
+POST /api/kyc/upload
+GET /api/kyc/documents
+POST /api/chat/start
+GET /api/chat/messages
+POST /api/chat/send
+GET /api/notifications
+PUT /api/notifications/read
+
+2. STAFF PORTAL - CASHIER ROLE
+Features:
+1. Cash Management
+- Process deposits (cash_in)
+- Process withdrawals (cash_out)
+- View pending requests
+- Transaction history
+
+2. Player Search
+- Search by name/email/phone
+- View player balance
+- Process transactions
+
+3. Expenses
+- Record expenses
+- Categories management
+- Daily expense reports
+
+4. Tips Management
+- Record dealer tips
+- Distribute tips
+- Tips reports
+
+5. Reports
+- Daily cash flow
+- Transaction summaries
+- Export to CSV
+
+Permissions:
+* Can process cash transactions
+* Cannot approve credit
+* Cannot manage tables
+* Cannot assign dealers
+3. STAFF PORTAL - MANAGER ROLE
+Features:
+1. Table Management
+- Activate/deactivate tables
+- Assign dealers to tables
+- Monitor table status
+- View table sessions
+- Create new tables
+- Edit table settings
+- Delete tables
+- Configure limits
+
+2. Waitlist Management
+- Assign players to tables
+- Manage waitlist queue
+- Call players for seating
+
+3. Cash Out Approvals
+- Approve player cash-outs
+- Verify amounts
+- Call time management
+- Session tracking
+
+4. Dealer Management
+- Assign/unassign dealers
+- Track dealer performance
+- Manage dealer schedules
+
+5. Account Ledger
+- View table transactions
+- Track rake collection
+- Session summaries
+
+6. Reports
+- Table revenue reports
+- Player activity reports
+- Dealer performance
+
+Permissions:
+* Approve cash out for cashier to process permissions
+* Can manage tables
+* Can approve cash-outs
+* Can assign dealers
+* Cannot manage staff
+4. STAFF PORTAL - ADMIN ROLE
+Features:
+1. Player Management
+- View all players
+- Edit player details
+- Block/unblock players
+- Reset passwords
+
+2. Table CRUD
+- Create new tables
+- Edit table settings
+- Delete tables
+- Configure limits
+
+3. Offers Management
+- Create promotions
+- Upload media
+- Schedule offers
+- Send to players
+
+4. Advanced Reports
+- Revenue analytics
+- Player analytics
+- Table utilization
+- Financial summaries
+
+5. Notifications
+- Send bulk notifications
+- Target specific groups
+- Schedule notifications
+
+Permissions:
+* All manager permissions
+* Can manage players
+* Can create tables
+* Cannot manage staff
+* Cannot approve credit
+5. STAFF PORTAL - SUPER ADMIN ROLE
+Features:
+1. Staff Management
+- Create staff accounts
+- Assign roles
+- Deactivate accounts
+- Reset credentials
+
+2. Chat Support
+- Handle player chats
+- Real-time messaging
+- Chat history
+
+3. Credit Management
+- Approve credit requests
+- Set credit limits
+- Clear credit
+- Credit reports
+
+4. System Configuration
+- Global settings
+
+5. HR Functions
+- Salary management
+- Attendance tracking
+- Staff reports
+
+6. Complete Analytics
+- System-wide reports
+- Revenue tracking
+- Audit logs
+- Performance metrics
+
+Permissions:
+* Full system access
+* All permissions
+* Can create any account type
+* System configuration access
+6. STAFF PORTAL - HR ROLE
+Features:
+1. Staff Onboarding
+- Create staff profiles
+- Document management
+- Role assignment
+
+2. Salary Management
+- Process salaries
+- Bonus calculation
+- Deductions
+- Tax computation
+
+3. Attendance
+- Track login/logout
+- Leave management
+- Work hours calculation
+
+4. Reports
+- Salary reports
+- Attendance reports
+- Performance reviews
+
+7. STAFF PORTAL - F&B MANAGER ROLE
+Features:
+1. Inventory Management
+- Stock tracking
+- Low stock alerts
+- Supplier management
+
+2. Order Processing
+- Table orders
+- Order status
+- Bill generation
+
+3. Menu Management
+- Add/edit items
+- Price updates
+- Category management
+
+4. Reports
+- Sales reports
+- Inventory reports
+- Revenue analytics
+
+8. STAFF PORTAL - GRE ROLE
+Features:
+1. Chat Support
+- Handle player chats
+- Real-time messaging
+- Chat history
+
+2. KYC Review
+- Verify documents
+- Approve/reject KYC
+- Request re-upload
+
+3. Dispute Resolution
+- Handle complaints
+- Investigation tools
+- Resolution tracking
+
+4. Player Verification
+- Verify player details
+- Background checks
+- Compliance reports
+
+CROSS-PORTAL INTEGRATIONS
+Player → Staff Flow
+1. Player joins waitlist → Manager sees in queue → Assigns to table
+2. Player uploads KYC → GRE / Manager / Admin / Super Admin reviews → Approves/Rejects
+3. Player requests cash-out → Manager approves → Cashier processes
+4. Player starts chat → GRE / Manager / Admin responds → Resolution tracked
+5. Player makes deposit request → Cashier processes → Balance updated
+
+Real-time Events (Pusher)
+Channels:
+- poker-room-updates (table status, waitlist)
+- player-{id} (personal notifications)
+- staff-portal (staff notifications)
+- chat-{session_id} (chat messages)
+
+Events:
+- waitlist-update
+- table-status-change
+- balance-update
+- notification-received
+- chat-message
+
+IMPLEMENTATION INSTRUCTIONS
+Step 1: Database Setup
+1. Create Supabase project
+2. Run all CREATE TABLE statements
+3. Keep RLS free for testing
+4. Create indexes for performance
+5. Set up triggers for updated_at
+
+Step 2: Authentication Setup
+1. Configure Supabase Auth
+2. Enable email authentication
+3. Set up email templates
+4. Configure password policies
+5. Add role-based access
+
+Step 3: Backend Development
+1. Set up Express server
+2. Create all API endpoints
+3. Add Supabase client
+4. Implement business logic
+5. Add validation middleware
+6. Configure Pusher
+
+Step 4: Frontend Development
+1. Create React app with TypeScript
+2. Install shadcn/ui components
+3. Set up React Query
+4. Build all portal dashboards
+5. Implement real-time updates
+6. Add responsive design
+
+Step 5: Integration Testing
+1. Test all user flows
+2. Verify real-time sync
+3. Check role permissions
+4. Test edge cases
+5. Performance testing
+
+BUSINESS RULES
+Financial Rules
+* Minimum deposit: Minimum 1000
+* Maximum withdrawal: Current balance
+* Credit approval: Super Admin only
+* Cash-out verification: Cannot exceed table buy-in
+Table Rules
+* Maximum 9 players per table
+* Minimum buy-in enforced
+* Dealer assignment required for active status
+* Rake calculation: 5% of pot
+KYC Rules
+* Required documents: Aadhaar, PAN
+* Verification within 24 hours
+* Re-upload allowed if rejected
+* GRE / Admin / Super Admin / Manager role handles verification
+Session Rules
+* Minimum play time: Dynamic set by Manager / Admin on table creation.
+* Call time duration: Dynamic set by Manager / Admin on table creation and can edit during table in progress and active. 
+* Cash-out window: Dynamic set by Manager / Admin on table creation and can edit during table in progress and active.
+ERROR HANDLING
+All endpoints should return:
+Success: {
+"success": true,
+"data": {},
+"message": "Operation successful"
+}
+
+Error: {
+"success": false,
+"error": "Error message",
+"code": "ERROR_CODE"
+}
+
+DEPLOYMENT CHECKLIST
+✅ Environment variables configured
+✅ Database migrations completed
+✅ RLS simple for testing
+✅ Pusher credentials set
+✅ Email service configured
+✅ SSL certificates installed
+✅ Backup system configured
+✅ Monitoring setup
+✅ Error logging enabled
+✅ Performance optimization completed

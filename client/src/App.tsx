@@ -4,27 +4,18 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useUltraFastAuth } from "./hooks/useUltraFastAuth";
-import { useHybridAuth } from "./hooks/useHybridAuth";
 import { useToast } from "@/hooks/use-toast";
-import { ClerkProvider } from '@clerk/clerk-react';
 
 import AuthWrapper from "./components/AuthWrapper";
-import ClerkAuthWrapper from "./components/ClerkAuthWrapper";
+// Clerk removed
 import SafeAuthWrapper from "./components/AuthErrorBoundary";
 import PlayerDashboard from "./components/PlayerDashboard";
-import KYCWorkflow from "./components/KYCWorkflow";
-import VipShop from "./pages/VipShop";
-import TableView from "./pages/TableView";
-import OfferDetail from "./pages/OfferDetail";
+// Removed non-player routes/components
 import LoadingScreen from "./components/LoadingScreen";
 import NotificationBubbleManager from "./components/NotificationBubbleManager";
 import { useState, useEffect } from "react";
 
 import NotFound from "@/pages/not-found";
-import ThankYou from "@/pages/thank-you";
-import InteractiveThankYouPage from "./components/InteractiveThankYouPage";
-import EmailVerificationPage from "./components/EmailVerificationPage";
-import EmailVerificationHandler from "./components/EmailVerificationHandler";
 
 function AppContent() {
   // Use legacy authentication for user interface, but signup will create users in both systems
@@ -39,14 +30,12 @@ function AppContent() {
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL LOGIC
   const [showLoadingScreen, setShowLoadingScreen] = useState(false);
   const [hasShownLoadingScreen, setHasShownLoadingScreen] = useState(false);
-  const [kycRedirectData, setKycRedirectData] = useState<any>(null);
 
   // Reset all states when user signs out to prevent loading loops
   useEffect(() => {
     if (!user && authChecked && !loading) {
       setShowLoadingScreen(false);
       setHasShownLoadingScreen(false);
-      setKycRedirectData(null);
       console.log('🔄 [APP] States reset after sign out');
     }
   }, [user, authChecked, loading]);
@@ -95,66 +84,7 @@ function AppContent() {
     console.log('🔍 [APP ROUTING] User details:', { id: user.id, email: user.email });
   }
 
-  // Check for KYC redirect after signup
-  const kycRedirect = sessionStorage.getItem('kyc_redirect');
-  const kycFlowActive = sessionStorage.getItem('kyc_flow_active');
-
-  // CRITICAL: If user is already verified, clear old KYC session data and proceed to dashboard
-  if (user && user.kycStatus === 'verified') {
-    console.log('🚫 [DASHBOARD GUARD] User has verified KYC - clearing old session data and proceeding to dashboard');
-    sessionStorage.removeItem('kyc_redirect');
-    sessionStorage.removeItem('kyc_flow_active');
-    // Continue to dashboard (don't return early)
-  } else if (kycRedirect && kycFlowActive === 'true') {
-    try {
-      const playerData = JSON.parse(kycRedirect);
-      console.log('🎯 [AUTH] Redirecting to KYC process for player:', playerData.nickname || playerData.id);
-
-      // Ensure we have proper authentication for KYC flow
-      if (!user && sessionStorage.getItem('authenticated_user')) {
-        console.log('🔐 [KYC AUTH] Restoring authentication for KYC workflow');
-        // The user state will be restored by useUltraFastAuth hook
-      }
-
-      return (
-        <KYCWorkflow 
-          playerData={{
-            id: playerData.id || playerData.playerId,
-            email: playerData.email,
-            firstName: playerData.firstName,
-            lastName: playerData.lastName,
-            nickname: playerData.nickname,
-            phone: playerData.phone,
-            kycStatus: playerData.kycStatus || 'pending'
-          }}
-          onComplete={() => {
-            sessionStorage.removeItem('kyc_redirect');
-            sessionStorage.removeItem('kyc_flow_active');
-            sessionStorage.removeItem('authenticated_user');
-            // Force reload to refresh authentication state
-            window.location.reload();
-          }}
-        />
-      );
-    } catch (error) {
-      console.error('❌ [KYC REDIRECT] Error parsing KYC data:', error);
-      // Clear corrupted data and retry
-      sessionStorage.removeItem('kyc_redirect');
-      sessionStorage.removeItem('kyc_flow_active');
-      sessionStorage.removeItem('authenticated_user');
-      // Force a reload to clear the bad state and retry the signup flow
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-      return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>;
-    }
-  }
-
-  const handleKYCComplete = () => {
-    console.log('✅ [APP] KYC process completed');
-    setKycRedirectData(null);
-    sessionStorage.removeItem('kyc_redirect');
-  };
+  // Only player portal is exposed; KYC flow and non-player pages are removed
 
   // Ultra-fast authentication loading with optimized state management
   if (!authChecked || (loading && !user)) {
@@ -208,82 +138,16 @@ function AppContent() {
 
       <Switch>
         <Route path="/">
-          {user ? <Redirect to="/dashboard" /> : (useClerk ? <ClerkAuthWrapper><div /></ClerkAuthWrapper> : <AuthWrapper />)}
+          {user ? <Redirect to="/dashboard" /> : <AuthWrapper />}
         </Route>
         <Route path="/dashboard">
           {user ? (
-            // CRITICAL GUARD: Only allow dashboard access for verified KYC users
-            user.kycStatus === 'verified' ? (
-              <PlayerDashboard key={`dashboard-${user.id}`} user={user} />
-            ) : (
-              // Redirect pending/unverified users to KYC workflow
-              (() => {
-                console.log('🚫 [DASHBOARD GUARD] User has pending KYC - redirecting to KYC workflow', user.kycStatus);
-                // Set up KYC redirect data for pending users
-                sessionStorage.setItem('kyc_flow_active', 'true');
-                sessionStorage.setItem('kyc_redirect', JSON.stringify({
-                  id: user.id,
-                  playerId: user.id,
-                  email: user.email,
-                  firstName: user.firstName,
-                  lastName: user.lastName,
-                  nickname: user.nickname,
-                  kycStatus: user.kycStatus
-                }));
-                return <Redirect to="/kyc" />;
-              })()
-            )
+            <PlayerDashboard key={`dashboard-${user.id}`} user={user} />
           ) : (
             <Redirect to="/" />
           )}
         </Route>
-        <Route path="/thank-you">
-          <ThankYou />
-        </Route>
-        <Route path="/kyc-upload">
-          {user ? <Redirect to="/dashboard" /> : <Redirect to="/thank-you" />}
-        </Route>
-        <Route path="/kyc">
-          {/* Handle direct KYC redirect from signup - check for KYC data first, then user auth */}
-          {kycRedirectData ? (
-            <div className="min-h-screen bg-slate-900 dark">
-              <KYCWorkflow 
-                playerData={kycRedirectData} 
-                onComplete={handleKYCComplete}
-              />
-            </div>
-          ) : user ? (
-            <Redirect to="/dashboard" />
-          ) : (
-            <Redirect to="/" />
-          )}
-        </Route>
-        <Route path="/vip-shop">
-          {user ? <VipShop /> : <Redirect to="/" />}
-        </Route>
-        <Route path="/table/:tableId">
-          {user ? <TableView /> : <Redirect to="/" />}
-        </Route>
-        <Route path="/offer/:id">
-          {user ? <OfferDetail /> : <Redirect to="/" />}
-        </Route>
-        <Route path="/interactive-thank-you">
-          <InteractiveThankYouPage 
-            playerEmail="player@example.com" 
-            playerName="Player" 
-          />
-        </Route>
-        <Route path="/email-verified" element={<EmailVerificationPage />} />
-        <Route path="/verify-email" element={<EmailVerificationHandler />} />
-        <Route path="/sign-in">
-          {useClerk ? <ClerkAuthWrapper><div /></ClerkAuthWrapper> : <AuthWrapper />}
-        </Route>
-        <Route path="/sign-up">
-          {useClerk ? <ClerkAuthWrapper><div /></ClerkAuthWrapper> : <AuthWrapper />}
-        </Route>
-        <Route path="/kyc-docs">
-          {user ? <Redirect to="/dashboard" /> : <Redirect to="/" />}
-        </Route>
+        
         <Route component={NotFound} />
       </Switch>
     </div>

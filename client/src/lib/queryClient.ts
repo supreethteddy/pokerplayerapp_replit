@@ -37,6 +37,13 @@ export const getQueryFn: <T>(options: {
       return null;
     }
 
+    // Frontend-only mode: Vite may return index.html with 200 status for unknown /api/* routes.
+    // Avoid JSON parse errors by checking the content type and returning null when it's not JSON.
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      return null as any;
+    }
+
     await throwIfResNotOk(res);
     return await res.json();
   };

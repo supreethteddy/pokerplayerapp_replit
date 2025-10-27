@@ -74,6 +74,34 @@ export function usePlayerGameStatus(): GameStatusInfo {
   let restrictionMessage: string | undefined = undefined;
   let seatedSessionFallback: GameStatusInfo['seatedSessionFallback'] = undefined;
 
+  // Frontend-only: allow a locally mocked active session (for demo without backend)
+  try {
+    if (user?.id) {
+      const mockRaw = localStorage.getItem(`mock_active_session_${user.id}`);
+      if (mockRaw) {
+        const mock = JSON.parse(mockRaw);
+        isInActiveGame = true;
+        canJoinWaitlists = false;
+        activeGameInfo = {
+          tableId: mock.tableId || 'demo-table',
+          tableName: mock.tableName || 'Demo Table',
+          gameType: mock.gameType || "Texas Hold'em",
+          position: 0,
+          seatNumber: mock.seatNumber || 1,
+          status: 'PLAYING NOW'
+        };
+        seatedSessionFallback = {
+          tableId: mock.tableId || 'demo-table',
+          tableName: mock.tableName || 'Demo Table',
+          gameType: mock.gameType || "Texas Hold'em",
+          seatNumber: mock.seatNumber || 1,
+          status: 'seated',
+          sessionStartTime: mock.sessionStartTime || new Date().toISOString()
+        };
+      }
+    }
+  } catch {}
+
   // Check for seated sessions first (higher priority)
   const seatedSessions = Array.isArray(seatedInfo) ? seatedInfo : [];
   const seatRequestsArray = Array.isArray(seatRequestsData) ? seatRequestsData : [];

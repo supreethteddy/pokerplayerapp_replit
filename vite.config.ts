@@ -29,6 +29,10 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
+    // Always use a consistent port for the frontend-only app
+    port: 5173,
+    strictPort: true,
+    hmr: { overlay: false },
     fs: {
       strict: true,
       deny: ["**/.*"],

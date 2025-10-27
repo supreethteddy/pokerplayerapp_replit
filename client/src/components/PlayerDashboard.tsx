@@ -2272,6 +2272,32 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                       <p className="text-slate-400">
                         Please join a table in order to view the playtime tracker
                       </p>
+                      <div className="mt-4">
+                        <Button
+                          variant="outline"
+                          className="border-emerald-600 text-emerald-300 hover:bg-emerald-700"
+                          onClick={() => {
+                            try {
+                              const demo = {
+                                tableId: 'demo-table',
+                                tableName: 'Main Table',
+                                gameType: "Texas Hold'em",
+                                seatNumber: 3,
+                                sessionStartTime: new Date(Date.now() - 5 * 60 * 1000).toISOString()
+                              };
+                              if (user?.id) {
+                                localStorage.setItem(`mock_active_session_${user.id}`, JSON.stringify(demo));
+                                // Simple refresh to pick up the change
+                                window.location.reload();
+                              }
+                            } catch (e) {
+                              console.error('Failed to start demo session', e);
+                            }
+                          }}
+                        >
+                          Start Demo Session
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

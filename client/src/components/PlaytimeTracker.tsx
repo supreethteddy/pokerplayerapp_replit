@@ -7,6 +7,7 @@ import { Clock, DollarSign, Play, Phone, X, Eye, ArrowRight } from "lucide-react
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useGameStatusSync } from "@/hooks/useGameStatusSync";
+import { Progress } from "@/components/ui/progress";
 
 interface LiveSession {
   id: number;
@@ -59,6 +60,40 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
   const [liveTimer, setLiveTimer] = useState("00:00:00");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Frontend-only helpers: persist lightweight mock session and table info
+  type MockSession = {
+    plannedSessionMinutes: number;
+    smallBlind: number;
+    bigBlind: number;
+    players: string[];
+  };
+  const getMockKey = (id: string) => `mock_session_${id}`;
+  const loadMockSession = (id: string): MockSession => {
+    try {
+      const raw = localStorage.getItem(getMockKey(id));
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    const mock: MockSession = {
+      plannedSessionMinutes: 120,
+      smallBlind: 50,
+      bigBlind: 100,
+      players: [
+        "You",
+        "Alex",
+        "Priya",
+        "John",
+        "Maya",
+        "Ken",
+        "Sara",
+      ],
+    };
+    localStorage.setItem(getMockKey(id), JSON.stringify(mock));
+    return mock;
+  };
+  const saveMockSession = (id: string, data: MockSession) => {
+    localStorage.setItem(getMockKey(id), JSON.stringify(data));
+  };
 
   // Use centralized synchronization for immediate updates
   const { invalidateAllGameQueries } = useGameStatusSync();
@@ -291,6 +326,21 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
   const timeUntilMinPlay = getTimeUntilMinPlay();
   const phaseStatus = getPhaseStatus();
 
+  // Client-only session overview: time left vs planned
+  const mock = loadMockSession(playerId);
+  const plannedMs = mock.plannedSessionMinutes * 60 * 1000;
+  const startForRemaining = new Date(session?.sessionStartTime || fallbackSession?.sessionStartTime || new Date());
+  const elapsedMs = Math.max(0, Date.now() - startForRemaining.getTime());
+  const remainingMs = Math.max(0, plannedMs - elapsedMs);
+  const remainingMinutes = Math.ceil(remainingMs / 60000);
+  const progressPct = Math.min(100, Math.floor((elapsedMs / Math.max(plannedMs, 1)) * 100));
+
+  const handleExtend = (minutes = 30) => {
+    const next = { ...mock, plannedSessionMinutes: mock.plannedSessionMinutes + minutes };
+    saveMockSession(playerId, next);
+    toast({ title: "Session Extended", description: `Added ${minutes} minutes.` });
+  };
+
 
   // Enhanced condition checking: Show PlaytimeTracker if we have a session OR if fallback indicates player is seated
   if (isLoading && !hasSeatedPlayerFromFallback) {
@@ -346,6 +396,44 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
           </DialogHeader>
 
           <div className="space-y-4 overflow-y-auto flex-1 pr-2 -mr-2">
+            {/* Session Overview (table, blinds, time left, players) */}
+            <div className="bg-slate-800 p-3 sm:p-4 rounded-lg border border-slate-700">
+              <div className="grid grid-cols-2 gap-3 text-xs sm:text-sm">
+                <div>
+                  <div className="text-slate-400">Table</div>
+                  <div className="text-white font-medium">{session?.tableName || fallbackSession?.tableName || 'Poker Table'}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-slate-400">Blinds</div>
+                  <div className="text-white font-medium">₹{mock.smallBlind}/{mock.bigBlind}</div>
+                </div>
+                <div className="col-span-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-slate-400">Time left</span>
+                    <span className="text-white font-mono">{remainingMinutes}m</span>
+                  </div>
+                  <Progress value={progressPct} className="h-2" />
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <div className="text-slate-400 mb-1 text-xs">Players at table</div>
+                <div className="flex flex-wrap gap-2">
+                  {mock.players.map((p, i) => (
+                    <span key={i} className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs">{p}</span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-3 flex gap-2">
+                <Button onClick={() => handleExtend(30)} variant="outline" className="border-emerald-600 text-emerald-300 hover:bg-emerald-700 px-3 py-2 text-xs">
+                  + Extend 30m
+                </Button>
+                <Button onClick={() => handleExtend(60)} variant="outline" className="border-emerald-600 text-emerald-300 hover:bg-emerald-700 px-3 py-2 text-xs">
+                  + Extend 60m
+                </Button>
+              </div>
+            </div>
             {/* Session Timer */}
             <div className="text-center bg-slate-800 p-3 sm:p-4 rounded-lg">
               <div className="text-xl sm:text-2xl font-mono font-bold text-white mb-1">
