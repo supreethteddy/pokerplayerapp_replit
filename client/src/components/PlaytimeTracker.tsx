@@ -8,6 +8,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useGameStatusSync } from "@/hooks/useGameStatusSync";
 import { Progress } from "@/components/ui/progress";
+import { HIDE_SESSION_TIMER } from "@/lib/featureFlags";
 
 interface LiveSession {
   id: number;
@@ -56,6 +57,10 @@ interface PlaytimeTrackerProps {
 }
 
 export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) {
+  // Feature-flag: completely hide the timer UI while preserving codepaths
+  if (HIDE_SESSION_TIMER) {
+    return null;
+  }
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [liveTimer, setLiveTimer] = useState("00:00:00");
   const { toast } = useToast();
