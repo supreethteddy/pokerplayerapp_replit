@@ -1,0 +1,19 @@
+<svg width="200" height="60" viewBox="0 0 200 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background with rounded corners -->
+  <rect width="200" height="60" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="2"/>
+  
+  <!-- Poker Card Suit - Spade (larger and more prominent) -->
+  <g transform="translate(20, 10)">
+    <path d="M15 25C15 20 20 15 25 15C30 15 35 20 35 25C35 30 25 40 25 40C25 40 15 30 15 25Z" fill="#10b981"/>
+    <path d="M25 10L20 15H30L25 10Z" fill="#10b981"/>
+  </g>
+  
+  <!-- Text -->
+  <text x="70" y="32" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="#10b981">POKER</text>
+  <text x="70" y="48" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">CLUB</text>
+  
+  <!-- Decorative poker chips -->
+  <circle cx="165" cy="18" r="4" fill="#10b981" opacity="0.8"/>
+  <circle cx="175" cy="30" r="5" fill="#10b981" opacity="0.6"/>
+  <circle cx="170" cy="42" r="4" fill="#10b981" opacity="0.8"/>
+</svg>

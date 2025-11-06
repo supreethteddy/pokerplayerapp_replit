@@ -2,7 +2,12 @@ import { useUltraFastAuth } from "@/hooks/useUltraFastAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useRouter } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 // Switch removed - preferences section eliminated
@@ -12,13 +17,13 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast, toast } from "@/hooks/use-toast";
 // Dialog removed for document viewer
-import { 
-  Spade, 
-  Table, 
-  Clock, 
-  // Settings icon removed - preferences section eliminated 
-  BarChart3, 
-  User, 
+import {
+  Spade,
+  Table,
+  Clock,
+  // Settings icon removed - preferences section eliminated
+  BarChart3,
+  User,
   LogOut,
   Users,
   CreditCard,
@@ -45,11 +50,15 @@ import {
   Info,
   RotateCcw,
   Trash2,
-  Coffee
+  Coffee,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
-import type { Table as TableType, SeatRequest, KycDocument } from "@shared/schema";
+import type {
+  Table as TableType,
+  SeatRequest,
+  KycDocument,
+} from "@shared/schema";
 import DualBalanceDisplay from "./DualBalanceDisplay";
 import { PlayerBalanceDisplay } from "./PlayerBalanceDisplay";
 import { PlayerTransactionHistory } from "./PlayerTransactionHistory";
@@ -59,29 +68,34 @@ import { PlaytimeTracker } from "./PlaytimeTracker";
 import OfferBanner from "./OfferBanner";
 import OfferCarousel from "./OfferCarousel";
 import NotificationPopup from "./NotificationPopup";
+import TableView from "./TableView";
 
 import PlayerChatSystem from "./PlayerChatSystem";
 import NotificationHistoryTab from "./NotificationHistoryTab";
 import FoodBeverageTab from "./FoodBeverageTab";
 import { useSeatAssignment } from "@/hooks/useSeatAssignment";
 import { usePlayerGameStatus } from "@/hooks/usePlayerGameStatus";
-
+import { whitelabelConfig } from "@/lib/whitelabeling";
 
 // Scrollable Offers Display Component
 const ScrollableOffersDisplay = () => {
-  const { data: offers, isLoading, error } = useQuery({
-    queryKey: ['/api/staff-offers'],
+  const {
+    data: offers,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["/api/staff-offers"],
     refetchInterval: 5000, // Refresh every 5 seconds
     retry: 1, // Only retry once to avoid spamming
   });
 
   const trackOfferView = useMutation({
-    mutationFn: (offerId: string) => 
+    mutationFn: (offerId: string) =>
       apiRequest("POST", "/api/offer-views", { offer_id: offerId }),
   });
 
   // Use only real staff offers from database - no fallback demo data
-  const displayOffers = (offers && Array.isArray(offers)) ? offers : [];
+  const displayOffers = offers && Array.isArray(offers) ? offers : [];
 
   // Handle error state gracefully
   if (error) {
@@ -98,7 +112,9 @@ const ScrollableOffersDisplay = () => {
             <div className="text-slate-400 text-center py-8">
               <Gift className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>No offers available at the moment</p>
-              <p className="text-sm mt-2">Check back later for special promotions!</p>
+              <p className="text-sm mt-2">
+                Check back later for special promotions!
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -112,7 +128,8 @@ const ScrollableOffersDisplay = () => {
         <CardHeader>
           <CardTitle className="text-white flex items-center">
             <Gift className="w-5 h-5 mr-2 text-emerald-500" />
-            Special Offers ({Array.isArray(displayOffers) ? displayOffers.length : 0})
+            Special Offers (
+            {Array.isArray(displayOffers) ? displayOffers.length : 0})
           </CardTitle>
         </CardHeader>
       </Card>
@@ -124,7 +141,9 @@ const ScrollableOffersDisplay = () => {
             <div className="text-slate-400 text-center">
               <Gift className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>No special offers available at the moment</p>
-              <p className="text-sm mt-2">Check back later for exclusive promotions!</p>
+              <p className="text-sm mt-2">
+                Check back later for exclusive promotions!
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -132,98 +151,112 @@ const ScrollableOffersDisplay = () => {
 
       {/* Scrollable offers container */}
       <div className="max-h-[600px] overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
-        {Array.isArray(displayOffers) && displayOffers.map((offer: any) => (
-          <Card 
-            key={offer.id}
-            id={`offer-${offer.id}`}
-            className="bg-gradient-to-br from-emerald-800 to-emerald-900 border-emerald-600 hover:border-emerald-400 transition-all duration-300"
-            onClick={() => trackOfferView.mutate(offer.id)}
-          >
-            <CardContent className="p-0">
-              {/* Staff portal media or fallback */}
-              <div className="relative">
-                {offer.video_url ? (
-                  <div className="aspect-video rounded-t-lg overflow-hidden bg-slate-900">
-                    <video 
-                      className="w-full h-full object-cover" 
-                      poster={offer.image_url}
-                      controls
-                      preload="metadata"
-                    >
-                      <source src={offer.video_url} type="video/mp4" />
-                    </video>
-                  </div>
-                ) : (
-                  <div className="aspect-video rounded-t-lg bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center">
-                    <Gift className="w-16 h-16 text-white" />
-                    <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center">
-                      <div className="text-center text-white">
-                        <div className="text-xs opacity-75 mb-1">{offer.offer_type?.toUpperCase()}</div>
-                        <div className="text-sm font-medium">{offer.target_audience?.toUpperCase()}</div>
+        {Array.isArray(displayOffers) &&
+          displayOffers.map((offer: any) => (
+            <Card
+              key={offer.id}
+              id={`offer-${offer.id}`}
+              className="bg-gradient-to-br from-emerald-800 to-emerald-900 border-emerald-600 hover:border-emerald-400 transition-all duration-300"
+              onClick={() => trackOfferView.mutate(offer.id)}
+            >
+              <CardContent className="p-0">
+                {/* Staff portal media or fallback */}
+                <div className="relative">
+                  {offer.video_url ? (
+                    <div className="aspect-video rounded-t-lg overflow-hidden bg-slate-900">
+                      <video
+                        className="w-full h-full object-cover"
+                        poster={offer.image_url}
+                        controls
+                        preload="metadata"
+                      >
+                        <source src={offer.video_url} type="video/mp4" />
+                      </video>
+                    </div>
+                  ) : (
+                    <div className="aspect-video rounded-t-lg bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center">
+                      <Gift className="w-16 h-16 text-white" />
+                      <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center">
+                        <div className="text-center text-white">
+                          <div className="text-xs opacity-75 mb-1">
+                            {offer.offer_type?.toUpperCase()}
+                          </div>
+                          <div className="text-sm font-medium">
+                            {offer.target_audience?.toUpperCase()}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Offer type badge */}
-                <Badge 
-                  className={`absolute top-3 right-3 ${
-                    offer.offer_type === 'banner' ? 'bg-blue-600' :
-                    offer.offer_type === 'carousel' ? 'bg-purple-600' :
-                    'bg-orange-600'
-                  }`}
-                >
-                  {offer.offer_type}
-                </Badge>
-              </div>
-
-              {/* Dynamic Content Area */}
-              <div className="p-6">
-                <h3 className="text-xl font-bold text-white mb-3">
-                  {offer.title}
-                </h3>
-
-                {/* Dynamic description with responsive sizing */}
-                <div className="text-slate-300 leading-relaxed mb-4">
-                  <p className={`${
-                    offer.description.length > 200 ? 'text-sm' : 
-                    offer.description.length > 100 ? 'text-base' : 'text-lg'
-                  }`}>
-                    {offer.description}
-                  </p>
+                  {/* Offer type badge */}
+                  <Badge
+                    className={`absolute top-3 right-3 ${
+                      offer.offer_type === "banner"
+                        ? "bg-blue-600"
+                        : offer.offer_type === "carousel"
+                        ? "bg-purple-600"
+                        : "bg-orange-600"
+                    }`}
+                  >
+                    {offer.offer_type}
+                  </Badge>
                 </div>
 
-                {/* Date range if available */}
-                {(offer.start_date || offer.end_date) && (
-                  <div className="flex items-center text-sm text-slate-400 mb-4">
-                    <Calendar className="w-4 h-4 mr-2" />
-                    {offer.start_date && new Date(offer.start_date).toLocaleDateString()} 
-                    {offer.start_date && offer.end_date && ' - '}
-                    {offer.end_date && new Date(offer.end_date).toLocaleDateString()}
-                  </div>
-                )}
+                {/* Dynamic Content Area */}
+                <div className="p-6">
+                  <h3 className="text-xl font-bold text-white mb-3">
+                    {offer.title}
+                  </h3>
 
-                {/* Action button */}
-                <Button 
-                  className="w-full bg-emerald-600 hover:bg-emerald-700"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    trackOfferView.mutate(offer.id);
-                    // Use click_url if available, otherwise fallback to offer detail page
-                    if (offer.click_url) {
-                      window.open(offer.click_url, '_blank');
-                    } else {
-                      window.location.href = `/offer/${offer.id}`;
-                    }
-                  }}
-                >
-                  <Star className="w-4 h-4 mr-2" />
-                  {offer.click_url ? 'Visit Offer' : 'View Details'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                  {/* Dynamic description with responsive sizing */}
+                  <div className="text-slate-300 leading-relaxed mb-4">
+                    <p
+                      className={`${
+                        offer.description.length > 200
+                          ? "text-sm"
+                          : offer.description.length > 100
+                          ? "text-base"
+                          : "text-lg"
+                      }`}
+                    >
+                      {offer.description}
+                    </p>
+                  </div>
+
+                  {/* Date range if available */}
+                  {(offer.start_date || offer.end_date) && (
+                    <div className="flex items-center text-sm text-slate-400 mb-4">
+                      <Calendar className="w-4 h-4 mr-2" />
+                      {offer.start_date &&
+                        new Date(offer.start_date).toLocaleDateString()}
+                      {offer.start_date && offer.end_date && " - "}
+                      {offer.end_date &&
+                        new Date(offer.end_date).toLocaleDateString()}
+                    </div>
+                  )}
+
+                  {/* Action button */}
+                  <Button
+                    className="w-full bg-emerald-600 hover:bg-emerald-700"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      trackOfferView.mutate(offer.id);
+                      // Use click_url if available, otherwise fallback to offer detail page
+                      if (offer.click_url) {
+                        window.open(offer.click_url, "_blank");
+                      } else {
+                        window.location.href = `/offer/${offer.id}`;
+                      }
+                    }}
+                  >
+                    <Star className="w-4 h-4 mr-2" />
+                    {offer.click_url ? "Visit Offer" : "View Details"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
       </div>
     </div>
   );
@@ -232,22 +265,26 @@ const ScrollableOffersDisplay = () => {
 // VIP Points Display Component
 const VipPointsDisplay = ({ userId }: { userId: number }) => {
   const { data: vipData, isLoading } = useQuery({
-    queryKey: ['/api/vip-points/calculate', userId],
+    queryKey: ["/api/vip-points/calculate", userId],
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   const { toast } = useToast();
 
   const redeemPoints = useMutation({
-    mutationFn: (redemption: { redemptionType: string; pointsRequired: number }) =>
+    mutationFn: (redemption: {
+      redemptionType: string;
+      pointsRequired: number;
+    }) =>
       apiRequest("POST", "/api/vip-points/redeem", {
         playerId: userId,
-        ...redemption
+        ...redemption,
       }),
     onSuccess: () => {
       toast({
         title: "Redemption Request Sent",
-        description: "Your VIP points redemption request has been sent for approval.",
+        description:
+          "Your VIP points redemption request has been sent for approval.",
       });
     },
     onError: (error: any) => {
@@ -298,19 +335,29 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
         {/* Points Breakdown */}
         {breakdown && (
           <div className="space-y-2">
-            <div className="text-white font-semibold text-sm">Points Breakdown:</div>
+            <div className="text-white font-semibold text-sm">
+              Points Breakdown:
+            </div>
             <div className="space-y-1 text-sm">
               <div className="flex justify-between text-slate-300">
                 <span>Big Blind (₹{breakdown?.avgBigBlind || 0} × 0.5)</span>
-                <span className="text-yellow-400">{(breakdown?.bigBlindPoints || 0).toFixed(1)}</span>
+                <span className="text-yellow-400">
+                  {(breakdown?.bigBlindPoints || 0).toFixed(1)}
+                </span>
               </div>
               <div className="flex justify-between text-slate-300">
                 <span>Rs Played (₹{breakdown?.totalRsPlayed || 0} × 0.3)</span>
-                <span className="text-yellow-400">{(breakdown?.rsPlayedPoints || 0).toFixed(1)}</span>
+                <span className="text-yellow-400">
+                  {(breakdown?.rsPlayedPoints || 0).toFixed(1)}
+                </span>
               </div>
               <div className="flex justify-between text-slate-300">
-                <span>Visit Frequency ({breakdown?.visitFrequency || 0} days × 0.2)</span>
-                <span className="text-yellow-400">{(breakdown?.frequencyPoints || 0).toFixed(1)}</span>
+                <span>
+                  Visit Frequency ({breakdown?.visitFrequency || 0} days × 0.2)
+                </span>
+                <span className="text-yellow-400">
+                  {(breakdown?.frequencyPoints || 0).toFixed(1)}
+                </span>
               </div>
             </div>
           </div>
@@ -325,7 +372,12 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
               size="sm"
               className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600"
               disabled={vipPoints < 500 || redeemPoints.isPending}
-              onClick={() => redeemPoints.mutate({ redemptionType: "Tournament Ticket", pointsRequired: 500 })}
+              onClick={() =>
+                redeemPoints.mutate({
+                  redemptionType: "Tournament Ticket",
+                  pointsRequired: 500,
+                })
+              }
             >
               Tournament Ticket (500 pts)
             </Button>
@@ -334,7 +386,12 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
               size="sm"
               className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600"
               disabled={vipPoints < 300 || redeemPoints.isPending}
-              onClick={() => redeemPoints.mutate({ redemptionType: "Buy-in Discount", pointsRequired: 300 })}
+              onClick={() =>
+                redeemPoints.mutate({
+                  redemptionType: "Buy-in Discount",
+                  pointsRequired: 300,
+                })
+              }
             >
               Buy-in Discount (300 pts)
             </Button>
@@ -343,7 +400,12 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
               size="sm"
               className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600"
               disabled={vipPoints < 1000 || redeemPoints.isPending}
-              onClick={() => redeemPoints.mutate({ redemptionType: "Premium Product", pointsRequired: 1000 })}
+              onClick={() =>
+                redeemPoints.mutate({
+                  redemptionType: "Premium Product",
+                  pointsRequired: 1000,
+                })
+              }
             >
               Premium Product (1000 pts)
             </Button>
@@ -352,7 +414,8 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
 
         {/* Formula Display */}
         <div className="text-xs text-slate-400 p-2 bg-slate-900 rounded">
-          <strong>Formula:</strong> VIP Points = (Big Blind × 0.5) + (Rs Played × 0.3) + (Visit Frequency × 0.2)
+          <strong>Formula:</strong> VIP Points = (Big Blind × 0.5) + (Rs Played
+          × 0.3) + (Visit Frequency × 0.2)
         </div>
       </CardContent>
     </Card>
@@ -372,7 +435,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const queryClient = useQueryClient();
   const [callTime, setCallTime] = useState("02:45");
   const [location, setLocation] = useLocation();
-
 
   // Feedback system state
   const [feedbackMessage, setFeedbackMessage] = useState("");
@@ -399,12 +461,17 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // Unified Chat messages state (CRITICAL FIX)
   const [unifiedChatMessages, setUnifiedChatMessages] = useState<any[]>([]);
 
+  // TableView Dialog state
+  const [tableViewDialogOpen, setTableViewDialogOpen] = useState(false);
+  const [selectedTableViewTableId, setSelectedTableViewTableId] = useState<
+    string | null
+  >(null);
 
   // Handle tab navigation from URL parameters
   const getActiveTabFromUrl = () => {
     const urlParams = new URLSearchParams(window.location.search);
-    const tab = urlParams.get('tab');
-    return tab || 'game';
+    const tab = urlParams.get("tab");
+    return tab || "game";
   };
 
   const [activeTab, setActiveTab] = useState(getActiveTabFromUrl());
@@ -417,7 +484,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // Document viewer removed as per requirements
 
   // Email verification notification state
-  const [showEmailVerificationBanner, setShowEmailVerificationBanner] = useState(false);
+  const [showEmailVerificationBanner, setShowEmailVerificationBanner] =
+    useState(false);
 
   // Check if user needs email verification - integrated with Clerk auth
   useEffect(() => {
@@ -426,8 +494,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     }
   }, [user]);
 
-  // Fetch live tables with smart background refresh
+  // COMMENTED OUT: Fetch live tables with smart background refresh
   // Fetch tables data from API with reduced refresh rate
+  /*
   const { data: tables, isLoading: tablesLoading } = useQuery<TableType[]>({
     queryKey: ['/api/tables'],
     refetchInterval: 30000, // Refresh every 30 seconds instead of 2 seconds
@@ -441,10 +510,53 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     // Smart update strategy - only trigger re-render if data actually changed
     structuralSharing: true,
   });
+  */
+
+  // STATIC DATA: Mock tables for testing without backend
+  const STATIC_TABLES: TableType[] = [
+    {
+      id: 1,
+      name: "Main Table",
+      gameType: "Texas Hold'em",
+      stakes: "₹1000.00/10000.00",
+      maxPlayers: 6,
+      currentPlayers: 3,
+      pot: 50000,
+      avgStack: 5000,
+      isActive: true,
+    },
+    {
+      id: 2,
+      name: "VIP Table",
+      gameType: "Texas Hold'em",
+      stakes: "₹5000.00/50000.00",
+      maxPlayers: 9,
+      currentPlayers: 5,
+      pot: 250000,
+      avgStack: 25000,
+      isActive: true,
+    },
+    {
+      id: 3,
+      name: "High Stakes",
+      gameType: "Texas Hold'em",
+      stakes: "₹10000.00/100000.00",
+      maxPlayers: 6,
+      currentPlayers: 2,
+      pot: 500000,
+      avgStack: 50000,
+      isActive: true,
+    },
+  ];
+
+  const tables = STATIC_TABLES;
+  const tablesLoading = false;
 
   // Fetch seat requests with smart refresh
-  const { data: seatRequests, isLoading: requestsLoading } = useQuery<SeatRequest[]>({
-    queryKey: ['/api/seat-requests', user?.id],
+  const { data: seatRequests, isLoading: requestsLoading } = useQuery<
+    SeatRequest[]
+  >({
+    queryKey: ["/api/seat-requests", user?.id],
     enabled: !!user?.id,
     refetchInterval: 5000, // Background refresh every 5 seconds
     refetchOnWindowFocus: true,
@@ -454,8 +566,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   });
 
   // Fetch active seated sessions with smart refresh
-  const { data: seatedSessions, isLoading: seatedLoading } = useQuery({
-    queryKey: ['/api/table-seats', user?.id],
+  const { data: seatedSessions, isLoading: seatedLoading } = useQuery<any[]>({
+    queryKey: ["/api/table-seats", user?.id],
     enabled: !!user?.id,
     refetchInterval: 8000, // Check every 8 seconds for active sessions
     refetchOnWindowFocus: true,
@@ -466,7 +578,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Check table status with intelligent refresh
   const { data: tableStatuses } = useQuery({
-    queryKey: ['/api/table-statuses', seatRequests?.map(req => req.tableId)],
+    queryKey: ["/api/table-statuses", seatRequests?.map((req) => req.tableId)],
     queryFn: async () => {
       if (!seatRequests || seatRequests.length === 0) return {};
 
@@ -494,13 +606,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   });
 
   // Find current active session for playtime tracking
-  const currentActiveSession = seatRequests?.find(req => 
-    req.status === 'active' && req.sessionStartTime
+  const currentActiveSession = seatRequests?.find(
+    (req) => req.status === "active" && req.sessionStartTime
   );
 
   // Fetch tournaments from staff portal
   const { data: tournaments, isLoading: tournamentsLoading } = useQuery({
-    queryKey: ['/api/tournaments'],
+    queryKey: ["/api/tournaments"],
     refetchInterval: 5000, // Refresh every 5 seconds
     refetchOnWindowFocus: true,
     staleTime: 0,
@@ -508,7 +620,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Fetch dual balance system data with smart refresh
   const { data: accountBalance, isLoading: balanceLoading } = useQuery({
-    queryKey: ['/api/balance', user?.id],
+    queryKey: ["/api/balance", user?.id],
     enabled: !!user?.id,
     refetchInterval: 15000, // Refresh every 15 seconds - balance changes are less frequent
     refetchOnWindowFocus: true,
@@ -527,20 +639,21 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         playerId: user.id,
         playerName: `${user.firstName} ${user.lastName}`,
         message: `Player is interested in Tournament ID: ${tournamentId}`,
-        senderType: 'player'
+        senderType: "player",
       });
 
       if (response.ok) {
         toast({
           title: "Interest Registered",
-          description: "Your interest has been sent to our Guest Relations team",
+          description:
+            "Your interest has been sent to our Guest Relations team",
         });
       }
     } catch (error: any) {
       toast({
         title: "Error",
         description: "Failed to register interest. Please try again.",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setTournamentActionLoading(false);
@@ -557,7 +670,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         playerId: user.id,
         tournamentId,
         playerName: `${user.firstName} ${user.lastName}`,
-        email: user.email
+        email: user.email,
       });
 
       if (response.ok) {
@@ -566,7 +679,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           description: "You have been registered for the tournament",
         });
         // Refresh tournaments to update registered player count
-        queryClient.invalidateQueries({ queryKey: ['/api/tournaments'] });
+        queryClient.invalidateQueries({ queryKey: ["/api/tournaments"] });
       }
     } catch (error: any) {
       toast({
@@ -582,33 +695,40 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // Preferences removed as per requirements
 
   // Fetch KYC documents using new system
-  const { data: kycDocuments, isLoading: kycLoading } = useQuery<KycDocument[]>({
-    queryKey: [`/api/documents/player/${user?.id}`],
-    enabled: !!user?.id,
-  });
+  const { data: kycDocuments, isLoading: kycLoading } = useQuery<KycDocument[]>(
+    {
+      queryKey: [`/api/documents/player/${user?.id}`],
+      enabled: !!user?.id,
+    }
+  );
 
   // Simple join waitlist - no seat selection required
   const joinWaitListMutation = useMutation({
     mutationFn: async (tableId: string) => {
-      console.log('🎯 [SIMPLE JOIN] Joining waitlist for table:', tableId, 'player:', user?.id);
-      const response = await apiRequest('POST', '/api/seat-requests', {
+      console.log(
+        "🎯 [SIMPLE JOIN] Joining waitlist for table:",
+        tableId,
+        "player:",
+        user?.id
+      );
+      const response = await apiRequest("POST", "/api/seat-requests", {
         playerId: user?.id,
         tableId: tableId,
-        tableName: tables?.find((t: any) => t.id === tableId)?.name || 'Table',
-        seatNumber: 1 // Default seat preference
+        tableName: tables?.find((t: any) => t.id === tableId)?.name || "Table",
+        seatNumber: 1, // Default seat preference
       });
       return response.json();
     },
     onSuccess: () => {
-      console.log('✅ [SIMPLE JOIN] Success!');
-      queryClient.invalidateQueries({ queryKey: ['/api/seat-requests'] });
+      console.log("✅ [SIMPLE JOIN] Success!");
+      queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] });
       toast({
         title: "Joined Waitlist",
         description: "You've been added to the waitlist successfully",
       });
     },
     onError: (error: any) => {
-      console.error('❌ [SIMPLE JOIN] Error:', error);
+      console.error("❌ [SIMPLE JOIN] Error:", error);
       toast({
         title: "Failed to Join",
         description: error.message || "Could not join waitlist",
@@ -620,9 +740,14 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // Leave wait-list mutation
   const leaveWaitListMutation = useMutation({
     mutationFn: async (tableId: string) => {
-      console.log(`🚪 [LEAVE WAITLIST] Attempting to leave waitlist for table: ${tableId}`);
+      console.log(
+        `🚪 [LEAVE WAITLIST] Attempting to leave waitlist for table: ${tableId}`
+      );
 
-      const response = await apiRequest('DELETE', `/api/seat-requests/${user?.id}/${tableId}`);
+      const response = await apiRequest(
+        "DELETE",
+        `/api/seat-requests/${user?.id}/${tableId}`
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -635,7 +760,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           errorData = { error: errorText || `HTTP ${response.status}` };
         }
 
-        throw new Error(errorData.error || errorData.message || `Server Error: ${response.status}`);
+        throw new Error(
+          errorData.error ||
+            errorData.message ||
+            `Server Error: ${response.status}`
+        );
       }
 
       const result = await response.json();
@@ -643,15 +772,16 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       return result;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/seat-requests'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tables'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tables"] });
       toast({
         title: "Left Wait-List",
-        description: data.message || "You've been removed from the table wait-list",
+        description:
+          data.message || "You've been removed from the table wait-list",
       });
     },
     onError: (error: any) => {
-      console.error('❌ [LEAVE WAITLIST] Mutation error:', error);
+      console.error("❌ [LEAVE WAITLIST] Mutation error:", error);
       toast({
         title: "Failed to Leave",
         description: error.message || "Could not leave wait-list",
@@ -664,13 +794,19 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // KYC document upload mutation using new system
   const uploadKycDocumentMutation = useMutation({
-    mutationFn: async ({ documentType, file }: { documentType: string; file: File }) => {
+    mutationFn: async ({
+      documentType,
+      file,
+    }: {
+      documentType: string;
+      file: File;
+    }) => {
       const reader = new FileReader();
       return new Promise((resolve, reject) => {
         reader.onload = async (event) => {
           const dataUrl = event.target?.result as string;
           try {
-            const response = await apiRequest('POST', '/api/documents/upload', {
+            const response = await apiRequest("POST", "/api/documents/upload", {
               playerId: user?.id,
               documentType,
               fileName: file.name,
@@ -687,8 +823,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/documents/player/${user?.id}`] });
-      queryClient.invalidateQueries({ queryKey: ['/api/players/supabase'] });
+      queryClient.invalidateQueries({
+        queryKey: [`/api/documents/player/${user?.id}`],
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/players/supabase"] });
       toast({
         title: "Document Uploaded",
         description: "Your KYC document has been uploaded successfully",
@@ -705,16 +843,19 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Helper functions
   const isTableJoined = (tableId: string) => {
-    return seatRequests?.some(req => req.tableId === tableId);
+    return seatRequests?.some((req) => req.tableId === tableId);
   };
 
   const getWaitListPosition = (tableId: string) => {
-    const request = seatRequests?.find(req => req.tableId === tableId);
+    const request = seatRequests?.find((req) => req.tableId === tableId);
     return request?.position || 0;
   };
 
   const handleJoinWaitList = (tableId: string) => {
-    console.log('🎯 [HANDLE JOIN] Navigating to table view for seat selection:', tableId);
+    console.log(
+      "🎯 [HANDLE JOIN] Navigating to table view for seat selection:",
+      tableId
+    );
     // Navigate to table view first, then seat selection will complete the join
     setLocation(`/table/${tableId}`);
   };
@@ -756,7 +897,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       toast({
         title: "Error",
         description: "Please enter a message",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -765,7 +906,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     try {
       const response = await apiRequest("POST", "/api/feedback", {
         playerId: user.id,
-        message: feedbackMessage.trim()
+        message: feedbackMessage.trim(),
       });
 
       const result = await response.json();
@@ -781,7 +922,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to send feedback. Please try again.",
+        description:
+          error.message || "Failed to send feedback. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -795,7 +937,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       toast({
         title: "Error",
         description: "Please enter a message",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
@@ -803,24 +945,31 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     setSendingChatMessage(true);
 
     // 🚨 ENTERPRISE-GRADE FRONTEND DEBUG LOGGING - PRODUCTION DATA VALIDATION
-    console.log('🛑 FRONTEND DEBUG: === PLAYER MESSAGE SEND START ===');
-    console.log('🔍 FRONTEND DEBUG: Sending player message | Details:', {
+    console.log("🛑 FRONTEND DEBUG: === PLAYER MESSAGE SEND START ===");
+    console.log("🔍 FRONTEND DEBUG: Sending player message | Details:", {
       playerId: user.id,
       playerName: `${user.firstName} ${user.lastName}`,
       messageText: chatMessage.trim(),
-      senderType: 'player',
+      senderType: "player",
       timestamp: new Date().toISOString(),
       websocketConnected: wsConnected,
-      validation: 'PRODUCTION_USER_CONTEXT_ONLY'
+      validation: "PRODUCTION_USER_CONTEXT_ONLY",
     });
 
     // PRODUCTION DATA VALIDATION - NO MOCK/TEST DATA ALLOWED
-    if (!user.id || typeof user.id === 'string' || chatMessage.includes('test') || chatMessage.includes('demo')) {
-      console.error('❌ FRONTEND DEBUG: INVALID USER MESSAGE CONTEXT - Mock/test data detected');
+    if (
+      !user.id ||
+      typeof user.id === "string" ||
+      chatMessage.includes("test") ||
+      chatMessage.includes("demo")
+    ) {
+      console.error(
+        "❌ FRONTEND DEBUG: INVALID USER MESSAGE CONTEXT - Mock/test data detected"
+      );
       toast({
         title: "Error",
         description: "Invalid message context - only production data allowed",
-        variant: "destructive"
+        variant: "destructive",
       });
       setSendingChatMessage(false);
       return;
@@ -829,85 +978,102 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     // Try WebSocket first for real-time chat
     if (wsConnection && wsConnected) {
       try {
-        console.log('🔍 FRONTEND DEBUG: WebSocket message transmission | Details:', {
-          connectionState: wsConnection.readyState,
-          expectedState: WebSocket.OPEN,
-          messageLength: chatMessage.trim().length,
-          validation: 'PRODUCTION_WEBSOCKET_SEND'
-        });
+        console.log(
+          "🔍 FRONTEND DEBUG: WebSocket message transmission | Details:",
+          {
+            connectionState: wsConnection.readyState,
+            expectedState: WebSocket.OPEN,
+            messageLength: chatMessage.trim().length,
+            validation: "PRODUCTION_WEBSOCKET_SEND",
+          }
+        );
 
         // Create the message object for immediate display
         const newMessage = {
           id: Date.now().toString(),
           player_id: user.id,
           message: chatMessage.trim(),
-          sender_type: 'player',
+          sender_type: "player",
           timestamp: new Date().toISOString(),
-          is_read: false
+          is_read: false,
         };
 
         // Add to local state immediately for instant display (optimistic UI update)
-        console.log('🔍 FRONTEND DEBUG: Adding optimistic message | Details:', {
+        console.log("🔍 FRONTEND DEBUG: Adding optimistic message | Details:", {
           messageId: newMessage.id,
           playerId: newMessage.player_id,
-          messagePreview: newMessage.message.substring(0, 50) + '...',
-          validation: 'PRODUCTION_OPTIMISTIC_UPDATE'
+          messagePreview: newMessage.message.substring(0, 50) + "...",
+          validation: "PRODUCTION_OPTIMISTIC_UPDATE",
         });
-        setUnifiedChatMessages(prev => [...prev, newMessage]);
+        setUnifiedChatMessages((prev) => [...prev, newMessage]);
 
         // EXACT Staff Portal message format - PRODUCTION DATA ONLY
         const websocketPayload = {
-          type: 'player_message',              // EXACT string expected by Staff Portal
-          playerId: user.id,                   // Integer from database
+          type: "player_message", // EXACT string expected by Staff Portal
+          playerId: user.id, // Integer from database
           playerName: `${user.firstName} ${user.lastName}`, // Player's full name
-          playerEmail: user.email,             // Valid email address
-          message: chatMessage.trim(),         // The actual message content
-          messageText: chatMessage.trim(),     // Duplicate for compatibility
-          timestamp: new Date().toISOString()  // ISO timestamp string
+          playerEmail: user.email, // Valid email address
+          message: chatMessage.trim(), // The actual message content
+          messageText: chatMessage.trim(), // Duplicate for compatibility
+          timestamp: new Date().toISOString(), // ISO timestamp string
         };
 
-        console.log('🔍 FRONTEND DEBUG: WebSocket payload transmission | Details:', {
-          payloadType: websocketPayload.type,
-          playerId: websocketPayload.playerId,
-          playerName: websocketPayload.playerName,
-          messageLength: websocketPayload.message.length,
-          validation: 'PRODUCTION_WEBSOCKET_PAYLOAD'
-        });
+        console.log(
+          "🔍 FRONTEND DEBUG: WebSocket payload transmission | Details:",
+          {
+            payloadType: websocketPayload.type,
+            playerId: websocketPayload.playerId,
+            playerName: websocketPayload.playerName,
+            messageLength: websocketPayload.message.length,
+            validation: "PRODUCTION_WEBSOCKET_PAYLOAD",
+          }
+        );
 
         wsConnection.send(JSON.stringify(websocketPayload));
 
-        console.log('✅ FRONTEND DEBUG: WebSocket message sent successfully | Details:', {
-          messageLength: chatMessage.trim().length,
-          playerId: user.id,
-          timestamp: new Date().toISOString(),
-          validation: 'PRODUCTION_WEBSOCKET_SUCCESS'
-        });
+        console.log(
+          "✅ FRONTEND DEBUG: WebSocket message sent successfully | Details:",
+          {
+            messageLength: chatMessage.trim().length,
+            playerId: user.id,
+            timestamp: new Date().toISOString(),
+            validation: "PRODUCTION_WEBSOCKET_SUCCESS",
+          }
+        );
 
         toast({
           title: "Message Sent",
-          description: "Your message has been sent to our team via real-time chat",
+          description:
+            "Your message has been sent to our team via real-time chat",
         });
         setChatMessage("");
         setSendingChatMessage(false);
-        console.log('🛑 FRONTEND DEBUG: === PLAYER MESSAGE SEND END (WEBSOCKET SUCCESS) ===');
+        console.log(
+          "🛑 FRONTEND DEBUG: === PLAYER MESSAGE SEND END (WEBSOCKET SUCCESS) ==="
+        );
         return;
       } catch (error: any) {
-        console.error('❌ FRONTEND DEBUG: WebSocket transmission failed | Details:', {
-          error: error.message,
-          connectionState: wsConnection?.readyState,
-          validation: 'WEBSOCKET_FALLBACK_TRIGGERED'
-        });
-        console.error('📤 Falling back to REST API for message delivery');
+        console.error(
+          "❌ FRONTEND DEBUG: WebSocket transmission failed | Details:",
+          {
+            error: error.message,
+            connectionState: wsConnection?.readyState,
+            validation: "WEBSOCKET_FALLBACK_TRIGGERED",
+          }
+        );
+        console.error("📤 Falling back to REST API for message delivery");
       }
     }
 
     // Fallback to REST API if WebSocket is not available
     try {
-      console.log('🔍 FRONTEND DEBUG: REST API fallback initiated | Details:', {
-        reason: wsConnection ? 'WebSocket send failed' : 'WebSocket not connected',
+      console.log("🔍 FRONTEND DEBUG: REST API fallback initiated | Details:", {
+        reason: wsConnection
+          ? "WebSocket send failed"
+          : "WebSocket not connected",
         playerId: user.id,
         messageLength: chatMessage.trim().length,
-        validation: 'PRODUCTION_REST_FALLBACK'
+        validation: "PRODUCTION_REST_FALLBACK",
       });
 
       // Create the message object for immediate display
@@ -915,60 +1081,73 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         id: Date.now().toString(),
         player_id: user.id,
         message: chatMessage.trim(),
-        sender_type: 'player',
+        sender_type: "player",
         timestamp: new Date().toISOString(),
-        is_read: false
+        is_read: false,
       };
 
       // Add to local state immediately for instant display
-      setUnifiedChatMessages(prev => [...prev, newMessage]);
+      setUnifiedChatMessages((prev) => [...prev, newMessage]);
 
       const response = await apiRequest("POST", "/api/unified-chat/send", {
         playerId: user.id,
         playerName: `${user.firstName} ${user.lastName}`,
         message: chatMessage.trim(),
-        senderType: 'player'
+        senderType: "player",
       });
 
       const result = await response.json();
       if (response.ok) {
-        console.log('✅ FRONTEND DEBUG: REST API message sent successfully | Details:', {
-          responseStatus: response.status,
-          messageId: result.message?.id,
-          playerId: user.id,
-          validation: 'PRODUCTION_REST_SUCCESS'
-        });
+        console.log(
+          "✅ FRONTEND DEBUG: REST API message sent successfully | Details:",
+          {
+            responseStatus: response.status,
+            messageId: result.message?.id,
+            playerId: user.id,
+            validation: "PRODUCTION_REST_SUCCESS",
+          }
+        );
 
         toast({
           title: "Message Sent",
           description: "Your message has been sent to our team",
         });
         setChatMessage("");
-        console.log('🛑 FRONTEND DEBUG: === PLAYER MESSAGE SEND END (REST SUCCESS) ===');
+        console.log(
+          "🛑 FRONTEND DEBUG: === PLAYER MESSAGE SEND END (REST SUCCESS) ==="
+        );
         // Message successfully sent - no need for REST API refresh since WebSocket handles real-time updates
       } else {
-        console.error('❌ FRONTEND DEBUG: REST API message send failed | Details:', {
-          responseStatus: response.status,
-          errorMessage: result.error,
-          validation: 'PRODUCTION_REST_FAILURE'
-        });
+        console.error(
+          "❌ FRONTEND DEBUG: REST API message send failed | Details:",
+          {
+            responseStatus: response.status,
+            errorMessage: result.error,
+            validation: "PRODUCTION_REST_FAILURE",
+          }
+        );
         // Remove the message from local state if sending failed
-        setUnifiedChatMessages(prev => prev.filter(msg => msg.id !== newMessage.id));
+        setUnifiedChatMessages((prev) =>
+          prev.filter((msg) => msg.id !== newMessage.id)
+        );
         throw new Error(result.error || "Failed to send message");
       }
     } catch (error: any) {
-      console.error('❌ FRONTEND DEBUG: REST API request failed | Details:', {
+      console.error("❌ FRONTEND DEBUG: REST API request failed | Details:", {
         error: error.message,
-        validation: 'REST_REQUEST_FAILURE'
+        validation: "REST_REQUEST_FAILURE",
       });
       toast({
         title: "Error",
-        description: error.message || "Failed to send message. Please try again.",
+        description:
+          error.message || "Failed to send message. Please try again.",
         variant: "destructive",
       });
     } finally {
       setSendingChatMessage(false);
-      console.log('🛑 FRONTEND DEBUG: === PLAYER MESSAGE SEND END (WITH ERRORS) ===');
+      console.log(
+        "🛑 FRONTEND DEBUG: === PLAYER MESSAGE SEND END (WITH ERRORS) ==="
+      );
     }
   };
 
@@ -980,9 +1159,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const [wsConnection, setWsConnection] = useState<WebSocket | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
 
-
   // Table assignment notification state
-  const [showAssignmentNotification, setShowAssignmentNotification] = useState(false);
+  const [showAssignmentNotification, setShowAssignmentNotification] =
+    useState(false);
   const [assignmentDetails, setAssignmentDetails] = useState<any>(null);
 
   // Listen for table assignment notifications via Pusher
@@ -990,7 +1169,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     if (user?.id) {
       // Import Pusher client for real-time notifications
       const initializePusher = async () => {
-        const PusherJS = (await import('pusher-js')).default;
+        const PusherJS = (await import("pusher-js")).default;
         const pusher = new PusherJS(import.meta.env.VITE_PUSHER_KEY!, {
           cluster: import.meta.env.VITE_PUSHER_CLUSTER!,
         });
@@ -998,8 +1177,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         const channel = pusher.subscribe(`player-${user.id}`);
 
         // Listen for table assignment notifications
-        channel.bind('table_assigned', (data: any) => {
-          console.log('🪑 [TABLE ASSIGNMENT] Assignment notification received:', data);
+        channel.bind("table_assigned", (data: any) => {
+          console.log(
+            "🪑 [TABLE ASSIGNMENT] Assignment notification received:",
+            data
+          );
 
           setAssignmentDetails(data);
           setShowAssignmentNotification(true);
@@ -1012,8 +1194,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           });
 
           // Refresh waitlist and seated sessions
-          queryClient.invalidateQueries({ queryKey: ['/api/seat-requests'] });
-          queryClient.invalidateQueries({ queryKey: ['/api/table-seats'] });
+          queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/table-seats"] });
         });
 
         return () => {
@@ -1033,26 +1215,30 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const wsUrl = `${protocol}//${window.location.host}/chat-ws`;
 
-      console.log('🔗 [WEBSOCKET] Connecting to:', wsUrl);
+      console.log("🔗 [WEBSOCKET] Connecting to:", wsUrl);
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
-        console.log('✅ [WEBSOCKET] Connected successfully');
+        console.log("✅ [WEBSOCKET] Connected successfully");
         setWsConnected(true);
 
         // Staff Portal authentication format
-        ws.send(JSON.stringify({
-          type: 'authenticate',
-          playerId: user.id,
-          playerName: `${user.firstName} ${user.lastName}`,
-          playerEmail: user.email
-        }));
+        ws.send(
+          JSON.stringify({
+            type: "authenticate",
+            playerId: user.id,
+            playerName: `${user.firstName} ${user.lastName}`,
+            playerEmail: user.email,
+          })
+        );
 
         // Request chat history
-        ws.send(JSON.stringify({
-          type: 'get_messages',
-          playerId: user.id
-        }));
+        ws.send(
+          JSON.stringify({
+            type: "get_messages",
+            playerId: user.id,
+          })
+        );
       };
 
       ws.onmessage = (event) => {
@@ -1060,25 +1246,35 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           const data = JSON.parse(event.data);
 
           // 🛑 CRITICAL DEBUG: COMPLETE MESSAGE PAYLOAD LOGGING
-          console.log('🛑 CRITICAL DEBUG === WEBSOCKET RECEIVE START ===');
-          console.log('RECV RAW PAYLOAD:', JSON.stringify(data, null, 2));
-          console.log('RECV PAYLOAD KEYS:', Object.keys(data));
-          console.log('RECV PAYLOAD TYPES:', Object.entries(data).map(([k,v]) => `${k}: ${typeof v}`));
+          console.log("🛑 CRITICAL DEBUG === WEBSOCKET RECEIVE START ===");
+          console.log("RECV RAW PAYLOAD:", JSON.stringify(data, null, 2));
+          console.log("RECV PAYLOAD KEYS:", Object.keys(data));
+          console.log(
+            "RECV PAYLOAD TYPES:",
+            Object.entries(data).map(([k, v]) => `${k}: ${typeof v}`)
+          );
 
-          if (data.type === 'authenticated') {
-            console.log('🔐 [WEBSOCKET] Authentication successful');
+          if (data.type === "authenticated") {
+            console.log("🔐 [WEBSOCKET] Authentication successful");
           }
 
-          if (data.type === 'chat_history') {
-            console.log('📋 [WEBSOCKET] Chat history received:', data.messages.length, 'messages');
+          if (data.type === "chat_history") {
+            console.log(
+              "📋 [WEBSOCKET] Chat history received:",
+              data.messages.length,
+              "messages"
+            );
 
             // 🛑 GOD-LEVEL DEBUG: COMPLETE CHAT HISTORY ANALYSIS
-            console.log('🛑 GOD-LEVEL DEBUG === CHAT HISTORY PROCESSING ===');
-            console.log('INCOMING MESSAGES FROM WS/DB:', JSON.stringify(data.messages, null, 2));
-            console.log('CURRENT FILTER VARS:', {
+            console.log("🛑 GOD-LEVEL DEBUG === CHAT HISTORY PROCESSING ===");
+            console.log(
+              "INCOMING MESSAGES FROM WS/DB:",
+              JSON.stringify(data.messages, null, 2)
+            );
+            console.log("CURRENT FILTER VARS:", {
               currentUserId: user.id,
               currentUserIdType: typeof user.id,
-              totalMessages: data.messages?.length || 0
+              totalMessages: data.messages?.length || 0,
             });
 
             // Analyze each message for filtering compatibility
@@ -1089,9 +1285,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 playerIdType: typeof msg.player_id,
                 sessionId: msg.session_id,
                 sender: msg.sender,
-                messagePreview: msg.message?.substring(0, 30) + '...',
-                willBeFiltered: msg.player_id !== user.id ? 'YES - DROPPED' : 'NO - INCLUDED',
-                filterReason: msg.player_id !== user.id ? `${msg.player_id} !== ${user.id}` : 'ID MATCH'
+                messagePreview: msg.message?.substring(0, 30) + "...",
+                willBeFiltered:
+                  msg.player_id !== user.id ? "YES - DROPPED" : "NO - INCLUDED",
+                filterReason:
+                  msg.player_id !== user.id
+                    ? `${msg.player_id} !== ${user.id}`
+                    : "ID MATCH",
               });
             });
 
@@ -1099,30 +1299,38 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             setUnifiedChatMessages(data.messages || []);
             setChatLoading(false);
 
-            console.log('✅ GOD-LEVEL DEBUG: Chat history state updated with', data.messages?.length || 0, 'messages');
+            console.log(
+              "✅ GOD-LEVEL DEBUG: Chat history state updated with",
+              data.messages?.length || 0,
+              "messages"
+            );
           }
 
           // 🛑 CRITICAL: GRE MESSAGE PROCESSING WITH COMPLETE DEBUG
-          if (data.type === 'gre_message') {
-            console.log('🛑 CRITICAL DEBUG: GRE MESSAGE PROCESSING');
-            console.log('GRE RECV - Original Keys:', Object.keys(data));
-            console.log('GRE RECV - playerId variants:', {
+          if (data.type === "gre_message") {
+            console.log("🛑 CRITICAL DEBUG: GRE MESSAGE PROCESSING");
+            console.log("GRE RECV - Original Keys:", Object.keys(data));
+            console.log("GRE RECV - playerId variants:", {
               playerId: data.playerId,
               player_id: data.player_id,
               playerIdType: typeof data.playerId,
-              player_idType: typeof data.player_id
+              player_idType: typeof data.player_id,
             });
-            console.log('GRE RECV - Current User ID:', user.id, typeof user.id);
+            console.log("GRE RECV - Current User ID:", user.id, typeof user.id);
 
             // CRITICAL: COMPREHENSIVE ID STANDARDIZATION
-            const normalizedPlayerId = parseInt(data.playerId) || parseInt(data.player_id) || parseInt(data.targetPlayerId) || user.id;
+            const normalizedPlayerId =
+              parseInt(data.playerId) ||
+              parseInt(data.player_id) ||
+              parseInt(data.targetPlayerId) ||
+              user.id;
             const messageMatch = normalizedPlayerId === user.id;
 
-            console.log('GRE RECV - ID VALIDATION:', {
+            console.log("GRE RECV - ID VALIDATION:", {
               normalizedPlayerId,
               currentUserId: user.id,
               messageMatch,
-              shouldDisplay: messageMatch
+              shouldDisplay: messageMatch,
             });
 
             if (messageMatch) {
@@ -1131,102 +1339,141 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 player_id: normalizedPlayerId,
                 session_id: data.sessionId || data.session_id,
                 message: data.message || data.content || data.messageText,
-                sender: 'gre',
-                sender_name: data.greStaffName || data.gre_staff_name || data.sender_name || 'GRE Staff',
+                sender: "gre",
+                sender_name:
+                  data.greStaffName ||
+                  data.gre_staff_name ||
+                  data.sender_name ||
+                  "GRE Staff",
                 timestamp: data.timestamp || new Date().toISOString(),
-                status: 'sent'
+                status: "sent",
               };
 
-              console.log('GRE RECV - ADDING TO UI:', normalizedGreMessage);
-              setUnifiedChatMessages(prev => {
+              console.log("GRE RECV - ADDING TO UI:", normalizedGreMessage);
+              setUnifiedChatMessages((prev) => {
                 const updated = [...prev, normalizedGreMessage];
-                console.log('GRE RECV - UI STATE UPDATED:', updated.length, 'total messages');
+                console.log(
+                  "GRE RECV - UI STATE UPDATED:",
+                  updated.length,
+                  "total messages"
+                );
                 return updated;
               });
             } else {
-              console.warn('❌ GRE RECV - MESSAGE REJECTED - ID MISMATCH:', {
+              console.warn("❌ GRE RECV - MESSAGE REJECTED - ID MISMATCH:", {
                 receivedId: normalizedPlayerId,
                 expectedId: user.id,
-                reason: 'PLAYER_ID_MISMATCH'
+                reason: "PLAYER_ID_MISMATCH",
               });
             }
           }
 
-          if (data.type === 'new_message') {
-            console.log('🔍 FRONTEND DEBUG: New message received | Raw payload:', data);
+          if (data.type === "new_message") {
+            console.log(
+              "🔍 FRONTEND DEBUG: New message received | Raw payload:",
+              data
+            );
 
             // STANDARDIZED MESSAGE TRANSFORMATION
             const normalizedMessage = {
               id: data.message?.id || data.id || Date.now().toString(),
-              player_id: parseInt(data.message?.player_id) || parseInt(data.playerId) || user.id,
+              player_id:
+                parseInt(data.message?.player_id) ||
+                parseInt(data.playerId) ||
+                user.id,
               session_id: data.message?.session_id || data.sessionId,
               message: data.message?.message || data.content,
               sender: data.message?.sender || data.sender,
               sender_name: data.message?.sender_name || data.senderName,
               timestamp: data.message?.timestamp || data.timestamp,
-              status: data.message?.status || 'sent'
+              status: data.message?.status || "sent",
             };
 
-            console.log('🔍 FRONTEND DEBUG: Normalized new message | Details:', {
-              originalPlayerId: data.message?.player_id || data.playerId,
-              normalizedPlayerId: normalizedMessage.player_id,
-              currentUserId: user.id,
-              validation: 'UNIFIED_ID_MAPPING_APPLIED'
-            });
+            console.log(
+              "🔍 FRONTEND DEBUG: Normalized new message | Details:",
+              {
+                originalPlayerId: data.message?.player_id || data.playerId,
+                normalizedPlayerId: normalizedMessage.player_id,
+                currentUserId: user.id,
+                validation: "UNIFIED_ID_MAPPING_APPLIED",
+              }
+            );
 
             // PRODUCTION DATA VALIDATION - Only add if IDs match exactly
             if (normalizedMessage.player_id === user.id) {
-              setUnifiedChatMessages(prev => [...prev, normalizedMessage]);
-              console.log('✅ FRONTEND DEBUG: New message added to UI | PlayerId match confirmed');
+              setUnifiedChatMessages((prev) => [...prev, normalizedMessage]);
+              console.log(
+                "✅ FRONTEND DEBUG: New message added to UI | PlayerId match confirmed"
+              );
             } else {
-              console.warn('❌ FRONTEND DEBUG: New message rejected - PlayerId mismatch:', {
-                receivedPlayerId: normalizedMessage.player_id,
-                expectedPlayerId: user.id,
-                validation: 'ID_MISMATCH_BLOCKED'
-              });
+              console.warn(
+                "❌ FRONTEND DEBUG: New message rejected - PlayerId mismatch:",
+                {
+                  receivedPlayerId: normalizedMessage.player_id,
+                  expectedPlayerId: user.id,
+                  validation: "ID_MISMATCH_BLOCKED",
+                }
+              );
             }
             // Real-time message added via WebSocket - no REST API refresh needed
           }
 
-          if (data.type === 'session_started') {
-            console.log('✅ [WEBSOCKET] Chat session started with GRE:', data.data?.greStaffName);
+          if (data.type === "session_started") {
+            console.log(
+              "✅ [WEBSOCKET] Chat session started with GRE:",
+              data.data?.greStaffName
+            );
             toast({
               title: "Chat Connected",
-              description: `Connected with ${data.data?.greStaffName || 'Support Staff'}`,
+              description: `Connected with ${
+                data.data?.greStaffName || "Support Staff"
+              }`,
             });
           }
 
-          if (data.type === 'session_closed') {
-            console.log('🔒 [WEBSOCKET] Chat session closed by GRE:', data.reason);
+          if (data.type === "session_closed") {
+            console.log(
+              "🔒 [WEBSOCKET] Chat session closed by GRE:",
+              data.reason
+            );
             toast({
               title: "Chat Session Ended",
-              description: data.reason || "Chat session has been closed by support staff",
+              description:
+                data.reason || "Chat session has been closed by support staff",
             });
           }
 
-          if (data.type === 'acknowledgment') {
-            console.log('✅ [WEBSOCKET] Message delivery confirmed');
+          if (data.type === "acknowledgment") {
+            console.log("✅ [WEBSOCKET] Message delivery confirmed");
           }
 
-          if (data.type === 'message_sent') {
-            console.log('✅ [WEBSOCKET] Message sent confirmation');
+          if (data.type === "message_sent") {
+            console.log("✅ [WEBSOCKET] Message sent confirmation");
             // Add the sent message to local state immediately for instant display
             if (data.message) {
-              setUnifiedChatMessages(prev => [...prev, data.message]);
+              setUnifiedChatMessages((prev) => [...prev, data.message]);
             }
             // Also refresh chat history
-            ws.send(JSON.stringify({
-              type: 'get_messages',
-              playerId: user.id
-            }));
+            ws.send(
+              JSON.stringify({
+                type: "get_messages",
+                playerId: user.id,
+              })
+            );
             // Refresh REST API data for consistency
-            queryClient.invalidateQueries({ queryKey: [`/api/gre-chat/messages/${user.id}`] });
+            queryClient.invalidateQueries({
+              queryKey: [`/api/gre-chat/messages/${user.id}`],
+            });
           }
 
-          if (data.type === 'chat_closed') {
-            console.log('🔒 [WEBSOCKET] Chat session closed by GRE');
+          if (data.type === "chat_closed") {
+            console.log("🔒 [WEBSOCKET] Chat session closed by GRE");
             // Show confirmation dialog
-            if (confirm('GRE staff has closed this chat session. Would you like to clear the chat history?')) {
+            if (
+              confirm(
+                "GRE staff has closed this chat session. Would you like to clear the chat history?"
+              )
+            ) {
               setUnifiedChatMessages([]);
               setChatMessage("");
               toast({
@@ -1235,20 +1482,19 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               });
             }
           }
-
         } catch (error) {
-          console.error('❌ [WEBSOCKET] Error parsing message:', error);
+          console.error("❌ [WEBSOCKET] Error parsing message:", error);
         }
       };
 
       ws.onclose = () => {
-        console.log('🔌 [WEBSOCKET] Connection closed');
+        console.log("🔌 [WEBSOCKET] Connection closed");
         setWsConnected(false);
         setWsConnection(null);
       };
 
       ws.onerror = (error) => {
-        console.error('❌ [WEBSOCKET] Connection error:', error);
+        console.error("❌ [WEBSOCKET] Connection error:", error);
         setWsConnected(false);
       };
 
@@ -1270,8 +1516,16 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Submit credit request mutation
   const submitCreditRequestMutation = useMutation({
-    mutationFn: async ({ playerId, requestedAmount, requestNote }: { playerId: number; requestedAmount: number; requestNote: string }) => {
-      const response = await apiRequest('POST', '/api/credit-requests', {
+    mutationFn: async ({
+      playerId,
+      requestedAmount,
+      requestNote,
+    }: {
+      playerId: number;
+      requestedAmount: number;
+      requestNote: string;
+    }) => {
+      const response = await apiRequest("POST", "/api/credit-requests", {
         playerId,
         requestedAmount,
         requestNote,
@@ -1279,14 +1533,17 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/credit-requests/${user?.id}`] });
-      queryClient.invalidateQueries({ queryKey: ['/api/players/supabase'] });
+      queryClient.invalidateQueries({
+        queryKey: [`/api/credit-requests/${user?.id}`],
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/players/supabase"] });
       setCreditAmount("");
       setCreditNote("");
       setShowCreditForm(false);
       toast({
         title: "Credit Request Submitted",
-        description: "Your credit request has been submitted to the Super Admin for approval",
+        description:
+          "Your credit request has been submitted to the Super Admin for approval",
       });
     },
     onError: (error: any) => {
@@ -1317,8 +1574,20 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // VIP Club redemption mutation
   const vipRedeemMutation = useMutation({
-    mutationFn: async ({ playerId, rewardType, pointsCost }: { playerId: number; rewardType: string; pointsCost: number }) => {
-      const response = await apiRequest("POST", "/api/vip-club/redeem", { playerId, rewardType, pointsCost });
+    mutationFn: async ({
+      playerId,
+      rewardType,
+      pointsCost,
+    }: {
+      playerId: number;
+      rewardType: string;
+      pointsCost: number;
+    }) => {
+      const response = await apiRequest("POST", "/api/vip-club/redeem", {
+        playerId,
+        rewardType,
+        pointsCost,
+      });
       return response.json();
     },
     onSuccess: (data) => {
@@ -1327,7 +1596,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         description: `${data.message}. You have ${data.remainingPoints} points remaining.`,
       });
       // Refresh user data to update points display
-      queryClient.invalidateQueries({ queryKey: ["/api/players/supabase", user?.email] });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/players/supabase", user?.email],
+      });
     },
     onError: (error: any) => {
       toast({
@@ -1344,14 +1615,16 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     vipRedeemMutation.mutate({
       playerId: Number(user.id),
       rewardType,
-      pointsCost
+      pointsCost,
     });
   };
 
   // PAN Card management
   // PAN Card state - Initialize with existing PAN card number from user data
-  const [panCardNumber, setPanCardNumber] = useState('');
-  const [showTransactions, setShowTransactions] = useState<'last10' | 'all' | null>(null);
+  const [panCardNumber, setPanCardNumber] = useState("");
+  const [showTransactions, setShowTransactions] = useState<
+    "last10" | "all" | null
+  >(null);
 
   // Update PAN card state when user data loads - this ensures the field shows existing data
   useEffect(() => {
@@ -1360,41 +1633,54 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     }
   }, [user?.pan_card_number]);
 
-
   // Transaction color helpers
   const getTransactionAmountColor = (type: string) => {
     switch (type) {
-      case 'add_credit': return 'text-blue-400'; // Blue for add credit
-      case 'clear_credit': return 'text-orange-400'; // Orange for clear credit
-      case 'cash_in':
-      case 'table_cash_out': 
-      case 'funds_added': return 'text-emerald-400'; // Green for cash in/funds added
-      case 'cash_out':
-      case 'cashier_withdrawal':
-      case 'table_buy_in': return 'text-red-400'; // Red for cash out/withdrawals
-      default: return 'text-slate-400';
+      case "add_credit":
+        return "text-blue-400"; // Blue for add credit
+      case "clear_credit":
+        return "text-orange-400"; // Orange for clear credit
+      case "cash_in":
+      case "table_cash_out":
+      case "funds_added":
+        return "text-emerald-400"; // Green for cash in/funds added
+      case "cash_out":
+      case "cashier_withdrawal":
+      case "table_buy_in":
+        return "text-red-400"; // Red for cash out/withdrawals
+      default:
+        return "text-slate-400";
     }
   };
 
   const getTransactionAmountPrefix = (type: string) => {
     switch (type) {
-      case 'add_credit': return '+'; // Positive for add credit
-      case 'clear_credit': return '-'; // Negative for clear credit
-      case 'cash_in':
-      case 'table_cash_out':
-      case 'funds_added': return '+'; // Positive for funds added
-      case 'cash_out':
-      case 'cashier_withdrawal':
-      case 'table_buy_in': return '-'; // Negative for withdrawals
-      default: return '';
+      case "add_credit":
+        return "+"; // Positive for add credit
+      case "clear_credit":
+        return "-"; // Negative for clear credit
+      case "cash_in":
+      case "table_cash_out":
+      case "funds_added":
+        return "+"; // Positive for funds added
+      case "cash_out":
+      case "cashier_withdrawal":
+      case "table_buy_in":
+        return "-"; // Negative for withdrawals
+      default:
+        return "";
     }
   };
 
   // Seat selection state for waitlist
   const [showSeatDialog, setShowSeatDialog] = useState(false);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
-  const [selectedTableName, setSelectedTableName] = useState<string | null>(null);
-  const [selectedSeatNumber, setSelectedSeatNumber] = useState<number | null>(null);
+  const [selectedTableName, setSelectedTableName] = useState<string | null>(
+    null
+  );
+  const [selectedSeatNumber, setSelectedSeatNumber] = useState<number | null>(
+    null
+  );
 
   // PAN Card validation function (matching KYC workflow)
   const isValidPAN = (pan: string): boolean => {
@@ -1404,8 +1690,18 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // PAN Card update mutation
   const updatePanCardMutation = useMutation({
-    mutationFn: async ({ playerId, panCardNumber }: { playerId: number; panCardNumber: string }) => {
-      const response = await apiRequest("POST", `/api/players/${playerId}/pan-card`, { panCardNumber });
+    mutationFn: async ({
+      playerId,
+      panCardNumber,
+    }: {
+      playerId: number;
+      panCardNumber: string;
+    }) => {
+      const response = await apiRequest(
+        "POST",
+        `/api/players/${playerId}/pan-card`,
+        { panCardNumber }
+      );
       return response.json();
     },
     onSuccess: () => {
@@ -1416,7 +1712,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       // Clear the input
       setPanCardNumber("");
       // Refresh user data
-      queryClient.invalidateQueries({ queryKey: ["/api/players/supabase", user?.email] });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/players/supabase", user?.email],
+      });
     },
     onError: (error: any) => {
       toast({
@@ -1429,17 +1727,20 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Transaction history query
   const { data: transactions, isLoading: transactionsLoading } = useQuery({
-    queryKey: ['transactions', user?.id, showTransactions], // Added showTransactions to query key
+    queryKey: ["transactions", user?.id, showTransactions], // Added showTransactions to query key
     queryFn: async () => {
       if (!user?.id) return [];
 
-      const limit = showTransactions === 'all' ? 100 : 10; // Fetch 100 if 'all', otherwise 10
-      const response = await fetch(`/api/player/${user.id}/transactions?limit=${limit}`, {
-        credentials: 'include',
-      });
+      const limit = showTransactions === "all" ? 100 : 10; // Fetch 100 if 'all', otherwise 10
+      const response = await fetch(
+        `/api/player/${user.id}/transactions?limit=${limit}`,
+        {
+          credentials: "include",
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to fetch transactions');
+        throw new Error("Failed to fetch transactions");
       }
 
       return response.json();
@@ -1469,7 +1770,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
     updatePanCardMutation.mutate({
       playerId: Number(user.id),
-      panCardNumber
+      panCardNumber,
     });
   };
 
@@ -1478,8 +1779,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     if (user) {
       const interval = setInterval(() => {
         const now = new Date();
-        const hours = now.getHours().toString().padStart(2, '0');
-        const minutes = now.getMinutes().toString().padStart(2, '0');
+        const hours = now.getHours().toString().padStart(2, "0");
+        const minutes = now.getMinutes().toString().padStart(2, "0");
         setCallTime(`${hours}:${minutes}`);
       }, 1000);
 
@@ -1490,16 +1791,21 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // File type validation
   const validateFileType = (file: File): boolean => {
     const allowedTypes = [
-      'image/jpeg',
-      'image/jpg', 
-      'image/png',
-      'application/pdf'
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "application/pdf",
     ];
 
-    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.pdf'];
-    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    const allowedExtensions = [".jpg", ".jpeg", ".png", ".pdf"];
+    const fileExtension = file.name
+      .toLowerCase()
+      .substring(file.name.lastIndexOf("."));
 
-    return allowedTypes.includes(file.type) && allowedExtensions.includes(fileExtension);
+    return (
+      allowedTypes.includes(file.type) &&
+      allowedExtensions.includes(fileExtension)
+    );
   };
 
   const validateFileSize = (file: File): boolean => {
@@ -1510,49 +1816,64 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // Format document types for display
   const formatDocumentType = (type: string) => {
     const typeMap: Record<string, string> = {
-      'government_id': 'Government ID',
-      'id_document': 'Government ID', 
-      'address_proof': 'Address Proof',
-      'utility_bill': 'Address Proof',
-      'pan_card': 'PAN Card',
-      'profile_photo': 'Profile Photo',
-      'photo': 'Profile Photo'
+      government_id: "Government ID",
+      id_document: "Government ID",
+      address_proof: "Address Proof",
+      utility_bill: "Address Proof",
+      pan_card: "PAN Card",
+      profile_photo: "Profile Photo",
+      photo: "Profile Photo",
     };
-    return typeMap[type] || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return (
+      typeMap[type] ||
+      type.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+    );
   };
 
   function formatSubmissionDate(dateString: string) {
-    if (!dateString) return 'No date available';
+    if (!dateString) return "No date available";
 
     try {
       const date = new Date(dateString);
 
       // Check if the date is valid
       if (isNaN(date.getTime())) {
-        return 'No date available';
+        return "No date available";
       }
 
       // Format as "Aug 30, 2025 at 6:39 AM"
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      }) + ' at ' + date.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-      });
+      return (
+        date.toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        }) +
+        " at " +
+        date.toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        })
+      );
     } catch (error) {
-      return 'No date available';
+      return "No date available";
     }
   }
 
   const handleKycDocumentUpload = (documentType: string, file: File) => {
-    console.log('Starting file upload:', { documentType, fileName: file.name, fileSize: file.size, fileType: file.type });
+    console.log("Starting file upload:", {
+      documentType,
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+    });
 
     // Validate file type
     if (!validateFileType(file)) {
-      console.log('File type validation failed:', { type: file.type, name: file.name });
+      console.log("File type validation failed:", {
+        type: file.type,
+        name: file.name,
+      });
       toast({
         title: "Invalid File Type",
         description: "Please upload JPG, PNG, or PDF files only",
@@ -1563,7 +1884,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
     // Validate file size
     if (!validateFileSize(file)) {
-      console.log('File size validation failed:', { size: file.size, maxSize: 5 * 1024 * 1024 });
+      console.log("File size validation failed:", {
+        size: file.size,
+        maxSize: 5 * 1024 * 1024,
+      });
       toast({
         title: "File Too Large",
         description: "File size must be less than 5MB",
@@ -1572,7 +1896,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       return;
     }
 
-    console.log('File validation passed, starting upload');
+    console.log("File validation passed, starting upload");
     uploadKycDocumentMutation.mutate({ documentType, file });
   };
 
@@ -1581,19 +1905,23 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const getKycDocumentStatus = (documentType: string) => {
     // Map display types to actual database types
     const typeMap: { [key: string]: string } = {
-      'id': 'government_id',
-      'utility': 'utility_bill',
-      'photo': 'profile_photo'
+      id: "government_id",
+      utility: "utility_bill",
+      photo: "profile_photo",
     };
 
     const actualType = typeMap[documentType] || documentType;
 
     // Find the latest document for this type (by createdAt date), using both Supabase and local URLs
-    const docs = kycDocuments?.filter(d => d.documentType === actualType && d.fileUrl);
-    if (!docs || docs.length === 0) return 'missing';
+    const docs = kycDocuments?.filter(
+      (d) => d.documentType === actualType && d.fileUrl
+    );
+    if (!docs || docs.length === 0) return "missing";
 
     const latestDoc = docs.reduce((latest, current) => {
-      return new Date(current.createdAt!) > new Date(latest.createdAt!) ? current : latest;
+      return new Date(current.createdAt!) > new Date(latest.createdAt!)
+        ? current
+        : latest;
     });
 
     return latestDoc.status;
@@ -1601,11 +1929,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   const getKycStatusIcon = (status: string) => {
     switch (status) {
-      case 'approved':
+      case "approved":
         return <CheckCircle className="w-4 h-4 text-emerald-500" />;
-      case 'pending':
+      case "pending":
         return <Clock className="w-4 h-4 text-amber-500" />;
-      case 'rejected':
+      case "rejected":
         return <XCircle className="w-4 h-4 text-red-500" />;
       default:
         return <FileText className="w-4 h-4 text-slate-400" />;
@@ -1614,90 +1942,113 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Authentication is handled at App level, no need for additional loading screen here
   // This was causing the persistent "Loading your dashboard..." screen after video completion
-  console.log('🎯 [PLAYER DASHBOARD] Rendering with user:', !!user, user?.email);
+  console.log(
+    "🎯 [PLAYER DASHBOARD] Rendering with user:",
+    !!user,
+    user?.email
+  );
 
   // Safety guard - if no user, return nothing and let App.tsx handle routing
   if (!user) {
-    console.log('🎯 [PLAYER DASHBOARD] No user prop - returning null to let App handle routing');
+    console.log(
+      "🎯 [PLAYER DASHBOARD] No user prop - returning null to let App handle routing"
+    );
     return null;
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 w-full overflow-x-hidden dashboard-container">
+    <div className="min-h-screen bg-slate-900 w-full overflow-x-hidden dashboard-container relative">
       {/* Email Verification Banner */}
-      {showEmailVerificationBanner && user?.email && !(user as any)?.emailVerified && (
-        <div className="bg-amber-600 border-b border-amber-500 px-3 sm:px-6 py-3 notification-banner">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <AlertTriangle className="w-5 h-5 mr-2 text-white" />
-              <span className="text-white font-medium">
-                Please verify your email address. Check your inbox for the verification link.
-              </span>
+      {showEmailVerificationBanner &&
+        user?.email &&
+        !(user as any)?.emailVerified && (
+          <div className="bg-amber-600 border-b border-amber-500 px-3 sm:px-6 py-3 notification-banner">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <AlertTriangle className="w-5 h-5 mr-2 text-white" />
+                <span className="text-white font-medium">
+                  Please verify your email address. Check your inbox for the
+                  verification link.
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-white hover:bg-amber-700"
+                onClick={() => setShowEmailVerificationBanner(false)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
             </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-white hover:bg-amber-700"
-              onClick={() => setShowEmailVerificationBanner(false)}
-            >
-              <X className="w-4 h-4" />
-            </Button>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Active Game Status Banner */}
       {gameStatus.activeGameInfo && (
-        <div className={`border-b px-3 sm:px-6 py-3 sm:py-4 notification-banner ${
-          gameStatus.isInActiveGame 
-            ? 'bg-gradient-to-r from-amber-600 to-amber-700 border-amber-500' 
-            : 'bg-gradient-to-r from-emerald-600 to-emerald-700 border-emerald-500'
-        }`}>
+        <div
+          className={`border-b px-3 sm:px-6 py-3 sm:py-4 notification-banner ${
+            gameStatus.isInActiveGame
+              ? "bg-gradient-to-r from-amber-600 to-amber-700 border-amber-500"
+              : "bg-gradient-to-r from-emerald-600 to-emerald-700 border-emerald-500"
+          }`}
+        >
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-                    <div className="flex items-center space-x-3">
-                      <div className="p-2 bg-emerald-500/20 rounded-full">
-                        <Play className="w-5 h-5 text-emerald-400" />
-                      </div>
-                      <div>
-                        <div className="flex flex-col space-y-2">
-                          <span className="text-white font-bold text-lg">
-                            {gameStatus.isInActiveGame ? '🎮 CURRENTLY PLAYING' : '⏳ WAITING FOR GAME'}
-                          </span>
-                          {gameStatus.activeGameInfo.seatNumber && (
-                            <Badge className="bg-white text-slate-900 font-bold w-fit">
-                              Seat #{gameStatus.activeGameInfo.seatNumber}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-white/90 text-sm mt-2">
-                          <span className="font-medium">{gameStatus.activeGameInfo.tableName}</span> • 
-                          <span className="ml-1">{gameStatus.activeGameInfo.gameType}</span>
-                          {gameStatus.activeGameInfo.position && gameStatus.activeGameInfo.position > 0 && (
-                            <span className="ml-1">• Position #{gameStatus.activeGameInfo.position}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex justify-center sm:justify-end">
-                      <Link href={`/table/${gameStatus.activeGameInfo.tableId}`}>
-                        <Button 
-                          className={`${
-                            gameStatus.isInActiveGame 
-                              ? 'bg-white text-amber-700 hover:bg-amber-50' 
-                              : 'bg-white text-emerald-700 hover:bg-emerald-50'
-                          } font-semibold px-6`}
-                        >
-                          <Eye className="w-4 h-4 mr-2" />
-                          {gameStatus.isInActiveGame ? 'View Game' : 'View Table'}
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-emerald-500/20 rounded-full">
+                <Play className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div>
+                <div className="flex flex-col space-y-2">
+                  <span className="text-white font-bold text-lg">
+                    {gameStatus.isInActiveGame
+                      ? "🎮 CURRENTLY PLAYING"
+                      : "⏳ WAITING FOR GAME"}
+                  </span>
+                  {gameStatus.activeGameInfo.seatNumber && (
+                    <Badge className="bg-white text-slate-900 font-bold w-fit">
+                      Seat #{gameStatus.activeGameInfo.seatNumber}
+                    </Badge>
+                  )}
+                </div>
+                <div className="text-white/90 text-sm mt-2">
+                  <span className="font-medium">
+                    {gameStatus.activeGameInfo.tableName}
+                  </span>{" "}
+                  •
+                  <span className="ml-1">
+                    {gameStatus.activeGameInfo.gameType}
+                  </span>
+                  {gameStatus.activeGameInfo.position &&
+                    gameStatus.activeGameInfo.position > 0 && (
+                      <span className="ml-1">
+                        • Position #{gameStatus.activeGameInfo.position}
+                      </span>
+                    )}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-center sm:justify-end">
+              <Link href={`/table/${gameStatus.activeGameInfo.tableId}`}>
+                <Button
+                  className={`${
+                    gameStatus.isInActiveGame
+                      ? "bg-white text-amber-700 hover:bg-amber-50"
+                      : "bg-white text-emerald-700 hover:bg-emerald-50"
+                  } font-semibold px-6`}
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  {gameStatus.isInActiveGame ? "View Game" : "View Table"}
+                </Button>
+              </Link>
+            </div>
+          </div>
           {gameStatus.isInActiveGame && gameStatus.restrictionMessage && (
             <div className="mt-3 p-3 bg-amber-500/20 rounded-lg border border-amber-400/30">
               <div className="flex items-center text-white">
                 <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0" />
-                <span className="text-sm font-medium">{gameStatus.restrictionMessage}</span>
+                <span className="text-sm font-medium">
+                  {gameStatus.restrictionMessage}
+                </span>
               </div>
             </div>
           )}
@@ -1705,13 +2056,16 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       )}
 
       {/* Push Notification Popup System */}
-      <NotificationPopup 
-        userId={Number(user.id)} 
+      <NotificationPopup
+        userId={Number(user.id)}
         onChatNotificationClick={() => setChatDialogOpen(true)}
       />
 
       {/* Table Assignment Notification Dialog */}
-      <Dialog open={showAssignmentNotification} onOpenChange={setShowAssignmentNotification}>
+      <Dialog
+        open={showAssignmentNotification}
+        onOpenChange={setShowAssignmentNotification}
+      >
         <DialogContent className="bg-emerald-800 border-emerald-600 text-white">
           <DialogHeader>
             <DialogTitle className="text-emerald-300 text-xl flex items-center">
@@ -1723,32 +2077,46 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           {assignmentDetails && (
             <div className="space-y-4">
               <div className="bg-emerald-900/50 rounded-lg p-4 border border-emerald-500/30">
-                <h3 className="font-semibold text-emerald-300 mb-3">You've been assigned to:</h3>
+                <h3 className="font-semibold text-emerald-300 mb-3">
+                  You've been assigned to:
+                </h3>
                 <div className="space-y-2 text-emerald-100">
                   <div className="flex justify-between">
                     <span>Table:</span>
-                    <span className="font-semibold">{assignmentDetails.tableName}</span>
+                    <span className="font-semibold">
+                      {assignmentDetails.tableName}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Seat Number:</span>
-                    <span className="font-semibold">#{assignmentDetails.seatNumber}</span>
+                    <span className="font-semibold">
+                      #{assignmentDetails.seatNumber}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Assigned by:</span>
-                    <span className="font-semibold">{assignmentDetails.staffName}</span>
+                    <span className="font-semibold">
+                      {assignmentDetails.staffName}
+                    </span>
                   </div>
                 </div>
               </div>
 
               <div className="bg-amber-900/20 border border-amber-600/50 rounded-lg p-3">
                 <p className="text-amber-200 text-sm">
-                  🎯 <strong>Please proceed to your assigned table immediately.</strong> Your seat is now reserved and the game may be starting soon.
+                  🎯{" "}
+                  <strong>
+                    Please proceed to your assigned table immediately.
+                  </strong>{" "}
+                  Your seat is now reserved and the game may be starting soon.
                 </p>
               </div>
 
               <div className="flex gap-3 justify-end">
                 <Button
-                  onClick={() => setLocation(`/table/${assignmentDetails.tableId}`)}
+                  onClick={() =>
+                    setLocation(`/table/${assignmentDetails.tableId}`)
+                  }
                   className="bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
                   <Eye className="w-4 h-4 mr-2" />
@@ -1771,18 +2139,48 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       <div className="max-w-full px-3 py-3 sm:px-4 sm:py-4 lg:px-6 lg:py-6 dashboard-container">
         {/* Header - Responsive */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 space-y-3 sm:space-y-0 dashboard-header">
-          <div className="w-full sm:w-auto min-w-0">
-            <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-white truncate">Player Dashboard</h1>
-            <p className="text-slate-400 text-xs sm:text-sm lg:text-base truncate">Welcome back, {user?.nickname || user?.firstName}!</p>
+          <div  className="flex flex-col sm:flex-row items-start sm:items-center mb-4 sm:mb-6 space-y-3 sm:space-y-0">
+            {/* White Label Logo - Positioned in top left corner, above table area */}
+            {whitelabelConfig.logoUrl && (
+              <div
+                className="pointer-events-none"
+                id="whitelabel-logo-container"
+              >
+                <div className="flex items-center bg-slate-900/80 backdrop-blur-sm p-2 shadow-lg border border-slate-700/50">
+                  <img
+                    src={whitelabelConfig.logoUrl}
+                    alt={whitelabelConfig.companyName || "Logo"}
+                    className="rounded-lg h-8 sm:h-10 md:h-12 w-auto object-contain max-w-[150px] sm:max-w-[180px] md:max-w-[220px]"
+                    onError={(e) => {
+                      // Fallback if logo image fails to load - hide the container
+                      const container = document.getElementById(
+                        "whitelabel-logo-container"
+                      );
+                      if (container) {
+                        container.style.display = "none";
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            <div className="w-full sm:w-auto min-w-0">
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-white truncate">
+                Player Dashboard
+              </h1>
+              <p className="text-slate-400 text-xs sm:text-sm lg:text-base truncate">
+                Welcome back, {user?.nickname || user?.firstName}!
+              </p>
+            </div>
           </div>
           <Button
             onClick={async () => {
               try {
                 await signOut();
                 // Force redirect to login page after successful sign out
-                window.location.href = '/';
+                window.location.href = "/";
               } catch (error) {
-                console.error('Sign out error:', error);
+                console.error("Sign out error:", error);
               }
             }}
             variant="outline"
@@ -1795,81 +2193,94 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         </div>
 
         {/* Navigation Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-full">
-          <TabsList className="flex w-full justify-between mb-4 sm:mb-6 bg-slate-800 border border-slate-700 rounded-lg p-1 overflow-hidden gap-1" data-tabs-list>
-            <TabsTrigger 
-              value="game" 
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="w-full max-w-full"
+        >
+          <TabsList
+            className="flex w-full justify-between mb-4 sm:mb-6 bg-slate-800 border border-slate-700 rounded-lg p-1 overflow-hidden gap-1"
+            data-tabs-list
+          >
+            <TabsTrigger
+              value="game"
               className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
               role="tab"
             >
               <Spade className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
-            <TabsTrigger 
-              value="offers" 
+            <TabsTrigger
+              value="offers"
               className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
               role="tab"
             >
               <Gift className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
-            <TabsTrigger 
-              value="food" 
+            <TabsTrigger
+              value="food"
               className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
               role="tab"
             >
               <Coffee className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
-            <TabsTrigger 
-              value="session" 
+            <TabsTrigger
+              value="session"
               className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
               role="tab"
             >
               <Clock className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
-            <TabsTrigger 
-              value="balance" 
+            <TabsTrigger
+              value="balance"
               className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
               role="tab"
             >
               <CreditCard className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
-            <TabsTrigger 
-              value="profile" 
+            <TabsTrigger
+              value="profile"
               className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
               role="tab"
             >
               <User className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
-            <TabsTrigger 
-              value="feedback" 
+            <TabsTrigger
+              value="feedback"
               className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
               role="tab"
             >
               <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
             </TabsTrigger>
-            <TabsTrigger 
-              value="notifications" 
+            <TabsTrigger
+              value="notifications"
               className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 relative overflow-visible"
               role="tab"
             >
               <div className="relative flex items-center justify-center">
                 <Bell className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
-                {notifications && Array.isArray(notifications) && notifications.length > 0 ? (
-                  <span className="absolute -top-2 -right-2 min-w-[16px] h-4 bg-red-500 rounded-full text-white font-bold flex items-center justify-center px-1" style={{ fontSize: '0.6rem', lineHeight: '1' }}>
-                    {notifications.length > 99 ? '99+' : notifications.length}
+                {notifications &&
+                Array.isArray(notifications) &&
+                notifications.length > 0 ? (
+                  <span
+                    className="absolute -top-2 -right-2 min-w-[16px] h-4 bg-red-500 rounded-full text-white font-bold flex items-center justify-center px-1"
+                    style={{ fontSize: "0.6rem", lineHeight: "1" }}
+                  >
+                    {notifications.length > 99 ? "99+" : notifications.length}
                   </span>
                 ) : null}
               </div>
             </TabsTrigger>
-
           </TabsList>
 
           {/* Tab Content Areas */}
           <div className="w-full max-w-full overflow-hidden">
-
             {/* Game Tab */}
-            <TabsContent value="game" className="space-y-4 sm:space-y-6 w-full max-w-full">
+            <TabsContent
+              value="game"
+              className="space-y-4 sm:space-y-6 w-full max-w-full"
+            >
               {/* Active Table Sessions - Show where player is currently seated */}
-              {seatedSessions && Array.isArray(seatedSessions) && seatedSessions.length > 0 && (
+              {Array.isArray(seatedSessions) && seatedSessions.length > 0 && (
                 <Card className="bg-gradient-to-r from-emerald-800 to-emerald-900 border-emerald-500 w-full max-w-full">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-white flex items-center justify-center text-lg">
@@ -1879,62 +2290,90 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {seatedSessions.map((session: any) => (
-                        <div key={session.id} className="bg-emerald-700/30 p-4 rounded-lg border border-emerald-500/30">
-                          <div className="flex justify-between items-start mb-3">
-                            <div>
-                              <h3 className="font-semibold text-white text-lg">{session.tableName}</h3>
-                              <p className="text-emerald-200">{session.gameType}</p>
-                              <p className="text-emerald-300 text-sm">Seat {session.seatNumber}</p>
+                      {Array.isArray(seatedSessions) &&
+                        seatedSessions.map((session: any) => (
+                          <div
+                            key={session.id}
+                            className="bg-emerald-700/30 p-4 rounded-lg border border-emerald-500/30"
+                          >
+                            <div className="flex justify-between items-start mb-3">
+                              <div>
+                                <h3 className="font-semibold text-white text-lg">
+                                  {session.tableName}
+                                </h3>
+                                <p className="text-emerald-200">
+                                  {session.gameType}
+                                </p>
+                                <p className="text-emerald-300 text-sm">
+                                  Seat {session.seatNumber}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm text-emerald-200">
+                                  Session Started
+                                </p>
+                                <p className="text-sm font-medium text-white">
+                                  {session.sessionStartTime
+                                    ? new Date(
+                                        session.sessionStartTime
+                                      ).toLocaleTimeString()
+                                    : "Just now"}
+                                </p>
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <p className="text-sm text-emerald-200">Session Started</p>
-                              <p className="text-sm font-medium text-white">
-                                {session.sessionStartTime ? 
-                                  new Date(session.sessionStartTime).toLocaleTimeString() : 
-                                  'Just now'
+
+                            <div className="grid grid-cols-2 gap-4 mb-3">
+                              <div className="text-center bg-emerald-800/50 rounded-lg p-3">
+                                <p className="text-xs text-emerald-200">
+                                  Buy-in
+                                </p>
+                                <p className="text-lg font-semibold text-emerald-300">
+                                  ₹
+                                  {parseFloat(
+                                    session.sessionBuyIn || "0"
+                                  ).toLocaleString()}
+                                </p>
+                              </div>
+                              <div className="text-center bg-emerald-800/50 rounded-lg p-3">
+                                <p className="text-xs text-emerald-200">
+                                  Stakes
+                                </p>
+                                <p className="text-lg font-semibold text-emerald-300">
+                                  ₹{session.minBuyIn?.toLocaleString()}/
+                                  {session.maxBuyIn?.toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex justify-center">
+                              <Button
+                                onClick={() =>
+                                  setLocation(`/table/${session.tableId}`)
                                 }
-                              </p>
+                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                              >
+                                <Eye className="w-4 h-4 mr-2" />
+                                View Table
+                              </Button>
                             </div>
                           </div>
-
-                          <div className="grid grid-cols-2 gap-4 mb-3">
-                            <div className="text-center bg-emerald-800/50 rounded-lg p-3">
-                              <p className="text-xs text-emerald-200">Buy-in</p>
-                              <p className="text-lg font-semibold text-emerald-300">
-                                ₹{parseFloat(session.sessionBuyIn || '0').toLocaleString()}
-                              </p>
-                            </div>
-                            <div className="text-center bg-emerald-800/50 rounded-lg p-3">
-                              <p className="text-xs text-emerald-200">Stakes</p>
-                              <p className="text-lg font-semibold text-emerald-300">
-                                ₹{session.minBuyIn?.toLocaleString()}/{session.maxBuyIn?.toLocaleString()}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex justify-center">
-                            <Button
-                              onClick={() => setLocation(`/table/${session.tableId}`)}
-                              className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
-                            >
-                              <Eye className="w-4 h-4 mr-2" />
-                              View Table
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
+                        ))}
                     </div>
                   </CardContent>
                 </Card>
               )}
 
               {/* Staff-Managed Offer Carousel */}
-              <OfferCarousel onOfferClick={(offerId) => {
-                console.log('🎯 [OFFER CLICK] Navigating to offer detail:', offerId);
-                // Navigate directly to offer detail page
-                window.location.href = `/offer/${offerId}`;
-              }} />
+              <OfferCarousel
+                onOfferClick={(offerId) => {
+                  console.log(
+                    "🎯 [OFFER CLICK] Navigating to offer detail:",
+                    offerId
+                  );
+                  // Navigate directly to offer detail page
+                  window.location.href = `/offer/${offerId}`;
+                }}
+              />
 
               <div className="w-full max-w-full space-y-3 sm:space-y-4">
                 {/* Toggle State for Cash Tables vs Tournaments - Improved Alignment */}
@@ -1942,9 +2381,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   <button
                     onClick={() => setShowTournaments(false)}
                     className={`flex-1 flex items-center justify-center px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
-                      !showTournaments 
-                        ? 'bg-emerald-600 text-white shadow-lg transform scale-105' 
-                        : 'bg-transparent text-slate-300 hover:bg-slate-700/50'
+                      !showTournaments
+                        ? "bg-emerald-600 text-white shadow-lg transform scale-105"
+                        : "bg-transparent text-slate-300 hover:bg-slate-700/50"
                     }`}
                   >
                     <Table className="w-4 h-4 mr-2 flex-shrink-0" />
@@ -1954,9 +2393,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   <button
                     onClick={() => setShowTournaments(true)}
                     className={`flex-1 flex items-center justify-center px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
-                      showTournaments 
-                        ? 'bg-emerald-600 text-white shadow-lg transform scale-105' 
-                        : 'bg-transparent text-slate-300 hover:bg-slate-700/50'
+                      showTournaments
+                        ? "bg-emerald-600 text-white shadow-lg transform scale-105"
+                        : "bg-transparent text-slate-300 hover:bg-slate-700/50"
                     }`}
                   >
                     <Trophy className="w-4 h-4 mr-2 flex-shrink-0" />
@@ -1971,153 +2410,239 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 {!showTournaments && (
                   <Card className="bg-slate-800/80 border-slate-700/50 w-full max-w-full overflow-hidden backdrop-blur-sm">
                     <CardHeader className="pb-3">
+                      {/* White Label Logo in Table Area */}
+                      {whitelabelConfig.logoUrl && (
+                        <div className="flex justify-center mb-4">
+                          <div className="flex items-center bg-slate-900/60 backdrop-blur-sm rounded-lg p-2 shadow-md border border-slate-700/30">
+                            <img 
+                              src={whitelabelConfig.logoUrl} 
+                              alt={whitelabelConfig.companyName || "Logo"} 
+                              className="h-10 sm:h-12 md:h-14 w-auto object-contain max-w-[180px] sm:max-w-[220px] md:max-w-[260px]"
+                              onError={(e) => {
+                                // Fallback if logo image fails to load - hide the container
+                                const container = (e.target as HTMLImageElement).parentElement;
+                                if (container) {
+                                  container.style.display = 'none';
+                                }
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
                       <CardTitle className="text-white flex items-center justify-center text-lg">
                         <Table className="w-5 h-5 mr-2 text-emerald-500" />
                         Live Cash Tables
                       </CardTitle>
                     </CardHeader>
-                <CardContent>
-                  {tablesLoading ? (
-                    <div className="space-y-4">
-                      {[1, 2, 3].map((i) => (
-                        <Skeleton key={i} className="h-20 bg-slate-700" />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {tables && tables.map((table) => (
-                        <div
-                          key={table.id}
-                          className="bg-slate-700 p-4 rounded-lg"
-                        >
-                          <div className="flex justify-between items-start mb-3">
-                            <div>
-                              <h3 className="font-semibold text-white">{table.name}</h3>
-                              <p className="text-sm text-slate-400">{table.gameType}</p>
-                              {/* Game Status Indicator */}
-                              <div className="flex items-center space-x-2 mt-1">
-                                <div className={`w-2 h-2 rounded-full ${
-                                  table.status === 'active' ? 'bg-red-500' : 'bg-green-500'
-                                }`}></div>
-                                <span className={`text-xs ${
-                                  table.status === 'active' ? 'text-red-400' : 'text-green-400'
-                                }`}>
-                                  {table.status === 'active' ? 'Game In Progress' : 'Accepting Players'}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-sm text-slate-400">Stakes</p>
-                              <p className="text-lg font-semibold text-emerald-500">
-                                {table.stakes}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 gap-4 mb-3">
-                            <div className="text-center">
-                              <Users className="w-4 h-4 text-slate-400 mx-auto mb-1" />
-                              <p className="text-xs text-slate-400">Players</p>
-                              <p className="text-sm font-semibold text-white">
-                                {table.currentPlayers || 0}/{table.maxPlayers || 9}
-                              </p>
-                            </div>
-                            {/* Average Stack element hidden as requested */}
-                          </div>
-
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center space-x-2">
-                              {isTableJoined(String(table.id)) ? (
-                                <>
-                                  <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
-                                    Joined
-                                  </Badge>
-                                  <span className="text-sm text-slate-400">
-                                    Position: {getWaitListPosition(String(table.id))}
-                                  </span>
-                                  {/* Show game status for waitlisted players */}
-                                  {tableStatuses && tableStatuses[String(table.id)] && (
-                                    <div className="flex items-center space-x-1">
-                                      {(tableStatuses as any)[String(table.id)]?.gameStarted && (
-                                        <span className="text-xs text-amber-400">⚠️ Game started</span>
-                                      )}
+                    <CardContent>
+                      {tablesLoading ? (
+                        <div className="space-y-4">
+                          {[1, 2, 3].map((i) => (
+                            <Skeleton key={i} className="h-20 bg-slate-700" />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {tables &&
+                            tables.map((table) => (
+                              <div
+                                key={table.id}
+                                className="bg-slate-700 p-4 rounded-lg"
+                              >
+                                <div className="flex justify-between items-start mb-3">
+                                  <div>
+                                    <h3 className="font-semibold text-white">
+                                      {table.name}
+                                    </h3>
+                                    <p className="text-sm text-slate-400">
+                                      {table.gameType}
+                                    </p>
+                                    {/* Game Status Indicator */}
+                                    <div className="flex items-center space-x-2 mt-1">
+                                      <div
+                                        className={`w-2 h-2 rounded-full ${
+                                          table.isActive
+                                            ? "bg-red-500"
+                                            : "bg-green-500"
+                                        }`}
+                                      ></div>
+                                      <span
+                                        className={`text-xs ${
+                                          table.isActive
+                                            ? "text-red-400"
+                                            : "text-green-400"
+                                        }`}
+                                      >
+                                        {table.isActive
+                                          ? "Game In Progress"
+                                          : "Accepting Players"}
+                                      </span>
                                     </div>
-                                  )}
-                                  {/* Only show Leave button if game hasn't started or player is not seated at this table */}
-                                  {!(tableStatuses && (tableStatuses as any)[String(table.id)]?.gameStarted && gameStatus.isInActiveGame && gameStatus.activeGameInfo?.tableId === String(table.id)) && (
-                                    <Button
-                                      onClick={() => handleLeaveWaitList(String(table.id))}
-                                      disabled={leaveWaitListMutation.isPending}
-                                      size="sm"
-                                      variant="outline"
-                                      className="bg-gradient-to-r from-slate-600/30 to-slate-500/30 border border-slate-400/50 text-slate-300 hover:from-slate-500/40 hover:to-slate-400/40 hover:border-slate-300 hover:text-slate-200 transition-all duration-300 shadow-lg hover:shadow-slate-500/25 backdrop-blur-sm"
-                                    >
-                                      {leaveWaitListMutation.isPending ? (
-                                        <div className="w-4 h-4 border-2 border-slate-300 border-t-transparent rounded-full animate-spin mr-2" />
-                                      ) : null}
-                                      Leave
-                                    </Button>
-                                  )}
-                                </>
-                              ) : gameStatus.isInActiveGame ? (
-                                <div className="flex flex-col space-y-2">
-                                  <Button
-                                    disabled={true}
-                                    size="sm"
-                                    className="bg-slate-600 text-slate-400 cursor-not-allowed opacity-50"
-                                  >
-                                    <AlertTriangle className="w-4 h-4 mr-2" />
-                                    Cannot Join - Playing at Another Table
-                                  </Button>
-                                  <div className="text-xs text-amber-400 flex items-center">
-                                    <AlertTriangle className="w-3 h-3 mr-1" />
-                                    Cash out from {gameStatus.activeGameInfo?.tableName} first
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-sm text-slate-400">
+                                      Stakes
+                                    </p>
+                                    <p className="text-lg font-semibold text-emerald-500">
+                                      {table.stakes}
+                                    </p>
                                   </div>
                                 </div>
-                              ) : (
-                                <Button
-                                  onClick={() => handleJoinWaitList(String(table.id))}
-                                  disabled={joinWaitListMutation.isPending || gameStatus.isInActiveGame}
-                                  size="sm"
-                                  className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 border border-emerald-500/30 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  {joinWaitListMutation.isPending ? (
-                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                                  ) : (
-                                    <Plus className="w-4 h-4 mr-2" />
-                                  )}
-                                  Join Wait-List
-                                </Button>
-                              )}
-                            </div>
 
-                            <div className="flex items-center space-x-2">
-                              <Badge variant="secondary" className="bg-slate-600 text-slate-300">
-                                {table.isActive ? 'Active' : 'Inactive'}
-                              </Badge>
-                              <Button
-                                onClick={() => setLocation(`/table/${table.id}`)}
-                                size="sm"
-                                variant="outline"
-                                className="bg-gradient-to-r from-emerald-600/20 to-emerald-500/20 border border-emerald-500/50 text-emerald-300 hover:from-emerald-500/30 hover:to-emerald-400/30 hover:border-emerald-400 hover:text-emerald-200 transition-all duration-300 shadow-lg hover:shadow-emerald-500/25 backdrop-blur-sm"
-                              >
-                                <Eye className="w-4 h-4 mr-1" />
-                                View
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                                <div className="grid grid-cols-1 gap-4 mb-3">
+                                  <div className="text-center">
+                                    <Users className="w-4 h-4 text-slate-400 mx-auto mb-1" />
+                                    <p className="text-xs text-slate-400">
+                                      Players
+                                    </p>
+                                    <p className="text-sm font-semibold text-white">
+                                      {table.currentPlayers || 0}/
+                                      {table.maxPlayers || 9}
+                                    </p>
+                                  </div>
+                                  {/* Average Stack element hidden as requested */}
+                                </div>
 
-                      {(!(tables as any) || (tables as any)?.length === 0) && (
-                        <div className="text-center py-8">
-                          <Table className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-                          <p className="text-slate-400">No tables available</p>
+                                <div className="flex justify-between items-center">
+                                  <div className="flex items-center space-x-2">
+                                    {isTableJoined(String(table.id)) ? (
+                                      <>
+                                        <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+                                          Joined
+                                        </Badge>
+                                        <span className="text-sm text-slate-400">
+                                          Position:{" "}
+                                          {getWaitListPosition(
+                                            String(table.id)
+                                          )}
+                                        </span>
+                                        {/* Show game status for waitlisted players */}
+                                        {tableStatuses &&
+                                          typeof tableStatuses === "object" &&
+                                          tableStatuses !== null &&
+                                          String(table.id) in tableStatuses && (
+                                            <div className="flex items-center space-x-1">
+                                              {(
+                                                tableStatuses as Record<
+                                                  string,
+                                                  any
+                                                >
+                                              )[String(table.id)]
+                                                ?.gameStarted && (
+                                                <span className="text-xs text-amber-400">
+                                                  ⚠️ Game started
+                                                </span>
+                                              )}
+                                            </div>
+                                          )}
+                                        {/* Only show Leave button if game hasn't started or player is not seated at this table */}
+                                        {!(
+                                          tableStatuses &&
+                                          typeof tableStatuses === "object" &&
+                                          (tableStatuses as any)[
+                                            String(table.id)
+                                          ]?.gameStarted &&
+                                          gameStatus.isInActiveGame &&
+                                          gameStatus.activeGameInfo?.tableId ===
+                                            String(table.id)
+                                        ) && (
+                                          <Button
+                                            onClick={() =>
+                                              handleLeaveWaitList(
+                                                String(table.id)
+                                              )
+                                            }
+                                            disabled={
+                                              leaveWaitListMutation.isPending
+                                            }
+                                            size="sm"
+                                            variant="outline"
+                                            className="bg-gradient-to-r from-slate-600/30 to-slate-500/30 border border-slate-400/50 text-slate-300 hover:from-slate-500/40 hover:to-slate-400/40 hover:border-slate-300 hover:text-slate-200 transition-all duration-300 shadow-lg hover:shadow-slate-500/25 backdrop-blur-sm"
+                                          >
+                                            {leaveWaitListMutation.isPending ? (
+                                              <div className="w-4 h-4 border-2 border-slate-300 border-t-transparent rounded-full animate-spin mr-2" />
+                                            ) : null}
+                                            Leave
+                                          </Button>
+                                        )}
+                                      </>
+                                    ) : gameStatus.isInActiveGame ? (
+                                      <div className="flex flex-col space-y-2">
+                                        <Button
+                                          disabled={true}
+                                          size="sm"
+                                          className="bg-slate-600 text-slate-400 cursor-not-allowed opacity-50"
+                                        >
+                                          <AlertTriangle className="w-4 h-4 mr-2" />
+                                          Cannot Join - Playing at Another Table
+                                        </Button>
+                                        <div className="text-xs text-amber-400 flex items-center">
+                                          <AlertTriangle className="w-3 h-3 mr-1" />
+                                          Cash out from{" "}
+                                          {gameStatus.activeGameInfo?.tableName}{" "}
+                                          first
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <Button
+                                        onClick={() =>
+                                          handleJoinWaitList(String(table.id))
+                                        }
+                                        disabled={
+                                          joinWaitListMutation.isPending ||
+                                          gameStatus.isInActiveGame
+                                        }
+                                        size="sm"
+                                        className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 border border-emerald-500/30 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                      >
+                                        {joinWaitListMutation.isPending ? (
+                                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                                        ) : (
+                                          <Plus className="w-4 h-4 mr-2" />
+                                        )}
+                                        Join Wait-List
+                                      </Button>
+                                    )}
+                                  </div>
+
+                                  <div className="flex items-center space-x-2">
+                                    <Badge
+                                      variant="secondary"
+                                      className="bg-slate-600 text-slate-300"
+                                    >
+                                      {table.isActive ? "Active" : "Inactive"}
+                                    </Badge>
+                                    <Button
+                                      onClick={() => {
+                                        setSelectedTableViewTableId(
+                                          String(table.id)
+                                        );
+                                        setTableViewDialogOpen(true);
+                                      }}
+                                      size="sm"
+                                      variant="outline"
+                                      className="bg-gradient-to-r from-emerald-600/20 to-emerald-500/20 border border-emerald-500/50 text-emerald-300 hover:from-emerald-500/30 hover:to-emerald-400/30 hover:border-emerald-400 hover:text-emerald-200 transition-all duration-300 shadow-lg hover:shadow-emerald-500/25 backdrop-blur-sm"
+                                    >
+                                      <Eye className="w-4 h-4 mr-1" />
+                                      View
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+
+                          {(!(tables as any) ||
+                            (tables as any)?.length === 0) && (
+                            <div className="text-center py-8">
+                              <Table className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                              <p className="text-slate-400">
+                                No tables available
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
-                    </div>
-                  )}
-                </CardContent>
+                    </CardContent>
                   </Card>
                 )}
 
@@ -2125,1028 +2650,1479 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 {showTournaments && (
                   <Card className="bg-slate-800/80 border-slate-700/50 w-full max-w-full overflow-hidden backdrop-blur-sm">
                     <CardHeader className="pb-3">
+                      {/* White Label Logo in Tournament Area */}
+                      {whitelabelConfig.logoUrl && (
+                        <div className="flex justify-center mb-4">
+                          <div className="flex items-center bg-slate-900/60 backdrop-blur-sm rounded-lg p-2 shadow-md border border-slate-700/30">
+                            <img 
+                              src={whitelabelConfig.logoUrl} 
+                              alt={whitelabelConfig.companyName || "Logo"} 
+                              className="h-10 sm:h-12 md:h-14 w-auto object-contain max-w-[180px] sm:max-w-[220px] md:max-w-[260px]"
+                              onError={(e) => {
+                                // Fallback if logo image fails to load - hide the container
+                                const container = (e.target as HTMLImageElement).parentElement;
+                                if (container) {
+                                  container.style.display = 'none';
+                                }
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
                       <CardTitle className="text-white flex items-center justify-center text-lg">
                         <Trophy className="w-5 h-5 mr-2 text-yellow-500" />
                         Active Tournaments
                       </CardTitle>
                     </CardHeader>
-                      <CardContent>
-                        {tournamentsLoading ? (
-                          <div className="space-y-4">
-                            {[1, 2, 3].map((i) => (
-                              <Skeleton key={i} className="h-24 bg-slate-700" />
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="space-y-4">
-                            {(tournaments as any)?.map((tournament: any) => (
-                              <div
-                                key={tournament.id}
-                                className="bg-slate-700 p-4 rounded-lg"
-                              >
-                                <div className="flex justify-between items-start mb-3">
-                                  <div>
-                                    <h3 className="font-semibold text-white">{tournament.name}</h3>
-                                    <p className="text-sm text-slate-400">{tournament.game_type}</p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-sm text-slate-400">Buy-in</p>
-                                    <p className="text-lg font-semibold text-yellow-500">
-                                      ₹{tournament.buy_in?.toLocaleString()}
-                                    </p>
-                                  </div>
+                    <CardContent>
+                      {tournamentsLoading ? (
+                        <div className="space-y-4">
+                          {[1, 2, 3].map((i) => (
+                            <Skeleton key={i} className="h-24 bg-slate-700" />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {(tournaments as any)?.map((tournament: any) => (
+                            <div
+                              key={tournament.id}
+                              className="bg-slate-700 p-4 rounded-lg"
+                            >
+                              <div className="flex justify-between items-start mb-3">
+                                <div>
+                                  <h3 className="font-semibold text-white">
+                                    {tournament.name}
+                                  </h3>
+                                  <p className="text-sm text-slate-400">
+                                    {tournament.game_type}
+                                  </p>
                                 </div>
-
-                                <div className="grid grid-cols-3 gap-4 mb-3">
-                                  <div className="text-center">
-                                    <Users className="w-4 h-4 text-slate-400 mx-auto mb-1" />
-                                    <p className="text-xs text-slate-400">Players</p>
-                                    <p className="text-sm font-semibold text-white">
-                                      {tournament.registered_players}/{tournament.max_players}
-                                    </p>
-                                  </div>
-                                  <div className="text-center">
-                                    <Clock className="w-4 h-4 text-slate-400 mx-auto mb-1" />
-                                    <p className="text-xs text-slate-400">Start Time</p>
-                                    <p className="text-sm font-semibold text-emerald-500">
-                                      {new Date(tournament.start_time).toLocaleTimeString([], { 
-                                        hour: '2-digit', 
-                                        minute: '2-digit' 
-                                      })}
-                                    </p>
-                                  </div>
-                                  <div className="text-center">
-                                    <Trophy className="w-4 h-4 text-yellow-500 mx-auto mb-1" />
-                                    <p className="text-xs text-slate-400">Prize Pool</p>
-                                    <p className="text-sm font-semibold text-yellow-500">
-                                      ₹{tournament.prize_pool?.toLocaleString()}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <div className="flex justify-between items-center">
-                                  <div className="flex items-center space-x-2">
-                                    <Badge 
-                                      className={`${
-                                        tournament.status === 'upcoming' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' :
-                                        tournament.status === 'running' ? 'bg-green-500/20 text-green-300 border-green-500/30' :
-                                        tournament.status === 'finished' ? 'bg-gray-500/20 text-gray-300 border-gray-500/30' :
-                                        'bg-slate-500/20 text-slate-300 border-slate-500/30'
-                                      }`}
-                                    >
-                                      {tournament.status ? tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1) : 'Unknown'}
-                                    </Badge>
-                                    <span className="text-sm text-slate-400">
-                                      {tournament.tournament_type}
-                                    </span>
-                                  </div>
-
-                                  <div className="flex items-center space-x-2">
-                                    {tournament.status === 'upcoming' && (
-                                      <>
-                                        <Button
-                                          onClick={() => handleTournamentInterest(tournament.id)}
-                                          disabled={tournamentActionLoading}
-                                          size="sm"
-                                          variant="outline"
-                                          className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
-                                        >
-                                          {tournamentActionLoading ? (
-                                            <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mr-2" />
-                                          ) : null}
-                                          Interested
-                                        </Button>
-                                        <Button
-                                          onClick={() => handleTournamentRegister(tournament.id)}
-                                          disabled={tournamentActionLoading}
-                                          size="sm"
-                                          className="bg-yellow-500 hover:bg-yellow-600 text-black"
-                                        >
-                                          {tournamentActionLoading ? (
-                                            <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin mr-2" />
-                                          ) : null}
-                                          Register
-                                        </Button>
-                                      </>
-                                    )}
-                                  </div>
+                                <div className="text-right">
+                                  <p className="text-sm text-slate-400">
+                                    Buy-in
+                                  </p>
+                                  <p className="text-lg font-semibold text-yellow-500">
+                                    ₹{tournament.buy_in?.toLocaleString()}
+                                  </p>
                                 </div>
                               </div>
-                            ))}
 
-                            {(!(tournaments as any) || (tournaments as any)?.length === 0) && (
-                              <div className="text-center py-8">
-                                <Trophy className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-                                <p className="text-slate-400">No tournaments available</p>
+                              <div className="grid grid-cols-3 gap-4 mb-3">
+                                <div className="text-center">
+                                  <Users className="w-4 h-4 text-slate-400 mx-auto mb-1" />
+                                  <p className="text-xs text-slate-400">
+                                    Players
+                                  </p>
+                                  <p className="text-sm font-semibold text-white">
+                                    {tournament.registered_players}/
+                                    {tournament.max_players}
+                                  </p>
+                                </div>
+                                <div className="text-center">
+                                  <Clock className="w-4 h-4 text-slate-400 mx-auto mb-1" />
+                                  <p className="text-xs text-slate-400">
+                                    Start Time
+                                  </p>
+                                  <p className="text-sm font-semibold text-emerald-500">
+                                    {new Date(
+                                      tournament.start_time
+                                    ).toLocaleTimeString([], {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </p>
+                                </div>
+                                <div className="text-center">
+                                  <Trophy className="w-4 h-4 text-yellow-500 mx-auto mb-1" />
+                                  <p className="text-xs text-slate-400">
+                                    Prize Pool
+                                  </p>
+                                  <p className="text-sm font-semibold text-yellow-500">
+                                    ₹{tournament.prize_pool?.toLocaleString()}
+                                  </p>
+                                </div>
                               </div>
-                            )}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
+
+                              <div className="flex justify-between items-center">
+                                <div className="flex items-center space-x-2">
+                                  <Badge
+                                    className={`${
+                                      tournament.status === "upcoming"
+                                        ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
+                                        : tournament.status === "running"
+                                        ? "bg-green-500/20 text-green-300 border-green-500/30"
+                                        : tournament.status === "finished"
+                                        ? "bg-gray-500/20 text-gray-300 border-gray-500/30"
+                                        : "bg-slate-500/20 text-slate-300 border-slate-500/30"
+                                    }`}
+                                  >
+                                    {tournament.status
+                                      ? tournament.status
+                                          .charAt(0)
+                                          .toUpperCase() +
+                                        tournament.status.slice(1)
+                                      : "Unknown"}
+                                  </Badge>
+                                  <span className="text-sm text-slate-400">
+                                    {tournament.tournament_type}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center space-x-2">
+                                  {tournament.status === "upcoming" && (
+                                    <>
+                                      <Button
+                                        onClick={() =>
+                                          handleTournamentInterest(
+                                            tournament.id
+                                          )
+                                        }
+                                        disabled={tournamentActionLoading}
+                                        size="sm"
+                                        variant="outline"
+                                        className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
+                                      >
+                                        {tournamentActionLoading ? (
+                                          <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mr-2" />
+                                        ) : null}
+                                        Interested
+                                      </Button>
+                                      <Button
+                                        onClick={() =>
+                                          handleTournamentRegister(
+                                            tournament.id
+                                          )
+                                        }
+                                        disabled={tournamentActionLoading}
+                                        size="sm"
+                                        className="bg-yellow-500 hover:bg-yellow-600 text-black"
+                                      >
+                                        {tournamentActionLoading ? (
+                                          <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin mr-2" />
+                                        ) : null}
+                                        Register
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+
+                          {(!(tournaments as any) ||
+                            (tournaments as any)?.length === 0) && (
+                            <div className="text-center py-8">
+                              <Trophy className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                              <p className="text-slate-400">
+                                No tournaments available
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 )}
 
                 {/* Preferences section removed as per requirements */}
               </div>
             </TabsContent>
 
-          {/* Offers Tab - Staff Managed */}
-          <TabsContent value="offers" className="space-y-4 sm:space-y-6">
-            <ScrollableOffersDisplay />
-          </TabsContent>
+            {/* Offers Tab - Staff Managed */}
+            <TabsContent value="offers" className="space-y-4 sm:space-y-6">
+              <ScrollableOffersDisplay />
+            </TabsContent>
 
-          {/* Food & Beverage Tab */}
-          <TabsContent value="food" className="space-y-4 sm:space-y-6">
-            <FoodBeverageTab user={user} />
-          </TabsContent>
+            {/* Food & Beverage Tab */}
+            <TabsContent value="food" className="space-y-4 sm:space-y-6">
+              <FoodBeverageTab user={user} />
+            </TabsContent>
 
-          {/* Session Tab - Advanced Playtime Tracking */}
-          <TabsContent value="session" className="space-y-4 sm:space-y-6">
-            <div className="max-w-4xl mx-auto">
-              {!gameStatus.isInActiveGame && !seatedSessions?.length ? (
-                <Card className="bg-slate-800 border-slate-700">
-                  <CardContent className="p-8">
-                    <div className="text-center">
-                      <Clock className="w-12 h-12 mx-auto mb-4 text-slate-400 opacity-50" />
-                      <h3 className="text-lg font-semibold text-white mb-2">No Active Session</h3>
-                      <p className="text-slate-400">
-                        Please join a table in order to view the playtime tracker
-                      </p>
-                      <div className="mt-4">
-                        <Button
-                          variant="outline"
-                          className="border-emerald-600 text-emerald-300 hover:bg-emerald-700"
-                          onClick={() => {
-                            try {
-                              const demo = {
-                                tableId: 'demo-table',
-                                tableName: 'Main Table',
-                                gameType: "Texas Hold'em",
-                                seatNumber: 3,
-                                sessionStartTime: new Date(Date.now() - 5 * 60 * 1000).toISOString()
-                              };
-                              if (user?.id) {
-                                localStorage.setItem(`mock_active_session_${user.id}`, JSON.stringify(demo));
-                                // Simple refresh to pick up the change
-                                window.location.reload();
-                              }
-                            } catch (e) {
-                              console.error('Failed to start demo session', e);
-                            }
-                          }}
-                        >
-                          Start Demo Session
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <PlaytimeTracker 
-                  playerId={user?.id?.toString() || ''} 
-                  gameStatus={gameStatus}
-                />
-              )}
-            </div>
-          </TabsContent>
-
-          {/* Balance Tab - Simplified Cash Balance System */}
-          <TabsContent value="balance" className="space-y-4 sm:space-y-6">
-            {/* Simplified Balance Display - Single Cash Balance Only */}
-            <div className="space-y-6">
-              {/* Main Balance Card */}
-              <div className="max-w-2xl mx-auto">
-                <PlayerBalanceDisplay playerId={user?.id?.toString() || ''} />
-              </div>
-
-              {/* Balance Display Only - All financial operations handled by cashier */}
+            {/* Session Tab - Advanced Playtime Tracking */}
+            <TabsContent value="session" className="space-y-4 sm:space-y-6">
               <div className="max-w-4xl mx-auto">
-                <Card className="bg-slate-800 border-slate-700">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center">
-                      <Info className="w-5 h-5 mr-2 text-blue-500" />
-                      Financial Operations Notice
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center p-6 bg-blue-950/50 rounded-lg border border-blue-800">
-                      <CreditCard className="w-12 h-12 mx-auto mb-4 text-blue-400" />
-                      <h3 className="text-lg font-semibold text-white mb-2">Visit Cashier Counter</h3>
-                      <p className="text-slate-300 mb-4">
-                        All cash-out and credit operations are handled exclusively by our cashier team.
-                      </p>
-                      <div className="space-y-2 text-sm text-slate-400">
-                        <p>• Cash withdrawals: Visit cashier with your player ID</p>
-                        <p>• Credit transfers: Managed by cashier staff only</p>
-                        <p>• Balance updates: Real-time after cashier transactions</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-slate-800 border-slate-700">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center">
-                      <BarChart3 className="w-5 h-5 mr-2 text-emerald-500" />
-                      Recent Transactions
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="max-h-60 overflow-y-auto">
-                      <PlayerTransactionHistory playerId={user?.id?.toString() || ''} limit={5} />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Cashier Workflow Information */}
-              <Card className="bg-emerald-900/20 border border-emerald-500/30 max-w-3xl mx-auto">
-                <CardContent className="p-6">
-                  <div className="text-center">
-                    <h3 className="text-emerald-300 font-semibold text-lg mb-4">Dual Balance System</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-                      <div className="bg-slate-800/50 rounded-lg p-4">
-                        <div className="text-emerald-400 font-medium mb-2">1. Load Cash/Credit</div>
-                        <div className="text-slate-300">Cashier loads cash balance or approved credit</div>
-                      </div>
-                      <div className="bg-slate-800/50 rounded-lg p-4">
-                        <div className="text-blue-400 font-medium mb-2">2. Transfer Credit</div>
-                        <div className="text-slate-300">Move approved credit to available cash</div>
-                      </div>
-                      <div className="bg-slate-800/50 rounded-lg p-4">
-                        <div className="text-emerald-400 font-medium mb-2">3. Play</div>
-                        <div className="text-slate-300">Manager handles table operations</div>
-                      </div>
-                      <div className="bg-slate-800/50 rounded-lg p-4">
-                        <div className="text-emerald-400 font-medium mb-2">4. Cash Out</div>
-                        <div className="text-slate-300">Request withdrawal with cashier</div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* VIP Club Loyalty Program */}
-            <Card className="bg-gradient-to-r from-yellow-900/20 to-yellow-800/20 border-yellow-600/30">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center">
-                  <Star className="w-5 h-5 mr-2 text-yellow-500" />
-                  VIP Club - Loyalty Program
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex items-center justify-center py-12">
-                {/* VIP Shop Button Only */}
-                <Link href="/vip-shop">
-                  <Button 
-                    className="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white font-bold py-6 px-12 text-xl rounded-xl transition-all transform hover:scale-105 shadow-lg"
-                    size="lg"
-                  >
-                    <Star className="w-8 h-8 mr-3" />
-                    Open VIP Shop
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Profile Tab */}
-          <TabsContent value="profile" className="space-y-4 sm:space-y-6">
-            <div className="grid grid-cols-1 gap-4 sm:gap-6">
-              {/* Profile Summary */}
-              <Card className="bg-slate-800 border-slate-700">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <User className="w-5 h-5 mr-2 text-emerald-500" />
-                    Profile
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {/* Profile Details */}
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
-                      <span className="text-sm text-slate-300">Name</span>
-                      <span className="text-sm text-white font-medium">{user?.firstName} {user?.lastName}</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
-                      <span className="text-sm text-slate-300">Email</span>
-                      <span className="text-sm text-white font-medium">{user?.email}</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
-                      <span className="text-sm text-slate-300">Phone</span>
-                      <span className="text-sm text-white font-medium">{user?.phone}</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
-                      <span className="text-sm text-slate-300">KYC Status</span>
-                      <div className="flex items-center">
-                        {user?.kycStatus === 'approved' ? (
-                          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">Verified</Badge>
-                        ) : user?.kycStatus === 'verified' ? (
-                          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">Verified</Badge>
-                        ) : user?.kycStatus === 'pending' ? (
-                          <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30">Pending</Badge>
-                        ) : (
-                          <Badge variant="destructive">Not Verified</Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* KYC Documents Management */}
-              <Card className="bg-slate-800 border-slate-700">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <FileText className="w-5 h-5 mr-2 text-emerald-500" />
-                    KYC Documents
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {kycLoading ? (
-                    <div className="space-y-3">
-                      {[1, 2, 3].map((i) => (
-                        <Skeleton key={i} className="h-12 bg-slate-700" />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {/* File type information */}
-                      <div className="mb-4 p-3 bg-slate-700 rounded-lg">
-                        <p className="text-xs text-slate-300 mb-1">
-                          <strong>Supported file types:</strong> JPG, PNG, PDF (max 5MB each)
+                {!gameStatus.isInActiveGame &&
+                !(
+                  Array.isArray(seatedSessions) && seatedSessions.length > 0
+                ) ? (
+                  <Card className="bg-slate-800 border-slate-700">
+                    <CardContent className="p-8">
+                      <div className="text-center">
+                        <Clock className="w-12 h-12 mx-auto mb-4 text-slate-400 opacity-50" />
+                        <h3 className="text-lg font-semibold text-white mb-2">
+                          No Active Session
+                        </h3>
+                        <p className="text-slate-400">
+                          Please join a table in order to view the playtime
+                          tracker
                         </p>
-                        <p className="text-xs text-slate-400">
-                          Upload clear, high-quality images of your documents for faster verification
-                        </p>
-                      </div>
-                      {/* Debug: Show KYC documents count */}
-                      <div className="text-xs text-slate-500 mb-2">
-                        {kycDocuments ? `Found ${kycDocuments.length} documents` : 'No documents found'}
-                      </div>
-                      {/* ID Document */}
-                      <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
-                        <div className="flex items-center space-x-3 flex-1">
-                          {getKycStatusIcon(getKycDocumentStatus('id'))}
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-white">ID Document</p>
-                            <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('id')}</p>
-                            {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl).length > 0 && (
-                              <div className="flex items-center space-x-2 mt-1">
-                                <p className="text-xs text-emerald-500">
-                                  {Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0]?.fileName : ''}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-stretch space-y-2">
-                          {/* View button positioned above other buttons */}
-                          {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl).length > 0 && (
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
-                              onClick={() => {
-                                const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'government_id' && d.fileUrl)[0] : null;
-                                if (doc && doc.fileUrl) {
-                                  try {
-                                    // Clear browser cache for this specific document and open in new tab
-                                    const documentUrl = `/api/documents/view/${doc.id}?v=${Date.now()}`;
-                                    console.log('Opening document:', documentUrl);
-
-                                    const newTab = window.open('about:blank', '_blank');
-                                    if (newTab) {
-                                      newTab.location.href = documentUrl;
-                                    } else {
-                                      // Fallback if popup blocked
-                                      window.location.href = documentUrl;
-                                    }
-                                  } catch (error) {
-                                    console.error('Error opening document:', error);
-                                    toast({
-                                      title: "Error",
-                                      description: "Unable to open document",
-                                      variant: "destructive",
-                                    });
-                                  }
-                                }
-                              }}
-                            >
-                              <Eye className="w-3 h-3 mr-1" />
-                              View Document
-                            </Button>
-                          )}
-
-                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                            {/* Only show upload/reupload if not approved or if no documents */}
-                            {(getKycDocumentStatus('id') !== 'approved' || (kycDocuments as any)?.filter((d: any) => d.documentType === 'government_id' && d.fileUrl).length === 0) && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => document.getElementById('id-document-upload')?.click()}
-                                disabled={uploadKycDocumentMutation.isPending}
-                                className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
-                              >
-                                <Upload className="w-4 h-4 mr-1" />
-                                {(kycDocuments as any)?.filter((d: any) => d.documentType === 'government_id' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
-                              </Button>
-                            )}
-
-                            {/* Show request change button if approved */}
-                            {getKycDocumentStatus('id') === 'approved' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  toast({
-                                    title: "Request Change",
-                                    description: "Change request functionality will be available in the next update",
-                                  });
-                                }}
-                                className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                              >
-                                <AlertTriangle className="w-4 h-4 mr-1" />
-                                <span className="text-xs sm:text-sm">Request Change</span>
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                        <input
-                          id="id-document-upload"
-                          type="file"
-                          accept=".jpg,.jpeg,.png,.pdf"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            console.log('File input changed for ID:', { file: file?.name, hasFile: !!file });
-                            if (file) {
-                              handleKycDocumentUpload('government_id', file);
-                              // Reset the input value to allow re-uploading same file
-                              e.target.value = '';
-                            }
-                          }}
-                        />
-                      </div>
-
-                      {/* Address Document */}
-                      <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
-                        <div className="flex items-center space-x-3 flex-1">
-                          {getKycStatusIcon(getKycDocumentStatus('utility'))}
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-white">Address Proof</p>
-                            <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('utility')}</p>
-                            {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl).length > 0 && (
-                              <div className="flex items-center space-x-2 mt-1">
-                                <p className="text-xs text-emerald-500">
-                                  {Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl)[0]?.fileName : ''}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-stretch space-y-2">
-                          {/* View button positioned above other buttons */}
-                          {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl).length > 0 && (
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
-                              onClick={() => {
-                                const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'utility_bill' && d.fileUrl)[0] : null;
-                                if (doc && doc.fileUrl) {
-                                  try {
-                                    // Clear browser cache for this specific document and open in new tab
-                                    const documentUrl = `/api/documents/view/${doc.id}?v=${Date.now()}`;
-                                    console.log('Opening document:', documentUrl);
-
-                                    const newTab = window.open('about:blank', '_blank');
-                                    if (newTab) {
-                                      newTab.location.href = documentUrl;
-                                    } else {
-                                      // Fallback if popup blocked
-                                      window.location.href = documentUrl;
-                                    }
-                                  } catch (error) {
-                                    console.error('Error opening document:', error);
-                                    toast({
-                                      title: "Error",
-                                      description: "Unable to open document",
-                                      variant: "destructive",
-                                    });
-                                  }
-                                }
-                              }}
-                            >
-                              <Eye className="w-3 h-3 mr-1" />
-                              View Document
-                            </Button>
-                          )}
-
-                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                            {/* Only show upload/reupload if not approved or if no documents */}
-                            {(getKycDocumentStatus('utility') !== 'approved' || (kycDocuments as any)?.filter((d: any) => d.documentType === 'utility_bill' && d.fileUrl).length === 0) && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => document.getElementById('utility-document-upload')?.click()}
-                                disabled={uploadKycDocumentMutation.isPending}
-                                className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
-                              >
-                                <Upload className="w-4 h-4 mr-1" />
-                                {(kycDocuments as any)?.filter((d: any) => d.documentType === 'utility_bill' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
-                              </Button>
-                            )}
-
-                            {/* Show request change button if approved */}
-                            {getKycDocumentStatus('utility') === 'approved' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  toast({
-                                    title: "Request Change",
-                                    description: "Change request functionality will be available in the next update",
-                                  });
-                                }}
-                                className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                              >
-                                <AlertTriangle className="w-4 h-4 mr-1" />
-                                <span className="text-xs sm:text-sm">Request Change</span>
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                        <input
-                          id="utility-document-upload"
-                          type="file"
-                          accept=".jpg,.jpeg,.png,.pdf"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            console.log('File input changed for Utility Bill:', { file: file?.name, hasFile: !!file });
-                            if (file) {
-                              handleKycDocumentUpload('utility_bill', file);
-                              // Reset the input value to allow re-uploading same file
-                              e.target.value = '';
-                            }
-                          }}
-                        />
-                      </div>
-
-                      {/* Photo Document */}
-                      <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
-                        <div className="flex items-center space-x-3 flex-1">
-                          {getKycStatusIcon(getKycDocumentStatus('photo'))}
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-white">Photo</p>
-                            <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('photo')}</p>
-                            {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 && (
-                              <div className="flex items-center space-x-2 mt-1">
-                                <p className="text-xs text-emerald-500">
-                                  {Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0]?.fileName : ''}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-stretch space-y-2">
-                          {/* View button positioned above other buttons */}
-                          {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 && (
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
-                              onClick={() => {
-                                const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl)[0] : null;
-                                if (doc && doc.fileUrl) {
-                                  try {
-                                    // Clear browser cache for this specific document and open in new tab
-                                    const documentUrl = `/api/documents/view/${doc.id}?v=${Date.now()}`;
-                                    console.log('Opening document:', documentUrl);
-
-                                    const newTab = window.open('about:blank', '_blank');
-                                    if (newTab) {
-                                      newTab.location.href = documentUrl;
-                                    } else {
-                                      // Fallback if popup blocked
-                                      window.location.href = documentUrl;
-                                    }
-                                  } catch (error) {
-                                    console.error('Error opening document:', error);
-                                    toast({
-                                      title: "Error",
-                                      description: "Unable to open document",
-                                      variant: "destructive",
-                                    });
-                                  }
-                                }
-                              }}
-                            >
-                              <Eye className="w-3 h-3 mr-1" />
-                              View Document
-                            </Button>
-                          )}
-
-                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                            {/* Only show upload/reupload if not approved or if no documents */}
-                            {(getKycDocumentStatus('photo') !== 'approved' || (Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length === 0)) && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => document.getElementById('photo-document-upload')?.click()}
-                                disabled={uploadKycDocumentMutation.isPending}
-                                className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
-                              >
-                                <Upload className="w-4 h-4 mr-1" />
-                                {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'profile_photo' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
-                              </Button>
-                            )}
-
-                            {/* Show request change button if approved */}
-                            {getKycDocumentStatus('photo') === 'approved' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  toast({
-                                    title: "Request Change",
-                                    description: "Change request functionality will be available in the next update",
-                                  });
-                                }}
-                                className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                              >
-                                <AlertTriangle className="w-4 h-4 mr-1" />
-                                <span className="text-xs sm:text-sm">Request Change</span>
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                        <input
-                          id="photo-document-upload"
-                          type="file"
-                          accept=".jpg,.jpeg,.png,.pdf"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            console.log('File input changed for Photo:', { file: file?.name, hasFile: !!file });
-                            if (file) {
-                              handleKycDocumentUpload('profile_photo', file);
-                              // Reset the input value to allow re-uploading same file
-                              e.target.value = '';
-                            }
-                          }}
-                        />
-                      </div>
-
-                      {/* Upload status */}
-                      {uploadKycDocumentMutation.isPending && (
-                        <div className="flex items-center space-x-2 p-3 bg-slate-700 rounded-lg">
-                          <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                          <span className="text-sm text-slate-300">Uploading document...</span>
-                        </div>
-                      )}
-
-                      {/* Document Summary */}
-                      {kycDocuments && kycDocuments.length > 0 && (
-                        <div className="mt-4 p-4 bg-slate-700 rounded-lg">
-                          <h4 className="text-sm font-medium text-white mb-3">Document Upload History</h4>
-                          <div className="mb-3 p-2 bg-slate-800 rounded border border-slate-600">
-                            <p className="text-xs text-slate-300">
-                              <strong>Note:</strong> Some older documents may need to be re-uploaded to view them. 
-                              New uploads will be viewable immediately.
-                            </p>
-                          </div>
-                          <div className="space-y-2">
-                            {kycDocuments.map((doc) => {
-                              // Use createdAt as the timestamp
-                              const dateToFormat = doc.createdAt;
-                              const formattedDate = dateToFormat ? formatSubmissionDate(dateToFormat.toString()) : 'No date';
-
-                              const formattedType = formatDocumentType(doc.documentType || 'document');
-                              return (
-                                <div key={doc.id} className="flex items-center justify-between py-2 border-b border-slate-600 last:border-b-0">
-                                  <div className="flex items-center space-x-3 flex-1">
-                                    <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                                    <div className="flex-1">
-                                      <p className="text-xs font-medium text-white">
-                                        {formattedType}
-                                      </p>
-                                      <p className="text-xs text-slate-400">{doc.fileName}</p>
-                                      <p className="text-xs text-slate-500">
-                                        {formattedDate}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                    <Badge 
-                                      variant={doc.status === 'approved' ? 'default' : doc.status === 'pending' ? 'secondary' : 'destructive'}
-                                      className="text-xs"
-                                    >
-                                      {doc.status}
-                                    </Badge>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* PAN Card Management */}
-              <Card className="bg-slate-800 border-slate-700">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <CreditCard className="w-5 h-5 mr-2 text-emerald-500" />
-                    PAN Card Verification
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* PAN Card Number Input */}
-                  <div className="space-y-3">
-                    <div className="p-3 bg-slate-700 rounded-lg">
-                      <p className="text-xs text-slate-400">
-                        Your PAN card number must be unique and cannot be used by other players
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col space-y-2">
-                      <label htmlFor="pan-number" className="text-sm font-medium text-white">
-                        PAN Card Number
-                      </label>
-                      <Input
-                        value={panCardNumber || ''}
-                        onChange={(e) => setPanCardNumber(e.target.value.toUpperCase())}
-                        className={`bg-slate-700 border-slate-600 text-white h-12 ${
-                          panCardNumber && !isValidPAN(panCardNumber) ? 'border-red-500' : ''
-                        }`}
-                        placeholder="ABCPF1234G"
-                        maxLength={10}
-                      />
-                      {panCardNumber && !isValidPAN(panCardNumber) && (
-                        <p className="text-red-400 text-xs mt-2">
-                          Invalid PAN card format. Please enter a valid PAN card number.
-                        </p>
-                      )}
-                    </div>
-
-                    <Button 
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
-                      onClick={handlePanCardUpdate}
-                      disabled={updatePanCardMutation.isPending || !isValidPAN(panCardNumber)}
-                    >
-                      {updatePanCardMutation.isPending ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                          Updating...
-                        </>
-                      ) : (
-                        'Update PAN Card Number'
-                      )}
-                    </Button>
-                  </div>
-
-                  {/* PAN Card Document Upload - Now with full functionality like other KYC docs */}
-                  <div className="space-y-3 pt-4 border-t border-slate-600">
-                    <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
-                      <div className="flex items-center space-x-3 flex-1">
-                        {getKycStatusIcon(getKycDocumentStatus('pan_card'))}
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-white">PAN Card Document</p>
-                          <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus('pan_card')}</p>
-                          {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl).length > 0 && (
-                            <div className="flex items-center space-x-2 mt-1">
-                              <p className="text-xs text-emerald-500">
-                                {Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl)[0]?.fileName : ''}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-stretch space-y-2">
-                        {/* View button positioned above other buttons */}
-                        {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl).length > 0 && (
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
+                        <div className="mt-4">
+                          <Button
+                            variant="outline"
+                            className="border-emerald-600 text-emerald-300 hover:bg-emerald-700"
                             onClick={() => {
-                              const doc = Array.isArray(kycDocuments) ? kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl)[0] : null;
-                              if (doc && doc.fileUrl) {
-                                try {
-                                  // Clear browser cache for this specific document and open in new tab
-                                  const documentUrl = `/api/documents/view/${doc.id}?v=${Date.now()}`;
-                                  console.log('Opening document:', documentUrl);
-
-                                  const newTab = window.open('about:blank', '_blank');
-                                  if (newTab) {
-                                    newTab.location.href = documentUrl;
-                                  } else {
-                                    // Fallback if popup blocked
-                                    window.location.href = documentUrl;
-                                  }
-                                } catch (error) {
-                                  console.error('Error opening document:', error);
-                                  toast({
-                                    title: "Error",
-                                    description: "Unable to open document",
-                                    variant: "destructive",
-                                  });
+                              try {
+                                const demo = {
+                                  tableId: "demo-table",
+                                  tableName: "Main Table",
+                                  gameType: "Texas Hold'em",
+                                  seatNumber: 3,
+                                  sessionStartTime: new Date(
+                                    Date.now() - 5 * 60 * 1000
+                                  ).toISOString(),
+                                };
+                                if (user?.id) {
+                                  localStorage.setItem(
+                                    `mock_active_session_${user.id}`,
+                                    JSON.stringify(demo)
+                                  );
+                                  // Simple refresh to pick up the change
+                                  window.location.reload();
                                 }
+                              } catch (e) {
+                                console.error(
+                                  "Failed to start demo session",
+                                  e
+                                );
                               }
                             }}
                           >
-                            <Eye className="w-3 h-3 mr-1" />
-                            View Document
+                            Start Demo Session
                           </Button>
-                        )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <PlaytimeTracker
+                    playerId={user?.id?.toString() || ""}
+                    gameStatus={gameStatus}
+                  />
+                )}
+              </div>
+            </TabsContent>
 
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                          {/* Only show upload/reupload if not approved or if no documents */}
-                          {(getKycDocumentStatus('pan_card') !== 'approved' || (Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl).length === 0)) && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => document.getElementById('pan-document-upload')?.click()}
-                              disabled={uploadKycDocumentMutation.isPending}
-                              className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
-                            >
-                              <Upload className="w-4 h-4 mr-1" />
-                              {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === 'pan_card' && d.fileUrl).length > 0 ? 'Reupload' : 'Upload'}
-                            </Button>
-                          )}
+            {/* Balance Tab - Simplified Cash Balance System */}
+            <TabsContent value="balance" className="space-y-4 sm:space-y-6">
+              {/* Simplified Balance Display - Single Cash Balance Only */}
+              <div className="space-y-6">
+                {/* Main Balance Card */}
+                <div className="max-w-2xl mx-auto">
+                  <PlayerBalanceDisplay playerId={user?.id?.toString() || ""} />
+                </div>
 
-                          {/* Show request change button if approved */}
-                          {getKycDocumentStatus('pan_card') === 'approved' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                toast({
-                                  title: "Request Change",
-                                  description: "Change request functionality will be available in the next update",
-                                });
-                              }}
-                              className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                            >
-                              <AlertTriangle className="w-4 h-4 mr-1" />
-                              <span className="text-xs sm:text-sm">Request Change</span>
-                            </Button>
+                {/* Balance Display Only - All financial operations handled by cashier */}
+                <div className="max-w-4xl mx-auto">
+                  <Card className="bg-slate-800 border-slate-700">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center">
+                        <Info className="w-5 h-5 mr-2 text-blue-500" />
+                        Financial Operations Notice
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-center p-6 bg-blue-950/50 rounded-lg border border-blue-800">
+                        <CreditCard className="w-12 h-12 mx-auto mb-4 text-blue-400" />
+                        <h3 className="text-lg font-semibold text-white mb-2">
+                          Visit Cashier Counter
+                        </h3>
+                        <p className="text-slate-300 mb-4">
+                          All cash-out and credit operations are handled
+                          exclusively by our cashier team.
+                        </p>
+                        <div className="space-y-2 text-sm text-slate-400">
+                          <p>
+                            • Cash withdrawals: Visit cashier with your player
+                            ID
+                          </p>
+                          <p>
+                            • Credit transfers: Managed by cashier staff only
+                          </p>
+                          <p>
+                            • Balance updates: Real-time after cashier
+                            transactions
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-slate-800 border-slate-700">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center">
+                        <BarChart3 className="w-5 h-5 mr-2 text-emerald-500" />
+                        Recent Transactions
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="max-h-60 overflow-y-auto">
+                        <PlayerTransactionHistory
+                          playerId={user?.id?.toString() || ""}
+                          limit={5}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Cashier Workflow Information */}
+                <Card className="bg-emerald-900/20 border border-emerald-500/30 max-w-3xl mx-auto">
+                  <CardContent className="p-6">
+                    <div className="text-center">
+                      <h3 className="text-emerald-300 font-semibold text-lg mb-4">
+                        Dual Balance System
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                        <div className="bg-slate-800/50 rounded-lg p-4">
+                          <div className="text-emerald-400 font-medium mb-2">
+                            1. Load Cash/Credit
+                          </div>
+                          <div className="text-slate-300">
+                            Cashier loads cash balance or approved credit
+                          </div>
+                        </div>
+                        <div className="bg-slate-800/50 rounded-lg p-4">
+                          <div className="text-blue-400 font-medium mb-2">
+                            2. Transfer Credit
+                          </div>
+                          <div className="text-slate-300">
+                            Move approved credit to available cash
+                          </div>
+                        </div>
+                        <div className="bg-slate-800/50 rounded-lg p-4">
+                          <div className="text-emerald-400 font-medium mb-2">
+                            3. Play
+                          </div>
+                          <div className="text-slate-300">
+                            Manager handles table operations
+                          </div>
+                        </div>
+                        <div className="bg-slate-800/50 rounded-lg p-4">
+                          <div className="text-emerald-400 font-medium mb-2">
+                            4. Cash Out
+                          </div>
+                          <div className="text-slate-300">
+                            Request withdrawal with cashier
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* VIP Club Loyalty Program */}
+              <Card className="bg-gradient-to-r from-yellow-900/20 to-yellow-800/20 border-yellow-600/30">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <Star className="w-5 h-5 mr-2 text-yellow-500" />
+                    VIP Club - Loyalty Program
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex items-center justify-center py-12">
+                  {/* VIP Shop Button Only */}
+                  <Link href="/vip-shop">
+                    <Button
+                      className="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white font-bold py-6 px-12 text-xl rounded-xl transition-all transform hover:scale-105 shadow-lg"
+                      size="lg"
+                    >
+                      <Star className="w-8 h-8 mr-3" />
+                      Open VIP Shop
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Profile Tab */}
+            <TabsContent value="profile" className="space-y-4 sm:space-y-6">
+              <div className="grid grid-cols-1 gap-4 sm:gap-6">
+                {/* Profile Summary */}
+                <Card className="bg-slate-800 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <User className="w-5 h-5 mr-2 text-emerald-500" />
+                      Profile
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {/* Profile Details */}
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+                        <span className="text-sm text-slate-300">Name</span>
+                        <span className="text-sm text-white font-medium">
+                          {user?.firstName} {user?.lastName}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+                        <span className="text-sm text-slate-300">Email</span>
+                        <span className="text-sm text-white font-medium">
+                          {user?.email}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+                        <span className="text-sm text-slate-300">Phone</span>
+                        <span className="text-sm text-white font-medium">
+                          {user?.phone}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+                        <span className="text-sm text-slate-300">
+                          KYC Status
+                        </span>
+                        <div className="flex items-center">
+                          {user?.kycStatus === "approved" ? (
+                            <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+                              Verified
+                            </Badge>
+                          ) : user?.kycStatus === "verified" ? (
+                            <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+                              Verified
+                            </Badge>
+                          ) : user?.kycStatus === "pending" ? (
+                            <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30">
+                              Pending
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive">Not Verified</Badge>
                           )}
                         </div>
                       </div>
-                      <input
-                        id="pan-document-upload"
-                        type="file"
-                        accept=".jpg,.jpeg,.png,.pdf"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          console.log('File input changed for PAN Card:', { file: file?.name, hasFile: !!file });
-                          if (file) {
-                            handleKycDocumentUpload('pan_card', file);
-                            // Reset the input value to allow re-uploading same file
-                            e.target.value = '';
-                          }
-                        }}
-                      />
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
 
-              {/* Transaction History */}
-              <Card className="bg-slate-800 border-slate-700">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <FileText className="w-5 h-5 mr-2 text-emerald-500" />
-                    Transaction History
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <select 
-                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                      value={showTransactions || ''} // Use '' for initial empty value
-                      onChange={(e) => {
-                        setShowTransactions(e.target.value as any); // Cast to any to allow string values
-                      }}
-                    >
-                      <option value="">Select action...</option>
-                      <option value="last10">View Last 10 Transactions</option>
-                    </select>
-
-                    {/* Transaction List */}
-                    {showTransactions && (
-                      <div className="bg-slate-700 rounded-lg p-4">
-                        {transactionsLoading ? (
-                          <div className="flex items-center justify-center py-4">
-                            <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                            <span className="ml-2 text-sm text-slate-300">Loading transactions...</span>
-                          </div>
-                        ) : transactions && transactions.length > 0 ? (
-                          <div className="space-y-2">
-                            <h4 className="text-sm font-medium text-white mb-3">
-                              {showTransactions === 'last10' ? 'Last 10 Transactions' : 'All Transactions'}
-                            </h4>
-                            <div className="max-h-80 overflow-y-auto space-y-2">
-                              {(showTransactions === 'last10' ? transactions.slice(0, 10) : transactions).map((transaction: any, index: number) => (
-                                <div key={index} className="flex justify-between items-center py-2 border-b border-slate-600 last:border-b-0">
-                                  <div>
-                                    <p className="text-sm text-white">{transaction.type}</p>
-                                    <p className="text-xs text-slate-400">
-                                      {new Date(transaction.created_at).toLocaleDateString()} at{' '}
-                                      {new Date(transaction.created_at).toLocaleTimeString()}
-                                    </p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className={`text-sm font-medium ${getTransactionAmountColor(transaction.type)}`}>
-                                      {getTransactionAmountPrefix(transaction.type)}₹{Math.abs(transaction.amount)}
-                                    </p>
-                                    <p className="text-xs text-slate-400">{transaction.status}</p>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                            {showTransactions === 'last10' && transactions.length > 10 && (
-                              <p className="text-xs text-slate-400 text-center mt-2">
-                                Showing 10 of {transactions.length} transactions
+                {/* KYC Documents Management */}
+                <Card className="bg-slate-800 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <FileText className="w-5 h-5 mr-2 text-emerald-500" />
+                      KYC Documents
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {kycLoading ? (
+                      <div className="space-y-3">
+                        {[1, 2, 3].map((i) => (
+                          <Skeleton key={i} className="h-12 bg-slate-700" />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* File type information */}
+                        <div className="mb-4 p-3 bg-slate-700 rounded-lg">
+                          <p className="text-xs text-slate-300 mb-1">
+                            <strong>Supported file types:</strong> JPG, PNG, PDF
+                            (max 5MB each)
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            Upload clear, high-quality images of your documents
+                            for faster verification
+                          </p>
+                        </div>
+                        {/* Debug: Show KYC documents count */}
+                        <div className="text-xs text-slate-500 mb-2">
+                          {kycDocuments
+                            ? `Found ${kycDocuments.length} documents`
+                            : "No documents found"}
+                        </div>
+                        {/* ID Document */}
+                        <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
+                          <div className="flex items-center space-x-3 flex-1">
+                            {getKycStatusIcon(getKycDocumentStatus("id"))}
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-white">
+                                ID Document
                               </p>
-                            )}
+                              <p className="text-xs text-slate-400 capitalize">
+                                {getKycDocumentStatus("id")}
+                              </p>
+                              {Array.isArray(kycDocuments) &&
+                                kycDocuments.filter(
+                                  (d) =>
+                                    d.documentType === "government_id" &&
+                                    d.fileUrl
+                                ).length > 0 && (
+                                  <div className="flex items-center space-x-2 mt-1">
+                                    <p className="text-xs text-emerald-500">
+                                      {Array.isArray(kycDocuments)
+                                        ? kycDocuments.filter(
+                                            (d) =>
+                                              d.documentType ===
+                                                "government_id" && d.fileUrl
+                                          )[0]?.fileName
+                                        : ""}
+                                    </p>
+                                  </div>
+                                )}
+                            </div>
                           </div>
-                        ) : (
-                          <p className="text-sm text-slate-300 text-center">
-                            No transactions found
+                          <div className="flex flex-col items-stretch space-y-2">
+                            {/* View button positioned above other buttons */}
+                            {Array.isArray(kycDocuments) &&
+                              kycDocuments.filter(
+                                (d) =>
+                                  d.documentType === "government_id" &&
+                                  d.fileUrl
+                              ).length > 0 && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
+                                  onClick={() => {
+                                    const doc = Array.isArray(kycDocuments)
+                                      ? kycDocuments.filter(
+                                          (d) =>
+                                            d.documentType ===
+                                              "government_id" && d.fileUrl
+                                        )[0]
+                                      : null;
+                                    if (doc && doc.fileUrl) {
+                                      try {
+                                        // Clear browser cache for this specific document and open in new tab
+                                        const documentUrl = `/api/documents/view/${
+                                          doc.id
+                                        }?v=${Date.now()}`;
+                                        console.log(
+                                          "Opening document:",
+                                          documentUrl
+                                        );
+
+                                        const newTab = window.open(
+                                          "about:blank",
+                                          "_blank"
+                                        );
+                                        if (newTab) {
+                                          newTab.location.href = documentUrl;
+                                        } else {
+                                          // Fallback if popup blocked
+                                          window.location.href = documentUrl;
+                                        }
+                                      } catch (error) {
+                                        console.error(
+                                          "Error opening document:",
+                                          error
+                                        );
+                                        toast({
+                                          title: "Error",
+                                          description:
+                                            "Unable to open document",
+                                          variant: "destructive",
+                                        });
+                                      }
+                                    }
+                                  }}
+                                >
+                                  <Eye className="w-3 h-3 mr-1" />
+                                  View Document
+                                </Button>
+                              )}
+
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                              {/* Only show upload/reupload if not approved or if no documents */}
+                              {(getKycDocumentStatus("id") !== "approved" ||
+                                (kycDocuments as any)?.filter(
+                                  (d: any) =>
+                                    d.documentType === "government_id" &&
+                                    d.fileUrl
+                                ).length === 0) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    document
+                                      .getElementById("id-document-upload")
+                                      ?.click()
+                                  }
+                                  disabled={uploadKycDocumentMutation.isPending}
+                                  className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
+                                >
+                                  <Upload className="w-4 h-4 mr-1" />
+                                  {(kycDocuments as any)?.filter(
+                                    (d: any) =>
+                                      d.documentType === "government_id" &&
+                                      d.fileUrl
+                                  ).length > 0
+                                    ? "Reupload"
+                                    : "Upload"}
+                                </Button>
+                              )}
+
+                              {/* Show request change button if approved */}
+                              {getKycDocumentStatus("id") === "approved" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    toast({
+                                      title: "Request Change",
+                                      description:
+                                        "Change request functionality will be available in the next update",
+                                    });
+                                  }}
+                                  className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
+                                >
+                                  <AlertTriangle className="w-4 h-4 mr-1" />
+                                  <span className="text-xs sm:text-sm">
+                                    Request Change
+                                  </span>
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          <input
+                            id="id-document-upload"
+                            type="file"
+                            accept=".jpg,.jpeg,.png,.pdf"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              console.log("File input changed for ID:", {
+                                file: file?.name,
+                                hasFile: !!file,
+                              });
+                              if (file) {
+                                handleKycDocumentUpload("government_id", file);
+                                // Reset the input value to allow re-uploading same file
+                                e.target.value = "";
+                              }
+                            }}
+                          />
+                        </div>
+
+                        {/* Address Document */}
+                        <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
+                          <div className="flex items-center space-x-3 flex-1">
+                            {getKycStatusIcon(getKycDocumentStatus("utility"))}
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-white">
+                                Address Proof
+                              </p>
+                              <p className="text-xs text-slate-400 capitalize">
+                                {getKycDocumentStatus("utility")}
+                              </p>
+                              {Array.isArray(kycDocuments) &&
+                                kycDocuments.filter(
+                                  (d) =>
+                                    d.documentType === "utility_bill" &&
+                                    d.fileUrl
+                                ).length > 0 && (
+                                  <div className="flex items-center space-x-2 mt-1">
+                                    <p className="text-xs text-emerald-500">
+                                      {Array.isArray(kycDocuments)
+                                        ? kycDocuments.filter(
+                                            (d) =>
+                                              d.documentType ===
+                                                "utility_bill" && d.fileUrl
+                                          )[0]?.fileName
+                                        : ""}
+                                    </p>
+                                  </div>
+                                )}
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-stretch space-y-2">
+                            {/* View button positioned above other buttons */}
+                            {Array.isArray(kycDocuments) &&
+                              kycDocuments.filter(
+                                (d) =>
+                                  d.documentType === "utility_bill" && d.fileUrl
+                              ).length > 0 && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
+                                  onClick={() => {
+                                    const doc = Array.isArray(kycDocuments)
+                                      ? kycDocuments.filter(
+                                          (d) =>
+                                            d.documentType === "utility_bill" &&
+                                            d.fileUrl
+                                        )[0]
+                                      : null;
+                                    if (doc && doc.fileUrl) {
+                                      try {
+                                        // Clear browser cache for this specific document and open in new tab
+                                        const documentUrl = `/api/documents/view/${
+                                          doc.id
+                                        }?v=${Date.now()}`;
+                                        console.log(
+                                          "Opening document:",
+                                          documentUrl
+                                        );
+
+                                        const newTab = window.open(
+                                          "about:blank",
+                                          "_blank"
+                                        );
+                                        if (newTab) {
+                                          newTab.location.href = documentUrl;
+                                        } else {
+                                          // Fallback if popup blocked
+                                          window.location.href = documentUrl;
+                                        }
+                                      } catch (error) {
+                                        console.error(
+                                          "Error opening document:",
+                                          error
+                                        );
+                                        toast({
+                                          title: "Error",
+                                          description:
+                                            "Unable to open document",
+                                          variant: "destructive",
+                                        });
+                                      }
+                                    }
+                                  }}
+                                >
+                                  <Eye className="w-3 h-3 mr-1" />
+                                  View Document
+                                </Button>
+                              )}
+
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                              {/* Only show upload/reupload if not approved or if no documents */}
+                              {(getKycDocumentStatus("utility") !==
+                                "approved" ||
+                                (kycDocuments as any)?.filter(
+                                  (d: any) =>
+                                    d.documentType === "utility_bill" &&
+                                    d.fileUrl
+                                ).length === 0) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    document
+                                      .getElementById("utility-document-upload")
+                                      ?.click()
+                                  }
+                                  disabled={uploadKycDocumentMutation.isPending}
+                                  className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
+                                >
+                                  <Upload className="w-4 h-4 mr-1" />
+                                  {(kycDocuments as any)?.filter(
+                                    (d: any) =>
+                                      d.documentType === "utility_bill" &&
+                                      d.fileUrl
+                                  ).length > 0
+                                    ? "Reupload"
+                                    : "Upload"}
+                                </Button>
+                              )}
+
+                              {/* Show request change button if approved */}
+                              {getKycDocumentStatus("utility") ===
+                                "approved" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    toast({
+                                      title: "Request Change",
+                                      description:
+                                        "Change request functionality will be available in the next update",
+                                    });
+                                  }}
+                                  className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
+                                >
+                                  <AlertTriangle className="w-4 h-4 mr-1" />
+                                  <span className="text-xs sm:text-sm">
+                                    Request Change
+                                  </span>
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          <input
+                            id="utility-document-upload"
+                            type="file"
+                            accept=".jpg,.jpeg,.png,.pdf"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              console.log(
+                                "File input changed for Utility Bill:",
+                                { file: file?.name, hasFile: !!file }
+                              );
+                              if (file) {
+                                handleKycDocumentUpload("utility_bill", file);
+                                // Reset the input value to allow re-uploading same file
+                                e.target.value = "";
+                              }
+                            }}
+                          />
+                        </div>
+
+                        {/* Photo Document */}
+                        <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
+                          <div className="flex items-center space-x-3 flex-1">
+                            {getKycStatusIcon(getKycDocumentStatus("photo"))}
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-white">
+                                Photo
+                              </p>
+                              <p className="text-xs text-slate-400 capitalize">
+                                {getKycDocumentStatus("photo")}
+                              </p>
+                              {Array.isArray(kycDocuments) &&
+                                kycDocuments.filter(
+                                  (d) =>
+                                    d.documentType === "profile_photo" &&
+                                    d.fileUrl
+                                ).length > 0 && (
+                                  <div className="flex items-center space-x-2 mt-1">
+                                    <p className="text-xs text-emerald-500">
+                                      {Array.isArray(kycDocuments)
+                                        ? kycDocuments.filter(
+                                            (d) =>
+                                              d.documentType ===
+                                                "profile_photo" && d.fileUrl
+                                          )[0]?.fileName
+                                        : ""}
+                                    </p>
+                                  </div>
+                                )}
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-stretch space-y-2">
+                            {/* View button positioned above other buttons */}
+                            {Array.isArray(kycDocuments) &&
+                              kycDocuments.filter(
+                                (d) =>
+                                  d.documentType === "profile_photo" &&
+                                  d.fileUrl
+                              ).length > 0 && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
+                                  onClick={() => {
+                                    const doc = Array.isArray(kycDocuments)
+                                      ? kycDocuments.filter(
+                                          (d) =>
+                                            d.documentType ===
+                                              "profile_photo" && d.fileUrl
+                                        )[0]
+                                      : null;
+                                    if (doc && doc.fileUrl) {
+                                      try {
+                                        // Clear browser cache for this specific document and open in new tab
+                                        const documentUrl = `/api/documents/view/${
+                                          doc.id
+                                        }?v=${Date.now()}`;
+                                        console.log(
+                                          "Opening document:",
+                                          documentUrl
+                                        );
+
+                                        const newTab = window.open(
+                                          "about:blank",
+                                          "_blank"
+                                        );
+                                        if (newTab) {
+                                          newTab.location.href = documentUrl;
+                                        } else {
+                                          // Fallback if popup blocked
+                                          window.location.href = documentUrl;
+                                        }
+                                      } catch (error) {
+                                        console.error(
+                                          "Error opening document:",
+                                          error
+                                        );
+                                        toast({
+                                          title: "Error",
+                                          description:
+                                            "Unable to open document",
+                                          variant: "destructive",
+                                        });
+                                      }
+                                    }
+                                  }}
+                                >
+                                  <Eye className="w-3 h-3 mr-1" />
+                                  View Document
+                                </Button>
+                              )}
+
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                              {/* Only show upload/reupload if not approved or if no documents */}
+                              {(getKycDocumentStatus("photo") !== "approved" ||
+                                (Array.isArray(kycDocuments) &&
+                                  kycDocuments.filter(
+                                    (d) =>
+                                      d.documentType === "profile_photo" &&
+                                      d.fileUrl
+                                  ).length === 0)) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    document
+                                      .getElementById("photo-document-upload")
+                                      ?.click()
+                                  }
+                                  disabled={uploadKycDocumentMutation.isPending}
+                                  className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
+                                >
+                                  <Upload className="w-4 h-4 mr-1" />
+                                  {Array.isArray(kycDocuments) &&
+                                  kycDocuments.filter(
+                                    (d) =>
+                                      d.documentType === "profile_photo" &&
+                                      d.fileUrl
+                                  ).length > 0
+                                    ? "Reupload"
+                                    : "Upload"}
+                                </Button>
+                              )}
+
+                              {/* Show request change button if approved */}
+                              {getKycDocumentStatus("photo") === "approved" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    toast({
+                                      title: "Request Change",
+                                      description:
+                                        "Change request functionality will be available in the next update",
+                                    });
+                                  }}
+                                  className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
+                                >
+                                  <AlertTriangle className="w-4 h-4 mr-1" />
+                                  <span className="text-xs sm:text-sm">
+                                    Request Change
+                                  </span>
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          <input
+                            id="photo-document-upload"
+                            type="file"
+                            accept=".jpg,.jpeg,.png,.pdf"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              console.log("File input changed for Photo:", {
+                                file: file?.name,
+                                hasFile: !!file,
+                              });
+                              if (file) {
+                                handleKycDocumentUpload("profile_photo", file);
+                                // Reset the input value to allow re-uploading same file
+                                e.target.value = "";
+                              }
+                            }}
+                          />
+                        </div>
+
+                        {/* Upload status */}
+                        {uploadKycDocumentMutation.isPending && (
+                          <div className="flex items-center space-x-2 p-3 bg-slate-700 rounded-lg">
+                            <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                            <span className="text-sm text-slate-300">
+                              Uploading document...
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Document Summary */}
+                        {kycDocuments && kycDocuments.length > 0 && (
+                          <div className="mt-4 p-4 bg-slate-700 rounded-lg">
+                            <h4 className="text-sm font-medium text-white mb-3">
+                              Document Upload History
+                            </h4>
+                            <div className="mb-3 p-2 bg-slate-800 rounded border border-slate-600">
+                              <p className="text-xs text-slate-300">
+                                <strong>Note:</strong> Some older documents may
+                                need to be re-uploaded to view them. New uploads
+                                will be viewable immediately.
+                              </p>
+                            </div>
+                            <div className="space-y-2">
+                              {kycDocuments.map((doc) => {
+                                // Use createdAt as the timestamp
+                                const dateToFormat = doc.createdAt;
+                                const formattedDate = dateToFormat
+                                  ? formatSubmissionDate(
+                                      dateToFormat.toString()
+                                    )
+                                  : "No date";
+
+                                const formattedType = formatDocumentType(
+                                  doc.documentType || "document"
+                                );
+                                return (
+                                  <div
+                                    key={doc.id}
+                                    className="flex items-center justify-between py-2 border-b border-slate-600 last:border-b-0"
+                                  >
+                                    <div className="flex items-center space-x-3 flex-1">
+                                      <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                                      <div className="flex-1">
+                                        <p className="text-xs font-medium text-white">
+                                          {formattedType}
+                                        </p>
+                                        <p className="text-xs text-slate-400">
+                                          {doc.fileName}
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                          {formattedDate}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <Badge
+                                        variant={
+                                          doc.status === "approved"
+                                            ? "default"
+                                            : doc.status === "pending"
+                                            ? "secondary"
+                                            : "destructive"
+                                        }
+                                        className="text-xs"
+                                      >
+                                        {doc.status}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* PAN Card Management */}
+                <Card className="bg-slate-800 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <CreditCard className="w-5 h-5 mr-2 text-emerald-500" />
+                      PAN Card Verification
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* PAN Card Number Input */}
+                    <div className="space-y-3">
+                      <div className="p-3 bg-slate-700 rounded-lg">
+                        <p className="text-xs text-slate-400">
+                          Your PAN card number must be unique and cannot be used
+                          by other players
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col space-y-2">
+                        <label
+                          htmlFor="pan-number"
+                          className="text-sm font-medium text-white"
+                        >
+                          PAN Card Number
+                        </label>
+                        <Input
+                          value={panCardNumber || ""}
+                          onChange={(e) =>
+                            setPanCardNumber(e.target.value.toUpperCase())
+                          }
+                          className={`bg-slate-700 border-slate-600 text-white h-12 ${
+                            panCardNumber && !isValidPAN(panCardNumber)
+                              ? "border-red-500"
+                              : ""
+                          }`}
+                          placeholder="ABCPF1234G"
+                          maxLength={10}
+                        />
+                        {panCardNumber && !isValidPAN(panCardNumber) && (
+                          <p className="text-red-400 text-xs mt-2">
+                            Invalid PAN card format. Please enter a valid PAN
+                            card number.
                           </p>
                         )}
                       </div>
-                    )}
 
-                    {!showTransactions && (
-                      <div className="bg-slate-700 rounded-lg p-4">
-                        <p className="text-sm text-slate-300 text-center">
-                          Select an option above to see your recent activity
+                      <Button
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
+                        onClick={handlePanCardUpdate}
+                        disabled={
+                          updatePanCardMutation.isPending ||
+                          !isValidPAN(panCardNumber)
+                        }
+                      >
+                        {updatePanCardMutation.isPending ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                            Updating...
+                          </>
+                        ) : (
+                          "Update PAN Card Number"
+                        )}
+                      </Button>
+                    </div>
+
+                    {/* PAN Card Document Upload - Now with full functionality like other KYC docs */}
+                    <div className="space-y-3 pt-4 border-t border-slate-600">
+                      <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
+                        <div className="flex items-center space-x-3 flex-1">
+                          {getKycStatusIcon(getKycDocumentStatus("pan_card"))}
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-white">
+                              PAN Card Document
+                            </p>
+                            <p className="text-xs text-slate-400 capitalize">
+                              {getKycDocumentStatus("pan_card")}
+                            </p>
+                            {Array.isArray(kycDocuments) &&
+                              kycDocuments.filter(
+                                (d) =>
+                                  d.documentType === "pan_card" && d.fileUrl
+                              ).length > 0 && (
+                                <div className="flex items-center space-x-2 mt-1">
+                                  <p className="text-xs text-emerald-500">
+                                    {Array.isArray(kycDocuments)
+                                      ? kycDocuments.filter(
+                                          (d) =>
+                                            d.documentType === "pan_card" &&
+                                            d.fileUrl
+                                        )[0]?.fileName
+                                      : ""}
+                                  </p>
+                                </div>
+                              )}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-stretch space-y-2">
+                          {/* View button positioned above other buttons */}
+                          {Array.isArray(kycDocuments) &&
+                            kycDocuments.filter(
+                              (d) => d.documentType === "pan_card" && d.fileUrl
+                            ).length > 0 && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
+                                onClick={() => {
+                                  const doc = Array.isArray(kycDocuments)
+                                    ? kycDocuments.filter(
+                                        (d) =>
+                                          d.documentType === "pan_card" &&
+                                          d.fileUrl
+                                      )[0]
+                                    : null;
+                                  if (doc && doc.fileUrl) {
+                                    try {
+                                      // Clear browser cache for this specific document and open in new tab
+                                      const documentUrl = `/api/documents/view/${
+                                        doc.id
+                                      }?v=${Date.now()}`;
+                                      console.log(
+                                        "Opening document:",
+                                        documentUrl
+                                      );
+
+                                      const newTab = window.open(
+                                        "about:blank",
+                                        "_blank"
+                                      );
+                                      if (newTab) {
+                                        newTab.location.href = documentUrl;
+                                      } else {
+                                        // Fallback if popup blocked
+                                        window.location.href = documentUrl;
+                                      }
+                                    } catch (error) {
+                                      console.error(
+                                        "Error opening document:",
+                                        error
+                                      );
+                                      toast({
+                                        title: "Error",
+                                        description: "Unable to open document",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }
+                                }}
+                              >
+                                <Eye className="w-3 h-3 mr-1" />
+                                View Document
+                              </Button>
+                            )}
+
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                            {/* Only show upload/reupload if not approved or if no documents */}
+                            {(getKycDocumentStatus("pan_card") !== "approved" ||
+                              (Array.isArray(kycDocuments) &&
+                                kycDocuments.filter(
+                                  (d) =>
+                                    d.documentType === "pan_card" && d.fileUrl
+                                ).length === 0)) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  document
+                                    .getElementById("pan-document-upload")
+                                    ?.click()
+                                }
+                                disabled={uploadKycDocumentMutation.isPending}
+                                className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
+                              >
+                                <Upload className="w-4 h-4 mr-1" />
+                                {Array.isArray(kycDocuments) &&
+                                kycDocuments.filter(
+                                  (d) =>
+                                    d.documentType === "pan_card" && d.fileUrl
+                                ).length > 0
+                                  ? "Reupload"
+                                  : "Upload"}
+                              </Button>
+                            )}
+
+                            {/* Show request change button if approved */}
+                            {getKycDocumentStatus("pan_card") ===
+                              "approved" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  toast({
+                                    title: "Request Change",
+                                    description:
+                                      "Change request functionality will be available in the next update",
+                                  });
+                                }}
+                                className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
+                              >
+                                <AlertTriangle className="w-4 h-4 mr-1" />
+                                <span className="text-xs sm:text-sm">
+                                  Request Change
+                                </span>
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        <input
+                          id="pan-document-upload"
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            console.log("File input changed for PAN Card:", {
+                              file: file?.name,
+                              hasFile: !!file,
+                            });
+                            if (file) {
+                              handleKycDocumentUpload("pan_card", file);
+                              // Reset the input value to allow re-uploading same file
+                              e.target.value = "";
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Transaction History */}
+                <Card className="bg-slate-800 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <FileText className="w-5 h-5 mr-2 text-emerald-500" />
+                      Transaction History
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <select
+                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        value={showTransactions || ""} // Use '' for initial empty value
+                        onChange={(e) => {
+                          setShowTransactions(e.target.value as any); // Cast to any to allow string values
+                        }}
+                      >
+                        <option value="">Select action...</option>
+                        <option value="last10">
+                          View Last 10 Transactions
+                        </option>
+                      </select>
+
+                      {/* Transaction List */}
+                      {showTransactions && (
+                        <div className="bg-slate-700 rounded-lg p-4">
+                          {transactionsLoading ? (
+                            <div className="flex items-center justify-center py-4">
+                              <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                              <span className="ml-2 text-sm text-slate-300">
+                                Loading transactions...
+                              </span>
+                            </div>
+                          ) : Array.isArray(transactions) &&
+                            transactions.length > 0 ? (
+                            <div className="space-y-2">
+                              <h4 className="text-sm font-medium text-white mb-3">
+                                {showTransactions === "last10"
+                                  ? "Last 10 Transactions"
+                                  : "All Transactions"}
+                              </h4>
+                              <div className="max-h-80 overflow-y-auto space-y-2">
+                                {(showTransactions === "last10"
+                                  ? transactions.slice(0, 10)
+                                  : transactions
+                                ).map((transaction: any, index: number) => (
+                                  <div
+                                    key={index}
+                                    className="flex justify-between items-center py-2 border-b border-slate-600 last:border-b-0"
+                                  >
+                                    <div>
+                                      <p className="text-sm text-white">
+                                        {transaction.type}
+                                      </p>
+                                      <p className="text-xs text-slate-400">
+                                        {new Date(
+                                          transaction.created_at
+                                        ).toLocaleDateString()}{" "}
+                                        at{" "}
+                                        {new Date(
+                                          transaction.created_at
+                                        ).toLocaleTimeString()}
+                                      </p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p
+                                        className={`text-sm font-medium ${getTransactionAmountColor(
+                                          transaction.type
+                                        )}`}
+                                      >
+                                        {getTransactionAmountPrefix(
+                                          transaction.type
+                                        )}
+                                        ₹{Math.abs(transaction.amount)}
+                                      </p>
+                                      <p className="text-xs text-slate-400">
+                                        {transaction.status}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              {showTransactions === "last10" &&
+                                transactions.length > 10 && (
+                                  <p className="text-xs text-slate-400 text-center mt-2">
+                                    Showing 10 of {transactions.length}{" "}
+                                    transactions
+                                  </p>
+                                )}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-slate-300 text-center">
+                              No transactions found
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {!showTransactions && (
+                        <div className="bg-slate-700 rounded-lg p-4">
+                          <p className="text-sm text-slate-300 text-center">
+                            Select an option above to see your recent activity
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Mobile App Connection */}
+                <Card className="bg-slate-800 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <svg
+                        className="w-5 h-5 mr-2 text-emerald-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
+                        />
+                      </svg>
+                      Mobile App
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="text-center">
+                      <div className="w-20 h-20 bg-slate-700 rounded-xl flex items-center justify-center mx-auto mb-4">
+                        <svg
+                          className="w-10 h-10 text-emerald-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
+                          />
+                        </svg>
+                      </div>
+                      <p className="text-sm text-slate-300 mb-4">
+                        Connect your mobile device for the best gaming
+                        experience
+                      </p>
+                    </div>
+
+                    {/* QR Code or App Links */}
+                    <div className="space-y-3">
+                      <div className="bg-slate-700 p-4 rounded-lg text-center">
+                        <div className="w-32 h-32 bg-white rounded-lg mx-auto mb-3 flex items-center justify-center">
+                          <span className="text-2xl">📱</span>
+                        </div>
+                        <p className="text-xs text-slate-400">
+                          Scan QR code to download mobile app
                         </p>
                       </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
 
-              {/* Mobile App Connection */}
-              <Card className="bg-slate-800 border-slate-700">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <svg className="w-5 h-5 mr-2 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                    </svg>
-                    Mobile App
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="text-center">
-                    <div className="w-20 h-20 bg-slate-700 rounded-xl flex items-center justify-center mx-auto mb-4">
-                      <svg className="w-10 h-10 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                    <p className="text-sm text-slate-300 mb-4">Connect your mobile device for the best gaming experience</p>
-                  </div>
-
-                  {/* QR Code or App Links */}
-                  <div className="space-y-3">
-                    <div className="bg-slate-700 p-4 rounded-lg text-center">
-                      <div className="w-32 h-32 bg-white rounded-lg mx-auto mb-3 flex items-center justify-center">
-                        <span className="text-2xl">📱</span>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button className="bg-slate-700 hover:bg-slate-600 p-3 rounded-lg transition-colors">
+                          <div className="flex items-center justify-center space-x-2">
+                            <svg
+                              className="w-5 h-5 text-white"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                            >
+                              <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+                            </svg>
+                            <span className="text-xs text-white">iOS</span>
+                          </div>
+                        </button>
+                        <button className="bg-slate-700 hover:bg-slate-600 p-3 rounded-lg transition-colors">
+                          <div className="flex items-center justify-center space-x-2">
+                            <svg
+                              className="w-5 h-5 text-white"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                            >
+                              <path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 01-.61-.92V2.734a1 1 0 01.609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.198l2.807 1.626a1 1 0 010 1.73l-2.808 1.626L15.699 12l1.999-2.491zM5.864 2.658L16.802 8.99l-2.303 2.303-8.635-8.635z" />
+                            </svg>
+                            <span className="text-xs text-white">Android</span>
+                          </div>
+                        </button>
                       </div>
-                      <p className="text-xs text-slate-400">Scan QR code to download mobile app</p>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <button className="bg-slate-700 hover:bg-slate-600 p-3 rounded-lg transition-colors">
-                        <div className="flex items-center justify-center space-x-2">
-                          <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-                          </svg>
-                          <span className="text-xs text-white">iOS</span>
-                        </div>
-                      </button>
-                      <button className="bg-slate-700 hover:bg-slate-600 p-3 rounded-lg transition-colors">
-                        <div className="flex items-center justify-center space-x-2">
-                          <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 01-.61-.92V2.734a1 1 0 01.609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.198l2.807 1.626a1 1 0 010 1.73l-2.808 1.626L15.699 12l1.999-2.491zM5.864 2.658L16.802 8.99l-2.303 2.303-8.635-8.635z"/>
-                          </svg>
-                          <span className="text-xs text-white">Android</span>
-                        </div>
-                      </button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
               </div>
             </TabsContent>
 
@@ -3163,7 +4139,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-white">Message</label>
+                      <label className="text-sm font-medium text-white">
+                        Message
+                      </label>
                       <textarea
                         className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
                         rows={5}
@@ -3173,7 +4151,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         disabled={sendingFeedback}
                       />
                     </div>
-                    <Button 
+                    <Button
                       className="w-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
                       onClick={submitFeedback}
                       disabled={sendingFeedback || !feedbackMessage.trim()}
@@ -3223,7 +4201,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         Professional Support Available
                       </h3>
                       <p className="text-slate-400 mb-4">
-                        Connect with our Guest Relations team for immediate assistance with any questions or concerns.
+                        Connect with our Guest Relations team for immediate
+                        assistance with any questions or concerns.
                       </p>
                       <div className="text-emerald-400 text-sm font-medium">
                         <MessageCircle className="w-5 h-5 mr-2 inline" />
@@ -3236,14 +4215,14 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             </TabsContent>
 
             {/* Notifications Tab */}
-            <TabsContent value="notifications" className="space-y-4 sm:space-y-6 w-full max-w-full">
+            <TabsContent
+              value="notifications"
+              className="space-y-4 sm:space-y-6 w-full max-w-full"
+            >
               <NotificationHistoryTab />
             </TabsContent>
-
           </div>
         </Tabs>
-
-
 
         {/* Full Chat Dialog that opens from "Open Chat" button */}
         <Dialog open={chatDialogOpen} onOpenChange={setChatDialogOpen}>
@@ -3257,9 +4236,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
             {/* Chat System Integration - Direct PostgreSQL connection to Staff Portal */}
             {chatDialogOpen && user?.id && (
-              <PlayerChatSystem 
+              <PlayerChatSystem
                 playerId={Number(user.id)}
-                playerName={`${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email || 'Player'}
+                playerName={
+                  `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
+                  user?.email ||
+                  "Player"
+                }
                 isInDialog={true}
                 onClose={() => setChatDialogOpen(false)}
               />
@@ -3267,11 +4250,28 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           </DialogContent>
         </Dialog>
 
-        {/* Live Session Tracking removed - already in Session tab */}
+        {/* TableView Dialog - 3D Hologram Table View */}
+        <Dialog
+          open={tableViewDialogOpen}
+          onOpenChange={setTableViewDialogOpen}
+        >
+          <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full p-0 bg-slate-900 border-slate-700 overflow-hidden">
+            {selectedTableViewTableId && (
+              <div className="h-full overflow-auto">
+                <TableView
+                  tableId={selectedTableViewTableId}
+                  onNavigate={setLocation}
+                  onClose={() => setTableViewDialogOpen(false)}
+                />
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
+        {/* Live Session Tracking removed - already in Session tab */}
       </div>
     </div>
   );
-};
+}
 
 export default PlayerDashboard;
