@@ -75,6 +75,7 @@ export function useUltraFastAuth() {
         lastName: existing.lastName || '',
         phone: existing.phone || '',
         nickname: existing.nickname || '',
+        referredBy: existing.referredBy || '',
         kycStatus: existing.kycStatus || 'verified',
         balance: existing.balance || '0.00',
         currentCredit: existing.currentCredit || '0.00',
@@ -127,7 +128,8 @@ export function useUltraFastAuth() {
     firstName: string,
     lastName: string,
     nickname: string,
-    phone: string
+    phone: string,
+    referredBy?: string
   ) => {
     try {
       console.log('🆕 [ULTRA-FAST AUTH] Frontend-only sign up:', email);
@@ -146,6 +148,7 @@ export function useUltraFastAuth() {
         lastName,
         nickname,
         phone,
+        referredBy: referredBy || '',
         kycStatus: 'verified',
         balance: '0.00',
         currentCredit: '0.00',

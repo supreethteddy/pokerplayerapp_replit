@@ -21,6 +21,7 @@ export default function DirectClubsAuth() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [nickname, setNickname] = useState(""); // Added nickname state
+  const [referralCode, setReferralCode] = useState("");
 
   // Validation states
   const [emailError, setEmailError] = useState("");
@@ -136,6 +137,7 @@ export default function DirectClubsAuth() {
         }
 
         const result = await signIn(signinEmail, password);
+        const redirectToKYC = (result as any)?.redirectToKYC;
 
         if (result.success) {
           toast({
@@ -145,10 +147,11 @@ export default function DirectClubsAuth() {
           // Success is handled by useAuth hook - redirect will happen automatically
         } else {
           // Handle specific authentication failures
-          if (result.redirectToKYC) {
+          if (redirectToKYC) {
             toast({
               title: "KYC Verification Required",
-              description: result.error || "Please complete your KYC verification before signing in.",
+              description:
+                result.error || "Please complete your KYC verification before signing in.",
               variant: "destructive",
             });
           } else {
@@ -176,11 +179,15 @@ export default function DirectClubsAuth() {
         const result = await signUp(
           signupEmail,
           password,
-          firstName, // Pass the first name
-          lastName, // Pass the last name
+          firstName,
+          lastName,
+          nickname,
           phone,
-          nickname, // Pass the nickname
+          referralCode
         );
+
+        const redirectToKYC = (result as any)?.redirectToKYC;
+        const resultPlayer = (result as any)?.player;
 
         if (result.success) {
           // Backend already sends verification email, show success message
@@ -190,22 +197,23 @@ export default function DirectClubsAuth() {
           });
 
           // Check if we need to redirect to KYC process
-          if (result.redirectToKYC) {
+          if (redirectToKYC) {
             console.log(
               "🎯 [AUTH] Redirecting to KYC process for player:",
-              result.player?.id,
+              resultPlayer?.id,
             );
 
             // CRITICAL FIX: Explicit redirect to KYC page without auto-login
             sessionStorage.setItem('kyc_flow_active', 'true');
             sessionStorage.setItem('kyc_redirect', JSON.stringify({
-              id: result.player?.id,
-              playerId: result.player?.id,
-              email: result.player?.email || signupEmail,
-              firstName: result.player?.firstName || firstName,
-              lastName: result.player?.lastName || lastName,
-              nickname: result.player?.nickname || nickname,
-              kycStatus: result.player?.kyc_status || 'pending'
+              id: resultPlayer?.id,
+              playerId: resultPlayer?.id,
+              email: resultPlayer?.email || signupEmail,
+              firstName: resultPlayer?.firstName || firstName,
+              lastName: resultPlayer?.lastName || lastName,
+              nickname: resultPlayer?.nickname || nickname,
+              referredBy: resultPlayer?.referredBy || referralCode || '',
+              kycStatus: resultPlayer?.kyc_status || 'pending'
             }));
 
             // Force immediate redirect to KYC page
@@ -348,6 +356,16 @@ export default function DirectClubsAuth() {
                       {validatingNickname ? "Checking..." : nicknameError}
                     </p>
                   )}
+                </div>
+                <div>
+                  <Input
+                    type="text"
+                    placeholder="Referral / Referred By (optional)"
+                    value={referralCode}
+                    onChange={(e) => setReferralCode(e.target.value)}
+                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
+                    data-testid="input-referral"
+                  />
                 </div>
               </>
             )}
