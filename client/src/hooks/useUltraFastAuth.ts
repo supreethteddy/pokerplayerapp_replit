@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { whitelabelConfig } from '@/lib/whitelabeling';
 
 export function useUltraFastAuth() {
   const [user, setUser] = useState<any>(null);
@@ -68,6 +69,10 @@ export function useUltraFastAuth() {
         throw new Error('Invalid email or password');
       }
 
+      if (whitelabelConfig.clubCode && existing.clubCode && existing.clubCode !== whitelabelConfig.clubCode) {
+        throw new Error('This account belongs to a different club.');
+      }
+
       const userData = {
         id: existing.id,
         email: existing.email,
@@ -76,6 +81,7 @@ export function useUltraFastAuth() {
         phone: existing.phone || '',
         nickname: existing.nickname || '',
         referredBy: existing.referredBy || '',
+        clubCode: existing.clubCode || '',
         kycStatus: existing.kycStatus || 'verified',
         balance: existing.balance || '0.00',
         currentCredit: existing.currentCredit || '0.00',
@@ -129,6 +135,7 @@ export function useUltraFastAuth() {
     lastName: string,
     nickname: string,
     phone: string,
+    clubCode?: string,
     referredBy?: string
   ) => {
     try {
@@ -148,6 +155,7 @@ export function useUltraFastAuth() {
         lastName,
         nickname,
         phone,
+        clubCode: clubCode || whitelabelConfig.clubCode || '',
         referredBy: referredBy || '',
         kycStatus: 'verified',
         balance: '0.00',

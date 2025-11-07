@@ -3,9 +3,10 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { X, Eye, EyeOff, Phone, Mail } from "lucide-react";
+import { X, Eye, EyeOff, Phone, Mail, ShieldCheck } from "lucide-react";
 import { useUltraFastAuth } from "../hooks/useUltraFastAuth";
 import { useToast } from "@/hooks/use-toast";
+import { whitelabelConfig } from "@/lib/whitelabeling";
 
 export default function DirectClubsAuth() {
   const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
@@ -22,6 +23,9 @@ export default function DirectClubsAuth() {
   const [lastName, setLastName] = useState("");
   const [nickname, setNickname] = useState(""); // Added nickname state
   const [referralCode, setReferralCode] = useState("");
+  const [clubCodeInput, setClubCodeInput] = useState("");
+  const [clubCodeVerified, setClubCodeVerified] = useState(false);
+  const [clubCodeError, setClubCodeError] = useState("");
 
   // Validation states
   const [emailError, setEmailError] = useState("");
@@ -87,6 +91,16 @@ export default function DirectClubsAuth() {
 
   // Debounce validation calls
   useEffect(() => {
+    const storedClubCode = sessionStorage.getItem("club_code_verified");
+    if (
+      storedClubCode &&
+      whitelabelConfig.clubCode &&
+      storedClubCode === whitelabelConfig.clubCode
+    ) {
+      setClubCodeVerified(true);
+      setClubCodeInput(storedClubCode);
+    }
+
     if (activeTab === 'signup') {
       if (signupEmail) {
         const timer = setTimeout(() => validateField('email', signupEmail), 500);
@@ -128,6 +142,10 @@ export default function DirectClubsAuth() {
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!clubCodeVerified) {
+      setClubCodeError("Please enter a valid club code to continue.");
+      return;
+    }
     setLoading(true);
 
     try {
@@ -183,6 +201,7 @@ export default function DirectClubsAuth() {
           lastName,
           nickname,
           phone,
+          clubCodeInput || whitelabelConfig.clubCode || "",
           referralCode
         );
 
@@ -240,14 +259,7 @@ export default function DirectClubsAuth() {
   return (
     <div className="min-h-screen bg-black flex items-center justify-center p-4">
       <Card className="w-full max-w-md bg-gray-900 border-gray-700 relative">
-        {/* Close button */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="absolute top-4 right-4 text-gray-400 hover:text-white z-10"
-        >
-          <X className="w-5 h-5" />
-        </Button>
+        
 
         {/* Verification Success Message */}
         {isVerified && (
@@ -273,6 +285,17 @@ export default function DirectClubsAuth() {
             </div>
           </div>
           <h1 className="text-white text-xl font-semibold mb-6">CLUBS POKER</h1>
+
+          {clubCodeVerified ? (
+            <div className="flex items-center justify-center space-x-2 text-emerald-400 text-sm mb-4">
+              <ShieldCheck className="w-4 h-4" />
+              <span>Access granted for club code: {clubCodeInput}</span>
+            </div>
+          ) : (
+            <div className="text-gray-300 text-sm mb-4">
+              Enter your club code to continue
+            </div>
+          )}
 
           {/* Tab Navigation */}
           <div className="flex border-b border-gray-600 mb-6">
@@ -300,6 +323,62 @@ export default function DirectClubsAuth() {
         </CardHeader>
 
         <CardContent className="space-y-4 px-6">
+          {/* Club Code Gate */}
+          {!clubCodeVerified && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!whitelabelConfig.clubCode) {
+                  setClubCodeVerified(true);
+                  return;
+                }
+                if (
+                  clubCodeInput.trim().toUpperCase() ===
+                  whitelabelConfig.clubCode.toUpperCase()
+                ) {
+                  setClubCodeVerified(true);
+                  setClubCodeError("");
+                  sessionStorage.setItem(
+                    "club_code_verified",
+                    whitelabelConfig.clubCode
+                  );
+                } else {
+                  setClubCodeError("Invalid club code. Please try again.");
+                }
+              }}
+              className="space-y-3"
+            >
+              {whitelabelConfig.clubCode && (
+                <p className="text-sm text-gray-400 text-center">
+                  Demo club code: <span className="font-semibold text-white">{whitelabelConfig.clubCode}</span>
+                </p>
+              )}
+              <Input
+                type="text"
+                placeholder="Enter Club Code"
+                value={clubCodeInput}
+                onChange={(e) => {
+                  setClubCodeInput(e.target.value.toUpperCase());
+                  setClubCodeError("");
+                }}
+                className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12 uppercase"
+                data-testid="input-clubcode"
+                required
+              />
+              {clubCodeError && (
+                <p className="text-red-500 text-xs mt-1 ml-1">{clubCodeError}</p>
+              )}
+              <Button
+                type="submit"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 h-12"
+              >
+                Verify Club Code
+              </Button>
+            </form>
+          )}
+
+          {clubCodeVerified && (
+            <>
           {/* Email/Password Form */}
           <form onSubmit={handleEmailAuth} className="space-y-4">
             {activeTab === "signup" && (
@@ -440,6 +519,8 @@ export default function DirectClubsAuth() {
                   : "Sign Up"}
             </Button>
           </form>
+          </>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -9,6 +9,7 @@ export interface WhitelabelConfig {
   secondaryColor: string;
   accentColor: string;
   logoUrl?: string;
+  clubCode?: string;
   
   // Company Information
   companyName: string;
@@ -35,6 +36,7 @@ export const whitelabelConfig: WhitelabelConfig = {
   secondaryColor: "#2d2d2d", 
   accentColor: "#3b82f6",
   logoUrl: "https://png.pngtree.com/png-clipart/20190611/original/pngtree-wolf-logo-png-image_2306634.jpg", // Placeholder logo - replace with your custom logo URL
+  clubCode: "CLUB123", // Unique club code for this white-labeled portal
   
   // Company Information
   companyName: "Poker Club",
