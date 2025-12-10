@@ -20,6 +20,16 @@ html, body {
   overflow-x: hidden;
 }
 
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
+
 /* Mobile-optimized styling */
 @media (max-width: 640px) {
   /* Prevent any horizontal overflow */
@@ -60,26 +70,35 @@ html, body {
 
   /* Enhanced tab navigation */
   [data-tabs-list] {
-    overflow-x: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
     width: 100%;
     max-width: 100%;
     padding: 0.25rem !important;
     gap: 0.25rem !important;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+  }
+
+  [data-tabs-list]::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
   }
 
   /* Enhanced tab button spacing */
   [role="tab"] {
     font-size: 0.75rem !important;
-    padding: 0.75rem 0.5rem !important;
+    padding: 0.5rem 0.5rem !important;
     text-align: center;
     word-wrap: break-word;
     hyphens: auto;
     min-height: 44px !important;
+    min-width: 44px !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     border-radius: 0.5rem !important;
+    flex-shrink: 0;
   }
 
   /* Enhanced card spacing */
@@ -159,13 +178,20 @@ html, body {
 
   /* Enhanced input spacing */
   input, select, textarea {
-    font-size: 16px; /* Prevents zoom on iOS */
-    min-height: 44px;
+    font-size: 16px !important; /* Prevents zoom on iOS */
+    min-height: 44px !important;
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
     padding: 0.75rem !important;
     margin-bottom: 0.75rem !important;
+  }
+
+  /* Ensure buttons are touch-friendly */
+  button, [role="button"], a[role="button"] {
+    min-height: 44px !important;
+    min-width: 44px !important;
+    touch-action: manipulation;
   }
 
   /* Enhanced text readability */
@@ -178,18 +204,38 @@ html, body {
   }
 
   /* Enhanced touch targets */
-  a, button, [role="button"] {
-    min-height: 44px;
+  a:not([role="tab"]), button:not([role="tab"]), [role="button"]:not([role="tab"]) {
+    min-height: 44px !important;
     word-wrap: break-word;
     padding: 0.75rem 1rem !important;
   }
 
   /* Enhanced scrolling areas */
-  .overflow-auto {
+  .overflow-auto, .overflow-y-auto {
     -webkit-overflow-scrolling: touch;
     overflow-x: hidden;
     overflow-y: auto;
     padding: 0.5rem !important;
+  }
+
+  /* Card responsive padding */
+  [class*="CardContent"], [class*="card-content"] {
+    padding: 0.75rem !important;
+  }
+
+  [class*="CardHeader"], [class*="card-header"] {
+    padding: 0.75rem !important;
+  }
+
+  /* Grid responsive adjustments */
+  .grid {
+    gap: 0.75rem !important;
+  }
+
+  /* Dialog responsive */
+  [role="dialog"] {
+    max-width: calc(100vw - 1rem) !important;
+    margin: 0.5rem !important;
   }
 
   /* Enhanced text overflow */

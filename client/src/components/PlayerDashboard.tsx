@@ -1962,11 +1962,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       {showEmailVerificationBanner &&
         user?.email &&
         !(user as any)?.emailVerified && (
-          <div className="bg-amber-600 border-b border-amber-500 px-3 sm:px-6 py-3 notification-banner">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <AlertTriangle className="w-5 h-5 mr-2 text-white" />
-                <span className="text-white font-medium">
+          <div className="bg-amber-600 border-b border-amber-500 px-3 sm:px-6 py-2.5 sm:py-3 notification-banner">
+            <div className="flex items-start sm:items-center justify-between gap-2">
+              <div className="flex items-start sm:items-center flex-1 min-w-0">
+                <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-white flex-shrink-0 mt-0.5 sm:mt-0" />
+                <span className="text-white font-medium text-xs sm:text-sm leading-relaxed">
                   Please verify your email address. Check your inbox for the
                   verification link.
                 </span>
@@ -1974,7 +1974,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               <Button
                 size="sm"
                 variant="ghost"
-                className="text-white hover:bg-amber-700"
+                className="text-white hover:bg-amber-700 flex-shrink-0 min-h-[32px] sm:min-h-[36px] h-8 sm:h-9 w-8 sm:w-9 p-0"
                 onClick={() => setShowEmailVerificationBanner(false)}
               >
                 <X className="w-4 h-4" />
@@ -1992,25 +1992,25 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               : "bg-gradient-to-r from-emerald-600 to-emerald-700 border-emerald-500"
           }`}
         >
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-emerald-500/20 rounded-full">
-                <Play className="w-5 h-5 text-emerald-400" />
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0 gap-3">
+            <div className="flex items-start sm:items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
+              <div className="p-1.5 sm:p-2 bg-emerald-500/20 rounded-full flex-shrink-0">
+                <Play className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
               </div>
-              <div>
-                <div className="flex flex-col space-y-2">
-                  <span className="text-white font-bold text-lg">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-col space-y-1.5 sm:space-y-2">
+                  <span className="text-white font-bold text-base sm:text-lg">
                     {gameStatus.isInActiveGame
                       ? "🎮 CURRENTLY PLAYING"
                       : "⏳ WAITING FOR GAME"}
                   </span>
                   {gameStatus.activeGameInfo.seatNumber && (
-                    <Badge className="bg-white text-slate-900 font-bold w-fit">
+                    <Badge className="bg-white text-slate-900 font-bold w-fit text-xs sm:text-sm">
                       Seat #{gameStatus.activeGameInfo.seatNumber}
                     </Badge>
                   )}
                 </div>
-                <div className="text-white/90 text-sm mt-2">
+                <div className="text-white/90 text-xs sm:text-sm mt-1.5 sm:mt-2 break-words">
                   <span className="font-medium">
                     {gameStatus.activeGameInfo.tableName}
                   </span>{" "}
@@ -2027,14 +2027,14 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 </div>
               </div>
             </div>
-            <div className="flex justify-center sm:justify-end">
+            <div className="flex justify-center sm:justify-end flex-shrink-0">
               <Link href={`/table/${gameStatus.activeGameInfo.tableId}`}>
                 <Button
                   className={`${
                     gameStatus.isInActiveGame
                       ? "bg-white text-amber-700 hover:bg-amber-50"
                       : "bg-white text-emerald-700 hover:bg-emerald-50"
-                  } font-semibold px-6`}
+                  } font-semibold px-4 sm:px-6 text-sm sm:text-base min-h-[44px] w-full sm:w-auto`}
                 >
                   <Eye className="w-4 h-4 mr-2" />
                   {gameStatus.isInActiveGame ? "View Game" : "View Table"}
@@ -2043,10 +2043,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             </div>
           </div>
           {gameStatus.isInActiveGame && gameStatus.restrictionMessage && (
-            <div className="mt-3 p-3 bg-amber-500/20 rounded-lg border border-amber-400/30">
-              <div className="flex items-center text-white">
-                <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0" />
-                <span className="text-sm font-medium">
+            <div className="mt-2 sm:mt-3 p-2 sm:p-3 bg-amber-500/20 rounded-lg border border-amber-400/30">
+              <div className="flex items-start sm:items-center text-white">
+                <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0 mt-0.5 sm:mt-0" />
+                <span className="text-xs sm:text-sm font-medium break-words">
                   {gameStatus.restrictionMessage}
                 </span>
               </div>
@@ -2066,44 +2066,44 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         open={showAssignmentNotification}
         onOpenChange={setShowAssignmentNotification}
       >
-        <DialogContent className="bg-emerald-800 border-emerald-600 text-white">
-          <DialogHeader>
-            <DialogTitle className="text-emerald-300 text-xl flex items-center">
-              <CheckCircle className="w-6 h-6 mr-2 text-emerald-400" />
+        <DialogContent className="bg-emerald-800 border-emerald-600 text-white w-[95vw] sm:max-w-md p-4 sm:p-6">
+          <DialogHeader className="pb-3 sm:pb-4">
+            <DialogTitle className="text-emerald-300 text-lg sm:text-xl flex items-center">
+              <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 mr-2 text-emerald-400" />
               Table Assignment Confirmed!
             </DialogTitle>
           </DialogHeader>
 
           {assignmentDetails && (
-            <div className="space-y-4">
-              <div className="bg-emerald-900/50 rounded-lg p-4 border border-emerald-500/30">
-                <h3 className="font-semibold text-emerald-300 mb-3">
+            <div className="space-y-3 sm:space-y-4">
+              <div className="bg-emerald-900/50 rounded-lg p-3 sm:p-4 border border-emerald-500/30">
+                <h3 className="font-semibold text-emerald-300 mb-2 sm:mb-3 text-sm sm:text-base">
                   You've been assigned to:
                 </h3>
-                <div className="space-y-2 text-emerald-100">
-                  <div className="flex justify-between">
+                <div className="space-y-2 text-emerald-100 text-sm sm:text-base">
+                  <div className="flex justify-between items-center">
                     <span>Table:</span>
-                    <span className="font-semibold">
+                    <span className="font-semibold text-right break-words ml-2">
                       {assignmentDetails.tableName}
                     </span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center">
                     <span>Seat Number:</span>
                     <span className="font-semibold">
                       #{assignmentDetails.seatNumber}
                     </span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center">
                     <span>Assigned by:</span>
-                    <span className="font-semibold">
+                    <span className="font-semibold text-right break-words ml-2">
                       {assignmentDetails.staffName}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-amber-900/20 border border-amber-600/50 rounded-lg p-3">
-                <p className="text-amber-200 text-sm">
+              <div className="bg-amber-900/20 border border-amber-600/50 rounded-lg p-2.5 sm:p-3">
+                <p className="text-amber-200 text-xs sm:text-sm">
                   🎯{" "}
                   <strong>
                     Please proceed to your assigned table immediately.
@@ -2112,12 +2112,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 </p>
               </div>
 
-              <div className="flex gap-3 justify-end">
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-end">
                 <Button
                   onClick={() =>
                     setLocation(`/table/${assignmentDetails.tableId}`)
                   }
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto min-h-[44px]"
                 >
                   <Eye className="w-4 h-4 mr-2" />
                   View Table
@@ -2126,7 +2126,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 <Button
                   onClick={() => setShowAssignmentNotification(false)}
                   variant="outline"
-                  className="border-emerald-600 text-emerald-300 hover:bg-emerald-700"
+                  className="border-emerald-600 text-emerald-300 hover:bg-emerald-700 w-full sm:w-auto min-h-[44px]"
                 >
                   Dismiss
                 </Button>
@@ -2138,19 +2138,19 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
       <div className="max-w-full px-3 py-3 sm:px-4 sm:py-4 lg:px-6 lg:py-6 dashboard-container">
         {/* Header - Responsive */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 space-y-3 sm:space-y-0 dashboard-header">
-          <div  className="flex flex-col sm:flex-row items-start sm:items-center mb-4 sm:mb-6 space-y-3 sm:space-y-0">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 lg:mb-6 space-y-3 sm:space-y-0 dashboard-header">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
             {/* White Label Logo - Positioned in top left corner, above table area */}
             {whitelabelConfig.logoUrl && (
               <div
-                className="pointer-events-none"
+                className="pointer-events-none mb-2 sm:mb-0"
                 id="whitelabel-logo-container"
               >
-                <div className="flex items-center bg-slate-900/80 backdrop-blur-sm p-2 shadow-lg border border-slate-700/50">
+                <div className="flex items-center bg-slate-900/80 backdrop-blur-sm p-1.5 sm:p-2 shadow-lg border border-slate-700/50 rounded">
                   <img
                     src={whitelabelConfig.logoUrl}
                     alt={whitelabelConfig.companyName || "Logo"}
-                    className="rounded-lg h-8 sm:h-10 md:h-12 w-auto object-contain max-w-[150px] sm:max-w-[180px] md:max-w-[220px]"
+                    className="rounded-lg h-6 sm:h-8 md:h-10 lg:h-12 w-auto object-contain max-w-[120px] sm:max-w-[150px] md:max-w-[180px] lg:max-w-[220px]"
                     onError={(e) => {
                       // Fallback if logo image fails to load - hide the container
                       const container = document.getElementById(
@@ -2164,8 +2164,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 </div>
               </div>
             )}
-            <div className="w-full sm:w-auto min-w-0">
-              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-white truncate">
+            <div className="w-full sm:w-auto min-w-0 flex-1">
+              <h1 className="text-base sm:text-lg lg:text-xl xl:text-2xl font-bold text-white truncate">
                 Player Dashboard
               </h1>
               <p className="text-slate-400 text-xs sm:text-sm lg:text-base truncate">
@@ -2185,10 +2185,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             }}
             variant="outline"
             size="sm"
-            className="border-slate-600 text-slate-400 hover:bg-slate-700 hover:text-white w-full sm:w-auto flex-shrink-0"
+            className="border-slate-600 text-slate-400 hover:bg-slate-700 hover:text-white w-full sm:w-auto flex-shrink-0 mt-2 sm:mt-0"
           >
             <LogOut className="h-4 w-4 mr-2" />
-            Sign Out
+            <span className="sm:inline">Sign Out</span>
           </Button>
         </div>
 
@@ -2199,71 +2199,71 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           className="w-full max-w-full"
         >
           <TabsList
-            className="flex w-full justify-between mb-4 sm:mb-6 bg-slate-800 border border-slate-700 rounded-lg p-1 overflow-hidden gap-1"
+            className="flex w-full justify-between mb-3 sm:mb-4 lg:mb-6 bg-slate-800 border border-slate-700 rounded-lg p-0.5 sm:p-1 overflow-x-auto overflow-y-hidden gap-0.5 sm:gap-1 scrollbar-hide"
             data-tabs-list
           >
             <TabsTrigger
               value="game"
-              className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
               role="tab"
             >
-              <Spade className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
+              <Spade className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
               value="offers"
-              className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
               role="tab"
             >
-              <Gift className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
+              <Gift className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
               value="food"
-              className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
               role="tab"
             >
-              <Coffee className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
+              <Coffee className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
               value="session"
-              className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
               role="tab"
             >
-              <Clock className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
+              <Clock className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
               value="balance"
-              className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
               role="tab"
             >
-              <CreditCard className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
+              <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
               value="profile"
-              className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
               role="tab"
             >
-              <User className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
+              <User className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
               value="feedback"
-              className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
               role="tab"
             >
-              <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
+              <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
               value="notifications"
-              className="flex-1 px-3 sm:px-3 lg:px-4 py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 relative overflow-visible"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px] relative overflow-visible"
               role="tab"
             >
               <div className="relative flex items-center justify-center">
-                <Bell className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
+                <Bell className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
                 {notifications &&
                 Array.isArray(notifications) &&
                 notifications.length > 0 ? (
                   <span
-                    className="absolute -top-2 -right-2 min-w-[16px] h-4 bg-red-500 rounded-full text-white font-bold flex items-center justify-center px-1"
-                    style={{ fontSize: "0.6rem", lineHeight: "1" }}
+                    className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 min-w-[14px] sm:min-w-[16px] h-3.5 sm:h-4 bg-red-500 rounded-full text-white font-bold flex items-center justify-center px-0.5 sm:px-1 text-[0.5rem] sm:text-[0.6rem]"
+                    style={{ lineHeight: "1" }}
                   >
                     {notifications.length > 99 ? "99+" : notifications.length}
                   </span>
@@ -2322,23 +2322,23 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4 mb-3">
-                              <div className="text-center bg-emerald-800/50 rounded-lg p-3">
-                                <p className="text-xs text-emerald-200">
+                            <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:gap-4 mb-3">
+                              <div className="text-center bg-emerald-800/50 rounded-lg p-2 sm:p-3">
+                                <p className="text-xs sm:text-sm text-emerald-200">
                                   Buy-in
                                 </p>
-                                <p className="text-lg font-semibold text-emerald-300">
+                                <p className="text-base sm:text-lg font-semibold text-emerald-300">
                                   ₹
                                   {parseFloat(
                                     session.sessionBuyIn || "0"
                                   ).toLocaleString()}
                                 </p>
                               </div>
-                              <div className="text-center bg-emerald-800/50 rounded-lg p-3">
-                                <p className="text-xs text-emerald-200">
+                              <div className="text-center bg-emerald-800/50 rounded-lg p-2 sm:p-3">
+                                <p className="text-xs sm:text-sm text-emerald-200">
                                   Stakes
                                 </p>
-                                <p className="text-lg font-semibold text-emerald-300">
+                                <p className="text-base sm:text-lg font-semibold text-emerald-300">
                                   ₹{session.minBuyIn?.toLocaleString()}/
                                   {session.maxBuyIn?.toLocaleString()}
                                 </p>
@@ -2442,32 +2442,32 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                           ))}
                         </div>
                       ) : (
-                        <div className="space-y-4">
+                        <div className="space-y-3 sm:space-y-4">
                           {tables &&
                             tables.map((table) => (
                               <div
                                 key={table.id}
-                                className="bg-slate-700 p-4 rounded-lg"
+                                className="bg-slate-700 p-3 sm:p-4 rounded-lg"
                               >
-                                <div className="flex justify-between items-start mb-3">
-                                  <div>
-                                    <h3 className="font-semibold text-white">
+                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3 sm:gap-0">
+                                  <div className="flex-1 min-w-0">
+                                    <h3 className="font-semibold text-white text-sm sm:text-base truncate">
                                       {table.name}
                                     </h3>
-                                    <p className="text-sm text-slate-400">
+                                    <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
                                       {table.gameType}
                                     </p>
                                     {/* Game Status Indicator */}
-                                    <div className="flex items-center space-x-2 mt-1">
+                                    <div className="flex items-center space-x-2 mt-1.5 sm:mt-1">
                                       <div
-                                        className={`w-2 h-2 rounded-full ${
+                                        className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full flex-shrink-0 ${
                                           table.isActive
                                             ? "bg-red-500"
                                             : "bg-green-500"
                                         }`}
                                       ></div>
                                       <span
-                                        className={`text-xs ${
+                                        className={`text-[0.65rem] sm:text-xs ${
                                           table.isActive
                                             ? "text-red-400"
                                             : "text-green-400"
@@ -2479,23 +2479,23 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                       </span>
                                     </div>
                                   </div>
-                                  <div className="text-right">
-                                    <p className="text-sm text-slate-400">
+                                  <div className="text-left sm:text-right flex-shrink-0">
+                                    <p className="text-xs sm:text-sm text-slate-400">
                                       Stakes
                                     </p>
-                                    <p className="text-lg font-semibold text-emerald-500">
+                                    <p className="text-base sm:text-lg font-semibold text-emerald-500">
                                       {table.stakes}
                                     </p>
                                   </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-4 mb-3">
+                                <div className="grid grid-cols-1 gap-3 sm:gap-4 mb-3">
                                   <div className="text-center">
-                                    <Users className="w-4 h-4 text-slate-400 mx-auto mb-1" />
-                                    <p className="text-xs text-slate-400">
+                                    <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 mx-auto mb-1" />
+                                    <p className="text-[0.65rem] sm:text-xs text-slate-400">
                                       Players
                                     </p>
-                                    <p className="text-sm font-semibold text-white">
+                                    <p className="text-xs sm:text-sm font-semibold text-white">
                                       {table.currentPlayers || 0}/
                                       {table.maxPlayers || 9}
                                     </p>
@@ -2503,19 +2503,21 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                   {/* Average Stack element hidden as requested */}
                                 </div>
 
-                                <div className="flex justify-between items-center">
-                                  <div className="flex items-center space-x-2">
+                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-2">
+                                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:space-x-2 min-w-0 flex-1">
                                     {isTableJoined(String(table.id)) ? (
                                       <>
-                                        <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
-                                          Joined
-                                        </Badge>
-                                        <span className="text-sm text-slate-400">
-                                          Position:{" "}
-                                          {getWaitListPosition(
-                                            String(table.id)
-                                          )}
-                                        </span>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs sm:text-sm whitespace-nowrap">
+                                            Joined
+                                          </Badge>
+                                          <span className="text-xs sm:text-sm text-slate-400 whitespace-nowrap">
+                                            Position:{" "}
+                                            {getWaitListPosition(
+                                              String(table.id)
+                                            )}
+                                          </span>
+                                        </div>
                                         {/* Show game status for waitlisted players */}
                                         {tableStatuses &&
                                           typeof tableStatuses === "object" &&
@@ -2529,7 +2531,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                                 >
                                               )[String(table.id)]
                                                 ?.gameStarted && (
-                                                <span className="text-xs text-amber-400">
+                                                <span className="text-[0.65rem] sm:text-xs text-amber-400">
                                                   ⚠️ Game started
                                                 </span>
                                               )}
@@ -2557,30 +2559,29 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                             }
                                             size="sm"
                                             variant="outline"
-                                            className="bg-gradient-to-r from-slate-600/30 to-slate-500/30 border border-slate-400/50 text-slate-300 hover:from-slate-500/40 hover:to-slate-400/40 hover:border-slate-300 hover:text-slate-200 transition-all duration-300 shadow-lg hover:shadow-slate-500/25 backdrop-blur-sm"
+                                            className="bg-gradient-to-r from-slate-600/30 to-slate-500/30 border border-slate-400/50 text-slate-300 hover:from-slate-500/40 hover:to-slate-400/40 hover:border-slate-300 hover:text-slate-200 transition-all duration-300 shadow-lg hover:shadow-slate-500/25 backdrop-blur-sm min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto"
                                           >
                                             {leaveWaitListMutation.isPending ? (
-                                              <div className="w-4 h-4 border-2 border-slate-300 border-t-transparent rounded-full animate-spin mr-2" />
+                                              <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-slate-300 border-t-transparent rounded-full animate-spin mr-2" />
                                             ) : null}
                                             Leave
                                           </Button>
                                         )}
                                       </>
                                     ) : gameStatus.isInActiveGame ? (
-                                      <div className="flex flex-col space-y-2">
+                                      <div className="flex flex-col space-y-2 w-full">
                                         <Button
                                           disabled={true}
                                           size="sm"
-                                          className="bg-slate-600 text-slate-400 cursor-not-allowed opacity-50"
+                                          className="bg-slate-600 text-slate-400 cursor-not-allowed opacity-50 min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full"
                                         >
-                                          <AlertTriangle className="w-4 h-4 mr-2" />
-                                          Cannot Join - Playing at Another Table
+                                          <AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                                          <span className="hidden sm:inline">Cannot Join - Playing at Another Table</span>
+                                          <span className="sm:hidden">Cannot Join</span>
                                         </Button>
-                                        <div className="text-xs text-amber-400 flex items-center">
-                                          <AlertTriangle className="w-3 h-3 mr-1" />
-                                          Cash out from{" "}
-                                          {gameStatus.activeGameInfo?.tableName}{" "}
-                                          first
+                                        <div className="text-[0.65rem] sm:text-xs text-amber-400 flex items-center">
+                                          <AlertTriangle className="w-3 h-3 mr-1 flex-shrink-0" />
+                                          <span className="break-words">Cash out from {gameStatus.activeGameInfo?.tableName} first</span>
                                         </div>
                                       </div>
                                     ) : (
@@ -2593,22 +2594,23 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                           gameStatus.isInActiveGame
                                         }
                                         size="sm"
-                                        className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 border border-emerald-500/30 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 border border-emerald-500/30 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto"
                                       >
                                         {joinWaitListMutation.isPending ? (
-                                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                                          <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
                                         ) : (
-                                          <Plus className="w-4 h-4 mr-2" />
+                                          <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
                                         )}
-                                        Join Wait-List
+                                        <span className="hidden sm:inline">Join Wait-List</span>
+                                        <span className="sm:hidden">Join</span>
                                       </Button>
                                     )}
                                   </div>
 
-                                  <div className="flex items-center space-x-2">
+                                  <div className="flex items-center justify-between sm:justify-end gap-2 sm:space-x-2 flex-shrink-0">
                                     <Badge
                                       variant="secondary"
-                                      className="bg-slate-600 text-slate-300"
+                                      className="bg-slate-600 text-slate-300 text-xs sm:text-sm whitespace-nowrap"
                                     >
                                       {table.isActive ? "Active" : "Inactive"}
                                     </Badge>
@@ -2621,9 +2623,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                       }}
                                       size="sm"
                                       variant="outline"
-                                      className="bg-gradient-to-r from-emerald-600/20 to-emerald-500/20 border border-emerald-500/50 text-emerald-300 hover:from-emerald-500/30 hover:to-emerald-400/30 hover:border-emerald-400 hover:text-emerald-200 transition-all duration-300 shadow-lg hover:shadow-emerald-500/25 backdrop-blur-sm"
+                                      className="bg-gradient-to-r from-emerald-600/20 to-emerald-500/20 border border-emerald-500/50 text-emerald-300 hover:from-emerald-500/30 hover:to-emerald-400/30 hover:border-emerald-400 hover:text-emerald-200 transition-all duration-300 shadow-lg hover:shadow-emerald-500/25 backdrop-blur-sm min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm px-3 sm:px-4"
                                     >
-                                      <Eye className="w-4 h-4 mr-1" />
+                                      <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                                       View
                                     </Button>
                                   </div>
@@ -2707,23 +2709,23 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-3 gap-4 mb-3">
+                              <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:gap-4 mb-3">
                                 <div className="text-center">
-                                  <Users className="w-4 h-4 text-slate-400 mx-auto mb-1" />
-                                  <p className="text-xs text-slate-400">
+                                  <Users className="w-3 h-3 sm:w-4 sm:h-4 text-slate-400 mx-auto mb-1" />
+                                  <p className="text-[0.65rem] sm:text-xs text-slate-400">
                                     Players
                                   </p>
-                                  <p className="text-sm font-semibold text-white">
+                                  <p className="text-xs sm:text-sm font-semibold text-white">
                                     {tournament.registered_players}/
                                     {tournament.max_players}
                                   </p>
                                 </div>
                                 <div className="text-center">
-                                  <Clock className="w-4 h-4 text-slate-400 mx-auto mb-1" />
-                                  <p className="text-xs text-slate-400">
+                                  <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-slate-400 mx-auto mb-1" />
+                                  <p className="text-[0.65rem] sm:text-xs text-slate-400">
                                     Start Time
                                   </p>
-                                  <p className="text-sm font-semibold text-emerald-500">
+                                  <p className="text-xs sm:text-sm font-semibold text-emerald-500">
                                     {new Date(
                                       tournament.start_time
                                     ).toLocaleTimeString([], {
@@ -2733,11 +2735,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                   </p>
                                 </div>
                                 <div className="text-center">
-                                  <Trophy className="w-4 h-4 text-yellow-500 mx-auto mb-1" />
-                                  <p className="text-xs text-slate-400">
+                                  <Trophy className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-500 mx-auto mb-1" />
+                                  <p className="text-[0.65rem] sm:text-xs text-slate-400">
                                     Prize Pool
                                   </p>
-                                  <p className="text-sm font-semibold text-yellow-500">
+                                  <p className="text-xs sm:text-sm font-semibold text-yellow-500">
                                     ₹{tournament.prize_pool?.toLocaleString()}
                                   </p>
                                 </div>
@@ -4113,10 +4115,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
         {/* Full Chat Dialog that opens from "Open Chat" button */}
         <Dialog open={chatDialogOpen} onOpenChange={setChatDialogOpen}>
-          <DialogContent className="sm:max-w-2xl max-h-[80vh] bg-slate-800 border-slate-700">
-            <DialogHeader>
-              <DialogTitle className="text-white flex items-center">
-                <MessageCircle className="w-5 h-5 mr-2 text-emerald-400" />
+          <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[85vh] sm:max-h-[80vh] bg-slate-800 border-slate-700 p-3 sm:p-6">
+            <DialogHeader className="pb-3 sm:pb-4">
+              <DialogTitle className="text-white flex items-center text-base sm:text-lg">
+                <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-emerald-400" />
                 Guest Relations Support
               </DialogTitle>
             </DialogHeader>
@@ -4142,7 +4144,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           open={tableViewDialogOpen}
           onOpenChange={setTableViewDialogOpen}
         >
-          <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full p-0 bg-slate-900 border-slate-700 overflow-hidden">
+          <DialogContent className="max-w-[95vw] sm:max-w-[90vw] lg:max-w-[85vw] max-h-[95vh] w-full h-full p-0 sm:p-2 bg-slate-900 border-slate-700 overflow-hidden">
             {selectedTableViewTableId && (
               <div className="h-full overflow-auto">
                 <TableView

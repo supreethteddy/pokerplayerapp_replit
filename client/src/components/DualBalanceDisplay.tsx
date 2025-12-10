@@ -71,20 +71,20 @@ export default function DualBalanceDisplay({ className = "" }: DualBalanceDispla
   };
 
   return (
-    <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 ${className}`}>
+    <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 ${className}`}>
       {/* Real Cash Balance */}
       <Card className="bg-gradient-to-br from-emerald-800 to-emerald-900 border-emerald-600">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-emerald-100 text-sm font-medium flex items-center">
-            <Wallet className="w-4 h-4 mr-2" />
+        <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
+          <CardTitle className="text-emerald-100 text-xs sm:text-sm font-medium flex items-center">
+            <Wallet className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
             Real Balance
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-white">
+        <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+          <div className="text-xl sm:text-2xl font-bold text-white">
             ₹{realBalance.toFixed(2)}
           </div>
-          <p className="text-emerald-200 text-xs mt-1">
+          <p className="text-emerald-200 text-[0.7rem] sm:text-xs mt-1">
             Cash deposits & buy-ins
           </p>
         </CardContent>
@@ -92,47 +92,48 @@ export default function DualBalanceDisplay({ className = "" }: DualBalanceDispla
 
       {/* Credit Balance */}
       <Card className="bg-gradient-to-br from-amber-800 to-amber-900 border-amber-600">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-amber-100 text-sm font-medium flex items-center">
-            <CreditCard className="w-4 h-4 mr-2" />
+        <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
+          <CardTitle className="text-amber-100 text-xs sm:text-sm font-medium flex items-center">
+            <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
             Credit Balance
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-white">
+        <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+          <div className="text-xl sm:text-2xl font-bold text-white">
             ₹{creditBalance.toFixed(2)}
           </div>
-          <p className="text-amber-200 text-xs mt-1">
+          <p className="text-amber-200 text-[0.7rem] sm:text-xs mt-1">
             Limit: ₹{creditLimit.toFixed(2)}
           </p>
           {user.creditApproved && creditBalance < creditLimit && (
             <Button
               size="sm"
               variant="outline"
-              className="mt-2 text-amber-200 border-amber-400 hover:bg-amber-700"
+              className="mt-2 text-amber-200 border-amber-400 hover:bg-amber-700 text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3"
               onClick={handleCreditRequest}
               disabled={creditRequestMutation.isPending}
             >
               <Plus className="w-3 h-3 mr-1" />
-              Request Credit
+              <span className="hidden sm:inline">Request Credit</span>
+              <span className="sm:hidden">Request</span>
             </Button>
           )}
         </CardContent>
       </Card>
 
       {/* Total Available Balance */}
-      <Card className="bg-gradient-to-br from-blue-800 to-blue-900 border-blue-600">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-blue-100 text-sm font-medium flex items-center">
-            <Plus className="w-4 h-4 mr-2" />
+      <Card className="bg-gradient-to-br from-blue-800 to-blue-900 border-blue-600 sm:col-span-2 lg:col-span-1">
+        <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
+          <CardTitle className="text-blue-100 text-xs sm:text-sm font-medium flex items-center">
+            <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
             Total Available
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-white">
+        <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+          <div className="text-xl sm:text-2xl font-bold text-white">
             ₹{totalBalance.toFixed(2)}
           </div>
-          <p className="text-blue-200 text-xs mt-1">
+          <p className="text-blue-200 text-[0.7rem] sm:text-xs mt-1">
             Real + Credit combined
           </p>
         </CardContent>

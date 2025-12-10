@@ -257,51 +257,51 @@ export default function DirectClubsAuth() {
   };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4">
+    <div className="min-h-screen bg-black flex items-center justify-center p-3 sm:p-4">
       <Card className="w-full max-w-md bg-gray-900 border-gray-700 relative">
         
 
         {/* Verification Success Message */}
         {isVerified && (
-          <div className="mb-6 p-4 bg-emerald-600/20 border border-emerald-500/30 rounded-lg text-center">
-            <div className="text-emerald-300 font-medium mb-1">✅ Email Verified!</div>
-            <div className="text-sm text-emerald-400">Your email has been successfully verified. You can now sign in.</div>
+          <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-emerald-600/20 border border-emerald-500/30 rounded-lg text-center mx-3 sm:mx-6 mt-3 sm:mt-6">
+            <div className="text-emerald-300 font-medium mb-1 text-sm sm:text-base">✅ Email Verified!</div>
+            <div className="text-xs sm:text-sm text-emerald-400">Your email has been successfully verified. You can now sign in.</div>
           </div>
         )}
 
         {/* Verification Error Message */}
         {verificationError && (
-          <div className="mb-6 p-4 bg-red-600/20 border border-red-500/30 rounded-lg text-center">
-            <div className="text-red-300 font-medium mb-1">❌ Verification Failed</div>
-            <div className="text-sm text-red-400">{decodeURIComponent(verificationError)}</div>
+          <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-red-600/20 border border-red-500/30 rounded-lg text-center mx-3 sm:mx-6 mt-3 sm:mt-6">
+            <div className="text-red-300 font-medium mb-1 text-sm sm:text-base">❌ Verification Failed</div>
+            <div className="text-xs sm:text-sm text-red-400">{decodeURIComponent(verificationError)}</div>
           </div>
         )}
 
-        <CardHeader className="text-center mb-8">
+        <CardHeader className="text-center mb-4 sm:mb-6 lg:mb-8 px-4 sm:px-6 pt-4 sm:pt-6">
           {/* Logo */}
-          <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-2xl">C</span>
+          <div className="flex justify-center mb-4 sm:mb-6">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-600 rounded-full flex items-center justify-center">
+              <span className="text-white font-bold text-xl sm:text-2xl">C</span>
             </div>
           </div>
-          <h1 className="text-white text-xl font-semibold mb-6">CLUBS POKER</h1>
+          <h1 className="text-white text-lg sm:text-xl font-semibold mb-4 sm:mb-6">CLUBS POKER</h1>
 
           {clubCodeVerified ? (
-            <div className="flex items-center justify-center space-x-2 text-emerald-400 text-sm mb-4">
-              <ShieldCheck className="w-4 h-4" />
-              <span>Access granted for club code: {clubCodeInput}</span>
+            <div className="flex items-center justify-center space-x-2 text-emerald-400 text-xs sm:text-sm mb-3 sm:mb-4 px-2">
+              <ShieldCheck className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+              <span className="break-words">Access granted for club code: {clubCodeInput}</span>
             </div>
           ) : (
-            <div className="text-gray-300 text-sm mb-4">
+            <div className="text-gray-300 text-xs sm:text-sm mb-3 sm:mb-4 px-2">
               Enter your club code to continue
             </div>
           )}
 
           {/* Tab Navigation */}
-          <div className="flex border-b border-gray-600 mb-6">
+          <div className="flex border-b border-gray-600 mb-4 sm:mb-6">
             <button
               onClick={() => setActiveTab("signin")}
-              className={`flex-1 py-3 px-4 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm font-medium border-b-2 transition-colors min-h-[44px] sm:min-h-[48px] flex items-center justify-center ${
                 activeTab === "signin"
                   ? "border-blue-500 text-blue-400"
                   : "border-transparent text-gray-400 hover:text-white"
@@ -311,7 +311,7 @@ export default function DirectClubsAuth() {
             </button>
             <button
               onClick={() => setActiveTab("signup")}
-              className={`flex-1 py-3 px-4 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm font-medium border-b-2 transition-colors min-h-[44px] sm:min-h-[48px] flex items-center justify-center ${
                 activeTab === "signup"
                   ? "border-blue-500 text-blue-400"
                   : "border-transparent text-gray-400 hover:text-white"
@@ -322,7 +322,7 @@ export default function DirectClubsAuth() {
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4 px-6">
+        <CardContent className="space-y-3 sm:space-y-4 px-4 sm:px-6 pb-4 sm:pb-6">
           {/* Club Code Gate */}
           {!clubCodeVerified && (
             <form
@@ -361,7 +361,7 @@ export default function DirectClubsAuth() {
                   setClubCodeInput(e.target.value.toUpperCase());
                   setClubCodeError("");
                 }}
-                className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12 uppercase"
+                className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 uppercase text-sm sm:text-base"
                 data-testid="input-clubcode"
                 required
               />
@@ -370,7 +370,7 @@ export default function DirectClubsAuth() {
               )}
               <Button
                 type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 h-12"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 sm:py-3 h-11 sm:h-12 text-sm sm:text-base min-h-[44px]"
               >
                 Verify Club Code
               </Button>
@@ -380,16 +380,16 @@ export default function DirectClubsAuth() {
           {clubCodeVerified && (
             <>
           {/* Email/Password Form */}
-          <form onSubmit={handleEmailAuth} className="space-y-4">
+          <form onSubmit={handleEmailAuth} className="space-y-3 sm:space-y-4">
             {activeTab === "signup" && (
               <>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Input
                     type="text"
                     placeholder="First Name"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
+                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 text-sm sm:text-base"
                     required
                   />
                   <Input
@@ -397,7 +397,7 @@ export default function DirectClubsAuth() {
                     placeholder="Last Name"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
+                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 text-sm sm:text-base"
                     required
                   />
                 </div>
@@ -410,7 +410,7 @@ export default function DirectClubsAuth() {
                       const value = e.target.value.replace(/\D/g, '');
                       setPhone(value);
                     }}
-                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
+                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 text-sm sm:text-base"
                     data-testid="input-phone"
                   />
                   {(phoneError || validatingPhone) && (
@@ -426,7 +426,7 @@ export default function DirectClubsAuth() {
                     placeholder="Nickname"
                     value={nickname}
                     onChange={(e) => setNickname(e.target.value)}
-                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
+                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 text-sm sm:text-base"
                     data-testid="input-nickname"
                     required
                   />
@@ -442,7 +442,7 @@ export default function DirectClubsAuth() {
                     placeholder="Referral / Referred By (optional)"
                     value={referralCode}
                     onChange={(e) => setReferralCode(e.target.value)}
-                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
+                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 text-sm sm:text-base"
                     data-testid="input-referral"
                   />
                 </div>
@@ -455,7 +455,7 @@ export default function DirectClubsAuth() {
                 placeholder="Enter Email Address"
                 value={activeTab === "signin" ? signinEmail : signupEmail}
                 onChange={(e) => activeTab === "signin" ? setSigninEmail(e.target.value) : setSignupEmail(e.target.value)}
-                className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12"
+                className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 text-sm sm:text-base"
                 data-testid={activeTab === "signin" ? "input-email-signin" : "input-email-signup"}
                 required
               />
@@ -472,14 +472,14 @@ export default function DirectClubsAuth() {
                 placeholder="Enter Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-12 pr-12"
+                className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 pr-11 sm:pr-12 text-sm sm:text-base"
                 required
               />
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white h-6 w-6 p-0"
+                className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white h-7 w-7 sm:h-8 sm:w-8 p-0"
                 onClick={() => setShowPassword(!showPassword)}
               >
                 {showPassword ? (
@@ -500,7 +500,7 @@ export default function DirectClubsAuth() {
                 />
                 <label
                   htmlFor="remember"
-                  className="text-sm text-gray-300 select-none cursor-pointer whitespace-nowrap"
+                  className="text-xs sm:text-sm text-gray-300 select-none cursor-pointer whitespace-nowrap"
                 >
                   Remember password
                 </label>
@@ -510,7 +510,7 @@ export default function DirectClubsAuth() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 h-12 mt-6"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 sm:py-3 h-11 sm:h-12 mt-4 sm:mt-6 text-sm sm:text-base min-h-[44px]"
             >
               {loading
                 ? "Please wait..."

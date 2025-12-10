@@ -28,6 +28,14 @@ export default defineConfig({
     // Use Vercel-compatible default output directory
     outDir: path.resolve(import.meta.dirname, "dist"),
     emptyOutDir: true,
+    // Optimize for mobile
+    minify: 'esbuild',
+    target: 'es2015',
+    rollupOptions: {
+      output: {
+        manualChunks: undefined
+      }
+    }
   },
   server: {
     // Always use a consistent port for the frontend-only app
@@ -39,4 +47,6 @@ export default defineConfig({
       deny: ["**/.*"],
     },
   },
+  // Base path for Capacitor
+  base: './',
 });
