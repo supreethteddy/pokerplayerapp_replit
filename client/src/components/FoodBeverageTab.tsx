@@ -117,7 +117,7 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
   // Place order mutation
   const placeOrderMutation = useMutation({
     mutationFn: async (orderData: any) => {
-      return apiRequest("POST", "/api/food-beverage/orders", orderData);
+      return apiRequest("POST", "/api/auth/player/fnb/order", orderData);
     },
     onSuccess: () => {
       setCart([]);
@@ -198,6 +198,17 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
 
   // Handle place order
   const handlePlaceOrder = () => {
+    // Check KYC status first
+    const kycStatus = (user as any)?.kycStatus;
+    if (kycStatus !== 'approved' && kycStatus !== 'verified') {
+      toast({
+        title: "KYC Verification Required",
+        description: "Please complete your KYC verification before placing food orders. Go to Profile tab to submit your documents.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     if (cart.length === 0) {
       toast({
         title: "Empty Cart",

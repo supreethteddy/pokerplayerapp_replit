@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { X, Bell, AlertTriangle, Info, CheckCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
 
 interface NotificationPopupProps {
   userId: number;
@@ -14,10 +15,13 @@ export default function NotificationPopup({ userId, onChatNotificationClick }: N
   const [visibleNotifications, setVisibleNotifications] = useState<any[]>([]);
   const [dismissTimers, setDismissTimers] = useState<Map<string, NodeJS.Timeout>>(new Map());
 
-  // Fetch notifications every 3 seconds to check for new ones
+  // Enable real-time notifications via Supabase Realtime (no polling needed!)
+  useRealtimeNotifications(userId);
+
+  // Fetch notifications (now updated automatically via Realtime)
   const { data: notifications } = useQuery({
     queryKey: ['/api/push-notifications', userId],
-    refetchInterval: 3000, // Check for new notifications every 3 seconds
+    // No refetchInterval - Supabase Realtime handles updates automatically!
     refetchOnWindowFocus: true,
     staleTime: 0 // Always fetch fresh data
   });

@@ -66,39 +66,8 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Frontend-only helpers: persist lightweight mock session and table info
-  type MockSession = {
-    plannedSessionMinutes: number;
-    smallBlind: number;
-    bigBlind: number;
-    players: string[];
-  };
-  const getMockKey = (id: string) => `mock_session_${id}`;
-  const loadMockSession = (id: string): MockSession => {
-    try {
-      const raw = localStorage.getItem(getMockKey(id));
-      if (raw) return JSON.parse(raw);
-    } catch {}
-    const mock: MockSession = {
-      plannedSessionMinutes: 120,
-      smallBlind: 50,
-      bigBlind: 100,
-      players: [
-        "You",
-        "Alex",
-        "Priya",
-        "John",
-        "Maya",
-        "Ken",
-        "Sara",
-      ],
-    };
-    localStorage.setItem(getMockKey(id), JSON.stringify(mock));
-    return mock;
-  };
-  const saveMockSession = (id: string, data: MockSession) => {
-    localStorage.setItem(getMockKey(id), JSON.stringify(data));
-  };
+  // NO mock sessions - all data should come from backend API
+  // Session data, players, blinds should be fetched from backend
 
   // Use centralized synchronization for immediate updates
   const { invalidateAllGameQueries } = useGameStatusSync();

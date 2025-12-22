@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useUltraFastAuth } from '@/hooks/useUltraFastAuth';
+import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -63,6 +64,13 @@ const getNotificationConfig = (messageType: string) => {
       iconColor: 'text-green-600',
       bgColor: 'bg-green-50 dark:bg-green-900/10'
     },
+    // KYC-specific notifications (approval / rejection / review)
+    kyc: {
+      icon: Info,
+      badgeColor: 'bg-emerald-500 text-white',
+      iconColor: 'text-emerald-600',
+      bgColor: 'bg-emerald-50 dark:bg-emerald-900/10'
+    },
     general: { 
       icon: Bell, 
       badgeColor: 'bg-emerald-500 text-white',
@@ -98,8 +106,20 @@ const formatTimeAgo = (dateString: string) => {
 export const NotificationHistoryTab: React.FC = () => {
   const { user } = useUltraFastAuth();
   const [selectedNotification, setSelectedNotification] = useState<NotificationHistoryItem | null>(null);
+  const [deletedIds, setDeletedIds] = useState<Set<number>>(() => {
+    try {
+      const raw = localStorage.getItem('deletedNotifications') || '[]';
+      const parsed = JSON.parse(raw) as (number | string)[];
+      return new Set(parsed.map((v) => Number(v)).filter((n) => !Number.isNaN(n)));
+    } catch {
+      return new Set();
+    }
+  });
 
-  // Fetch 24-hour notification history
+  // Enable real-time notifications via Supabase Realtime (no polling needed!)
+  useRealtimeNotifications(user?.id);
+
+  // Fetch 24-hour notification history (now updated automatically via Realtime)
   const { data: notifications = [], isLoading, refetch } = useQuery({
     queryKey: ['/api/push-notifications', user?.id],
     queryFn: async () => {
@@ -108,7 +128,7 @@ export const NotificationHistoryTab: React.FC = () => {
       return response.json();
     },
     enabled: !!user?.id,
-    refetchInterval: 30000, // Refresh every 30 seconds
+    // No refetchInterval - Supabase Realtime handles updates automatically!
   });
 
   const markAsRead = async (notificationId: number) => {
@@ -119,6 +139,18 @@ export const NotificationHistoryTab: React.FC = () => {
     } catch (error) {
       console.error('❌ [NOTIFICATION HISTORY] Failed to mark as read:', error);
     }
+  };
+
+  const deleteNotification = (notificationId: number) => {
+    setDeletedIds((prev) => {
+      const next = new Set(prev);
+      next.add(notificationId);
+      localStorage.setItem(
+        'deletedNotifications',
+        JSON.stringify(Array.from(next.values()))
+      );
+      return next;
+    });
   };
 
   
@@ -143,6 +175,20 @@ export const NotificationHistoryTab: React.FC = () => {
     );
   }
 
+  // Apply local delete + sort: unread first, then newest first
+  const visibleNotifications = notifications
+    .filter((notification: any) => !deletedIds.has(notification.id))
+    .sort((a: any, b: any) => {
+      const aUnread = a.deliveryStatus !== 'read';
+      const bUnread = b.deliveryStatus !== 'read';
+      if (aUnread !== bUnread) {
+        return aUnread ? -1 : 1; // unread first
+      }
+      const aTime = new Date(a.createdAt || a.sentAt || a.created_at).getTime();
+      const bTime = new Date(b.createdAt || b.sentAt || b.created_at).getTime();
+      return bTime - aTime; // newest first
+    });
+
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
@@ -151,11 +197,11 @@ export const NotificationHistoryTab: React.FC = () => {
           Notifications (24h)
         </h2>
         <Badge variant="secondary" className="bg-slate-700">
-          {notifications.length} total
+          {visibleNotifications.length} total
         </Badge>
       </div>
 
-      {notifications.length === 0 ? (
+      {visibleNotifications.length === 0 ? (
         <Card className="bg-slate-800 border-slate-700">
           <CardContent className="p-8 text-center">
             <Bell className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -165,8 +211,9 @@ export const NotificationHistoryTab: React.FC = () => {
       ) : (
         <ScrollArea className="h-[600px]">
           <div className="space-y-3">
-            {notifications.map((notification: any) => {
-              const config = getNotificationConfig(notification.targetAudience || 'general');
+            {visibleNotifications.map((notification: any) => {
+              const typeKey = notification.messageType || notification.message_type || notification.targetAudience || 'general';
+              const config = getNotificationConfig(typeKey);
               const IconComponent = config.icon;
               const isUnread = notification.deliveryStatus !== 'read';
 
@@ -194,11 +241,22 @@ export const NotificationHistoryTab: React.FC = () => {
                           </h4>
                           <div className="flex items-center gap-2">
                             <Badge className={`text-xs ${config.badgeColor}`}>
-                              {(notification.targetAudience || 'general').replace('_', ' ')}
+                              {String(typeKey || 'general').replace('_', ' ')}
                             </Badge>
                             {isUnread && (
                               <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                             )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 text-gray-400 hover:text-red-400 hover:bg-red-900/20"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteNotification(notification.id);
+                              }}
+                            >
+                              <RotateCcw className="w-3 h-3 rotate-90" />
+                            </Button>
                           </div>
                         </div>
                         

@@ -91,12 +91,9 @@ export default function DirectClubsAuth() {
 
   // Debounce validation calls
   useEffect(() => {
+    // Check if club code was previously verified
     const storedClubCode = sessionStorage.getItem("club_code_verified");
-    if (
-      storedClubCode &&
-      whitelabelConfig.clubCode &&
-      storedClubCode === whitelabelConfig.clubCode
-    ) {
+    if (storedClubCode) {
       setClubCodeVerified(true);
       setClubCodeInput(storedClubCode);
     }
@@ -154,7 +151,7 @@ export default function DirectClubsAuth() {
           throw new Error("Please enter your email");
         }
 
-        const result = await signIn(signinEmail, password);
+        const result = await signIn(signinEmail, password, clubCodeInput.trim().toUpperCase());
         const redirectToKYC = (result as any)?.redirectToKYC;
 
         if (result.success) {
@@ -201,7 +198,7 @@ export default function DirectClubsAuth() {
           lastName,
           nickname,
           phone,
-          clubCodeInput || whitelabelConfig.clubCode || "",
+          clubCodeInput.trim().toUpperCase(),
           referralCode
         );
 
@@ -286,73 +283,93 @@ export default function DirectClubsAuth() {
           </div>
           <h1 className="text-white text-lg sm:text-xl font-semibold mb-4 sm:mb-6">CLUBS POKER</h1>
 
-          {clubCodeVerified ? (
-            <div className="flex items-center justify-center space-x-2 text-emerald-400 text-xs sm:text-sm mb-3 sm:mb-4 px-2">
-              <ShieldCheck className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-              <span className="break-words">Access granted for club code: {clubCodeInput}</span>
-            </div>
-          ) : (
-            <div className="text-gray-300 text-xs sm:text-sm mb-3 sm:mb-4 px-2">
+          {!clubCodeVerified ? (
+            <div className="text-gray-300 text-xs sm:text-sm mb-3 sm:mb-4 px-2 text-center">
               Enter your club code to continue
             </div>
-          )}
+          ) : (
+            <>
+              <div className="flex items-center justify-center space-x-2 text-emerald-400 text-xs sm:text-sm mb-3 sm:mb-4 px-2">
+                <ShieldCheck className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                <span className="break-words">Access granted for club code: {clubCodeInput}</span>
+              </div>
 
-          {/* Tab Navigation */}
-          <div className="flex border-b border-gray-600 mb-4 sm:mb-6">
-            <button
-              onClick={() => setActiveTab("signin")}
-              className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm font-medium border-b-2 transition-colors min-h-[44px] sm:min-h-[48px] flex items-center justify-center ${
-                activeTab === "signin"
-                  ? "border-blue-500 text-blue-400"
-                  : "border-transparent text-gray-400 hover:text-white"
-              }`}
-            >
-              Log In
-            </button>
-            <button
-              onClick={() => setActiveTab("signup")}
-              className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm font-medium border-b-2 transition-colors min-h-[44px] sm:min-h-[48px] flex items-center justify-center ${
-                activeTab === "signup"
-                  ? "border-blue-500 text-blue-400"
-                  : "border-transparent text-gray-400 hover:text-white"
-              }`}
-            >
-              Sign Up
-            </button>
-          </div>
+              {/* Tab Navigation - Only show after club code is verified */}
+              <div className="flex border-b border-gray-600 mb-4 sm:mb-6">
+                <button
+                  onClick={() => setActiveTab("signin")}
+                  className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm font-medium border-b-2 transition-colors min-h-[44px] sm:min-h-[48px] flex items-center justify-center ${
+                    activeTab === "signin"
+                      ? "border-blue-500 text-blue-400"
+                      : "border-transparent text-gray-400 hover:text-white"
+                  }`}
+                >
+                  Log In
+                </button>
+                <button
+                  onClick={() => setActiveTab("signup")}
+                  className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm font-medium border-b-2 transition-colors min-h-[44px] sm:min-h-[48px] flex items-center justify-center ${
+                    activeTab === "signup"
+                      ? "border-blue-500 text-blue-400"
+                      : "border-transparent text-gray-400 hover:text-white"
+                  }`}
+                >
+                  Sign Up
+                </button>
+              </div>
+            </>
+          )}
         </CardHeader>
 
         <CardContent className="space-y-3 sm:space-y-4 px-4 sm:px-6 pb-4 sm:pb-6">
-          {/* Club Code Gate */}
+          {/* Club Code Gate - First Step */}
           {!clubCodeVerified && (
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                if (!whitelabelConfig.clubCode) {
-                  setClubCodeVerified(true);
+                const trimmedCode = clubCodeInput.trim().toUpperCase();
+                if (!trimmedCode) {
+                  setClubCodeError("Please enter a club code.");
                   return;
                 }
-                if (
-                  clubCodeInput.trim().toUpperCase() ===
-                  whitelabelConfig.clubCode.toUpperCase()
-                ) {
-                  setClubCodeVerified(true);
-                  setClubCodeError("");
-                  sessionStorage.setItem(
-                    "club_code_verified",
-                    whitelabelConfig.clubCode
-                  );
-                } else {
-                  setClubCodeError("Invalid club code. Please try again.");
+                
+                setLoading(true);
+                setClubCodeError("");
+                
+                try {
+                  // Validate club code with backend API
+                  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3333/api';
+                  const response = await fetch(`${API_BASE_URL}/clubs/verify-code`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ code: trimmedCode }),
+                  });
+
+                  const result = await response.json();
+
+                  if (result.valid === true) {
+                    // Club code is valid - grant access
+                    setClubCodeVerified(true);
+                    setClubCodeError("");
+                    sessionStorage.setItem("club_code_verified", trimmedCode);
+                    sessionStorage.setItem("club_id", result.clubId);
+                    sessionStorage.setItem("club_name", result.clubName || "");
+                  } else {
+                    // Invalid club code
+                    setClubCodeError(result.message || "Invalid club code. Please try again.");
+                    setClubCodeInput("");
+                  }
+                } catch (error) {
+                  console.error("Club code verification error:", error);
+                  setClubCodeError("Unable to verify club code. Please check your club code.");
+                } finally {
+                  setLoading(false);
                 }
               }}
               className="space-y-3"
             >
-              {whitelabelConfig.clubCode && (
-                <p className="text-sm text-gray-400 text-center">
-                  Demo club code: <span className="font-semibold text-white">{whitelabelConfig.clubCode}</span>
-                </p>
-              )}
               <Input
                 type="text"
                 placeholder="Enter Club Code"
@@ -370,16 +387,17 @@ export default function DirectClubsAuth() {
               )}
               <Button
                 type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 sm:py-3 h-11 sm:h-12 text-sm sm:text-base min-h-[44px]"
+                disabled={loading}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 sm:py-3 h-11 sm:h-12 text-sm sm:text-base min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Verify Club Code
+                {loading ? "Verifying..." : "Verify Club Code"}
               </Button>
             </form>
           )}
 
+          {/* Email/Password Form - Second Step */}
           {clubCodeVerified && (
             <>
-          {/* Email/Password Form */}
           <form onSubmit={handleEmailAuth} className="space-y-3 sm:space-y-4">
             {activeTab === "signup" && (
               <>

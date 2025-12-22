@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Gift } from 'lucide-react';
+import { useRealtimeOffers } from '@/hooks/useRealtimeOffers';
 
 interface CarouselItem {
   id: string;
@@ -27,11 +28,14 @@ interface OfferCarouselProps {
 export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Fetch staff offers using exact same query as offers tab - no mock data
+  // Enable real-time offers via Supabase Realtime
+  useRealtimeOffers();
+
+  // Fetch staff offers (now updated automatically via Realtime)
   const { data: offers, isLoading, error } = useQuery({
     queryKey: ['/api/staff-offers'],
-    refetchInterval: 5000, // Same as offers tab
-    retry: 1, // Same as offers tab
+    // No refetchInterval - Supabase Realtime handles updates automatically!
+    retry: 1,
   });
 
   // Use only real staff offers from database - identical to offers tab logic

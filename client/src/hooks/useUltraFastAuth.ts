@@ -1,24 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { whitelabelConfig } from '@/lib/whitelabeling';
+import { API_BASE_URL } from '@/lib/api/config';
 
 export function useUltraFastAuth() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const { toast } = useToast();
-
-  // Local mock user storage helpers (frontend-only)
-  const getMockUsers = (): any[] => {
-    try {
-      return JSON.parse(localStorage.getItem('mock_users') || '[]');
-    } catch {
-      return [];
-    }
-  };
-  const saveMockUsers = (users: any[]) => {
-    localStorage.setItem('mock_users', JSON.stringify(users));
-  };
 
   // Initialize authentication state on mount
   useEffect(() => {
@@ -57,37 +45,50 @@ export function useUltraFastAuth() {
     sessionStorage.removeItem('kyc_flow_active');
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string, clubCode?: string) => {
     setLoading(true);
     try {
-      console.log('🔑 [ULTRA-FAST AUTH] Frontend-only sign in:', email);
+      console.log('🔑 [AUTH] Backend sign in:', email, 'club:', clubCode);
 
-      const users = getMockUsers();
-      const existing = users.find((u) => u.email === email && u.password === password);
-
-      if (!existing) {
-        throw new Error('Invalid email or password');
+      if (!clubCode) {
+        throw new Error('Club code is required');
       }
 
-      if (whitelabelConfig.clubCode && existing.clubCode && existing.clubCode !== whitelabelConfig.clubCode) {
-        throw new Error('This account belongs to a different club.');
+      // Call backend login API
+      const response = await fetch(`${API_BASE_URL}/auth/player/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          clubCode: clubCode.toUpperCase(),
+          email: email.toLowerCase().trim(),
+          password: password,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Invalid email or password');
       }
 
       const userData = {
-        id: existing.id,
-        email: existing.email,
-        firstName: existing.firstName || '',
-        lastName: existing.lastName || '',
-        phone: existing.phone || '',
-        nickname: existing.nickname || '',
-        referredBy: existing.referredBy || '',
-        clubCode: existing.clubCode || '',
-        kycStatus: existing.kycStatus || 'verified',
-        balance: existing.balance || '0.00',
-        currentCredit: existing.currentCredit || '0.00',
-        creditLimit: existing.creditLimit || '0.00',
-        creditApproved: !!existing.creditApproved,
-        emailVerified: !!existing.emailVerified,
+        id: result.player?.id || result.playerId,
+        email: result.player?.email || email,
+        firstName: result.player?.firstName || '',
+        lastName: result.player?.lastName || '',
+        phone: result.player?.phoneNumber || result.player?.phone || '',
+        nickname: result.player?.nickname || '',
+        referredBy: result.player?.referredBy || '',
+        clubCode: clubCode.toUpperCase(),
+        clubId: result.player?.club?.id || result.player?.clubId,
+        kycStatus: result.player?.kycStatus || 'pending',
+        balance: result.player?.balance || '0.00',
+        currentCredit: result.player?.currentCredit || '0.00',
+        creditLimit: result.player?.creditLimit || '0.00',
+        creditApproved: !!result.player?.creditApproved,
+        emailVerified: !!result.player?.emailVerified,
       };
 
       setUser(userData);
@@ -96,15 +97,22 @@ export function useUltraFastAuth() {
       // Store session
       sessionStorage.setItem('authenticated_user', JSON.stringify(userData));
       sessionStorage.setItem('just_signed_in', 'true');
+      
+      if (result.token) {
+        sessionStorage.setItem('auth_token', result.token);
+      }
 
-      // Directly proceed to dashboard in frontend-only mode
-      sessionStorage.removeItem('kyc_redirect');
-      sessionStorage.removeItem('kyc_flow_active');
+      // Check KYC status
+      if (userData.kycStatus !== 'approved' && userData.kycStatus !== 'verified') {
+        sessionStorage.removeItem('kyc_redirect');
+        sessionStorage.removeItem('kyc_flow_active');
+      }
+
       setTimeout(() => {
         window.location.reload();
       }, 300);
 
-      console.log('✅ [ULTRA-FAST AUTH] Sign in successful:', userData.email);
+      console.log('✅ [AUTH] Sign in successful:', userData.email);
 
       toast({
         title: "Welcome back!",
@@ -114,7 +122,7 @@ export function useUltraFastAuth() {
       return { success: true, user: userData };
 
     } catch (error: any) {
-      console.error('❌ [ULTRA-FAST AUTH] Sign in error:', error);
+      console.error('❌ [AUTH] Sign in error:', error);
 
       toast({
         title: "Sign In Failed",
@@ -138,60 +146,111 @@ export function useUltraFastAuth() {
     clubCode?: string,
     referredBy?: string
   ) => {
+    setLoading(true);
     try {
-      console.log('🆕 [ULTRA-FAST AUTH] Frontend-only sign up:', email);
+      console.log('🆕 [AUTH] Backend sign up:', email, 'club:', clubCode);
 
-      const users = getMockUsers();
-      const exists = users.some((u) => u.email === email);
-      if (exists) {
-        throw new Error('This email is already registered. Please sign in instead.');
+      if (!clubCode) {
+        throw new Error('Club code is required');
+      }
+
+      // Call backend signup API
+      const response = await fetch(`${API_BASE_URL}/auth/player/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          clubCode: clubCode.toUpperCase(),
+          email: email.toLowerCase().trim(),
+          password: password,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          nickname: nickname.trim(),
+          phoneNumber: phone.replace(/\D/g, ''),
+          referralCode: referredBy || undefined,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Unable to create account');
       }
 
       const newUser = {
-        id: Date.now().toString(),
-        email,
-        password,
-        firstName,
-        lastName,
-        nickname,
-        phone,
-        clubCode: clubCode || whitelabelConfig.clubCode || '',
+        id: result.player?.id || result.playerId,
+        email: result.player?.email || email,
+        firstName: result.player?.firstName || firstName,
+        lastName: result.player?.lastName || lastName,
+        phone: result.player?.phoneNumber || phone,
+        nickname: result.player?.nickname || nickname,
         referredBy: referredBy || '',
-        kycStatus: 'verified',
+        clubCode: clubCode.toUpperCase(),
+        clubId: result.player?.club?.id || result.player?.clubId,
+        kycStatus: result.player?.kycStatus || 'pending',
         balance: '0.00',
         currentCredit: '0.00',
         creditLimit: '0.00',
         creditApproved: false,
-        emailVerified: true,
+        emailVerified: false,
       };
-      users.push(newUser);
-      saveMockUsers(users);
 
       toast({
         title: 'Account Created',
-        description: `Welcome ${nickname || firstName}! You can sign in now.`,
+        description: `Welcome ${nickname || firstName}! Please check your email to verify your account.`,
       });
 
-      // Auto-login for convenience
-      setUser({ ...newUser, password: undefined });
+      // Auto-login after signup
+      setUser(newUser);
       setAuthChecked(true);
-      sessionStorage.setItem('authenticated_user', JSON.stringify({ ...newUser, password: undefined }));
+      sessionStorage.setItem('authenticated_user', JSON.stringify(newUser));
       sessionStorage.setItem('just_signed_in', 'true');
-      setTimeout(() => window.location.reload(), 300);
+      
+      if (result.token) {
+        sessionStorage.setItem('auth_token', result.token);
+      }
+
+      // Redirect to KYC if required
+      if (newUser.kycStatus === 'pending') {
+        sessionStorage.setItem('kyc_flow_active', 'true');
+        sessionStorage.setItem('kyc_redirect', JSON.stringify(newUser));
+        setTimeout(() => {
+          window.location.href = '/kyc';
+        }, 1000);
+      } else {
+        setTimeout(() => window.location.reload(), 300);
+      }
 
       return { success: true, user: newUser };
     } catch (error: any) {
-      console.error('❌ [ULTRA-FAST AUTH] Sign up error:', error);
+      console.error('❌ [AUTH] Sign up error:', error);
       toast({ title: 'Sign Up Failed', description: error.message || 'Unable to create account', variant: 'destructive' });
       return { success: false, error: error.message };
+    } finally {
+      setLoading(false);
     }
   };
 
   const signOut = async () => {
     try {
-      console.log('🚪 [ULTRA-FAST AUTH] Signing out:', user?.email);
+      console.log('🚪 [AUTH] Signing out:', user?.email);
 
-      // Frontend-only: no server logout
+      // Call backend logout if token exists
+      const token = sessionStorage.getItem('auth_token');
+      if (token) {
+        try {
+          await fetch(`${API_BASE_URL}/auth/logout`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+        } catch (e) {
+          console.log('Logout API call failed, continuing with local logout');
+        }
+      }
 
       // Show success toast BEFORE clearing state
       toast({
@@ -199,23 +258,23 @@ export function useUltraFastAuth() {
         description: "You have been signed out successfully",
       });
 
-      // Clear all authentication state and redirect
+      // Clear all authentication state
+      sessionStorage.removeItem('auth_token');
       await handleSignOut();
 
     } catch (error: any) {
-      console.error('❌ [ULTRA-FAST AUTH] Sign out error:', error);
+      console.error('❌ [AUTH] Sign out error:', error);
 
       // Even if there's an error, still clear the user state
       toast({
         title: "Signed Out",
-        description: "You have been signed out successfully", // Don't show error to user
+        description: "You have been signed out successfully",
       });
 
+      sessionStorage.removeItem('auth_token');
       await handleSignOut();
     }
   };
-
-  // Removed server-side logging and emails in frontend-only mode
 
   return {
     user,

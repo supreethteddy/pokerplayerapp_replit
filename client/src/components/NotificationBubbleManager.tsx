@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useUltraFastAuth } from '@/hooks/useUltraFastAuth';
+import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { X, Bell, AlertCircle, Info, Zap, LogIn, Clock, Trophy, CreditCard } from 'lucide-react';
@@ -176,6 +177,9 @@ export const NotificationBubbleManager: React.FC = () => {
   const { user } = useUltraFastAuth();
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [permission, setPermission] = useState<NotificationPermission>('default');
+
+  // Enable real-time notifications via Supabase Realtime (no polling needed!)
+  useRealtimeNotifications(user?.id);
 
   // Request notification permission
   useEffect(() => {

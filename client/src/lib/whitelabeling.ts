@@ -36,7 +36,7 @@ export const whitelabelConfig: WhitelabelConfig = {
   secondaryColor: "#2d2d2d", 
   accentColor: "#3b82f6",
   logoUrl: "https://png.pngtree.com/png-clipart/20190611/original/pngtree-wolf-logo-png-image_2306634.jpg", // Placeholder logo - replace with your custom logo URL
-  clubCode: "CLUB123", // Unique club code for this white-labeled portal
+  clubCode: undefined, // Club code should be provided by user during login/signup
   
   // Company Information
   companyName: "Poker Club",

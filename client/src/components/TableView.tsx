@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUltraFastAuth } from "@/hooks/useUltraFastAuth";
 import { usePlayerGameStatus } from "@/hooks/usePlayerGameStatus";
 import { PlaytimeTracker } from "./PlaytimeTracker";
+import { useAvailableTables, useJoinWaitlist, useWaitlistStatus } from "@/hooks/usePlayerAPI";
 
 interface TableViewProps {
   tableId?: string;
@@ -24,64 +25,61 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose }:
   const [selectedSeat, setSelectedSeat] = useState<number | null>(null);
   const [showJoinDialog, setShowJoinDialog] = useState(false);
   const { toast } = useToast();
-
-  // DUMMY DATA: Mock table data - IDs match PlayerDashboard static tables
-  const DUMMY_TABLES = [
-    {
-      id: "1",
-      name: "Main Table",
-      gameType: "Texas Hold'em",
-      stakes: "₹1000.00/10000.00",
-      maxPlayers: 6,
-      status: "active"
-    },
-    {
-      id: "2",
-      name: "VIP Table",
-      gameType: "Texas Hold'em",
-      stakes: "₹5000.00/50000.00",
-      maxPlayers: 9,
-      status: "active"
-    },
-    {
-      id: "3",
-      name: "High Stakes",
-      gameType: "Texas Hold'em",
-      stakes: "₹10000.00/100000.00",
-      maxPlayers: 6,
-      status: "active"
-    }
-  ];
-
-  const tables = DUMMY_TABLES;
-  const tablesArray = Array.isArray(tables) ? tables : [];
-
   const { user } = useUltraFastAuth();
   const gameStatus = usePlayerGameStatus();
+
+  // Fetch tables from backend API
+  const { data: tablesData, isLoading: tablesLoading } = useAvailableTables();
+  const tables = tablesData?.tables || [];
+  const tablesArray = Array.isArray(tables) ? tables : [];
+
+  // Fetch waitlist status from backend API
+  const { data: waitlistData } = useWaitlistStatus();
+  const userWaitlist = waitlistData?.entries || [];
+  const waitlistArray = Array.isArray(userWaitlist) ? userWaitlist : [];
+
+  // Join waitlist mutation
+  const joinWaitlistMutation = useJoinWaitlist();
 
   // Find table by ID (normalize both to strings for comparison)
   const currentTable = tablesArray.find((table: any) => String(table.id) === String(tableId));
 
-  // DUMMY DATA: Empty waitlist and seated players
-  const userWaitlist: any[] = [];
-  const waitlistArray = Array.isArray(userWaitlist) ? userWaitlist : [];
-  const seatedPlayers: any[] = [];
+  // Fetch seated players from backend - will be populated when table APIs are enhanced
+  const seatedPlayers: any[] = [];  // TODO: Add API endpoint for seated players per table
   const seatedPlayersArray = Array.isArray(seatedPlayers) ? seatedPlayers : [];
-  const potData = { pot: "50000" };
+  const potData = { pot: "0" };  // TODO: Add real-time pot data from table API
 
   const isOnWaitlist = waitlistArray.some((req: any) => req.tableId === tableId);
   const waitlistEntry = waitlistArray.find((req: any) => req.tableId === tableId);
   const isUserSeated = gameStatus.isInActiveGame && gameStatus.activeGameInfo?.tableId === tableId;
   const userSeatInfo = gameStatus.activeGameInfo || gameStatus.seatedSessionFallback;
 
-  // DUMMY: Mock mutation
+  // Join waitlist with backend API
   const handleJoinWaitlist = (seatNumber: number) => {
-    toast({
-      title: "Joined Waitlist!",
-      description: `You've been added to the waitlist successfully (dummy mode)`,
-    });
-    setSelectedSeat(null);
-    setShowJoinDialog(false);
+    joinWaitlistMutation.mutate(
+      { 
+        partySize: 1,
+        tableType: currentTable?.gameType || 'Cash Game',
+        preferredSeat: seatNumber
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Joined Waitlist!",
+            description: `You've been added to the waitlist for seat ${seatNumber}`,
+          });
+          setSelectedSeat(null);
+          setShowJoinDialog(false);
+        },
+        onError: (error: any) => {
+          toast({
+            title: "Failed to Join Waitlist",
+            description: error.message || "Please try again",
+            variant: "destructive",
+          });
+        }
+      }
+    );
   };
 
   if (!currentTable) {
