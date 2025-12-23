@@ -11,6 +11,7 @@ import AuthWrapper from "./components/AuthWrapper";
 import SafeAuthWrapper from "./components/AuthErrorBoundary";
 import PlayerDashboard from "./components/PlayerDashboard";
 import KYCVerification from "./components/KYCVerification";
+import TableView from "./components/TableView";
 // Removed non-player routes/components
 import LoadingScreen from "./components/LoadingScreen";
 import NotificationBubbleManager from "./components/NotificationBubbleManager";
@@ -147,6 +148,17 @@ function AppContent() {
         <Route path="/dashboard">
           {user ? (
             <PlayerDashboard key={`dashboard-${user.id}`} user={user} />
+          ) : (
+            <Redirect to="/" />
+          )}
+        </Route>
+        <Route path="/table/:id">
+          {(params) => user ? (
+            <TableView 
+              tableId={params.id} 
+              onNavigate={(path) => window.location.href = path}
+              onClose={() => window.history.back()}
+            />
           ) : (
             <Redirect to="/" />
           )}

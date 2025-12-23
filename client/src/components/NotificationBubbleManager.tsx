@@ -220,6 +220,9 @@ export const NotificationBubbleManager: React.FC = () => {
     if (!user?.id) return;
 
     const fetchNotifications = async () => {
+      // DISABLED: Push notifications endpoint not implemented yet
+      return;
+      
       try {
         const response = await fetch(`${API_BASE_URL}/push-notifications/${user.id}`, {
           method: 'GET',

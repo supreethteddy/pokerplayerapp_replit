@@ -25,7 +25,7 @@ export function useRealtimeOffers() {
           console.log('🎁 [REALTIME] Offer change detected:', payload.eventType, payload.new || payload.old);
           
           // Invalidate offers query to refetch
-          queryClient.invalidateQueries({ queryKey: ['/api/staff-offers'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/player-offers/active'] });
         }
       )
       .on(
@@ -38,7 +38,7 @@ export function useRealtimeOffers() {
         },
         (payload) => {
           console.log('🎁 [REALTIME] Offer banner change detected:', payload.eventType);
-          queryClient.invalidateQueries({ queryKey: ['/api/staff-offers'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/player-offers/active'] });
         }
       )
       .subscribe((status) => {
@@ -52,10 +52,10 @@ export function useRealtimeOffers() {
     // Initial fetch
     const fetchOffers = async () => {
       try {
-        const response = await fetch('/api/staff-offers');
+        const response = await fetch('/api/player-offers/active');
         if (response.ok) {
           const data = await response.json();
-          queryClient.setQueryData(['/api/staff-offers'], data);
+          queryClient.setQueryData(['/api/player-offers/active'], data);
         }
       } catch (error) {
         // Silently skip if endpoint not available

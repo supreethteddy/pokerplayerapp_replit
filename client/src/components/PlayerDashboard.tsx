@@ -2,8 +2,9 @@ import { useUltraFastAuth } from "@/hooks/useUltraFastAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useRouter } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAvailableTables, useWaitlistStatus } from "@/hooks/usePlayerAPI";
+import { useAvailableTables, useWaitlistStatus, useCancelWaitlist } from "@/hooks/usePlayerAPI";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
+import { useRealtimeWaitlist } from "@/hooks/useRealtimeWaitlist";
 import {
   Dialog,
   DialogContent,
@@ -86,7 +87,7 @@ const ScrollableOffersDisplay = () => {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["/api/staff-offers"],
+    queryKey: ["/api/player-offers/active"],
     refetchInterval: 5000, // Refresh every 5 seconds
     retry: 1, // Only retry once to avoid spamming
   });
@@ -503,6 +504,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // Fetch waitlist status
   const { data: waitlistData } = useWaitlistStatus();
   
+  // Waitlist mutations
+  const cancelWaitlistMutation = useCancelWaitlist();
+  
+  // Enable real-time waitlist updates via Supabase
+  useRealtimeWaitlist(user?.id);
+  
   // Map backend table data to dashboard format
   const tables = (tablesData?.tables || []).map((table: any) => ({
     id: table.id,
@@ -816,6 +823,29 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   };
 
   const handleJoinWaitList = (tableId: string) => {
+    // Check if player is already on a waitlist
+    if (waitlistData?.onWaitlist && waitlistData?.entry) {
+      // Show warning that previous waitlist will be removed
+      toast({
+        title: "⚠️ Already on Waitlist",
+        description: `You're currently on the waitlist for ${waitlistData.entry.tableType}. Joining a new table will remove you from the current waitlist. Continue?`,
+        action: (
+          <Button
+            size="sm"
+            onClick={() => {
+              console.log("🎯 [HANDLE JOIN] Player confirmed - removing from old waitlist and joining new table:", tableId);
+              // Navigate to table view - the backend will handle removing from old waitlist
+              setLocation(`/table/${tableId}`);
+            }}
+            className="bg-amber-600 hover:bg-amber-700"
+          >
+            Continue
+          </Button>
+        ),
+      });
+      return;
+    }
+    
     console.log(
       "🎯 [HANDLE JOIN] Navigating to table view for seat selection:",
       tableId
@@ -868,9 +898,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
     setSendingFeedback(true);
     try {
-      const response = await apiRequest("POST", "/api/feedback", {
-        playerId: user.id,
+      const response = await apiRequest("POST", "/api/auth/player/feedback", {
         message: feedbackMessage.trim(),
+        rating: null,
       });
 
       const result = await response.json();
@@ -1922,9 +1952,19 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     return null;
   }
 
-  // KYC Pending - Show awaiting approval screen
-  console.log('🔍 [KYC CHECK] User KYC Status:', user?.kycStatus, 'Type:', typeof user?.kycStatus);
-  console.log('🔍 [KYC CHECK] Full user object:', user);
+  // KYC Status Check - Only log once if approved to avoid spam
+  const [kycStatusLogged, setKycStatusLogged] = useState(false);
+  
+  useEffect(() => {
+    const isApproved = user?.kycStatus === 'approved' || user?.kycStatus === 'verified';
+    if (!kycStatusLogged) {
+      console.log('🔍 [KYC CHECK] User KYC Status:', user?.kycStatus, 'Type:', typeof user?.kycStatus);
+      if (isApproved) {
+        console.log('✅ [KYC CHECK] KYC Approved - caching status');
+        setKycStatusLogged(true); // Cache approved status, don't check again
+      }
+    }
+  }, [user?.kycStatus, kycStatusLogged]);
   
   // Show pending screen if KYC is explicitly 'pending' or undefined (not yet approved)
   const isKycPending = !user?.kycStatus || user?.kycStatus === 'pending';
@@ -2470,6 +2510,48 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
+                      {/* Global Waitlist Status - Shows table TYPE (not specific table) */}
+                      {waitlistData?.onWaitlist && waitlistData?.entry && (
+                        <div className="mb-4 bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-5 h-5 text-amber-500" />
+                              <span className="font-semibold text-white">You're on the Waitlist!</span>
+                            </div>
+                            <Badge className="bg-amber-500 text-black">Position #{waitlistData.position}</Badge>
+                          </div>
+                          <div className="text-sm text-slate-300 space-y-1">
+                            <p><strong>Table Type:</strong> {waitlistData.entry.tableType}</p>
+                            <p><strong>Party Size:</strong> {waitlistData.entry.partySize}</p>
+                            <p><strong>Status:</strong> <span className="text-amber-400">{waitlistData.entry.status}</span></p>
+                            <p className="text-xs text-slate-400 mt-2">Joined: {new Date(waitlistData.entry.createdAt).toLocaleString()}</p>
+                            {waitlistData.totalInQueue > 1 && (
+                              <p className="text-xs text-slate-400">{waitlistData.totalInQueue} players in queue</p>
+                            )}
+                          </div>
+                          <Button
+                            onClick={() => {
+                              if (waitlistData?.entry?.id) {
+                                cancelWaitlistMutation.mutate(waitlistData.entry.id);
+                              }
+                            }}
+                            disabled={cancelWaitlistMutation.isPending}
+                            size="sm"
+                            variant="outline"
+                            className="mt-3 w-full bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
+                          >
+                            {cancelWaitlistMutation.isPending ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin mr-2" />
+                                Leaving...
+                              </>
+                            ) : (
+                              'Leave Waitlist'
+                            )}
+                          </Button>
+                        </div>
+                      )}
+                      
                       {tablesLoading ? (
                         <div className="space-y-4">
                           {[1, 2, 3].map((i) => (
@@ -2603,6 +2685,41 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                           </Button>
                                         )}
                                       </>
+                                    ) : waitlistData?.onWaitlist ? (
+                                      <div className="flex flex-col space-y-2 w-full">
+                                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 sm:p-3">
+                                          <div className="flex items-center justify-between mb-1">
+                                            <span className="text-xs sm:text-sm font-semibold text-amber-400">On Waitlist</span>
+                                            <Badge className="bg-amber-500 text-black text-xs">#{waitlistData.position}</Badge>
+                                          </div>
+                                          <p className="text-[0.65rem] sm:text-xs text-slate-300">
+                                            {waitlistData.entry?.tableType}
+                                          </p>
+                                        </div>
+                                        <Button
+                                          onClick={() => {
+                                            if (waitlistData?.entry?.id) {
+                                              cancelWaitlistMutation.mutate(waitlistData.entry.id);
+                                            }
+                                          }}
+                                          disabled={cancelWaitlistMutation.isPending}
+                                          size="sm"
+                                          variant="outline"
+                                          className="bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full"
+                                        >
+                                          {cancelWaitlistMutation.isPending ? (
+                                            <>
+                                              <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin mr-2" />
+                                              Leaving...
+                                            </>
+                                          ) : (
+                                            <>
+                                              <X className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                                              Leave Waitlist
+                                            </>
+                                          )}
+                                        </Button>
+                                      </div>
                                     ) : gameStatus.isInActiveGame ? (
                                       <div className="flex flex-col space-y-2 w-full">
                                         <Button
@@ -2889,44 +3006,16 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         <h3 className="text-lg font-semibold text-white mb-2">
                           No Active Session
                         </h3>
-                        <p className="text-slate-400">
-                          Please join a table in order to view the playtime
-                          tracker
+                        <p className="text-slate-400 mb-4">
+                          Join a table from the Tables tab to start tracking your playtime
                         </p>
-                        <div className="mt-4">
-                          <Button
-                            variant="outline"
-                            className="border-emerald-600 text-emerald-300 hover:bg-emerald-700"
-                            onClick={() => {
-                              try {
-                                const demo = {
-                                  tableId: "demo-table",
-                                  tableName: "Main Table",
-                                  gameType: "Texas Hold'em",
-                                  seatNumber: 3,
-                                  sessionStartTime: new Date(
-                                    Date.now() - 5 * 60 * 1000
-                                  ).toISOString(),
-                                };
-                                if (user?.id) {
-                                  localStorage.setItem(
-                                    `mock_active_session_${user.id}`,
-                                    JSON.stringify(demo)
-                                  );
-                                  // Simple refresh to pick up the change
-                                  window.location.reload();
-                                }
-                              } catch (e) {
-                                console.error(
-                                  "Failed to start demo session",
-                                  e
-                                );
-                              }
-                            }}
-                          >
-                            Start Demo Session
-                          </Button>
-                        </div>
+                        <Button
+                          variant="outline"
+                          className="border-emerald-600 text-emerald-300 hover:bg-emerald-700"
+                          onClick={() => setActiveTab("game")}
+                        >
+                          Go to Tables
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>

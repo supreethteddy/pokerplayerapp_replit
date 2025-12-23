@@ -81,7 +81,7 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
     
     // Listen for menu updates
     channel.bind('menu-updated', () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/food-beverage/items'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/player/fnb/menu'] });
     });
     
     // Listen for ads updates
@@ -97,9 +97,9 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
   }, [queryClient]);
 
   // Fetch menu items with real-time updates
-  const { data: menuItems, isLoading: itemsLoading } = useQuery<{ success: boolean; items: FoodBeverageItem[] }>({
-    queryKey: ['/api/food-beverage/items'],
-    refetchInterval: 1000, // NANOSECOND SPEED: 1 second refresh
+  const { data: menuItems, isLoading: itemsLoading } = useQuery<{ success?: boolean; menuItems?: FoodBeverageItem[]; items?: FoodBeverageItem[] }>({
+    queryKey: ['/api/auth/player/fnb/menu'],
+    refetchInterval: 5000, // 5 second refresh
     refetchOnWindowFocus: true,
     staleTime: 0,
     retry: 3,
@@ -259,7 +259,7 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
     );
   };
 
-  const items = menuItems?.items || [];
+  const items = menuItems?.menuItems || menuItems?.items || [];
   const ads = adsData?.ads || [];
   const totalCartItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 

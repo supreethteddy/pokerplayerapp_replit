@@ -7,7 +7,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useUltraFastAuth } from "@/hooks/useUltraFastAuth";
 import { usePlayerGameStatus } from "@/hooks/usePlayerGameStatus";
 import { PlaytimeTracker } from "./PlaytimeTracker";
-import { useAvailableTables, useJoinWaitlist, useWaitlistStatus } from "@/hooks/usePlayerAPI";
+import { useAvailableTables, useJoinWaitlist, useWaitlistStatus, useCancelWaitlist } from "@/hooks/usePlayerAPI";
+import { Badge } from "@/components/ui/badge";
 
 interface TableViewProps {
   tableId?: string;
@@ -38,8 +39,9 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose }:
   const userWaitlist = waitlistData?.entries || [];
   const waitlistArray = Array.isArray(userWaitlist) ? userWaitlist : [];
 
-  // Join waitlist mutation
+  // Join/Cancel waitlist mutations
   const joinWaitlistMutation = useJoinWaitlist();
+  const cancelWaitlistMutation = useCancelWaitlist();
 
   // Find table by ID (normalize both to strings for comparison)
   const currentTable = tablesArray.find((table: any) => String(table.id) === String(tableId));
@@ -148,10 +150,10 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose }:
               {/* Green Felt Surface */}
               <div className="absolute inset-2 rounded-[50%] bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-800 shadow-inner">
 
-                {/* Dynamic Seat Positions - Based on table maxPlayers */}
-                {Array.from({ length: currentTable.maxPlayers || 6 }, (_, index) => {
+                {/* Dynamic Seat Positions - Based on table maxSeats */}
+                {Array.from({ length: currentTable.maxSeats || currentTable.maxPlayers || 9 }, (_, index) => {
                   const seatNumber = index + 1;
-                  const totalPositions = (currentTable.maxPlayers || 6) + 1;
+                  const totalPositions = (currentTable.maxSeats || currentTable.maxPlayers || 9) + 1;
                   const angleStep = (2 * Math.PI) / totalPositions;
                   const angle = (index + 1) * angleStep - Math.PI / 2;
                   const radiusX = 42;
@@ -223,29 +225,41 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose }:
                   );
                 })}
 
-                {/* Dealer Position - Visible outside the table */}
+                {/* Table Value Above Dealer */}
                 <div 
                   className="absolute transform -translate-x-1/2 -translate-y-1/2 z-40"
                   style={{ left: '50%', top: '8%' }}
                 >
-                  <div className="w-7 h-7 bg-gradient-to-br from-yellow-600 to-yellow-700 rounded-full border-2 border-yellow-500 flex items-center justify-center shadow-xl">
+                  {/* Table Value Card */}
+                  <div className="bg-gradient-to-br from-yellow-600 via-amber-500 to-orange-500 border-2 border-yellow-400/80 px-4 py-2 rounded-lg text-center shadow-xl mb-2">
+                    <div className="text-yellow-200 text-xs font-semibold">Table Value</div>
+                    <div className="text-white text-lg font-bold">
+                      ₹{potData?.pot ? parseFloat(potData.pot).toLocaleString() : '0'}
+                    </div>
+                  </div>
+                  
+                  {/* Dealer Button Below */}
+                  <div className="w-7 h-7 bg-gradient-to-br from-yellow-600 to-yellow-700 rounded-full border-2 border-yellow-500 flex items-center justify-center shadow-xl mx-auto">
                     <span className="text-xs font-bold text-white">D</span>
                   </div>
-                  <div className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 text-xs text-yellow-400 font-medium whitespace-nowrap">
+                  <div className="text-xs text-yellow-400 font-medium whitespace-nowrap text-center mt-1">
                     Dealer
                   </div>
                 </div>
 
-                {/* Center Pot Area */}
+                {/* Center Logo */}
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    {/* Pot Display */}
-                    <div className="bg-gradient-to-br from-yellow-600 via-amber-500 to-orange-500 border-2 border-yellow-400/80 px-4 py-2 rounded-lg text-center shadow-xl">
-                      <div className="text-yellow-200 text-xs font-semibold">Table Value</div>
-                      <div className="text-white text-lg font-bold">
-                        ₹{potData?.pot ? parseFloat(potData.pot).toLocaleString() : '0'}
-                      </div>
-                    </div>
+                  <div className="bg-white rounded-lg p-2 shadow-xl">
+                    <img 
+                      src="/logo.png" 
+                      alt="Table Logo" 
+                      className="w-16 h-16 object-contain"
+                      onError={(e) => {
+                        // Fallback to a poker chip icon if logo doesn't exist
+                        e.currentTarget.style.display = 'none';
+                        e.currentTarget.parentElement!.innerHTML = '<div class="w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-full flex items-center justify-center border-4 border-white shadow-lg"><span class="text-white text-2xl font-bold">♠</span></div>';
+                      }}
+                    />
                   </div>
                 </div>
               </div>
@@ -259,7 +273,7 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose }:
             <CardContent className="p-4 text-center">
               <Users className="w-8 h-8 text-blue-400 mx-auto mb-2" />
               <div className="text-slate-400 text-sm">Players</div>
-              <div className="text-white text-xl font-bold">{seatedPlayersArray.length || 0}/{currentTable?.maxPlayers || 6}</div>
+              <div className="text-white text-xl font-bold">{seatedPlayersArray.length || 0}/{currentTable?.maxSeats || currentTable?.maxPlayers || 9}</div>
             </CardContent>
           </Card>
 
@@ -344,8 +358,67 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose }:
           </div>
         )}
 
+        {/* Waitlist Status Display */}
+        {!isUserSeated && waitlistData?.onWaitlist && (
+          <div className="mt-8 w-full max-w-4xl">
+            <Card className="bg-amber-500/10 border-amber-500/30">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <Clock className="w-6 h-6 text-amber-500" />
+                    <h3 className="text-xl font-bold text-white">You're on the Waitlist!</h3>
+                  </div>
+                  <Badge className="bg-amber-500 text-black text-lg px-4 py-1">Position #{waitlistData.position}</Badge>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <div className="text-slate-400 text-sm">Table Type</div>
+                    <div className="text-white font-semibold">{waitlistData.entry?.tableType}</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-400 text-sm">Status</div>
+                    <div className="text-amber-400 font-semibold">{waitlistData.entry?.status}</div>
+                  </div>
+                </div>
+                <div className="text-xs text-slate-400 mb-4">
+                  Joined: {waitlistData.entry?.createdAt ? new Date(waitlistData.entry.createdAt).toLocaleString() : 'N/A'}
+                </div>
+                <Button
+                  onClick={() => {
+                    if (waitlistData?.entry?.id) {
+                      cancelWaitlistMutation.mutate(waitlistData.entry.id, {
+                        onSuccess: () => {
+                          toast({
+                            title: "Left Waitlist",
+                            description: "You have been removed from the waitlist.",
+                          });
+                        }
+                      });
+                    }
+                  }}
+                  disabled={cancelWaitlistMutation.isPending}
+                  variant="outline"
+                  className="w-full bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20"
+                >
+                  {cancelWaitlistMutation.isPending ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin mr-2" />
+                      Leaving...
+                    </>
+                  ) : (
+                    <>
+                      <X className="w-4 h-4 mr-2" />
+                      Leave Waitlist
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Seat Selection and Join Controls */}
-        {!isUserSeated && (
+        {!isUserSeated && !waitlistData?.onWaitlist && (
           <div className="mt-8 text-center">
             {selectedSeat ? (
               <div className="space-y-4">
