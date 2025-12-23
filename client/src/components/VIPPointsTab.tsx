@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Star, Award, Gift, TrendingUp, Crown, Sparkles } from "lucide-react";
 import { vipService } from "@/lib/api";
+import { API_BASE_URL } from "@/lib/api/config";
 
 interface VIPPointsTabProps {
   user: any;
@@ -18,7 +19,7 @@ export default function VIPPointsTab({ user }: VIPPointsTabProps) {
   const { data: vipData, isLoading: vipLoading } = useQuery({
     queryKey: ['/api/player-vip/points', user?.id],
     queryFn: async () => {
-      const response = await fetch('http://localhost:3333/api/player-vip/points', {
+      const response = await fetch(`${API_BASE_URL}/player-vip/points`, {
         headers: {
           'x-player-id': user?.id || '',
           'x-club-id': localStorage.getItem('clubId') || '',
@@ -35,7 +36,7 @@ export default function VIPPointsTab({ user }: VIPPointsTabProps) {
   const { data: clubPointsData } = useQuery({
     queryKey: ['/api/player-vip/club-points', user?.id],
     queryFn: async () => {
-      const response = await fetch('http://localhost:3333/api/player-vip/club-points', {
+      const response = await fetch(`${API_BASE_URL}/player-vip/club-points`, {
         headers: {
           'x-player-id': user?.id || '',
           'x-club-id': localStorage.getItem('clubId') || '',
@@ -52,7 +53,7 @@ export default function VIPPointsTab({ user }: VIPPointsTabProps) {
   const { data: rewardsData } = useQuery({
     queryKey: ['/api/player-vip/rewards'],
     queryFn: async () => {
-      const response = await fetch('http://localhost:3333/api/player-vip/rewards', {
+      const response = await fetch(`${API_BASE_URL}/player-vip/rewards`, {
         headers: {
           'x-club-id': localStorage.getItem('clubId') || '',
         },
@@ -66,7 +67,7 @@ export default function VIPPointsTab({ user }: VIPPointsTabProps) {
   // Redeem points mutation
   const redeemMutation = useMutation({
     mutationFn: async ({ rewardId, points }: { rewardId: string; points: number }) => {
-      const response = await fetch('http://localhost:3333/api/player-vip/redeem', {
+      const response = await fetch(`${API_BASE_URL}/player-vip/redeem`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

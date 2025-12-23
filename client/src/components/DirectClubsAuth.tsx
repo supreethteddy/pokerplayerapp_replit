@@ -7,6 +7,7 @@ import { X, Eye, EyeOff, Phone, Mail, ShieldCheck } from "lucide-react";
 import { useUltraFastAuth } from "../hooks/useUltraFastAuth";
 import { useToast } from "@/hooks/use-toast";
 import { whitelabelConfig } from "@/lib/whitelabeling";
+import { API_BASE_URL } from "@/lib/api/config";
 
 export default function DirectClubsAuth() {
   const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
@@ -338,7 +339,6 @@ export default function DirectClubsAuth() {
                 
                 try {
                   // Validate club code with backend API
-                  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3333/api';
                   const response = await fetch(`${API_BASE_URL}/clubs/verify-code`, {
                     method: 'POST',
                     headers: {

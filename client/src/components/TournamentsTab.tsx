@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Trophy, Calendar, Users, DollarSign, Clock, CheckCircle, XCircle } from "lucide-react";
+import { API_BASE_URL } from "@/lib/api/config";
 
 interface TournamentsTabProps {
   user: any;
@@ -18,7 +19,7 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
   const { data: tournamentsData, isLoading: tournamentsLoading } = useQuery({
     queryKey: ['/api/player-tournaments/upcoming', user?.clubId],
     queryFn: async () => {
-      const response = await fetch('http://localhost:3333/api/player-tournaments/upcoming', {
+      const response = await fetch(`${API_BASE_URL}/player-tournaments/upcoming`, {
         headers: {
           'x-club-id': localStorage.getItem('clubId') || '',
         },
@@ -33,7 +34,7 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
   const { data: myRegistrations, isLoading: registrationsLoading } = useQuery({
     queryKey: ['/api/player-tournaments/my-registrations', user?.id],
     queryFn: async () => {
-      const response = await fetch('http://localhost:3333/api/player-tournaments/my-registrations', {
+      const response = await fetch(`${API_BASE_URL}/player-tournaments/my-registrations`, {
         headers: {
           'x-player-id': user?.id || '',
           'x-club-id': localStorage.getItem('clubId') || '',
@@ -52,7 +53,7 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
       if (!kycApproved) {
         throw new Error('Please complete KYC verification to register for tournaments');
       }
-      const response = await fetch('http://localhost:3333/api/player-tournaments/register', {
+      const response = await fetch(`${API_BASE_URL}/player-tournaments/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -86,7 +87,7 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
   // Cancel registration
   const cancelMutation = useMutation({
     mutationFn: async (tournamentId: string) => {
-      const response = await fetch(`http://localhost:3333/api/player-tournaments/register/${tournamentId}`, {
+      const response = await fetch(`${API_BASE_URL}/player-tournaments/register/${tournamentId}`, {
         method: 'DELETE',
         headers: {
           'x-player-id': user?.id || '',
