@@ -2,6 +2,8 @@ import { useUltraFastAuth } from "@/hooks/useUltraFastAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useRouter } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAvailableTables, useWaitlistStatus } from "@/hooks/usePlayerAPI";
+import { useRealtimeTables } from "@/hooks/useRealtimeTables";
 import {
   Dialog,
   DialogContent,
@@ -494,63 +496,25 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     }
   }, [user]);
 
-  // COMMENTED OUT: Fetch live tables with smart background refresh
-  // Fetch tables data from API with reduced refresh rate
-  /*
-  const { data: tables, isLoading: tablesLoading } = useQuery<TableType[]>({
-    queryKey: ['/api/tables'],
-    refetchInterval: 30000, // Refresh every 30 seconds instead of 2 seconds
-    refetchOnWindowFocus: true,
-    refetchOnMount: true,
-    refetchOnReconnect: true,
-    staleTime: 15000, // Consider data fresh for 15 seconds
-    gcTime: 5000, // Keep cached data for 5 seconds
-    retry: 3,
-    retryDelay: 1000,
-    // Smart update strategy - only trigger re-render if data actually changed
-    structuralSharing: true,
-  });
-  */
-
-  // STATIC DATA: Mock tables for testing without backend
-  const STATIC_TABLES: TableType[] = [
-    {
-      id: 1,
-      name: "Main Table",
-      gameType: "Texas Hold'em",
-      stakes: "₹1000.00/10000.00",
-      maxPlayers: 6,
-      currentPlayers: 3,
-      pot: 50000,
-      avgStack: 5000,
-      isActive: true,
-    },
-    {
-      id: 2,
-      name: "VIP Table",
-      gameType: "Texas Hold'em",
-      stakes: "₹5000.00/50000.00",
-      maxPlayers: 9,
-      currentPlayers: 5,
-      pot: 250000,
-      avgStack: 25000,
-      isActive: true,
-    },
-    {
-      id: 3,
-      name: "High Stakes",
-      gameType: "Texas Hold'em",
-      stakes: "₹10000.00/100000.00",
-      maxPlayers: 6,
-      currentPlayers: 2,
-      pot: 500000,
-      avgStack: 50000,
-      isActive: true,
-    },
-  ];
-
-  const tables = STATIC_TABLES;
-  const tablesLoading = false;
+  // Fetch live tables from backend API with realtime updates
+  const { data: tablesData, isLoading: tablesLoading } = useAvailableTables();
+  useRealtimeTables(); // Subscribe to realtime table updates
+  
+  // Fetch waitlist status
+  const { data: waitlistData } = useWaitlistStatus();
+  
+  // Map backend table data to dashboard format
+  const tables = (tablesData?.tables || []).map((table: any) => ({
+    id: table.id,
+    name: `Table ${table.tableNumber}`,
+    gameType: "Texas Hold'em",
+    stakes: `₹${table.minBuyIn || 0}.00/₹${table.maxBuyIn || 0}.00`,
+    maxPlayers: table.maxSeats || 9,
+    currentPlayers: table.currentSeats || 0,
+    pot: 0, // TODO: Add real-time pot data
+    avgStack: 0, // TODO: Add average stack calculation
+    isActive: table.status === 'AVAILABLE',
+  }));
 
   // Fetch seat requests with smart refresh
   const { data: seatRequests, isLoading: requestsLoading } = useQuery<
@@ -1945,7 +1909,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   console.log(
     "🎯 [PLAYER DASHBOARD] Rendering with user:",
     !!user,
-    user?.email
+    user?.email,
+    "KYC Status:",
+    user?.kycStatus
   );
 
   // Safety guard - if no user, return nothing and let App.tsx handle routing
@@ -1954,6 +1920,75 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       "🎯 [PLAYER DASHBOARD] No user prop - returning null to let App handle routing"
     );
     return null;
+  }
+
+  // KYC Pending - Show awaiting approval screen
+  console.log('🔍 [KYC CHECK] User KYC Status:', user?.kycStatus, 'Type:', typeof user?.kycStatus);
+  console.log('🔍 [KYC CHECK] Full user object:', user);
+  
+  // Show pending screen if KYC is explicitly 'pending' or undefined (not yet approved)
+  const isKycPending = !user?.kycStatus || user?.kycStatus === 'pending';
+  const isKycApproved = user?.kycStatus === 'approved' || user?.kycStatus === 'verified';
+  
+  if (isKycPending && !isKycApproved) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <Card className="max-w-2xl w-full bg-slate-800 border-slate-700">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center justify-center">
+              <Clock className="w-8 h-8 mr-3 text-amber-500" />
+              KYC Verification Pending
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="text-center space-y-4">
+              <div className="w-20 h-20 mx-auto bg-amber-500/20 rounded-full flex items-center justify-center">
+                <Clock className="w-10 h-10 text-amber-400 animate-pulse" />
+              </div>
+              
+              <h2 className="text-2xl font-bold text-white">
+                Your Documents Are Under Review
+              </h2>
+              
+              <p className="text-slate-300">
+                Thank you for submitting your KYC documents. Our club staff is currently reviewing your information.
+              </p>
+
+              <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                <p className="text-amber-300 text-sm flex items-start">
+                  <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
+                  <span>
+                    Account verification typically takes 24-48 hours. Please check back later or contact club staff if you have any questions.
+                  </span>
+                </p>
+              </div>
+
+              <div className="space-y-3 pt-4">
+                <div className="flex items-center justify-center space-x-2 text-slate-400">
+                  <CheckCircle className="w-5 h-5 text-emerald-500" />
+                  <span>Documents Submitted Successfully</span>
+                </div>
+                <div className="flex items-center justify-center space-x-2 text-slate-400">
+                  <Clock className="w-5 h-5 text-amber-500 animate-pulse" />
+                  <span>Awaiting Staff Approval</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-center pt-4">
+              <Button
+                variant="outline"
+                onClick={() => signOut()}
+                className="border-slate-600 text-slate-300 hover:bg-slate-700"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign Out
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
@@ -2978,8 +3013,75 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         </div>
                       </div>
                     </div>
+                    <CardContent className="pt-0">
+                      <Button
+                        className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
+                        onClick={() => {
+                          toast({
+                            title: "Request Sent",
+                            description: "Your profile update request has been sent to club staff",
+                            className: "bg-emerald-600 text-white",
+                          });
+                        }}
+                      >
+                        <User className="w-4 h-4 mr-2" />
+                        Request Profile Changes
+                      </Button>
+                    </CardContent>
                   </CardContent>
                 </Card>
+
+                {/* Waitlist Status */}
+                {waitlistData && waitlistData.entries && waitlistData.entries.length > 0 && (
+                  <Card className="bg-slate-800 border-slate-700">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center">
+                        <Clock className="w-5 h-5 mr-2 text-amber-500" />
+                        Current Waitlist Status
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {waitlistData.entries.map((entry: any, index: number) => (
+                          <div key={entry.id} className="p-3 bg-slate-700 rounded-lg">
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <p className="text-white font-medium">
+                                  {entry.tableType?.replace(/_/g, ' ') || 'Any Table'}
+                                </p>
+                                <p className="text-sm text-slate-400">
+                                  Position: #{index + 1}
+                                </p>
+                              </div>
+                              <Badge className={
+                                entry.status === 'PENDING' 
+                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                  : entry.status === 'SEATED'
+                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                  : 'bg-slate-500/20 text-slate-300 border-slate-500/30'
+                              }>
+                                {entry.status}
+                              </Badge>
+                            </div>
+                            {entry.partySize > 1 && (
+                              <p className="text-sm text-slate-400">
+                                Party Size: {entry.partySize}
+                              </p>
+                            )}
+                            {entry.notes && (
+                              <p className="text-sm text-slate-400 mt-1">
+                                Note: {entry.notes}
+                              </p>
+                            )}
+                            <p className="text-xs text-slate-500 mt-2">
+                              Joined: {new Date(entry.createdAt).toLocaleString()}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* KYC Documents Management */}
                 <Card className="bg-slate-800 border-slate-700">

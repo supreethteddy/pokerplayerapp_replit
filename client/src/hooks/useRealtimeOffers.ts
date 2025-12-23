@@ -58,7 +58,7 @@ export function useRealtimeOffers() {
           queryClient.setQueryData(['/api/staff-offers'], data);
         }
       } catch (error) {
-        console.error('❌ [REALTIME OFFERS] Initial fetch failed:', error);
+        // Silently skip if endpoint not available
       }
     };
 

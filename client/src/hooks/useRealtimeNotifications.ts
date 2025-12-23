@@ -21,7 +21,8 @@ export function useRealtimeNotifications(playerId: number | string | null | unde
           queryClient.setQueryData(['/api/push-notifications', playerId], data);
         }
       } catch (error) {
-        console.error('❌ [REALTIME NOTIFICATIONS] Initial fetch failed:', error);
+        // Silently skip if endpoint not available (404 or parsing errors)
+        // This is expected if the backend doesn't have push notifications endpoint yet
       }
     };
 

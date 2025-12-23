@@ -20,9 +20,35 @@ export function useUltraFastAuth() {
         if (storedUser) {
           try {
             const userData = JSON.parse(storedUser);
+            
+            // CRITICAL: Validate stored data integrity
+            const storedClubCode = sessionStorage.getItem('clubCode');
+            const storedPlayerId = sessionStorage.getItem('playerId');
+            
+            // Check if club code doesn't match (corrupted data)
+            if (storedClubCode && userData.clubCode && storedClubCode !== userData.clubCode) {
+              console.error('❌ [AUTH] Corrupted session detected! Club code mismatch:', storedClubCode, '!=', userData.clubCode);
+              console.error('❌ [AUTH] Forcing logout and clearing session...');
+              sessionStorage.clear();
+              localStorage.clear();
+              setAuthChecked(true);
+              return;
+            }
+            
+            // Check if player ID is a timestamp (corrupted)
+            if (storedPlayerId && !storedPlayerId.includes('-')) {
+              console.error('❌ [AUTH] Corrupted session detected! Player ID is not a UUID:', storedPlayerId);
+              console.error('❌ [AUTH] Forcing logout and clearing session...');
+              sessionStorage.clear();
+              localStorage.clear();
+              setAuthChecked(true);
+              return;
+            }
+            
             setUser(userData);
             console.log('🎯 [ULTRA-FAST AUTH] Found stored user session');
           } catch (e) {
+            console.error('❌ [AUTH] Failed to parse stored user:', e);
             sessionStorage.removeItem('authenticated_user');
           }
         }
@@ -73,6 +99,10 @@ export function useUltraFastAuth() {
         throw new Error(result.message || 'Invalid email or password');
       }
 
+      console.log('🔍 [LOGIN] Backend response:', result);
+      console.log('🔍 [LOGIN] Club ID from response:', result.club?.id);
+      console.log('🔍 [LOGIN] Player ID from response:', result.player?.id);
+      
       const userData = {
         id: result.player?.id || result.playerId,
         email: result.player?.email || email,
@@ -82,7 +112,7 @@ export function useUltraFastAuth() {
         nickname: result.player?.nickname || '',
         referredBy: result.player?.referredBy || '',
         clubCode: clubCode.toUpperCase(),
-        clubId: result.player?.club?.id || result.player?.clubId,
+        clubId: result.club?.id || result.player?.club?.id || result.player?.clubId,
         kycStatus: result.player?.kycStatus || 'pending',
         balance: result.player?.balance || '0.00',
         currentCredit: result.player?.currentCredit || '0.00',
@@ -90,6 +120,9 @@ export function useUltraFastAuth() {
         creditApproved: !!result.player?.creditApproved,
         emailVerified: !!result.player?.emailVerified,
       };
+      
+      console.log('✅ [LOGIN] User data to store:', userData);
+      console.log('✅ [LOGIN] Club ID to store:', userData.clubId);
 
       setUser(userData);
       setAuthChecked(true);
@@ -97,6 +130,18 @@ export function useUltraFastAuth() {
       // Store session
       sessionStorage.setItem('authenticated_user', JSON.stringify(userData));
       sessionStorage.setItem('just_signed_in', 'true');
+      
+      // Store player and club IDs for API requests
+      console.log('💾 [LOGIN] Storing playerId:', userData.id);
+      console.log('💾 [LOGIN] Storing clubId:', userData.clubId);
+      console.log('💾 [LOGIN] Storing clubCode:', userData.clubCode);
+      
+      sessionStorage.setItem('playerId', String(userData.id));
+      sessionStorage.setItem('clubId', userData.clubId);
+      sessionStorage.setItem('clubCode', userData.clubCode);
+      
+      console.log('✅ [LOGIN] Session storage updated');
+      console.log('✅ [LOGIN] Verify - sessionStorage.clubId:', sessionStorage.getItem('clubId'));
       
       if (result.token) {
         sessionStorage.setItem('auth_token', result.token);
@@ -187,7 +232,7 @@ export function useUltraFastAuth() {
         nickname: result.player?.nickname || nickname,
         referredBy: referredBy || '',
         clubCode: clubCode.toUpperCase(),
-        clubId: result.player?.club?.id || result.player?.clubId,
+        clubId: result.club?.id || result.player?.club?.id || result.player?.clubId,
         kycStatus: result.player?.kycStatus || 'pending',
         balance: '0.00',
         currentCredit: '0.00',
@@ -206,6 +251,11 @@ export function useUltraFastAuth() {
       setAuthChecked(true);
       sessionStorage.setItem('authenticated_user', JSON.stringify(newUser));
       sessionStorage.setItem('just_signed_in', 'true');
+      
+      // Store player and club IDs for API requests
+      sessionStorage.setItem('playerId', String(newUser.id));
+      sessionStorage.setItem('clubId', newUser.clubId);
+      sessionStorage.setItem('clubCode', newUser.clubCode);
       
       if (result.token) {
         sessionStorage.setItem('auth_token', result.token);

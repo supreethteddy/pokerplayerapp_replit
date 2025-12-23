@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { X, Bell, AlertCircle, Info, Zap, LogIn, Clock, Trophy, CreditCard } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { API_BASE_URL } from '@/lib/api/config';
 
 type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
 
@@ -197,7 +198,7 @@ export const NotificationBubbleManager: React.FC = () => {
   // Function to save notification to bell icon history
   const saveNotificationToHistory = async (notification: NotificationData) => {
     try {
-      await fetch('/api/notification-history', {
+      await fetch(`${API_BASE_URL}/notification-history`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -220,7 +221,16 @@ export const NotificationBubbleManager: React.FC = () => {
 
     const fetchNotifications = async () => {
       try {
-        const response = await fetch(`/api/push-notifications/${user.id}`);
+        const response = await fetch(`${API_BASE_URL}/push-notifications/${user.id}`, {
+          method: 'GET',
+          credentials: 'include',
+        }).catch(() => null); // Silently catch network errors
+        
+        // If fetch failed or endpoint doesn't exist, skip silently
+        if (!response || response.status === 404) {
+          return;
+        }
+        
         if (response.ok) {
           const data = await response.json();
           console.log('📱 [BUBBLE MANAGER] Fetched notifications:', data.length);

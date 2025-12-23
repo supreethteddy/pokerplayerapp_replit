@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { API_BASE_URL } from "./api/config";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -12,7 +13,13 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const res = await fetch(url, {
+  // Prepend API_BASE_URL if the URL starts with /api/
+  // API_BASE_URL already contains /api, so we remove it from the url
+  const fullUrl = url.startsWith('/api/') 
+    ? `${API_BASE_URL}${url.substring(4)}` // Remove /api from url since API_BASE_URL already has it
+    : url;
+  
+  const res = await fetch(fullUrl, {
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,

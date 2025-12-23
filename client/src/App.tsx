@@ -10,6 +10,7 @@ import AuthWrapper from "./components/AuthWrapper";
 // Clerk removed
 import SafeAuthWrapper from "./components/AuthErrorBoundary";
 import PlayerDashboard from "./components/PlayerDashboard";
+import KYCVerification from "./components/KYCVerification";
 // Removed non-player routes/components
 import LoadingScreen from "./components/LoadingScreen";
 import NotificationBubbleManager from "./components/NotificationBubbleManager";
@@ -139,6 +140,9 @@ function AppContent() {
       <Switch>
         <Route path="/">
           {user ? <Redirect to="/dashboard" /> : <AuthWrapper />}
+        </Route>
+        <Route path="/kyc">
+          <KYCVerification />
         </Route>
         <Route path="/dashboard">
           {user ? (

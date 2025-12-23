@@ -176,7 +176,7 @@ export const NotificationHistoryTab: React.FC = () => {
   }
 
   // Apply local delete + sort: unread first, then newest first
-  const visibleNotifications = notifications
+  const visibleNotifications = (notifications || [])
     .filter((notification: any) => !deletedIds.has(notification.id))
     .sort((a: any, b: any) => {
       const aUnread = a.deliveryStatus !== 'read';

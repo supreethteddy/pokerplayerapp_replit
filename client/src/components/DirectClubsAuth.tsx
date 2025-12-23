@@ -230,7 +230,9 @@ export default function DirectClubsAuth() {
               lastName: resultPlayer?.lastName || lastName,
               nickname: resultPlayer?.nickname || nickname,
               referredBy: resultPlayer?.referredBy || referralCode || '',
-              kycStatus: resultPlayer?.kyc_status || 'pending'
+              kycStatus: resultPlayer?.kyc_status || 'pending',
+              clubId: result.club?.id,
+              clubCode: trimmedCode
             }));
 
             // Force immediate redirect to KYC page
@@ -355,6 +357,8 @@ export default function DirectClubsAuth() {
                     setClubCodeError("");
                     sessionStorage.setItem("club_code_verified", trimmedCode);
                     sessionStorage.setItem("club_id", result.clubId);
+                    sessionStorage.setItem("clubId", result.clubId); // Also store with camelCase for API
+                    sessionStorage.setItem("clubCode", trimmedCode); // Store club code
                     sessionStorage.setItem("club_name", result.clubName || "");
                   } else {
                     // Invalid club code

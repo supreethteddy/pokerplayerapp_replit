@@ -35,13 +35,37 @@ export class BaseAPIService {
     const playerId = localStorage.getItem(STORAGE_KEYS.PLAYER_ID) || sessionStorage.getItem(STORAGE_KEYS.PLAYER_ID);
     let clubId = localStorage.getItem(STORAGE_KEYS.CLUB_ID) || sessionStorage.getItem(STORAGE_KEYS.CLUB_ID);
     
+    // CRITICAL FIX: Check if clubId is actually the player ID (they're the same)
+    // This happens when old session data has wrong clubId stored
+    if (clubId && playerId && clubId === playerId) {
+      console.warn('🔧 [API] Detected player ID stored as club ID - attempting to fix...');
+      // Try to get the correct clubId from authenticated_user
+      const authUserStr = sessionStorage.getItem('authenticated_user');
+      if (authUserStr) {
+        try {
+          const authUser = JSON.parse(authUserStr);
+          if (authUser.clubId && authUser.clubId !== playerId) {
+            clubId = authUser.clubId;
+            sessionStorage.setItem(STORAGE_KEYS.CLUB_ID, clubId);
+            console.log('✅ [API] Fixed club ID:', clubId);
+          } else {
+            console.error('❌ [API] Cannot fix club ID - please re-login');
+            clubId = null;
+          }
+        } catch (e) {
+          console.error('❌ [API] Error fixing club ID:', e);
+          clubId = null;
+        }
+      }
+    }
+    
     // If clubId is not available, try to get it from stored player data
     if (!clubId) {
       const playerDataStr = localStorage.getItem(STORAGE_KEYS.PLAYER_DATA) || sessionStorage.getItem(STORAGE_KEYS.PLAYER_DATA);
       if (playerDataStr) {
         try {
           const playerData = JSON.parse(playerDataStr);
-          if (playerData.clubId) {
+          if (playerData.clubId && playerData.clubId !== playerId) {
             clubId = playerData.clubId;
             // Store it for future use
             localStorage.setItem(STORAGE_KEYS.CLUB_ID, clubId);
@@ -51,6 +75,11 @@ export class BaseAPIService {
         }
       }
     }
+    
+    console.log('📤 [API] Getting session data...');
+    console.log('📤 [API] Player ID:', playerId);
+    console.log('📤 [API] Club ID:', clubId);
+    console.log('📤 [API] Club Code:', localStorage.getItem(STORAGE_KEYS.CLUB_CODE) || sessionStorage.getItem(STORAGE_KEYS.CLUB_CODE));
     
     return {
       playerId,

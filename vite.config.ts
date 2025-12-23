@@ -24,6 +24,7 @@ export default defineConfig({
     },
   },
   root: path.resolve(import.meta.dirname, "client"),
+  envDir: path.resolve(import.meta.dirname),
   build: {
     // Use Vercel-compatible default output directory
     outDir: path.resolve(import.meta.dirname, "dist"),
