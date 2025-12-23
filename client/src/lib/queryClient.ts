@@ -1,5 +1,6 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { API_BASE_URL } from "./api/config";
+import { getAuthHeaders, STORAGE_KEYS } from "./api/config";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -15,13 +16,35 @@ export async function apiRequest(
 ): Promise<Response> {
   // Prepend API_BASE_URL if the URL starts with /api/
   // API_BASE_URL already contains /api, so we remove it from the url
-  const fullUrl = url.startsWith('/api/') 
+  const fullUrl = url.startsWith("/api/")
     ? `${API_BASE_URL}${url.substring(4)}` // Remove /api from url since API_BASE_URL already has it
     : url;
-  
+
+  // Attach authenticated player/club headers for all API requests so that
+  // NestJS controllers that expect x-player-id / x-club-id always receive them.
+  const playerId =
+    localStorage.getItem(STORAGE_KEYS.PLAYER_ID) ||
+    sessionStorage.getItem(STORAGE_KEYS.PLAYER_ID) ||
+    undefined;
+  const clubId =
+    localStorage.getItem(STORAGE_KEYS.CLUB_ID) ||
+    sessionStorage.getItem(STORAGE_KEYS.CLUB_ID) ||
+    undefined;
+
+  const authHeaders = getAuthHeaders(
+    playerId as string | undefined,
+    clubId as string | undefined,
+  );
+
   const res = await fetch(fullUrl, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers: data
+      ? {
+          ...authHeaders,
+        }
+      : {
+          ...authHeaders,
+        },
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });

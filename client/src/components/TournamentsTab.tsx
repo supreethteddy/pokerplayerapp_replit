@@ -3,8 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Trophy, Calendar, Users, DollarSign, Clock, CheckCircle, XCircle } from "lucide-react";
-import { API_BASE_URL } from "@/lib/api/config";
+import {
+  Trophy,
+  Calendar,
+  Users,
+  DollarSign,
+  Clock,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 
 interface TournamentsTabProps {
   user: any;
@@ -16,32 +24,32 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
   const queryClient = useQueryClient();
 
   // Fetch upcoming tournaments
-  const { data: tournamentsData, isLoading: tournamentsLoading } = useQuery({
-    queryKey: ['/api/player-tournaments/upcoming', user?.clubId],
+  const { data: tournamentsData, isLoading: tournamentsLoading } = useQuery<{
+    tournaments: any[];
+    total: number;
+  }>({
+    queryKey: ["/api/player-tournaments/upcoming", user?.clubId],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/player-tournaments/upcoming`, {
-        headers: {
-          'x-club-id': localStorage.getItem('clubId') || '',
-        },
-      });
-      if (!response.ok) throw new Error('Failed to fetch tournaments');
-      return response.json();
+      const response = await apiRequest(
+        "GET",
+        "/api/player-tournaments/upcoming"
+      );
+      if (!response.ok) throw new Error("Failed to fetch tournaments");
+      return await response.json();
     },
     refetchInterval: 30000,
   });
 
   // Fetch my registrations
   const { data: myRegistrations, isLoading: registrationsLoading } = useQuery({
-    queryKey: ['/api/player-tournaments/my-registrations', user?.id],
+    queryKey: ["/api/player-tournaments/my-registrations", user?.id],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/player-tournaments/my-registrations`, {
-        headers: {
-          'x-player-id': user?.id || '',
-          'x-club-id': localStorage.getItem('clubId') || '',
-        },
-      });
-      if (!response.ok) throw new Error('Failed to fetch registrations');
-      return response.json();
+      const response = await apiRequest(
+        "GET",
+        "/api/player-tournaments/my-registrations"
+      );
+      if (!response.ok) throw new Error("Failed to fetch registrations");
+      return await response.json();
     },
     enabled: !!user?.id,
     refetchInterval: 30000,
@@ -51,25 +59,25 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
   const registerMutation = useMutation({
     mutationFn: async (tournamentId: string) => {
       if (!kycApproved) {
-        throw new Error('Please complete KYC verification to register for tournaments');
+        throw new Error(
+          "Please complete KYC verification to register for tournaments"
+        );
       }
-      const response = await fetch(`${API_BASE_URL}/player-tournaments/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-player-id': user?.id || '',
-          'x-club-id': localStorage.getItem('clubId') || '',
-        },
-        body: JSON.stringify({ tournamentId }),
-      });
+      const response = await apiRequest(
+        "POST",
+        "/api/player-tournaments/register",
+        { tournamentId }
+      );
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to register');
+        throw new Error(error.message || "Failed to register");
       }
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/player-tournaments/my-registrations'] });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/player-tournaments/my-registrations"],
+      });
       toast({
         title: "✓ Registered Successfully!",
         description: "You're registered for the tournament",
@@ -87,21 +95,20 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
   // Cancel registration
   const cancelMutation = useMutation({
     mutationFn: async (tournamentId: string) => {
-      const response = await fetch(`${API_BASE_URL}/player-tournaments/register/${tournamentId}`, {
-        method: 'DELETE',
-        headers: {
-          'x-player-id': user?.id || '',
-          'x-club-id': localStorage.getItem('clubId') || '',
-        },
-      });
+      const response = await apiRequest(
+        "DELETE",
+        `/api/player-tournaments/register/${tournamentId}`
+      );
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to cancel');
+        throw new Error(error.message || "Failed to cancel");
       }
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/player-tournaments/my-registrations'] });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/player-tournaments/my-registrations"],
+      });
       toast({
         title: "✓ Registration Cancelled",
         description: "Your registration has been cancelled",

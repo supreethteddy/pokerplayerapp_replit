@@ -53,6 +53,20 @@ interface OrderItem {
   quantity: number;
 }
 
+type FnbOrderStatus = 'pending' | 'processing' | 'ready' | 'delivered' | 'cancelled';
+
+interface PlayerFnbOrder {
+  id: string;
+  orderNumber: string;
+  tableNumber: string;
+  items: { name: string; quantity: number; price: number }[];
+  totalAmount: number;
+  status: FnbOrderStatus;
+  createdAt: string;
+  updatedAt: string;
+  statusHistory?: { status: FnbOrderStatus; timestamp: string; updatedBy: string }[] | null;
+}
+
 interface FoodBeverageTabProps {
   user: any;
 }
@@ -67,6 +81,7 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
   const [orderNotes, setOrderNotes] = useState('');
   const [tableNumber, setTableNumber] = useState('');
   const [showThankYouDialog, setShowThankYouDialog] = useState(false);
+  const [viewMode, setViewMode] = useState<'menu' | 'orders'>('menu');
 
   // Real-time updates via Pusher
   useEffect(() => {
@@ -96,22 +111,39 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
     };
   }, [queryClient]);
 
-  // Fetch menu items with real-time updates
-  const { data: menuItems, isLoading: itemsLoading } = useQuery<{ success?: boolean; menuItems?: FoodBeverageItem[]; items?: FoodBeverageItem[] }>({
-    queryKey: ['/api/auth/player/fnb/menu'],
+  // Fetch menu items with real-time updates (authenticated via apiRequest so x-club-id is sent)
+  const { data: menuItems, isLoading: itemsLoading } = useQuery<{
+    success?: boolean;
+    menuItems?: FoodBeverageItem[];
+    items?: FoodBeverageItem[];
+  }>({
+    queryKey: ["/api/auth/player/fnb/menu"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/auth/player/fnb/menu");
+      return await response.json();
+    },
     refetchInterval: 5000, // 5 second refresh
     refetchOnWindowFocus: true,
     staleTime: 0,
     retry: 3,
   });
 
-  // Fetch ads/offers with real-time updates
-  const { data: adsData, isLoading: adsLoading } = useQuery<{ success: boolean; ads: AdsOffer[] }>({
-    queryKey: ['/api/food-beverage/ads'],
-    refetchInterval: 2000, // 2 second refresh for ads
+  // NOTE: F&B ads API is not implemented yet on the backend.
+  // We intentionally removed the ads polling to avoid 404 errors
+  // while keeping the menu and ordering system fully functional.
+
+  // Player FNB orders (current + history)
+  const {
+    data: ordersResponse,
+    isLoading: ordersLoading,
+  } = useQuery<{ success: boolean; orders: PlayerFnbOrder[] }>({
+    queryKey: ['/api/auth/player/fnb/orders'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/auth/player/fnb/orders');
+      return await response.json();
+    },
+    refetchInterval: 5000,
     refetchOnWindowFocus: true,
-    staleTime: 0,
-    retry: 3,
   });
 
   // Place order mutation
@@ -260,10 +292,14 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
   };
 
   const items = menuItems?.menuItems || menuItems?.items || [];
-  const ads = adsData?.ads || [];
   const totalCartItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const orders: PlayerFnbOrder[] = ordersResponse?.orders || [];
+  const activeOrders = orders.filter(
+    (o) => o.status === 'pending' || o.status === 'processing' || o.status === 'ready',
+  );
+  const pastOrders = orders;
 
-  if (itemsLoading) {
+  if (itemsLoading && viewMode === 'menu') {
     return (
       <div className="space-y-6">
         <div className="text-center py-8">
@@ -276,7 +312,7 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header with Cart */}
+      {/* Header with Cart and view toggle */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-white flex items-center">
@@ -285,154 +321,280 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
           </h2>
           <p className="text-slate-400">Order directly to your table</p>
         </div>
-        {totalCartItems > 0 && (
-          <Button 
-            onClick={() => setShowOrderDialog(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 relative"
-          >
-            <ShoppingCart className="w-4 h-4 mr-2" />
-            Cart
-            <Badge className="ml-2 bg-emerald-800 text-white">{totalCartItems}</Badge>
-          </Button>
-        )}
+        <div className="flex items-center space-x-3">
+          <div className="bg-slate-800 rounded-full p-1 flex">
+            <button
+              className={`px-3 py-1 text-xs rounded-full ${
+                viewMode === 'menu'
+                  ? 'bg-emerald-600 text-white'
+                  : 'text-slate-300'
+              }`}
+              onClick={() => setViewMode('menu')}
+            >
+              Menu
+            </button>
+            <button
+              className={`px-3 py-1 text-xs rounded-full ${
+                viewMode === 'orders'
+                  ? 'bg-emerald-600 text-white'
+                  : 'text-slate-300'
+              }`}
+              onClick={() => setViewMode('orders')}
+            >
+              My Orders
+            </button>
+          </div>
+          {totalCartItems > 0 && (
+            <Button
+              onClick={() => setShowOrderDialog(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 relative"
+            >
+              <ShoppingCart className="w-4 h-4 mr-2" />
+              Cart
+              <Badge className="ml-2 bg-emerald-800 text-white">
+                {totalCartItems}
+              </Badge>
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Ads Carousel */}
-      {ads.length > 0 && (
-        <Card className="bg-slate-800 border-slate-700">
-          <CardHeader>
-            <CardTitle className="text-white text-lg">Special Offers</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex overflow-x-auto space-x-4 pb-4">
-              {ads.map((ad) => (
-                <div
-                  key={ad.id}
-                  className="flex-shrink-0 w-80 bg-slate-700 rounded-lg overflow-hidden cursor-pointer hover:bg-slate-600 transition-colors"
-                  onClick={() => handleAdClick(ad)}
-                >
-                  {ad.video_url ? (
-                    <div className="relative h-48">
-                      <video 
-                        src={ad.video_url}
-                        className="w-full h-full object-cover"
-                        autoPlay
-                        muted
-                        loop
-                        onError={(e) => e.currentTarget.style.display = 'none'}
-                      />
-                      <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
-                        <Video className="w-8 h-8 text-white" />
-                      </div>
-                    </div>
-                  ) : ad.image_url ? (
-                    <OptimizedImage 
-                      src={ad.image_url}
-                      alt={ad.title}
-                      className="w-full h-48 object-cover"
-                    />
-                  ) : (
-                    <div className="h-48 bg-slate-600 flex items-center justify-center">
-                      <ImageIcon className="w-12 h-12 text-slate-400" />
-                    </div>
-                  )}
-                  <div className="p-4">
-                    <h3 className="text-white font-semibold">{ad.title}</h3>
-                    {ad.description && (
-                      <p className="text-slate-300 text-sm mt-1">{ad.description}</p>
-                    )}
-                    {ad.target_url && (
-                      <div className="flex items-center mt-2 text-emerald-400 text-sm">
-                        <ExternalLink className="w-3 h-3 mr-1" />
-                        Learn More
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Menu view */}
+      {viewMode === 'menu' && (
+        <>
+          {/* Menu Items Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {items.map((item) => {
+              const quantity = getItemQuantity(item.id);
+              const price = parseFloat(item.price) || 0;
+              const isFree = price === 0;
 
-      {/* Menu Items Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {items.map((item) => {
-          const quantity = getItemQuantity(item.id);
-          const price = parseFloat(item.price) || 0;
-          const isFree = price === 0;
-          
-          return (
-            <Card key={item.id} className="bg-slate-800 border-slate-700 hover:border-slate-600 transition-colors">
-              <CardContent className="p-4">
-                <div className="space-y-3">
-                  {/* Image */}
-                  <OptimizedImage 
-                    src={item.image_url}
-                    alt={item.name}
-                    className="w-full h-40 rounded-lg object-cover"
-                  />
-                  
-                  {/* Item Details */}
-                  <div>
-                    <div className="flex items-start justify-between">
-                      <h3 className="text-white font-semibold">{item.name}</h3>
-                      <Badge variant={item.category === 'food' ? 'default' : 'secondary'} className="text-xs">
-                        {item.category}
-                      </Badge>
-                    </div>
-                    <p className="text-slate-400 text-sm mt-1">{item.description}</p>
-                    
-                    {/* Price */}
-                    <div className="flex items-center justify-between mt-3">
-                      <span className="text-emerald-400 font-bold text-lg">
-                        {isFree ? 'Free' : `₹${price.toFixed(2)}`}
-                      </span>
-                      
-                      {/* Quantity Controls */}
-                      <div className="flex items-center space-x-2">
-                        {quantity > 0 && (
-                          <>
+              return (
+                <Card
+                  key={item.id}
+                  className="bg-slate-800 border-slate-700 hover:border-slate-600 transition-colors"
+                >
+                  <CardContent className="p-4">
+                    <div className="space-y-3">
+                      {/* Image */}
+                      <OptimizedImage
+                        src={item.image_url}
+                        alt={item.name}
+                        className="w-full h-40 rounded-lg object-cover"
+                      />
+
+                      {/* Item Details */}
+                      <div>
+                        <div className="flex items-start justify-between">
+                          <h3 className="text-white font-semibold">
+                            {item.name}
+                          </h3>
+                          <Badge
+                            variant={
+                              item.category === 'food' ? 'default' : 'secondary'
+                            }
+                            className="text-xs"
+                          >
+                            {item.category}
+                          </Badge>
+                        </div>
+                        <p className="text-slate-400 text-sm mt-1">
+                          {item.description}
+                        </p>
+
+                        {/* Price */}
+                        <div className="flex items-center justify-between mt-3">
+                          <span className="text-emerald-400 font-bold text-lg">
+                            {isFree ? 'Free' : `₹${price.toFixed(2)}`}
+                          </span>
+
+                          {/* Quantity Controls */}
+                          <div className="flex items-center space-x-2">
+                            {quantity > 0 && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => removeFromCart(item.id)}
+                                >
+                                  <Minus className="w-3 h-3" />
+                                </Button>
+                                <Badge className="bg-emerald-600 text-white px-3">
+                                  {quantity}
+                                </Badge>
+                              </>
+                            )}
                             <Button
                               size="sm"
-                              variant="outline"
-                              className="h-8 w-8 p-0"
-                              onClick={() => removeFromCart(item.id)}
+                              className="bg-emerald-600 hover:bg-emerald-700 h-8 px-3"
+                              onClick={() => addToCart(item)}
                             >
-                              <Minus className="w-3 h-3" />
+                              <Plus className="w-3 h-3 mr-1" />
+                              Add
                             </Button>
-                            <Badge className="bg-emerald-600 text-white px-3">
-                              {quantity}
-                            </Badge>
-                          </>
-                        )}
-                        <Button
-                          size="sm"
-                          className="bg-emerald-600 hover:bg-emerald-700 h-8 px-3"
-                          onClick={() => addToCart(item)}
-                        >
-                          <Plus className="w-3 h-3 mr-1" />
-                          Add
-                        </Button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Empty State */}
+          {items.length === 0 && !itemsLoading && (
+            <Card className="bg-slate-800 border-slate-700">
+              <CardContent className="p-8 text-center">
+                <UtensilsCrossed className="w-16 h-16 mx-auto mb-4 text-slate-500" />
+                <h3 className="text-white text-lg font-semibold mb-2">
+                  No Menu Items Available
+                </h3>
+                <p className="text-slate-400">
+                  The kitchen menu is currently being updated. Please check back
+                  later.
+                </p>
               </CardContent>
             </Card>
-          );
-        })}
-      </div>
+          )}
+        </>
+      )}
 
-      {/* Empty State */}
-      {items.length === 0 && !itemsLoading && (
-        <Card className="bg-slate-800 border-slate-700">
-          <CardContent className="p-8 text-center">
-            <UtensilsCrossed className="w-16 h-16 mx-auto mb-4 text-slate-500" />
-            <h3 className="text-white text-lg font-semibold mb-2">No Menu Items Available</h3>
-            <p className="text-slate-400">The kitchen menu is currently being updated. Please check back later.</p>
-          </CardContent>
-        </Card>
+      {/* Orders view */}
+      {viewMode === 'orders' && (
+        <div className="space-y-4">
+          {ordersLoading && (
+            <div className="text-center py-6 text-slate-400 text-sm">
+              Loading your orders...
+            </div>
+          )}
+
+          {!ordersLoading && orders.length === 0 && (
+            <Card className="bg-slate-800 border-slate-700">
+              <CardContent className="p-6 text-center space-y-2">
+                <UtensilsCrossed className="w-10 h-10 mx-auto mb-2 text-slate-500" />
+                <h3 className="text-white font-semibold">
+                  No orders placed yet
+                </h3>
+                <p className="text-slate-400 text-sm">
+                  Your food & beverage orders will appear here once you place
+                  them.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeOrders.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-emerald-300">
+                Current Orders
+              </h3>
+              <div className="space-y-3">
+                {activeOrders.map((order) => (
+                  <Card
+                    key={order.id}
+                    className="bg-slate-800 border-slate-700"
+                  >
+                    <CardContent className="p-4 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="text-xs text-slate-400">
+                            Order #{order.orderNumber}
+                          </div>
+                          <div className="text-sm text-slate-300">
+                            Table: {order.tableNumber || 'N/A'}
+                          </div>
+                        </div>
+                        <Badge>
+                          {order.status.charAt(0).toUpperCase() +
+                            order.status.slice(1)}
+                        </Badge>
+                      </div>
+                      <div className="space-y-1 text-sm text-slate-300">
+                        {order.items.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="flex justify-between items-center"
+                          >
+                            <span>
+                              {item.name} x{item.quantity}
+                            </span>
+                            <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t border-slate-700 mt-2 text-sm">
+                        <span className="text-slate-400">
+                          Placed:{' '}
+                          {new Date(order.createdAt).toLocaleTimeString()}
+                        </span>
+                        <span className="text-emerald-400 font-semibold">
+                          {(() => {
+                            const total = Number(order.totalAmount) || 0;
+                            return `Total ₹${total.toFixed(2)}`;
+                          })()}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {pastOrders.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-slate-300">
+                Order History
+              </h3>
+              <div className="space-y-3">
+                {pastOrders.map((order) => (
+                  <Card
+                    key={order.id}
+                    className="bg-slate-800 border-slate-700"
+                  >
+                    <CardContent className="p-4 space-y-1 text-sm">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="text-xs text-slate-400">
+                            Order #{order.orderNumber}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {new Date(order.createdAt).toLocaleString()}
+                          </div>
+                        </div>
+                        <Badge
+                          className={
+                            order.status === 'delivered'
+                              ? 'bg-emerald-600 text-white'
+                              : order.status === 'cancelled'
+                              ? 'bg-red-600 text-white'
+                              : ''
+                          }
+                        >
+                          {order.status.charAt(0).toUpperCase() +
+                            order.status.slice(1)}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between items-center mt-1">
+                        <span className="text-slate-300">
+                          {order.items.map((i) => i.name).join(', ')}
+                        </span>
+                        <span className="text-emerald-400 font-semibold">
+                          {(() => {
+                            const total = Number(order.totalAmount) || 0;
+                            return `₹${total.toFixed(2)}`;
+                          })()}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Order Dialog */}

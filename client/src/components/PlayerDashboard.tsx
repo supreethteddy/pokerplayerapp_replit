@@ -83,11 +83,15 @@ import { whitelabelConfig } from "@/lib/whitelabeling";
 // Scrollable Offers Display Component
 const ScrollableOffersDisplay = () => {
   const {
-    data: offers,
+    data: offersResponse,
     isLoading,
     error,
-  } = useQuery({
+  } = useQuery<{ offers: any[]; total: number }>({
     queryKey: ["/api/player-offers/active"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/player-offers/active");
+      return await response.json();
+    },
     refetchInterval: 5000, // Refresh every 5 seconds
     retry: 1, // Only retry once to avoid spamming
   });
@@ -97,8 +101,14 @@ const ScrollableOffersDisplay = () => {
       apiRequest("POST", "/api/offer-views", { offer_id: offerId }),
   });
 
+  const [offerDetailsOpen, setOfferDetailsOpen] = useState(false);
+  const [selectedOffer, setSelectedOffer] = useState<any | null>(null);
+
   // Use only real staff offers from database - no fallback demo data
-  const displayOffers = offers && Array.isArray(offers) ? offers : [];
+  const displayOffers =
+    offersResponse && Array.isArray(offersResponse.offers)
+      ? offersResponse.offers
+      : [];
 
   // Handle error state gracefully
   if (error) {
@@ -245,11 +255,12 @@ const ScrollableOffersDisplay = () => {
                     onClick={(e) => {
                       e.stopPropagation();
                       trackOfferView.mutate(offer.id);
-                      // Use click_url if available, otherwise fallback to offer detail page
+                      // Use click_url if available, otherwise show details dialog
                       if (offer.click_url) {
                         window.open(offer.click_url, "_blank");
                       } else {
-                        window.location.href = `/offer/${offer.id}`;
+                        setSelectedOffer(offer);
+                        setOfferDetailsOpen(true);
                       }
                     }}
                   >
@@ -261,6 +272,104 @@ const ScrollableOffersDisplay = () => {
             </Card>
           ))}
       </div>
+
+      {/* Offer Details Dialog */}
+      <Dialog open={offerDetailsOpen} onOpenChange={setOfferDetailsOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-slate-800 border-slate-700">
+          <DialogHeader>
+            <DialogTitle className="text-white text-2xl flex items-center">
+              <Gift className="w-6 h-6 mr-2 text-emerald-500" />
+              {selectedOffer?.title || "Offer Details"}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedOffer && (
+            <div className="space-y-4">
+              {/* Media */}
+              {selectedOffer.video_url ? (
+                <div className="aspect-video rounded-lg overflow-hidden bg-slate-900">
+                  <video
+                    className="w-full h-full object-cover"
+                    poster={selectedOffer.image_url}
+                    controls
+                    preload="metadata"
+                  >
+                    <source src={selectedOffer.video_url} type="video/mp4" />
+                  </video>
+                </div>
+              ) : selectedOffer.image_url ? (
+                <div className="aspect-video rounded-lg overflow-hidden bg-slate-900">
+                  <img
+                    src={selectedOffer.image_url}
+                    alt={selectedOffer.title}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="aspect-video rounded-lg bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center">
+                  <Gift className="w-16 h-16 text-white" />
+                </div>
+              )}
+
+              {/* Description */}
+              <div className="text-slate-300 leading-relaxed">
+                <p className="whitespace-pre-wrap">{selectedOffer.description}</p>
+              </div>
+
+              {/* Offer Details */}
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-700">
+                {selectedOffer.offer_type && (
+                  <div>
+                    <p className="text-slate-400 text-sm mb-1">Offer Type</p>
+                    <Badge
+                      className={
+                        selectedOffer.offer_type === "banner"
+                          ? "bg-blue-600"
+                          : selectedOffer.offer_type === "carousel"
+                          ? "bg-purple-600"
+                          : "bg-orange-600"
+                      }
+                    >
+                      {selectedOffer.offer_type}
+                    </Badge>
+                  </div>
+                )}
+                {selectedOffer.target_audience && (
+                  <div>
+                    <p className="text-slate-400 text-sm mb-1">Target Audience</p>
+                    <p className="text-white">{selectedOffer.target_audience}</p>
+                  </div>
+                )}
+                {selectedOffer.start_date && (
+                  <div>
+                    <p className="text-slate-400 text-sm mb-1">Start Date</p>
+                    <p className="text-white">
+                      {new Date(selectedOffer.start_date).toLocaleDateString()}
+                    </p>
+                  </div>
+                )}
+                {selectedOffer.end_date && (
+                  <div>
+                    <p className="text-slate-400 text-sm mb-1">End Date</p>
+                    <p className="text-white">
+                      {new Date(selectedOffer.end_date).toLocaleDateString()}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Close Button */}
+              <div className="flex justify-end pt-4">
+                <Button
+                  onClick={() => setOfferDetailsOpen(false)}
+                  className="bg-slate-700 hover:bg-slate-600 text-white"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
@@ -442,6 +551,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // Feedback system state
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [sendingFeedback, setSendingFeedback] = useState(false);
+  const [submittingProfileChange, setSubmittingProfileChange] = useState<
+    string | null
+  >(null);
 
   // GRE Chat state variables
   const [chatMessage, setChatMessage] = useState("");
@@ -485,17 +597,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   }, [location]);
 
   // Document viewer removed as per requirements
-
-  // Email verification notification state
-  const [showEmailVerificationBanner, setShowEmailVerificationBanner] =
-    useState(false);
-
-  // Check if user needs email verification - integrated with Clerk auth
-  useEffect(() => {
-    if (user && user.email && !(user as any).emailVerified) {
-      setShowEmailVerificationBanner(true);
-    }
-  }, [user]);
 
   // Fetch live tables from backend API with realtime updates
   const { data: tablesData, isLoading: tablesLoading } = useAvailableTables();
@@ -581,13 +682,63 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     (req) => req.status === "active" && req.sessionStartTime
   );
 
-  // Fetch tournaments from staff portal
-  const { data: tournaments, isLoading: tournamentsLoading } = useQuery({
-    queryKey: ["/api/tournaments"],
+  // Fetch tournaments for this club
+  const {
+    data: tournamentsResponse,
+    isLoading: tournamentsLoading,
+  } = useQuery<{
+    tournaments: any[];
+    total: number;
+  }>({
+    queryKey: ["/api/player-tournaments/upcoming", user?.clubId],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/player-tournaments/upcoming");
+      if (!response.ok) {
+        throw new Error("Failed to fetch tournaments");
+      }
+      return await response.json();
+    },
     refetchInterval: 5000, // Refresh every 5 seconds
     refetchOnWindowFocus: true,
     staleTime: 0,
   });
+
+  const tournaments = tournamentsResponse?.tournaments || [];
+
+  // Fetch player registrations
+  const {
+    data: registrationsResponse,
+    isLoading: registrationsLoading,
+  } = useQuery<{
+    registrations: any[];
+    total: number;
+  }>({
+    queryKey: ["/api/player-tournaments/my-registrations", user?.id],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/player-tournaments/my-registrations");
+      if (!response.ok) {
+        throw new Error("Failed to fetch registrations");
+      }
+      return await response.json();
+    },
+    enabled: !!user?.id,
+    refetchInterval: 5000, // Refresh every 5 seconds
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  });
+
+  // Get registered tournament IDs from backend
+  const registeredTournamentIds = registrationsResponse?.registrations?.map((r: any) => r.tournamentId) || [];
+  
+  // Helper function to check if player is registered
+  const isRegistered = (tournamentId: string) => {
+    return registeredTournamentIds.includes(tournamentId);
+  };
+
+  const [tournamentDetailsOpen, setTournamentDetailsOpen] = useState(false);
+  const [selectedTournament, setSelectedTournament] = useState<any | null>(
+    null
+  );
 
   // Fetch dual balance system data with smart refresh
   const { data: accountBalance, isLoading: balanceLoading } = useQuery({
@@ -600,35 +751,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     structuralSharing: true, // Only update UI if balance actually changed
   });
 
-  // Tournament Interest Handler - sends to GRE
-  const handleTournamentInterest = async (tournamentId: string) => {
-    if (!user?.id) return;
-
-    setTournamentActionLoading(true);
-    try {
-      const response = await apiRequest("POST", "/api/unified-chat/send", {
-        playerId: user.id,
-        playerName: `${user.firstName} ${user.lastName}`,
-        message: `Player is interested in Tournament ID: ${tournamentId}`,
-        senderType: "player",
-      });
-
-      if (response.ok) {
-        toast({
-          title: "Interest Registered",
-          description:
-            "Your interest has been sent to our Guest Relations team",
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: "Failed to register interest. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setTournamentActionLoading(false);
-    }
+  // Open tournament details dialog
+  const handleViewTournamentDetails = (tournament: any) => {
+    setSelectedTournament(tournament);
+    setTournamentDetailsOpen(true);
   };
 
   // Tournament Registration Handler - adds to player management system
@@ -637,20 +763,35 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
     setTournamentActionLoading(true);
     try {
-      const response = await apiRequest("POST", "/api/tournaments/register", {
-        playerId: user.id,
-        tournamentId,
-        playerName: `${user.firstName} ${user.lastName}`,
-        email: user.email,
-      });
+      const response = await apiRequest(
+        "POST",
+        "/api/player-tournaments/register",
+        {
+          tournamentId,
+        }
+      );
 
       if (response.ok) {
+        const result = await response.json();
         toast({
           title: "Registration Successful",
           description: "You have been registered for the tournament",
         });
-        // Refresh tournaments to update registered player count
-        queryClient.invalidateQueries({ queryKey: ["/api/tournaments"] });
+        
+        // Save to localStorage as backup
+        if (user?.id) {
+          const current = registeredTournamentIds || [];
+          const updated = [...current, tournamentId];
+          localStorage.setItem(`tournament_registrations_${user.id}`, JSON.stringify(updated));
+        }
+        
+        // Refresh tournaments and registrations to update UI
+        queryClient.invalidateQueries({
+          queryKey: ["/api/player-tournaments/upcoming"],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["/api/player-tournaments/my-registrations"],
+        });
       }
     } catch (error: any) {
       toast({
@@ -883,6 +1024,86 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     staleTime: 20000, // Consider fresh for 20 seconds
     gcTime: 60000, // Keep cached for 1 minute
     structuralSharing: true, // Only update if new notifications
+  });
+
+  // Helper to submit a per-field profile change request
+  const submitProfileChangeRequest = async (
+    fieldName: string,
+    requestedValue: string,
+    currentValue: string | null,
+  ) => {
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to request profile changes",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!requestedValue.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter the new value you want",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSubmittingProfileChange(fieldName);
+    try {
+      const response = await apiRequest(
+        "POST",
+        "/api/auth/player/profile-change-request",
+        {
+          fieldName,
+          currentValue,
+          requestedValue: requestedValue.trim(),
+        },
+      );
+
+      const result = await response.json();
+      if (response.ok && result?.success) {
+        toast({
+          title: "Request Sent",
+          description:
+            "Your profile change request has been sent to club staff for review.",
+          className: "bg-emerald-600 text-white",
+        });
+      } else {
+        throw new Error(result?.message || "Failed to submit request");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description:
+          error.message || "Failed to submit profile change request.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmittingProfileChange(null);
+    }
+  };
+
+  // Fetch previously submitted feedback for this player
+  const {
+    data: feedbackHistory,
+    isLoading: feedbackHistoryLoading,
+    isError: feedbackHistoryError,
+  } = useQuery<{
+    success: boolean;
+    feedback: { id: string; message: string; rating: number | null; created_at: string }[];
+  }>({
+    queryKey: ["/api/auth/player/feedback/history", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const response = await apiRequest(
+        "GET",
+        "/api/auth/player/feedback/history",
+      );
+      return await response.json();
+    },
+    refetchOnWindowFocus: false,
   });
 
   // Submit feedback function
@@ -2033,31 +2254,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   return (
     <div className="min-h-screen bg-slate-900 w-full overflow-x-hidden dashboard-container relative">
-      {/* Email Verification Banner */}
-      {showEmailVerificationBanner &&
-        user?.email &&
-        !(user as any)?.emailVerified && (
-          <div className="bg-amber-600 border-b border-amber-500 px-3 sm:px-6 py-2.5 sm:py-3 notification-banner">
-            <div className="flex items-start sm:items-center justify-between gap-2">
-              <div className="flex items-start sm:items-center flex-1 min-w-0">
-                <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-white flex-shrink-0 mt-0.5 sm:mt-0" />
-                <span className="text-white font-medium text-xs sm:text-sm leading-relaxed">
-                  Please verify your email address. Check your inbox for the
-                  verification link.
-                </span>
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-white hover:bg-amber-700 flex-shrink-0 min-h-[32px] sm:min-h-[36px] h-8 sm:h-9 w-8 sm:w-9 p-0"
-                onClick={() => setShowEmailVerificationBanner(false)}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-
       {/* Active Game Status Banner */}
       {gameStatus.activeGameInfo && (
         <div
@@ -2847,16 +3043,19 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                   <h3 className="font-semibold text-white">
                                     {tournament.name}
                                   </h3>
-                                  <p className="text-sm text-slate-400">
-                                    {tournament.game_type}
-                                  </p>
+                                  {tournament.description && (
+                                    <p className="text-xs text-slate-400 mt-1">
+                                      {tournament.description}
+                                    </p>
+                                  )}
                                 </div>
                                 <div className="text-right">
                                   <p className="text-sm text-slate-400">
                                     Buy-in
                                   </p>
                                   <p className="text-lg font-semibold text-yellow-500">
-                                    ₹{tournament.buy_in?.toLocaleString()}
+                                    ₹
+                                    {Number(tournament.buyIn || tournament.buy_in || 0).toLocaleString()}
                                   </p>
                                 </div>
                               </div>
@@ -2868,8 +3067,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     Players
                                   </p>
                                   <p className="text-xs sm:text-sm font-semibold text-white">
-                                    {tournament.registered_players}/
-                                    {tournament.max_players}
+                                    {(tournament.registeredPlayers ??
+                                      tournament.registered_players ??
+                                      0) || 0}
+                                    /
+                                    {tournament.maxPlayers ??
+                                      tournament.max_players ??
+                                      0}
                                   </p>
                                 </div>
                                 <div className="text-center">
@@ -2878,12 +3082,14 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     Start Time
                                   </p>
                                   <p className="text-xs sm:text-sm font-semibold text-emerald-500">
-                                    {new Date(
-                                      tournament.start_time
-                                    ).toLocaleTimeString([], {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })}
+                                    {tournament.startDate
+                                      ? new Date(
+                                          tournament.startDate
+                                        ).toLocaleTimeString([], {
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                        })
+                                      : "TBA"}
                                   </p>
                                 </div>
                                 <div className="text-center">
@@ -2892,7 +3098,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     Prize Pool
                                   </p>
                                   <p className="text-xs sm:text-sm font-semibold text-yellow-500">
-                                    ₹{tournament.prize_pool?.toLocaleString()}
+                                    ₹
+                                    {Number(
+                                      tournament.prizePool ||
+                                        tournament.prize_pool ||
+                                        0
+                                    ).toLocaleString()}
                                   </p>
                                 </div>
                               </div>
@@ -2917,9 +3128,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                         tournament.status.slice(1)
                                       : "Unknown"}
                                   </Badge>
-                                  <span className="text-sm text-slate-400">
-                                    {tournament.tournament_type}
-                                  </span>
+                                  {tournament.structure && (
+                                    <span className="text-sm text-slate-400">
+                                      {tournament.structure}
+                                    </span>
+                                  )}
                                 </div>
 
                                 <div className="flex items-center space-x-2">
@@ -2927,35 +3140,45 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     <>
                                       <Button
                                         onClick={() =>
-                                          handleTournamentInterest(
-                                            tournament.id
+                                          handleViewTournamentDetails(
+                                            tournament
                                           )
                                         }
-                                        disabled={tournamentActionLoading}
                                         size="sm"
                                         variant="outline"
-                                        className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
+                                        className="border-slate-500 text-slate-200 hover:bg-slate-600"
                                       >
-                                        {tournamentActionLoading ? (
-                                          <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mr-2" />
-                                        ) : null}
-                                        Interested
+                                        View Details
                                       </Button>
-                                      <Button
-                                        onClick={() =>
-                                          handleTournamentRegister(
-                                            tournament.id
-                                          )
-                                        }
-                                        disabled={tournamentActionLoading}
-                                        size="sm"
-                                        className="bg-yellow-500 hover:bg-yellow-600 text-black"
-                                      >
-                                        {tournamentActionLoading ? (
-                                          <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin mr-2" />
-                                        ) : null}
-                                        Register
-                                      </Button>
+                                      {isRegistered(
+                                        tournament.id
+                                      ) ? (
+                                        <Button
+                                          size="sm"
+                                          disabled
+                                          className="bg-emerald-600 text-white"
+                                        >
+                                          Registered
+                                        </Button>
+                                      ) : (
+                                        <Button
+                                          onClick={() =>
+                                            handleTournamentRegister(
+                                              tournament.id
+                                            )
+                                          }
+                                          disabled={tournamentActionLoading}
+                                          size="sm"
+                                          className="bg-yellow-500 hover:bg-yellow-600 text-black"
+                                        >
+                                          {tournamentActionLoading
+                                            ? (
+                                              <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin mr-2" />
+                                            )
+                                            : null}
+                                          Register
+                                        </Button>
+                                      )}
                                     </>
                                   )}
                                 </div>
@@ -3059,25 +3282,111 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {/* Profile Details */}
+                    {/* Profile Details with per-field change request actions */}
                     <div className="space-y-3">
-                      <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
-                        <span className="text-sm text-slate-300">Name</span>
-                        <span className="text-sm text-white font-medium">
-                          {user?.firstName} {user?.lastName}
-                        </span>
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-slate-700 rounded-lg gap-2">
+                        <div>
+                          <span className="text-sm text-slate-300 block">
+                            Name
+                          </span>
+                          <span className="text-sm text-white font-medium">
+                            {user?.firstName} {user?.lastName}
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-emerald-500/60 text-emerald-300 hover:bg-emerald-600/10"
+                          disabled={!!submittingProfileChange}
+                          onClick={async () => {
+                            const current =
+                              `${user?.firstName || ""} ${
+                                user?.lastName || ""
+                              }`.trim();
+                            const requested = window.prompt(
+                              "Enter the new full name you would like on your profile:",
+                              current,
+                            );
+                            if (requested === null) return;
+                            await submitProfileChangeRequest(
+                              "name",
+                              requested,
+                              current || null,
+                            );
+                          }}
+                        >
+                          {submittingProfileChange === "name"
+                            ? "Sending..."
+                            : "Request Change"}
+                        </Button>
                       </div>
-                      <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
-                        <span className="text-sm text-slate-300">Email</span>
-                        <span className="text-sm text-white font-medium">
-                          {user?.email}
-                        </span>
+
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-slate-700 rounded-lg gap-2">
+                        <div>
+                          <span className="text-sm text-slate-300 block">
+                            Email
+                          </span>
+                          <span className="text-sm text-white font-medium">
+                            {user?.email}
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-emerald-500/60 text-emerald-300 hover:bg-emerald-600/10"
+                          disabled={!!submittingProfileChange}
+                          onClick={async () => {
+                            const current = user?.email || "";
+                            const requested = window.prompt(
+                              "Enter the new email address you would like on your profile:",
+                              current,
+                            );
+                            if (requested === null) return;
+                            await submitProfileChangeRequest(
+                              "email",
+                              requested,
+                              current || null,
+                            );
+                          }}
+                        >
+                          {submittingProfileChange === "email"
+                            ? "Sending..."
+                            : "Request Change"}
+                        </Button>
                       </div>
-                      <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
-                        <span className="text-sm text-slate-300">Phone</span>
-                        <span className="text-sm text-white font-medium">
-                          {user?.phone}
-                        </span>
+
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-slate-700 rounded-lg gap-2">
+                        <div>
+                          <span className="text-sm text-slate-300 block">
+                            Phone
+                          </span>
+                          <span className="text-sm text-white font-medium">
+                            {user?.phone}
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-emerald-500/60 text-emerald-300 hover:bg-emerald-600/10"
+                          disabled={!!submittingProfileChange}
+                          onClick={async () => {
+                            const current = (user as any)?.phone || "";
+                            const requested = window.prompt(
+                              "Enter the new phone number you would like on your profile:",
+                              current,
+                            );
+                            if (requested === null) return;
+                            await submitProfileChangeRequest(
+                              "phone",
+                              requested,
+                              current || null,
+                            );
+                          }}
+                        >
+                          {submittingProfileChange === "phone"
+                            ? "Sending..."
+                            : "Request Change"}
+                        </Button>
                       </div>
                       <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
                         <span className="text-sm text-slate-300">
@@ -3102,20 +3411,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         </div>
                       </div>
                     </div>
-                    <CardContent className="pt-0">
-                      <Button
-                        className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
-                        onClick={() => {
-                          toast({
-                            title: "Request Sent",
-                            description: "Your profile update request has been sent to club staff",
-                            className: "bg-emerald-600 text-white",
-                          });
-                        }}
-                      >
-                        <User className="w-4 h-4 mr-2" />
-                        Request Profile Changes
-                      </Button>
+                    <CardContent className="pt-2 text-xs text-slate-400">
+                      Profile changes are processed by club staff. Use the
+                      per-field **Request Change** buttons above to submit
+                      secure requests for updates.
                     </CardContent>
                   </CardContent>
                 </Card>
@@ -4246,6 +4545,75 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   </CardContent>
                 </Card>
 
+                {/* Previous Feedback History */}
+                <Card className="bg-slate-800 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <MessageCircle className="w-5 h-5 mr-2 text-emerald-400" />
+                      Previous Feedback
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {feedbackHistoryLoading && (
+                      <div className="space-y-2">
+                        {[1, 2, 3].map((i) => (
+                          <div
+                            key={i}
+                            className="h-14 bg-slate-700/60 rounded-lg animate-pulse"
+                          />
+                        ))}
+                      </div>
+                    )}
+
+                    {feedbackHistoryError && (
+                      <div className="text-sm text-red-400">
+                        Unable to load your previous feedback right now. Please
+                        try again later.
+                      </div>
+                    )}
+
+                    {!feedbackHistoryLoading &&
+                      !feedbackHistoryError &&
+                      (!feedbackHistory?.feedback ||
+                        feedbackHistory.feedback.length === 0) && (
+                        <div className="text-sm text-slate-400">
+                          You haven&apos;t sent any feedback yet. Your previous
+                          messages to management will appear here.
+                        </div>
+                      )}
+
+                    {!feedbackHistoryLoading &&
+                      !feedbackHistoryError &&
+                      feedbackHistory?.feedback &&
+                      feedbackHistory.feedback.length > 0 && (
+                        <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                          {feedbackHistory.feedback.map((item) => (
+                            <div
+                              key={item.id}
+                              className="p-3 bg-slate-700/60 rounded-lg border border-slate-600/60"
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs text-slate-400">
+                                  {new Date(
+                                    item.created_at,
+                                  ).toLocaleString()}
+                                </span>
+                                {item.rating != null && (
+                                  <span className="text-xs text-amber-400">
+                                    Rating: {item.rating}/5
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-slate-100 whitespace-pre-wrap">
+                                {item.message}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                  </CardContent>
+                </Card>
+
                 {/* Guest Relations Support - Unified Chat System */}
                 <Card className="bg-slate-800 border-slate-700">
                   <CardHeader className="pb-4 border-b border-slate-700">
@@ -4306,7 +4674,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
         {/* Full Chat Dialog that opens from "Open Chat" button */}
         <Dialog open={chatDialogOpen} onOpenChange={setChatDialogOpen}>
-          <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[85vh] sm:max-h-[80vh] bg-slate-800 border-slate-700 p-3 sm:p-6">
+          <DialogContent
+            forceMount
+            className="w-[95vw] sm:max-w-2xl max-h-[85vh] sm:max-h-[80vh] bg-slate-800 border-slate-700 p-3 sm:p-6"
+          >
             <DialogHeader className="pb-3 sm:pb-4">
               <DialogTitle className="text-white flex items-center text-base sm:text-lg">
                 <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-emerald-400" />
@@ -4315,9 +4686,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             </DialogHeader>
 
             {/* Chat System Integration - Direct PostgreSQL connection to Staff Portal */}
-            {chatDialogOpen && user?.id && (
+            {user?.id && (
               <PlayerChatSystem
-                playerId={Number(user.id)}
+                playerId={user.id}
                 playerName={
                   `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
                   user?.email ||
@@ -4326,6 +4697,99 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 isInDialog={true}
                 onClose={() => setChatDialogOpen(false)}
               />
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Tournament Details Dialog */}
+        <Dialog
+          open={tournamentDetailsOpen}
+          onOpenChange={(open) => {
+            setTournamentDetailsOpen(open);
+            if (!open) {
+              setSelectedTournament(null);
+            }
+          }}
+        >
+          <DialogContent className="w-[95vw] sm:max-w-lg max-h-[80vh] bg-slate-900 border-slate-700 p-5 sm:p-6">
+            {selectedTournament && (
+              <>
+                <DialogHeader className="pb-3">
+                  <DialogTitle className="text-white flex items-center text-base sm:text-lg">
+                    <Trophy className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-yellow-500" />
+                    {selectedTournament.name}
+                  </DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-3 text-sm text-slate-200">
+                  {selectedTournament.description && (
+                    <p className="text-slate-300">
+                      {selectedTournament.description}
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-slate-400">Start Time</p>
+                      <p className="font-semibold">
+                        {selectedTournament.startDate
+                          ? new Date(
+                              selectedTournament.startDate
+                            ).toLocaleString()
+                          : "TBA"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Status</p>
+                      <p className="font-semibold capitalize">
+                        {selectedTournament.status || "upcoming"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Buy-in</p>
+                      <p className="font-semibold text-yellow-400">
+                        ₹
+                        {Number(
+                          selectedTournament.buyIn ||
+                            selectedTournament.buy_in ||
+                            0
+                        ).toLocaleString()}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Prize Pool</p>
+                      <p className="font-semibold text-yellow-400">
+                        ₹
+                        {Number(
+                          selectedTournament.prizePool ||
+                            selectedTournament.prize_pool ||
+                            0
+                        ).toLocaleString()}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Players</p>
+                      <p className="font-semibold">
+                        {(selectedTournament.registeredPlayers ??
+                          selectedTournament.registered_players ??
+                          0) || 0}
+                        /
+                        {selectedTournament.maxPlayers ||
+                          selectedTournament.max_players ||
+                          0}
+                      </p>
+                    </div>
+                    {selectedTournament.structure && (
+                      <div className="col-span-2">
+                        <p className="text-xs text-slate-400">Structure</p>
+                        <p className="font-semibold">
+                          {selectedTournament.structure}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
             )}
           </DialogContent>
         </Dialog>

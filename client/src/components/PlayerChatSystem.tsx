@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Pusher from 'pusher-js';
 import { MessageCircle, X, Send } from 'lucide-react';
+import { apiRequest } from "@/lib/queryClient";
 
 interface PlayerChatSystemProps {
-  playerId: number;
+  playerId: string;
   playerName: string;
   isInDialog?: boolean;
   onClose?: () => void;
@@ -21,12 +22,17 @@ interface ChatMessage {
 const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerName, isInDialog = false, onClose }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(true);
   const [sessionStatus, setSessionStatus] = useState<'none' | 'pending' | 'active' | 'recent'>('none');
   const [isOpen, setIsOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   const pusherRef = useRef<Pusher | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const storageKey = useMemo(
+    () => (playerId ? `player_chat_${playerId}` : 'player_chat'),
+    [playerId]
+  );
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -40,59 +46,69 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
   const loadChatHistory = async () => {
     try {
       console.log('📚 [PLAYER CHAT] Loading chat history for player:', playerId);
-      const response = await fetch(`/api/chat-history/${playerId}`);
+
+      const response = await apiRequest(
+        'GET',
+        `/api/player-chat/history?limit=50`
+      );
       const data = await response.json();
 
-      if (data.success && data.conversations && data.conversations.length > 0) {
-        // Get all messages from all active conversations (not resolved)
-        const allMessages: ChatMessage[] = [];
+      let loaded: ChatMessage[] =
+        Array.isArray(data?.messages) && data.messages.length > 0
+          ? data.messages.map((msg: any) => ({
+              id: msg.id?.toString?.() ?? `msg-${msg.timestamp || Date.now()}`,
+              message: msg.message || msg.message_text || '',
+              sender: (msg.sender as 'player' | 'staff') || 'staff',
+              sender_name: msg.sender_name || msg.sender || 'Staff',
+              timestamp: msg.timestamp || new Date().toISOString(),
+              isFromStaff:
+                msg.sender === 'staff' ||
+                msg.senderType === 'staff' ||
+                msg.sender_name === 'Staff',
+            }))
+          : [];
 
-        data.conversations.forEach((conversation: any) => {
-          if (conversation.status !== 'resolved') { // Only load non-resolved conversations
-            // Add initial_message as the first message if it exists
-            if (conversation.initial_message) {
-              const initialMessage: ChatMessage = {
-                id: `initial-${conversation.id}`,
-                message: conversation.initial_message,
-                sender: 'player',
-                sender_name: conversation.player_name || playerName,
-                timestamp: conversation.created_at || new Date().toISOString(),
-                isFromStaff: false
-              };
-              allMessages.push(initialMessage);
-            }
-
-            const conversationMessages = conversation.chat_messages?.map((msg: any) => ({
-              id: msg.id,
-              message: msg.message_text,
-              sender: msg.sender as 'player' | 'staff',
-              sender_name: msg.sender_name,
-              timestamp: msg.timestamp,
-              isFromStaff: msg.sender === 'staff'
-            })) || [];
-
-            allMessages.push(...conversationMessages);
+      // Merge with any locally stored messages so the player can
+      // still see their own recent messages even if the backend
+      // doesn't yet return history (e.g. Supabase-only environments).
+      try {
+        let raw =
+          localStorage.getItem(storageKey) ||
+          localStorage.getItem("player_chat_NaN"); // migrate legacy key
+        if (raw) {
+          const localMessages: ChatMessage[] = JSON.parse(raw);
+          if (Array.isArray(localMessages) && localMessages.length > 0) {
+            const byId = new Map<string, ChatMessage>();
+            [...loaded, ...localMessages].forEach((m) => {
+              byId.set(m.id, m);
+            });
+            loaded = Array.from(byId.values());
           }
-        });
-
-        // Sort messages by timestamp
-        allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-        setMessages(allMessages);
-        console.log('✅ [PLAYER CHAT] Loaded', allMessages.length, 'messages from active conversations');
-
-        // Update session status based on latest conversation
-        const latestConversation = data.conversations[0];
-        if (latestConversation && latestConversation.status !== 'resolved') {
-          setSessionStatus(latestConversation.status || 'pending');
         }
-      } else {
-        console.log('📚 [PLAYER CHAT] No active conversations found');
-        setMessages([]);
+      } catch (e) {
+        console.warn("Unable to read cached chat messages", e);
+      }
+
+      // Sort by time
+      loaded.sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+
+      setMessages(loaded);
+      console.log('✅ [PLAYER CHAT] Loaded', loaded.length, 'messages from history');
+
+      const last = loaded[loaded.length - 1];
+      if (!last) {
         setSessionStatus('none');
+      } else if (last.isFromStaff) {
+        setSessionStatus('active');
+      } else {
+        setSessionStatus('pending');
       }
     } catch (error) {
       console.error('❌ [PLAYER CHAT] Failed to load messages:', error);
+      setMessages([]);
+      setSessionStatus('none');
     }
   };
 
@@ -101,9 +117,15 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
 
     console.log('🚀 [PLAYER CHAT] Initializing for player:', playerId, playerName);
 
-    // Initialize Pusher with environment variables to match Staff Portal
+    // Initialize Pusher with environment variables to match Staff Portal.
+    // If Pusher is not configured, fall back to HTTP-only mode so that
+    // players can still view history and send messages without real-time updates.
     if (!import.meta.env.VITE_PUSHER_KEY) {
       console.error('❌ [PUSHER CONFIG] VITE_PUSHER_KEY not found in environment');
+      // Fallback: still load history and allow sending messages
+      loadChatHistory().then(() => {
+        setIsConnected(true);
+      });
       return;
     }
 
@@ -224,52 +246,55 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
   }, [isInDialog, playerId]);
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !isConnected) return;
+    if (!newMessage.trim()) return;
 
     const messageText = newMessage.trim();
     const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const timestamp = new Date().toISOString();
 
-    // Immediate UI update (optimistic) - ZERO delay for user
+    // Optimistic UI update
     const optimisticMsg: ChatMessage = {
       id: messageId,
       message: messageText,
       sender: 'player',
       sender_name: playerName,
-      timestamp: timestamp,
-      isFromStaff: false
+      timestamp,
+      isFromStaff: false,
     };
 
-    setMessages(prev => [...prev, optimisticMsg]);
+    setMessages((prev) => {
+      const next = [...prev, optimisticMsg];
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Unable to persist chat messages', e);
+      }
+      return next;
+    });
     setNewMessage('');
     setSessionStatus('pending');
 
     try {
-      console.log('⚡ [OPTIMIZED V1.2] Sending message to staff portal:', messageText);
+      console.log('⚡ [OPTIMIZED V1.2] Sending message to staff portal via /api/player-chat/send:', messageText);
 
-      // Fire and forget - don't wait for response
-      fetch('/api/staff-chat-integration/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          playerId: parseInt(playerId.toString()),
-          playerName: playerName,
-          message: messageText,
-          requestId: `player-${playerId}-${Date.now()}`
-        })
-      }).then(async (response) => {
-        if (response.ok) {
-          const result = await response.json();
-          console.log('✅ [OPTIMIZED V1.2] Background confirmation:', result);
-        } else {
-          console.error('❌ [OPTIMIZED V1.2] Server error (non-critical):', response.statusText);
-        }
-      }).catch((error) => {
-        console.error('❌ [OPTIMIZED V1.2] Network error (non-critical):', error);
+      const response = await apiRequest('POST', '/api/player-chat/send', {
+        message: messageText,
+        playerName,
       });
+      const result = await response.json().catch(() => null);
 
+      if (!response.ok) {
+        console.error('❌ [OPTIMIZED V1.2] Server error (non-critical):', result || response.statusText);
+        setSessionStatus('none');
+        return;
+      }
+
+      console.log('✅ [OPTIMIZED V1.2] Message accepted by backend:', result);
+      // Mark session as active once backend accepts the message
+      setSessionStatus('active');
     } catch (error) {
       console.error('❌ [OPTIMIZED V1.2] Send error:', error);
+      setSessionStatus('none');
     }
   };
 
@@ -301,8 +326,10 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
         {/* Status Bar */}
         <div className={`px-3 py-2 text-sm ${getStatusColor()} bg-slate-900 border-b border-slate-600 flex items-center justify-between`}>
           <span>
-            Status: {sessionStatus === 'none' ? 'Ready to chat' : sessionStatus.charAt(0).toUpperCase() + sessionStatus.slice(1)}
-            {!isConnected && ' • Connecting...'}
+            Status:{" "}
+            {sessionStatus === "none"
+              ? "Ready to chat"
+              : sessionStatus.charAt(0).toUpperCase() + sessionStatus.slice(1)}
           </span>
           <div className={`w-3 h-3 rounded-full ${
             sessionStatus === 'pending' ? 'bg-yellow-500' :
@@ -353,20 +380,22 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-              placeholder={isConnected ? "Type your message..." : "Connecting..."}
-              disabled={!isConnected}
+              placeholder={isConnected ? "Type your message..." : "Type your message..."}
+              disabled={false}
               className="flex-1 px-4 py-3 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-700 text-white placeholder-slate-400 disabled:opacity-50 min-h-[44px]"
             />
             <button
               onClick={sendMessage}
-              disabled={!newMessage.trim() || !isConnected}
+              disabled={!newMessage.trim()}
               className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg transition-colors font-medium min-h-[44px] min-w-[44px] flex items-center justify-center flex-shrink-0"
             >
               <Send size={18} />
             </button>
           </div>
           <div className="mt-3 text-xs text-slate-400">
-            {isConnected ? 'Connected to Guest Relations' : 'Connecting...'}
+            {sessionStatus === "active"
+              ? "Connected to Guest Relations"
+              : "Chat ready"}
           </div>
         </div>
       </div>
