@@ -51,8 +51,6 @@ import {
   RotateCcw,
   Trash2,
   Coffee,
-  Award,
-  Download,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
@@ -61,35 +59,6 @@ import type {
   SeatRequest,
   KycDocument,
 } from "@shared/schema";
-// Player API Services and Hooks
-import {
-  usePlayerBalance,
-  usePlayerTransactions,
-  useJoinWaitlist,
-  useWaitlistStatus,
-  useCancelWaitlist,
-  useAvailableTables,
-  useTableDetails,
-  useRequestCredit,
-  usePlayerStats,
-  usePlayerProfile,
-  useUpdatePlayerProfile,
-  useChangePlayerPassword,
-} from "@/hooks/usePlayerAPI";
-import {
-  playerBalanceService,
-  waitlistService,
-  tablesService,
-  creditRequestService,
-  playerStatsService,
-  playerAuthService,
-  STORAGE_KEYS,
-  documentsService,
-  vipService,
-  tournamentsService,
-  feedbackService,
-  playtimeService,
-} from "@/lib/api";
 import DualBalanceDisplay from "./DualBalanceDisplay";
 import { PlayerBalanceDisplay } from "./PlayerBalanceDisplay";
 import { PlayerTransactionHistory } from "./PlayerTransactionHistory";
@@ -102,34 +71,21 @@ import NotificationPopup from "./NotificationPopup";
 import TableView from "./TableView";
 
 import PlayerChatSystem from "./PlayerChatSystem";
-import { RecentFeedbackList } from "./RecentFeedbackList";
 import NotificationHistoryTab from "./NotificationHistoryTab";
 import FoodBeverageTab from "./FoodBeverageTab";
-import VIPPointsTab from "./VIPPointsTab";
-import TournamentsTab from "./TournamentsTab";
 import { useSeatAssignment } from "@/hooks/useSeatAssignment";
 import { usePlayerGameStatus } from "@/hooks/usePlayerGameStatus";
 import { whitelabelConfig } from "@/lib/whitelabeling";
-import { useRealtimeNotifications } from "@/hooks/useRealtimeNotifications";
-import { useRealtimeOffers } from "@/hooks/useRealtimeOffers";
-import { useRealtimeWaitlist } from "@/hooks/useRealtimeWaitlist";
-import { useRealtimeTables } from "@/hooks/useRealtimeTables";
-import { useRealtimeBalance } from "@/hooks/useRealtimeBalance";
-import { useRealtimeTransactions } from "@/hooks/useRealtimeTransactions";
-import { useRealtimeKycStatus } from "@/hooks/useRealtimeKycStatus";
 
 // Scrollable Offers Display Component
 const ScrollableOffersDisplay = () => {
-  // Enable real-time offers via Supabase Realtime
-  useRealtimeOffers();
-
   const {
     data: offers,
     isLoading,
     error,
   } = useQuery({
     queryKey: ["/api/staff-offers"],
-    // No refetchInterval - Supabase Realtime handles updates automatically!
+    refetchInterval: 5000, // Refresh every 5 seconds
     retry: 1, // Only retry once to avoid spamming
   });
 
@@ -480,44 +436,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const [callTime, setCallTime] = useState("02:45");
   const [location, setLocation] = useLocation();
 
-  // Derived KYC state
-  const kycApproved =
-    user?.kycStatus === "approved" || user?.kycStatus === "verified";
-
-  // Ensure player ID and club ID are stored for API calls
-  useEffect(() => {
-    if (user?.id) {
-      // Store player ID for API authentication
-      localStorage.setItem(STORAGE_KEYS.PLAYER_ID, user.id);
-      sessionStorage.setItem(STORAGE_KEYS.PLAYER_ID, user.id);
-
-      // Store club ID if available (from user object or clubCode lookup)
-      if ((user as any).clubId) {
-        localStorage.setItem(STORAGE_KEYS.CLUB_ID, (user as any).clubId);
-        sessionStorage.setItem(STORAGE_KEYS.CLUB_ID, (user as any).clubId);
-      } else if ((user as any).clubCode) {
-        // If we have clubCode, we might need to look up clubId
-        // For now, store clubCode as a reference
-        localStorage.setItem(STORAGE_KEYS.CLUB_CODE, (user as any).clubCode);
-        sessionStorage.setItem(STORAGE_KEYS.CLUB_CODE, (user as any).clubCode);
-      }
-
-      // Store player data
-      if (user) {
-        localStorage.setItem(STORAGE_KEYS.PLAYER_DATA, JSON.stringify(user));
-        sessionStorage.setItem(STORAGE_KEYS.PLAYER_DATA, JSON.stringify(user));
-      }
-    }
-  }, [user]);
-
-  // If KYC is not approved, force user to stay on Profile tab
-  useEffect(() => {
-    if (!kycApproved) {
-      // Always force profile tab when KYC is not approved
-      setActiveTab("profile");
-    }
-  }, [kycApproved]);
-
   // Feedback system state
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [sendingFeedback, setSendingFeedback] = useState(false);
@@ -553,10 +471,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const getActiveTabFromUrl = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const tab = urlParams.get("tab");
-    // If KYC is not approved, always default to profile tab
-    if (!kycApproved) {
-      return "profile";
-    }
     return tab || "game";
   };
 
@@ -565,7 +479,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // Update tab when URL changes
   useEffect(() => {
     setActiveTab(getActiveTabFromUrl());
-  }, [location, kycApproved]);
+  }, [location]);
 
   // Document viewer removed as per requirements
 
@@ -598,51 +512,71 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   });
   */
 
-  // Fetch available tables using proper API service
-  const { data: tablesData, isLoading: tablesLoading } = useAvailableTables();
-  
-  // Transform tables data to match existing format
-  const tables: TableType[] = tablesData?.tables ? tablesData.tables.map((table: any) => ({
-    id: table.id,
-    name: table.name || table.tableNumber,
-    gameType: table.gameVariant || "Texas Hold'em",
-    stakes: table.minBuyIn && table.maxBuyIn 
-      ? `₹${table.minBuyIn.toFixed(2)}/${table.maxBuyIn.toFixed(2)}`
-      : table.smallBlind && table.bigBlind
-      ? `₹${table.smallBlind.toFixed(2)}/${table.bigBlind.toFixed(2)}`
-      : "N/A",
-    maxPlayers: table.capacity || 6,
-    currentPlayers: table.occupiedSeats || 0,
-    pot: 0, // Pot not available from API
-    avgStack: 0, // Avg stack not available from API
-    isActive: table.status === 'available' || table.status === 'in_use',
-  })) : [];
+  // STATIC DATA: Mock tables for testing without backend
+  const STATIC_TABLES: TableType[] = [
+    {
+      id: 1,
+      name: "Main Table",
+      gameType: "Texas Hold'em",
+      stakes: "₹1000.00/10000.00",
+      maxPlayers: 6,
+      currentPlayers: 3,
+      pot: 50000,
+      avgStack: 5000,
+      isActive: true,
+    },
+    {
+      id: 2,
+      name: "VIP Table",
+      gameType: "Texas Hold'em",
+      stakes: "₹5000.00/50000.00",
+      maxPlayers: 9,
+      currentPlayers: 5,
+      pot: 250000,
+      avgStack: 25000,
+      isActive: true,
+    },
+    {
+      id: 3,
+      name: "High Stakes",
+      gameType: "Texas Hold'em",
+      stakes: "₹10000.00/100000.00",
+      maxPlayers: 6,
+      currentPlayers: 2,
+      pot: 500000,
+      avgStack: 50000,
+      isActive: true,
+    },
+  ];
 
-  // Fetch seat requests (now updated automatically via Realtime)
+  const tables = STATIC_TABLES;
+  const tablesLoading = false;
+
+  // Fetch seat requests with smart refresh
   const { data: seatRequests, isLoading: requestsLoading } = useQuery<
     SeatRequest[]
   >({
     queryKey: ["/api/seat-requests", user?.id],
     enabled: !!user?.id,
-    // No refetchInterval - Supabase Realtime handles updates automatically!
+    refetchInterval: 5000, // Background refresh every 5 seconds
     refetchOnWindowFocus: true,
     staleTime: 3000, // Consider data fresh for 3 seconds
     gcTime: 10000, // Keep cached for 10 seconds
     structuralSharing: true, // Only re-render if data structure changed
   });
 
-  // Fetch active seated sessions (now updated automatically via Realtime)
+  // Fetch active seated sessions with smart refresh
   const { data: seatedSessions, isLoading: seatedLoading } = useQuery<any[]>({
     queryKey: ["/api/table-seats", user?.id],
     enabled: !!user?.id,
-    // No refetchInterval - Supabase Realtime handles updates automatically!
+    refetchInterval: 8000, // Check every 8 seconds for active sessions
     refetchOnWindowFocus: true,
     staleTime: 5000, // Consider fresh for 5 seconds
     gcTime: 15000, // Keep cached for 15 seconds
     structuralSharing: true,
   });
 
-  // Check table status (now updated automatically via Realtime)
+  // Check table status with intelligent refresh
   const { data: tableStatuses } = useQuery({
     queryKey: ["/api/table-statuses", seatRequests?.map((req) => req.tableId)],
     queryFn: async () => {
@@ -665,7 +599,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       return statusResults.reduce((acc, curr) => ({ ...acc, ...curr }), {});
     },
     enabled: !!seatRequests && seatRequests.length > 0,
-    // No refetchInterval - Supabase Realtime handles updates automatically!
+    refetchInterval: 10000, // Check every 10 seconds - less aggressive
     staleTime: 8000, // Consider fresh for 8 seconds
     gcTime: 20000, // Keep cached for 20 seconds
     structuralSharing: true, // Only update if actual changes detected
@@ -684,16 +618,16 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     staleTime: 0,
   });
 
-  // Fetch player balance using proper API service
-  const { data: playerBalanceData, isLoading: balanceLoading } = usePlayerBalance();
-  
-  // Transform balance data to match existing format
-  const accountBalance = playerBalanceData ? {
-    balance: playerBalanceData.balance,
-    creditLimit: playerBalanceData.creditLimit || 0,
-    availableCredit: playerBalanceData.availableCredit || 0,
-    currency: playerBalanceData.currency || 'INR',
-  } : null;
+  // Fetch dual balance system data with smart refresh
+  const { data: accountBalance, isLoading: balanceLoading } = useQuery({
+    queryKey: ["/api/balance", user?.id],
+    enabled: !!user?.id,
+    refetchInterval: 15000, // Refresh every 15 seconds - balance changes are less frequent
+    refetchOnWindowFocus: true,
+    staleTime: 10000, // Consider fresh for 10 seconds
+    gcTime: 30000, // Keep cached for 30 seconds
+    structuralSharing: true, // Only update UI if balance actually changed
+  });
 
   // Tournament Interest Handler - sends to GRE
   const handleTournamentInterest = async (tournamentId: string) => {
@@ -760,104 +694,105 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Preferences removed as per requirements
 
-  // Fetch KYC documents using new player-documents API
-  const { data: kycDocumentsResponse, isLoading: kycLoading } = useQuery({
-    queryKey: ['/api/player-documents/my', user?.id],
-    queryFn: async () => {
-      const response = await fetch('http://localhost:3333/api/player-documents/my', {
-        headers: {
-          'x-player-id': user?.id || '',
-          'x-club-id': localStorage.getItem('clubId') || '',
-        },
-      });
-      if (!response.ok) throw new Error('Failed to fetch documents');
-      return response.json();
-    },
-    enabled: !!user?.id,
-    refetchInterval: 30000,
-  });
+  // Fetch KYC documents using new system
+  const { data: kycDocuments, isLoading: kycLoading } = useQuery<KycDocument[]>(
+    {
+      queryKey: [`/api/documents/player/${user?.id}`],
+      enabled: !!user?.id,
+    }
+  );
 
-  const kycDocuments = kycDocumentsResponse?.documents || [];
-
-  // Use proper waitlist API hooks
-  const joinWaitlistHook = useJoinWaitlist();
-  const waitlistStatus = useWaitlistStatus();
-  const cancelWaitlistMutation = useCancelWaitlist();
-
-  // Simple join waitlist - using proper API service
-  const joinWaitListMutation = {
-    mutate: async (tableId: string) => {
+  // Simple join waitlist - no seat selection required
+  const joinWaitListMutation = useMutation({
+    mutationFn: async (tableId: string) => {
       console.log(
         "🎯 [SIMPLE JOIN] Joining waitlist for table:",
         tableId,
         "player:",
         user?.id
       );
-      try {
-        // Get table type from tables if available
-        const table = tables?.find((t: any) => t.id === tableId);
-        await joinWaitlistHook.mutateAsync({
-          tableType: table?.gameType || undefined,
-          partySize: 1,
-        });
-        queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] });
-      } catch (error: any) {
-        console.error("❌ [SIMPLE JOIN] Error:", error);
-        throw error;
-      }
+      const response = await apiRequest("POST", "/api/seat-requests", {
+        playerId: user?.id,
+        tableId: tableId,
+        tableName: tables?.find((t: any) => t.id === tableId)?.name || "Table",
+        seatNumber: 1, // Default seat preference
+      });
+      return response.json();
     },
-    isPending: joinWaitlistHook.isPending,
-  };
+    onSuccess: () => {
+      console.log("✅ [SIMPLE JOIN] Success!");
+      queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] });
+      toast({
+        title: "Joined Waitlist",
+        description: "You've been added to the waitlist successfully",
+      });
+    },
+    onError: (error: any) => {
+      console.error("❌ [SIMPLE JOIN] Error:", error);
+      toast({
+        title: "Failed to Join",
+        description: error.message || "Could not join waitlist",
+        variant: "destructive",
+      });
+    },
+  });
 
-  // Leave wait-list mutation - using proper API service
-  const leaveWaitListMutation = {
-    mutate: async (tableId: string) => {
+  // Leave wait-list mutation
+  const leaveWaitListMutation = useMutation({
+    mutationFn: async (tableId: string) => {
       console.log(
         `🚪 [LEAVE WAITLIST] Attempting to leave waitlist for table: ${tableId}`
       );
-      try {
-        // Find the waitlist entry ID from status
-        const status = waitlistStatus.data;
-        // Check current entry first
-        if (status?.currentEntry?.id) {
-          await cancelWaitlistMutation.mutateAsync(status.currentEntry.id);
-          return;
+
+      const response = await apiRequest(
+        "DELETE",
+        `/api/seat-requests/${user?.id}/${tableId}`
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ [LEAVE WAITLIST] API Error response:`, errorText);
+
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: errorText || `HTTP ${response.status}` };
         }
-        // Otherwise find by tableId in entries
-        const entry = status?.entries?.find((e: any) => {
-          // Try to match by tableId if available, or use first entry
-          return e.id || (status.entries && status.entries[0]?.id);
-        });
-        if (!entry?.id) {
-          throw new Error("Waitlist entry not found");
-        }
-        await cancelWaitlistMutation.mutateAsync(entry.id);
-      } catch (error: any) {
-        console.error("❌ [LEAVE WAITLIST] Mutation error:", error);
-        throw error;
+
+        throw new Error(
+          errorData.error ||
+            errorData.message ||
+            `Server Error: ${response.status}`
+        );
       }
+
+      const result = await response.json();
+      console.log(`✅ [LEAVE WAITLIST] Success:`, result);
+      return result;
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tables"] });
       toast({
         title: "Left Wait-List",
-        description: data?.message || "You've been removed from the table wait-list",
+        description:
+          data.message || "You've been removed from the table wait-list",
       });
     },
     onError: (error: any) => {
+      console.error("❌ [LEAVE WAITLIST] Mutation error:", error);
       toast({
         title: "Failed to Leave",
         description: error.message || "Could not leave wait-list",
         variant: "destructive",
       });
     },
-    isPending: cancelWaitlistMutation.isPending,
-  };
+  });
 
   // Preferences update removed as per requirements
 
-  // KYC document upload mutation using new player-documents API
+  // KYC document upload mutation using new system
   const uploadKycDocumentMutation = useMutation({
     mutationFn: async ({
       documentType,
@@ -866,33 +801,35 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       documentType: string;
       file: File;
     }) => {
-      // Upload actual file using FormData
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('type', documentType);
-      formData.append('name', file.name);
-
-      const response = await fetch('http://localhost:3333/api/player-documents/upload', {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'x-player-id': user?.id || '',
-          'x-club-id': localStorage.getItem('clubId') || '',
-        },
+      const reader = new FileReader();
+      return new Promise((resolve, reject) => {
+        reader.onload = async (event) => {
+          const dataUrl = event.target?.result as string;
+          try {
+            const response = await apiRequest("POST", "/api/documents/upload", {
+              playerId: user?.id,
+              documentType,
+              fileName: file.name,
+              fileData: dataUrl,
+              fileSize: file.size,
+            });
+            resolve(response.json());
+          } catch (error) {
+            reject(error);
+          }
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
       });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Upload failed');
-      }
-      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ['/api/player-documents/my'],
+        queryKey: [`/api/documents/player/${user?.id}`],
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/players/supabase"] });
       toast({
-        title: "✓ Document Uploaded",
-        description: "Your KYC document has been submitted for verification",
+        title: "Document Uploaded",
+        description: "Your KYC document has been uploaded successfully",
       });
     },
     onError: (error: any) => {
@@ -943,26 +880,18 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     refetchInterval: 2000, // Refresh every 2 seconds
   });
 
-  // Enable ALL real-time subscriptions (no polling needed!)
-  useRealtimeNotifications(user?.id);
-  useRealtimeWaitlist(user?.id);
-  useRealtimeTables();
-  useRealtimeBalance(user?.id);
-  useRealtimeTransactions(user?.id);
-  useRealtimeKycStatus(user?.id); // Real-time KYC status updates
-
-  // Fetch push notifications (now updated automatically via Realtime)
+  // Fetch push notifications with smart background refresh
   const { data: notifications, isLoading: notificationsLoading } = useQuery({
     queryKey: [`/api/push-notifications/${user?.id}`],
     enabled: !!user?.id,
-    // No refetchInterval - Supabase Realtime handles updates automatically!
+    refetchInterval: 30000, // Check every 30 seconds - notifications are handled via push system
     refetchOnWindowFocus: true,
     staleTime: 20000, // Consider fresh for 20 seconds
     gcTime: 60000, // Keep cached for 1 minute
     structuralSharing: true, // Only update if new notifications
   });
 
-  // Submit feedback function - always routed to club / super admin
+  // Submit feedback function
   const submitFeedback = async () => {
     if (!feedbackMessage.trim() || !user?.id) {
       toast({
@@ -978,16 +907,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       const response = await apiRequest("POST", "/api/feedback", {
         playerId: user.id,
         message: feedbackMessage.trim(),
-        type: "player_feedback",
-        targetRole: "SUPER_ADMIN",
-        clubId: (user as any).clubId || undefined,
       });
 
       const result = await response.json();
       if (response.ok) {
         toast({
           title: "Feedback Sent",
-          description: "Your feedback has been sent to the club's super admin team.",
+          description: "Your message has been sent to management",
         });
         setFeedbackMessage("");
       } else {
@@ -1588,11 +1514,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     // Chat integration complete - using PlayerChatSystem component
   }, []);
 
-  // Submit credit request mutation - using proper API service
-  const requestCreditMutation = useRequestCredit();
-  
-  const submitCreditRequestMutation = {
-    mutate: async ({
+  // Submit credit request mutation
+  const submitCreditRequestMutation = useMutation({
+    mutationFn: async ({
       playerId,
       requestedAmount,
       requestNote,
@@ -1601,35 +1525,37 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       requestedAmount: number;
       requestNote: string;
     }) => {
-      try {
-        await requestCreditMutation.mutateAsync({
-          amount: requestedAmount,
-          notes: requestNote,
-        });
-        queryClient.invalidateQueries({
-          queryKey: [`/api/credit-requests/${user?.id}`],
-        });
-        queryClient.invalidateQueries({ queryKey: ["/api/players/supabase"] });
-        setCreditAmount("");
-        setCreditNote("");
-        setShowCreditForm(false);
-      } catch (error: any) {
-        throw error;
-      }
+      const response = await apiRequest("POST", "/api/credit-requests", {
+        playerId,
+        requestedAmount,
+        requestNote,
+      });
+      return response.json();
     },
-    isPending: requestCreditMutation.isPending,
-  };
-
-  const handleCreditRequest = () => {
-    if (!kycApproved) {
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [`/api/credit-requests/${user?.id}`],
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/players/supabase"] });
+      setCreditAmount("");
+      setCreditNote("");
+      setShowCreditForm(false);
       toast({
-        title: "KYC Approval Required",
+        title: "Credit Request Submitted",
         description:
-          "You can request credit only after your KYC documents are approved by the club.",
+          "Your credit request has been submitted to the Super Admin for approval",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Request Failed",
+        description: error.message || "Could not submit credit request",
         variant: "destructive",
       });
-      return;
-    }
+    },
+  });
+
+  const handleCreditRequest = () => {
     if (!creditAmount || parseFloat(creditAmount) <= 0) {
       toast({
         title: "Invalid Amount",
@@ -1684,15 +1610,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   });
 
   const handleVipRedeem = (rewardType: string, pointsCost: number) => {
-    if (!kycApproved) {
-      toast({
-        title: "KYC Approval Required",
-        description:
-          "You can redeem VIP rewards only after your KYC is approved.",
-        variant: "destructive",
-      });
-      return;
-    }
     if (!user?.id) return;
 
     vipRedeemMutation.mutate({
@@ -1808,28 +1725,30 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     },
   });
 
-  // Transaction history query - using proper API service
-  // Note: usePlayerTransactions doesn't support conditional enabling, so we'll handle it in the component
-  const limit = showTransactions === "all" ? 100 : 10;
-  const { data: transactionsData, isLoading: transactionsLoading } = usePlayerTransactions(
-    limit,
-    0
-  );
-  
-  // Transform transactions data to match existing format
-  // Only show transactions when showTransactions is set
-  const transactions = (showTransactions && transactionsData?.transactions) ? transactionsData.transactions : [];
+  // Transaction history query
+  const { data: transactions, isLoading: transactionsLoading } = useQuery({
+    queryKey: ["transactions", user?.id, showTransactions], // Added showTransactions to query key
+    queryFn: async () => {
+      if (!user?.id) return [];
+
+      const limit = showTransactions === "all" ? 100 : 10; // Fetch 100 if 'all', otherwise 10
+      const response = await fetch(
+        `/api/player/${user.id}/transactions?limit=${limit}`,
+        {
+          credentials: "include",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch transactions");
+      }
+
+      return response.json();
+    },
+    enabled: !!user?.id && !!showTransactions, // Enable query only if user and showTransactions are set
+  });
 
   const handlePanCardUpdate = () => {
-    if (kycApproved) {
-      toast({
-        title: "Change Not Allowed",
-        description:
-          "Your KYC is already approved. Please contact the club to request a PAN update.",
-        variant: "destructive",
-      });
-      return;
-    }
     if (!user?.id || !panCardNumber) {
       toast({
         title: "Invalid Input",
@@ -2039,41 +1958,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   return (
     <div className="min-h-screen bg-slate-900 w-full overflow-x-hidden dashboard-container relative">
-      {/* KYC WARNING BANNER - HIGHEST PRIORITY */}
-      {!kycApproved && (
-        <div className="bg-gradient-to-r from-red-600 to-amber-600 border-b border-amber-500 px-3 sm:px-6 py-4 sm:py-6 notification-banner">
-          <div className="max-w-5xl mx-auto">
-            <div className="flex items-start gap-3 sm:gap-4">
-              <AlertTriangle className="w-6 h-6 sm:w-8 sm:h-8 text-white flex-shrink-0 mt-1 animate-pulse" />
-              <div className="flex-1 min-w-0">
-                <h3 className="text-white text-base sm:text-xl font-bold mb-2">
-                  ⚠️ ACCOUNT LOCKED - KYC VERIFICATION REQUIRED
-                </h3>
-                <p className="text-white/95 text-sm sm:text-base mb-3 leading-relaxed">
-                  Your account is currently locked. Please submit your KYC documents in the Profile tab below to unlock all features.
-                </p>
-                <div className="bg-black/30 border border-white/40 rounded-lg p-3 mb-3">
-                  <p className="text-white text-xs sm:text-sm font-bold mb-2">
-                    🔒 Blocked Until KYC Approved:
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-white/90 text-xs sm:text-sm">
-                    <div>• Join table waitlist</div>
-                    <div>• Register for tournaments</div>
-                    <div>• Request credit</div>
-                    <div>• Cash out from sessions</div>
-                    <div>• Place F&B orders</div>
-                    <div>• Access VIP rewards</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 text-white font-bold text-sm sm:text-base">
-                  <span>👇 Click Profile tab and upload ID, Address Proof & Photo</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Email Verification Banner */}
       {showEmailVerificationBanner &&
         user?.email &&
@@ -2311,20 +2195,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         {/* Navigation Tabs */}
         <Tabs
           value={activeTab}
-          onValueChange={(value) => {
-            // Hard KYC gate: only Profile tab usable before approval
-            if (!kycApproved && value !== "profile") {
-              toast({
-                title: "KYC Approval Required",
-                description:
-                  "Please upload your KYC documents in the Profile tab. The club must approve them before you can use other features.",
-                variant: "destructive",
-              });
-              setActiveTab("profile");
-              return;
-            }
-            setActiveTab(value);
-          }}
+          onValueChange={setActiveTab}
           className="w-full max-w-full"
         >
           <TabsList
@@ -2333,41 +2204,36 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           >
             <TabsTrigger
               value="game"
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px] disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
               role="tab"
-              disabled={!kycApproved}
             >
               <Spade className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
               value="offers"
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px] disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
               role="tab"
-              disabled={!kycApproved}
             >
               <Gift className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
               value="food"
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px] disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
               role="tab"
-              disabled={!kycApproved}
             >
               <Coffee className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
               value="session"
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px] disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
               role="tab"
-              disabled={!kycApproved}
             >
               <Clock className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
               value="balance"
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px] disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
               role="tab"
-              disabled={!kycApproved}
             >
               <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
@@ -2379,34 +2245,16 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               <User className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
-              value="vip"
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px] disabled:opacity-40 disabled:cursor-not-allowed"
-              role="tab"
-              disabled={!kycApproved}
-            >
-              <Star className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
-            </TabsTrigger>
-            <TabsTrigger
-              value="tournaments"
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px] disabled:opacity-40 disabled:cursor-not-allowed"
-              role="tab"
-              disabled={!kycApproved}
-            >
-              <Trophy className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
-            </TabsTrigger>
-            <TabsTrigger
               value="feedback"
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px] disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
               role="tab"
-              disabled={!kycApproved}
             >
               <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
               value="notifications"
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px] relative overflow-visible disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px] relative overflow-visible"
               role="tab"
-              disabled={!kycApproved}
             >
               <div className="relative flex items-center justify-center">
                 <Bell className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
@@ -3057,185 +2905,20 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             </TabsContent>
 
             <TabsContent value="balance" className="space-y-4 sm:space-y-6">
-              {/* Balance Summary */}
               <Card className="bg-slate-800 border-slate-700">
                 <CardHeader>
-                  <CardTitle className="text-white flex items-center justify-between">
-                    <span className="flex items-center">
-                      <CreditCard className="w-5 h-5 mr-2 text-emerald-500" />
-                      Balance Overview
-                    </span>
-                    {!balanceLoading && accountBalance && (
-                      <span className="text-xs text-slate-400">
-                        Updated{" "}
-                        {playerBalanceData?.lastUpdated
-                          ? new Date(playerBalanceData.lastUpdated).toLocaleString()
-                          : "just now"}
-                      </span>
-                    )}
+                  <CardTitle className="text-white flex items-center">
+                    <BarChart3 className="w-5 h-5 mr-2 text-emerald-500" />
+                    Recent Transactions
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {balanceLoading || !accountBalance ? (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {[1, 2, 3].map((i) => (
-                        <Skeleton key={i} className="h-20 bg-slate-700" />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {/* Cash balance */}
-                      <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 rounded-lg p-4 text-white shadow">
-                        <div className="text-xs uppercase tracking-wide opacity-75 mb-1">
-                          Cash Balance
-                        </div>
-                        <div className="text-2xl font-bold mb-1">
-                          ₹{accountBalance.balance.toLocaleString()}
-                        </div>
-                        <div className="text-[11px] opacity-80">
-                          Money held by club (not on table)
-                        </div>
-                      </div>
-
-                      {/* Credit line (if available) */}
-                      <div className="bg-gradient-to-r from-sky-600 to-indigo-700 rounded-lg p-4 text-white shadow">
-                        <div className="text-xs uppercase tracking-wide opacity-75 mb-1">
-                          Credit Line
-                        </div>
-                        {accountBalance.creditLimit > 0 ? (
-                          <>
-                            <div className="text-lg font-semibold mb-1">
-                              Limit: ₹{accountBalance.creditLimit.toLocaleString()}
-                            </div>
-                            <div className="text-xs flex flex-col gap-0.5">
-                              <span>
-                                Used: ₹
-                                {(
-                                  accountBalance.creditLimit -
-                                  accountBalance.availableCredit
-                                ).toLocaleString()}
-                              </span>
-                              <span>
-                                Available: ₹
-                                {accountBalance.availableCredit.toLocaleString()}
-                              </span>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-sm opacity-80">
-                            No credit line activated for this player
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Total / Net */}
-                      <div className="bg-gradient-to-r from-slate-700 to-slate-800 rounded-lg p-4 text-white shadow border border-slate-600">
-                        <div className="text-xs uppercase tracking-wide opacity-75 mb-1">
-                          Net Position
-                        </div>
-                        {accountBalance.balance >= 0 ? (
-                          <>
-                            <div className="text-2xl font-bold mb-1">
-                              ₹{accountBalance.balance.toLocaleString()}
-                            </div>
-                            <div className="text-[11px] opacity-80">
-                              Positive means the club owes you this amount (off-table).
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="text-2xl font-bold mb-1 text-red-300">
-                              -₹{Math.abs(accountBalance.balance).toLocaleString()}
-                            </div>
-                            <div className="text-[11px] opacity-80">
-                              Negative means you owe this amount to the club (typically
-                              from credit usage).
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Recent Transactions */}
-              <Card className="bg-slate-800 border-slate-700">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center justify-between">
-                    <span className="flex items-center">
-                      <BarChart3 className="w-5 h-5 mr-2 text-emerald-500" />
-                      Recent Transactions
-                    </span>
-                    <div className="flex items-center gap-2 text-xs text-slate-400">
-                      <span
-                        className={`w-2 h-2 rounded-full ${
-                          transactionsLoading ? "bg-amber-400" : "bg-emerald-400"
-                        }`}
-                      />
-                      {transactionsLoading ? "Loading..." : "Live from cashier / manager"}
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {transactionsLoading && (!transactions || transactions.length === 0) ? (
-                    <div className="space-y-2">
-                      {[1, 2, 3, 4].map((i) => (
-                        <Skeleton key={i} className="h-10 bg-slate-700" />
-                      ))}
-                    </div>
-                  ) : !transactions || transactions.length === 0 ? (
-                    <div className="text-center text-slate-400 py-6 text-sm">
-                      No recent transactions. Visit the cashier or join a table to
-                      start playing.
-                    </div>
-                  ) : (
-                    <div className="max-h-72 overflow-y-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="text-xs text-slate-400 border-b border-slate-700">
-                            <th className="py-2 pr-2 text-left">Date</th>
-                            <th className="py-2 px-2 text-left">Type</th>
-                            <th className="py-2 px-2 text-right">Amount</th>
-                            <th className="py-2 pl-2 text-right">Balance After</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {transactions.map((tx: any) => (
-                            <tr
-                              key={tx.id}
-                              className="border-b border-slate-800/60 last:border-0"
-                            >
-                              <td className="py-2 pr-2 text-xs text-slate-400 whitespace-nowrap">
-                                {new Date(tx.createdAt).toLocaleString()}
-                              </td>
-                              <td className="py-2 px-2 text-xs text-slate-200">
-                                {tx.type
-                                  ?.replace(/_/g, " ")
-                                  .replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                                {tx.status === "pending" && (
-                                  <span className="ml-2 text-[10px] text-amber-400">
-                                    (Pending)
-                                  </span>
-                                )}
-                              </td>
-                              <td
-                                className={`py-2 px-2 text-right text-xs font-semibold ${getTransactionAmountColor(
-                                  tx.type
-                                )}`}
-                              >
-                                {getTransactionAmountPrefix(tx.type)}
-                                ₹{Number(tx.amount).toLocaleString()}
-                              </td>
-                              <td className="py-2 pl-2 text-right text-xs text-slate-300">
-                                ₹{Number(tx.balance).toLocaleString()}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                  <div className="max-h-60 overflow-y-auto">
+                    <PlayerTransactionHistory
+                      playerId={user?.id?.toString() || ""}
+                      limit={10}
+                    />
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -3279,63 +2962,34 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         <div className="flex items-center">
                           {user?.kycStatus === "approved" ? (
                             <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
-                              ✓ Verified
+                              Verified
                             </Badge>
                           ) : user?.kycStatus === "verified" ? (
                             <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
-                              ✓ Verified
+                              Verified
                             </Badge>
                           ) : user?.kycStatus === "pending" ? (
-                            <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 animate-pulse">
-                              ⏳ Pending Approval
+                            <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30">
+                              Pending
                             </Badge>
                           ) : (
-                            <Badge variant="destructive">❌ Not Verified</Badge>
+                            <Badge variant="destructive">Not Verified</Badge>
                           )}
                         </div>
                       </div>
-                    </div>
-
-                    {/* Profile Edit Notice */}
-                    <div className="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
-                      <p className="text-blue-200 text-xs sm:text-sm">
-                        <strong>ℹ️ Note:</strong> Profile information (Name, Email, Phone) cannot be changed by players.
-                        To request a profile update, please contact club management through the Feedback tab.
-                      </p>
                     </div>
                   </CardContent>
                 </Card>
 
                 {/* KYC Documents Management */}
-                <Card className={`${!kycApproved ? 'bg-gradient-to-br from-amber-900/20 to-red-900/20 border-amber-500' : 'bg-slate-800 border-slate-700'}`}>
+                <Card className="bg-slate-800 border-slate-700">
                   <CardHeader>
-                    <CardTitle className="text-white flex items-center justify-between">
-                      <div className="flex items-center">
-                        <FileText className="w-5 h-5 mr-2 text-emerald-500" />
-                        KYC Documents
-                      </div>
-                      {!kycApproved && (
-                        <Badge className="bg-amber-500 text-black font-bold animate-pulse">
-                          ACTION REQUIRED
-                        </Badge>
-                      )}
+                    <CardTitle className="text-white flex items-center">
+                      <FileText className="w-5 h-5 mr-2 text-emerald-500" />
+                      KYC Documents
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {!kycApproved && (
-                      <div className="mb-4 p-4 bg-amber-900/30 border border-amber-500/50 rounded-lg">
-                        <p className="text-amber-200 text-sm font-bold mb-2">
-                          🚨 URGENT: Submit your documents to unlock your account
-                        </p>
-                        <p className="text-amber-300/90 text-xs mb-2">
-                          Your account is currently locked. Upload all 3 required documents below, then our team will review and approve within 24-48 hours.
-                        </p>
-                        <p className="text-amber-200 text-xs font-semibold">
-                          Required: Government ID + Address Proof + Photo
-                        </p>
-                      </div>
-                    )}
-                    
                     {kycLoading ? (
                       <div className="space-y-3">
                         {[1, 2, 3].map((i) => (
@@ -3483,49 +3137,26 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </Button>
                               )}
 
-                            {/* Show request change button if approved */}
-                            {getKycDocumentStatus("id") === "approved" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={async () => {
-                                  if (!user?.id) return;
-                                  try {
-                                    const response = await apiRequest(
-                                      "POST",
-                                      "/api/feedback",
-                                      {
-                                        playerId: user.id,
-                                        type: "kyc_change_request",
-                                        documentType: "government_id",
-                                        message:
-                                          "Player requested change for ID document (government_id).",
-                                      }
-                                    );
-                                    await response.json().catch(() => ({}));
+                              {/* Show request change button if approved */}
+                              {getKycDocumentStatus("id") === "approved" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
                                     toast({
-                                      title: "Request Sent",
+                                      title: "Request Change",
                                       description:
-                                        "Your change request has been sent to the club team.",
+                                        "Change request functionality will be available in the next update",
                                     });
-                                  } catch (error: any) {
-                                    toast({
-                                      title: "Request Failed",
-                                      description:
-                                        error?.message ||
-                                        "Could not send change request. Please try again.",
-                                      variant: "destructive",
-                                    });
-                                  }
-                                }}
-                                className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                              >
-                                <AlertTriangle className="w-4 h-4 mr-1" />
-                                <span className="text-xs sm:text-sm">
-                                  Request Change
-                                </span>
-                              </Button>
-                            )}
+                                  }}
+                                  className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
+                                >
+                                  <AlertTriangle className="w-4 h-4 mr-1" />
+                                  <span className="text-xs sm:text-sm">
+                                    Request Change
+                                  </span>
+                                </Button>
+                              )}
                             </div>
                           </div>
                           <input
@@ -3671,39 +3302,17 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                               )}
 
                               {/* Show request change button if approved */}
-                              {getKycDocumentStatus("utility") === "approved" && (
+                              {getKycDocumentStatus("utility") ===
+                                "approved" && (
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={async () => {
-                                    if (!user?.id) return;
-                                    try {
-                                      const response = await apiRequest(
-                                        "POST",
-                                        "/api/feedback",
-                                        {
-                                          playerId: user.id,
-                                          type: "kyc_change_request",
-                                          documentType: "utility_bill",
-                                          message:
-                                            "Player requested change for Address Proof (utility_bill).",
-                                        }
-                                      );
-                                      await response.json().catch(() => ({}));
-                                      toast({
-                                        title: "Request Sent",
-                                        description:
-                                          "Your change request has been sent to the club team.",
-                                      });
-                                    } catch (error: any) {
-                                      toast({
-                                        title: "Request Failed",
-                                        description:
-                                          error?.message ||
-                                          "Could not send change request. Please try again.",
-                                        variant: "destructive",
-                                      });
-                                    }
+                                  onClick={() => {
+                                    toast({
+                                      title: "Request Change",
+                                      description:
+                                        "Change request functionality will be available in the next update",
+                                    });
                                   }}
                                   className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
                                 >
@@ -3859,49 +3468,26 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </Button>
                               )}
 
-                        {/* Show request change button if approved */}
-                        {getKycDocumentStatus("photo") === "approved" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={async () => {
-                              if (!user?.id) return;
-                              try {
-                                const response = await apiRequest(
-                                  "POST",
-                                  "/api/feedback",
-                                  {
-                                    playerId: user.id,
-                                    type: "kyc_change_request",
-                                    documentType: "profile_photo",
-                                    message:
-                                      "Player requested change for Profile Photo (profile_photo).",
-                                  }
-                                );
-                                await response.json().catch(() => ({}));
-                                toast({
-                                  title: "Request Sent",
-                                  description:
-                                    "Your change request has been sent to the club team.",
-                                });
-                              } catch (error: any) {
-                                toast({
-                                  title: "Request Failed",
-                                  description:
-                                    error?.message ||
-                                    "Could not send change request. Please try again.",
-                                  variant: "destructive",
-                                });
-                              }
-                            }}
-                            className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                          >
-                            <AlertTriangle className="w-4 h-4 mr-1" />
-                            <span className="text-xs sm:text-sm">
-                              Request Change
-                            </span>
-                          </Button>
-                        )}
+                              {/* Show request change button if approved */}
+                              {getKycDocumentStatus("photo") === "approved" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    toast({
+                                      title: "Request Change",
+                                      description:
+                                        "Change request functionality will be available in the next update",
+                                    });
+                                  }}
+                                  className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
+                                >
+                                  <AlertTriangle className="w-4 h-4 mr-1" />
+                                  <span className="text-xs sm:text-sm">
+                                    Request Change
+                                  </span>
+                                </Button>
+                              )}
                             </div>
                           </div>
                           <input
@@ -4189,39 +3775,17 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             )}
 
                             {/* Show request change button if approved */}
-                            {getKycDocumentStatus("pan_card") === "approved" && (
+                            {getKycDocumentStatus("pan_card") ===
+                              "approved" && (
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={async () => {
-                                  if (!user?.id) return;
-                                  try {
-                                    const response = await apiRequest(
-                                      "POST",
-                                      "/api/feedback",
-                                      {
-                                        playerId: user.id,
-                                        type: "kyc_change_request",
-                                        documentType: "pan_card",
-                                        message:
-                                          "Player requested change for PAN Card (pan_card).",
-                                      }
-                                    );
-                                    await response.json().catch(() => ({}));
-                                    toast({
-                                      title: "Request Sent",
-                                      description:
-                                        "Your change request has been sent to the club team.",
-                                    });
-                                  } catch (error: any) {
-                                    toast({
-                                      title: "Request Failed",
-                                      description:
-                                        error?.message ||
-                                        "Could not send change request. Please try again.",
-                                      variant: "destructive",
-                                    });
-                                  }
+                                onClick={() => {
+                                  toast({
+                                    title: "Request Change",
+                                    description:
+                                      "Change request functionality will be available in the next update",
+                                  });
                                 }}
                                 className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
                               >
@@ -4453,106 +4017,89 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
             {/* Feedback Tab */}
             <TabsContent value="feedback" className="flex-1 overflow-y-auto">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-                {/* Feedback to Management (Super Admin / Club) */}
-                <div className="lg:col-span-2 space-y-4">
-                  <Card className="bg-slate-800 border-slate-700">
-                    <CardHeader>
-                      <CardTitle className="text-white flex items-center">
-                        <MessageCircle className="w-5 h-5 mr-2 text-emerald-500" />
-                        Send Feedback to Club Management
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-white">
-                          Message
-                        </label>
-                        <textarea
-                          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
-                          rows={5}
-                          value={feedbackMessage}
-                          onChange={(e) => setFeedbackMessage(e.target.value)}
-                          placeholder="Share your feedback, suggestions, or concerns with the club's management / super admin team..."
-                          disabled={sendingFeedback}
-                        />
+              <div className="space-y-4 sm:space-y-6">
+                {/* Feedback to Management */}
+                <Card className="bg-slate-800 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <MessageCircle className="w-5 h-5 mr-2 text-emerald-500" />
+                      Send Feedback to Management
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-white">
+                        Message
+                      </label>
+                      <textarea
+                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
+                        rows={5}
+                        value={feedbackMessage}
+                        onChange={(e) => setFeedbackMessage(e.target.value)}
+                        placeholder="Share your feedback, suggestions, or concerns with our management team..."
+                        disabled={sendingFeedback}
+                      />
+                    </div>
+                    <Button
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
+                      onClick={submitFeedback}
+                      disabled={sendingFeedback || !feedbackMessage.trim()}
+                    >
+                      {sendingFeedback ? (
+                        <div className="animate-spin w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full" />
+                      ) : (
+                        <Send className="w-4 h-4 mr-2" />
+                      )}
+                      {sendingFeedback ? "Sending..." : "Send Feedback"}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Guest Relations Support - Unified Chat System */}
+                <Card className="bg-slate-800 border-slate-700">
+                  <CardHeader className="pb-4 border-b border-slate-700">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-emerald-500/20 rounded-full">
+                          <MessageCircle className="w-5 h-5 text-emerald-400" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-white text-lg">
+                            Guest Relations Support
+                          </CardTitle>
+                          <div className="flex items-center space-x-2 text-sm text-slate-400">
+                            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                            <span>Unified Chat System Active</span>
+                          </div>
+                        </div>
                       </div>
                       <Button
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
-                        onClick={submitFeedback}
-                        disabled={sendingFeedback || !feedbackMessage.trim()}
+                        onClick={() => setChatDialogOpen(true)}
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                        size="sm"
                       >
-                        {sendingFeedback ? (
-                          <div className="animate-spin w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full" />
-                        ) : (
-                          <Send className="w-4 h-4 mr-2" />
-                        )}
-                        {sendingFeedback ? "Sending..." : "Send Feedback"}
+                        <MessageCircle className="w-4 h-4 mr-2" />
+                        Open Chat
                       </Button>
-                    </CardContent>
-                  </Card>
-
-                  {/* Guest Relations Support - Unified Chat System */}
-                  <Card className="bg-slate-800 border-slate-700">
-                    <CardHeader className="pb-4 border-b border-slate-700">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="p-2 bg-emerald-500/20 rounded-full">
-                            <MessageCircle className="w-5 h-5 text-emerald-400" />
-                          </div>
-                          <div>
-                            <CardTitle className="text-white text-lg">
-                              Guest Relations Support
-                            </CardTitle>
-                            <div className="flex items-center space-x-2 text-sm text-slate-400">
-                              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
-                              <span>Unified Chat System Active</span>
-                            </div>
-                          </div>
-                        </div>
-                        <Button
-                          onClick={() => setChatDialogOpen(true)}
-                          className="bg-emerald-600 hover:bg-emerald-700"
-                          size="sm"
-                        >
-                          <MessageCircle className="w-4 h-4 mr-2" />
-                          New Support Chat
-                        </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="text-center py-8">
+                      <MessageCircle className="w-12 h-12 mx-auto mb-4 text-emerald-400" />
+                      <h3 className="text-lg font-semibold text-white mb-2">
+                        Professional Support Available
+                      </h3>
+                      <p className="text-slate-400 mb-4">
+                        Connect with our Guest Relations team for immediate
+                        assistance with any questions or concerns.
+                      </p>
+                      <div className="text-emerald-400 text-sm font-medium">
+                        <MessageCircle className="w-5 h-5 mr-2 inline" />
+                        Real-time support available
                       </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="text-center py-8">
-                        <MessageCircle className="w-12 h-12 mx-auto mb-4 text-emerald-400" />
-                        <h3 className="text-lg font-semibold text-white mb-2">
-                          Talk to Support
-                        </h3>
-                        <p className="text-slate-400 mb-4">
-                          Start a new conversation with our Guest Relations / Support team
-                          for any questions about your account, tables, or payments.
-                        </p>
-                        <div className="text-emerald-400 text-sm font-medium">
-                          <MessageCircle className="w-5 h-5 mr-2 inline" />
-                          Real-time support available
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Right Column - Player's Previous Feedback */}
-                <div className="lg:col-span-1 space-y-4">
-                  <Card className="bg-slate-800 border-slate-700">
-                    <CardHeader>
-                      <CardTitle className="text-white text-sm flex items-center">
-                        <MessageCircle className="w-4 h-4 mr-2 text-emerald-500" />
-                        My Feedback History
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <RecentFeedbackList playerId={user?.id} />
-                    </CardContent>
-                  </Card>
-                </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </TabsContent>
 
@@ -4562,16 +4109,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               className="space-y-4 sm:space-y-6 w-full max-w-full"
             >
               <NotificationHistoryTab />
-            </TabsContent>
-
-            {/* VIP Points Tab */}
-            <TabsContent value="vip" className="space-y-4 sm:space-y-6">
-              <VIPPointsTab user={user} />
-            </TabsContent>
-
-            {/* Tournaments Tab */}
-            <TabsContent value="tournaments" className="space-y-4 sm:space-y-6">
-              <TournamentsTab user={user} kycApproved={kycApproved} />
             </TabsContent>
           </div>
         </Tabs>

@@ -293,3 +293,4 @@ export default function VIPPointsTab({ user }: VIPPointsTabProps) {
     </div>
   );
 }
+
