@@ -3,6 +3,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Club branding CSS variables */
+:root {
+  --club-primary-color: #10b981;
+  --club-gradient: from-emerald-600 via-green-500 to-teal-500;
+}
+
+/* Dynamic active tab styling using club branding */
+[data-state="active"][data-active-style="true"] {
+  background-color: var(--club-primary-color) !important;
+}
+
 /* Global mobile optimization */
 html, body {
   overflow-x: hidden;

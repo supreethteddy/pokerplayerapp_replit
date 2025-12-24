@@ -19,7 +19,7 @@ export async function apiRequest(
   const fullUrl = url.startsWith("/api/")
     ? `${API_BASE_URL}${url.substring(4)}` // Remove /api from url since API_BASE_URL already has it
     : url;
-
+  
   // Attach authenticated player/club headers for all API requests so that
   // NestJS controllers that expect x-player-id / x-club-id always receive them.
   const playerId =

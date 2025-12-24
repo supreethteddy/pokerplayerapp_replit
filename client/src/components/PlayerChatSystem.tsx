@@ -278,7 +278,7 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
       console.log('⚡ [OPTIMIZED V1.2] Sending message to staff portal via /api/player-chat/send:', messageText);
 
       const response = await apiRequest('POST', '/api/player-chat/send', {
-        message: messageText,
+          message: messageText,
         playerName,
       });
       const result = await response.json().catch(() => null);

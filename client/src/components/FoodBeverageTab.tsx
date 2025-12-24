@@ -343,49 +343,49 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
             >
               My Orders
             </button>
-          </div>
-          {totalCartItems > 0 && (
-            <Button
-              onClick={() => setShowOrderDialog(true)}
-              className="bg-emerald-600 hover:bg-emerald-700 relative"
-            >
-              <ShoppingCart className="w-4 h-4 mr-2" />
-              Cart
+        </div>
+        {totalCartItems > 0 && (
+          <Button 
+            onClick={() => setShowOrderDialog(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 relative"
+          >
+            <ShoppingCart className="w-4 h-4 mr-2" />
+            Cart
               <Badge className="ml-2 bg-emerald-800 text-white">
                 {totalCartItems}
               </Badge>
-            </Button>
-          )}
+          </Button>
+        )}
         </div>
       </div>
 
       {/* Menu view */}
       {viewMode === 'menu' && (
         <>
-          {/* Menu Items Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {items.map((item) => {
-              const quantity = getItemQuantity(item.id);
-              const price = parseFloat(item.price) || 0;
-              const isFree = price === 0;
-
-              return (
+      {/* Menu Items Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {items.map((item) => {
+          const quantity = getItemQuantity(item.id);
+          const price = parseFloat(item.price) || 0;
+          const isFree = price === 0;
+          
+          return (
                 <Card
                   key={item.id}
                   className="bg-slate-800 border-slate-700 hover:border-slate-600 transition-colors"
                 >
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      {/* Image */}
-                      <OptimizedImage
-                        src={item.image_url}
-                        alt={item.name}
-                        className="w-full h-40 rounded-lg object-cover"
-                      />
-
-                      {/* Item Details */}
-                      <div>
-                        <div className="flex items-start justify-between">
+              <CardContent className="p-4">
+                <div className="space-y-3">
+                  {/* Image */}
+                  <OptimizedImage 
+                    src={item.image_url}
+                    alt={item.name}
+                    className="w-full h-40 rounded-lg object-cover"
+                  />
+                  
+                  {/* Item Details */}
+                  <div>
+                    <div className="flex items-start justify-between">
                           <h3 className="text-white font-semibold">
                             {item.name}
                           </h3>
@@ -395,59 +395,59 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
                             }
                             className="text-xs"
                           >
-                            {item.category}
-                          </Badge>
-                        </div>
+                        {item.category}
+                      </Badge>
+                    </div>
                         <p className="text-slate-400 text-sm mt-1">
                           {item.description}
                         </p>
-
-                        {/* Price */}
-                        <div className="flex items-center justify-between mt-3">
-                          <span className="text-emerald-400 font-bold text-lg">
-                            {isFree ? 'Free' : `₹${price.toFixed(2)}`}
-                          </span>
-
-                          {/* Quantity Controls */}
-                          <div className="flex items-center space-x-2">
-                            {quantity > 0 && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 w-8 p-0"
-                                  onClick={() => removeFromCart(item.id)}
-                                >
-                                  <Minus className="w-3 h-3" />
-                                </Button>
-                                <Badge className="bg-emerald-600 text-white px-3">
-                                  {quantity}
-                                </Badge>
-                              </>
-                            )}
+                    
+                    {/* Price */}
+                    <div className="flex items-center justify-between mt-3">
+                      <span className="text-emerald-400 font-bold text-lg">
+                        {isFree ? 'Free' : `₹${price.toFixed(2)}`}
+                      </span>
+                      
+                      {/* Quantity Controls */}
+                      <div className="flex items-center space-x-2">
+                        {quantity > 0 && (
+                          <>
                             <Button
                               size="sm"
-                              className="bg-emerald-600 hover:bg-emerald-700 h-8 px-3"
-                              onClick={() => addToCart(item)}
+                              variant="outline"
+                              className="h-8 w-8 p-0"
+                              onClick={() => removeFromCart(item.id)}
                             >
-                              <Plus className="w-3 h-3 mr-1" />
-                              Add
+                              <Minus className="w-3 h-3" />
                             </Button>
-                          </div>
-                        </div>
+                            <Badge className="bg-emerald-600 text-white px-3">
+                              {quantity}
+                            </Badge>
+                          </>
+                        )}
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 h-8 px-3"
+                          onClick={() => addToCart(item)}
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          Add
+                        </Button>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
 
-          {/* Empty State */}
-          {items.length === 0 && !itemsLoading && (
-            <Card className="bg-slate-800 border-slate-700">
-              <CardContent className="p-8 text-center">
-                <UtensilsCrossed className="w-16 h-16 mx-auto mb-4 text-slate-500" />
+      {/* Empty State */}
+      {items.length === 0 && !itemsLoading && (
+        <Card className="bg-slate-800 border-slate-700">
+          <CardContent className="p-8 text-center">
+            <UtensilsCrossed className="w-16 h-16 mx-auto mb-4 text-slate-500" />
                 <h3 className="text-white text-lg font-semibold mb-2">
                   No Menu Items Available
                 </h3>
@@ -588,8 +588,8 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
                           })()}
                         </span>
                       </div>
-                    </CardContent>
-                  </Card>
+          </CardContent>
+        </Card>
                 ))}
               </div>
             </div>

@@ -79,9 +79,10 @@ import FoodBeverageTab from "./FoodBeverageTab";
 import { useSeatAssignment } from "@/hooks/useSeatAssignment";
 import { usePlayerGameStatus } from "@/hooks/usePlayerGameStatus";
 import { whitelabelConfig } from "@/lib/whitelabeling";
+import { fetchClubBranding, applyClubBranding, getGradientClasses, type ClubBranding } from "@/lib/clubBranding";
 
 // Scrollable Offers Display Component
-const ScrollableOffersDisplay = () => {
+const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null }) => {
   const {
     data: offersResponse,
     isLoading,
@@ -169,8 +170,9 @@ const ScrollableOffersDisplay = () => {
             <Card
               key={offer.id}
               id={`offer-${offer.id}`}
-              className="bg-gradient-to-br from-emerald-800 to-emerald-900 border-emerald-600 hover:border-emerald-400 transition-all duration-300"
+              className={`border-2 hover:opacity-90 transition-all duration-300 ${branding ? getGradientClasses(branding.gradient) : 'bg-gradient-to-br from-emerald-800 to-emerald-900 border-emerald-600'}`}
               onClick={() => trackOfferView.mutate(offer.id)}
+              style={branding ? { borderColor: branding.skinColor } : {}}
             >
               <CardContent className="p-0">
                 {/* Staff portal media or fallback */}
@@ -187,7 +189,7 @@ const ScrollableOffersDisplay = () => {
                       </video>
                     </div>
                   ) : (
-                    <div className="aspect-video rounded-t-lg bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center">
+                    <div className={`aspect-video rounded-t-lg flex items-center justify-center ${branding ? getGradientClasses(branding.gradient) : 'bg-gradient-to-br from-emerald-600 to-emerald-800'}`}>
                       <Gift className="w-16 h-16 text-white" />
                       <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center">
                         <div className="text-center text-white">
@@ -251,7 +253,8 @@ const ScrollableOffersDisplay = () => {
 
                   {/* Action button */}
                   <Button
-                    className="w-full bg-emerald-600 hover:bg-emerald-700"
+                    className="w-full hover:opacity-90"
+                    style={branding ? { backgroundColor: branding.skinColor } : {}}
                     onClick={(e) => {
                       e.stopPropagation();
                       trackOfferView.mutate(offer.id);
@@ -305,7 +308,7 @@ const ScrollableOffersDisplay = () => {
                   />
                 </div>
               ) : (
-                <div className="aspect-video rounded-lg bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center">
+                <div className={`aspect-video rounded-lg flex items-center justify-center ${branding ? getGradientClasses(branding.gradient) : 'bg-gradient-to-br from-emerald-600 to-emerald-800'}`}>
                   <Gift className="w-16 h-16 text-white" />
                 </div>
               )}
@@ -547,6 +550,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const queryClient = useQueryClient();
   const [callTime, setCallTime] = useState("02:45");
   const [location, setLocation] = useLocation();
+  
+  // Club branding state
+  const [clubBranding, setClubBranding] = useState<ClubBranding | null>(null);
 
   // Feedback system state
   const [feedbackMessage, setFeedbackMessage] = useState("");
@@ -569,6 +575,15 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const gameStatus = usePlayerGameStatus();
 
   const [showTournaments, setShowTournaments] = useState(false);
+
+  // Helper function to get club-branded button styles
+  const getClubButtonStyle = (variant: 'primary' | 'secondary' = 'primary') => {
+    if (!clubBranding) return {};
+    if (variant === 'primary') {
+      return { backgroundColor: clubBranding.skinColor };
+    }
+    return { borderColor: clubBranding.skinColor, color: clubBranding.skinColor };
+  };
 
   // Chat Dialog state
   const [chatDialogOpen, setChatDialogOpen] = useState(false);
@@ -595,6 +610,40 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   useEffect(() => {
     setActiveTab(getActiveTabFromUrl());
   }, [location]);
+
+  // Load club branding on mount
+  useEffect(() => {
+    const loadBranding = async () => {
+      // Try to get from sessionStorage first
+      const storedBranding = sessionStorage.getItem("club_branding");
+      if (storedBranding) {
+        try {
+          const branding = JSON.parse(storedBranding);
+          setClubBranding(branding);
+          applyClubBranding(branding);
+          return;
+        } catch (e) {
+          console.error("Failed to parse stored branding:", e);
+        }
+      }
+
+      // Fetch from backend if not in storage
+      if (user?.clubId) {
+        try {
+          const branding = await fetchClubBranding(user.clubId);
+          if (branding) {
+            setClubBranding(branding);
+            applyClubBranding(branding);
+            sessionStorage.setItem("club_branding", JSON.stringify(branding));
+          }
+        } catch (error) {
+          console.error("Failed to fetch club branding:", error);
+        }
+      }
+    };
+
+    loadBranding();
+  }, [user?.clubId]);
 
   // Document viewer removed as per requirements
 
@@ -2412,15 +2461,15 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 lg:mb-6 space-y-3 sm:space-y-0 dashboard-header">
           <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
             {/* White Label Logo - Positioned in top left corner, above table area */}
-            {whitelabelConfig.logoUrl && (
+            {(clubBranding?.logoUrl || whitelabelConfig.logoUrl) && (
               <div
                 className="pointer-events-none mb-2 sm:mb-0"
                 id="whitelabel-logo-container"
               >
                 <div className="flex items-center bg-slate-900/80 backdrop-blur-sm p-1.5 sm:p-2 shadow-lg border border-slate-700/50 rounded">
                   <img
-                    src={whitelabelConfig.logoUrl}
-                    alt={whitelabelConfig.companyName || "Logo"}
+                    src={clubBranding?.logoUrl || whitelabelConfig.logoUrl}
+                    alt={clubBranding?.clubName || whitelabelConfig.companyName || "Logo"}
                     className="rounded-lg h-6 sm:h-8 md:h-10 lg:h-12 w-auto object-contain max-w-[120px] sm:max-w-[150px] md:max-w-[180px] lg:max-w-[220px]"
                     onError={(e) => {
                       // Fallback if logo image fails to load - hide the container
@@ -2475,49 +2524,56 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           >
             <TabsTrigger
               value="game"
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
+              data-active-style="true"
               role="tab"
             >
               <Spade className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
               value="offers"
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
+              data-active-style="true"
               role="tab"
             >
               <Gift className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
               value="food"
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
+              data-active-style="true"
               role="tab"
             >
               <Coffee className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
               value="session"
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
+              data-active-style="true"
               role="tab"
             >
               <Clock className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
               value="balance"
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
+              data-active-style="true"
               role="tab"
             >
               <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
               value="profile"
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
+              data-active-style="true"
               role="tab"
             >
               <User className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
             <TabsTrigger
               value="feedback"
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
+              data-active-style="true"
               role="tab"
             >
               <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
@@ -2621,7 +2677,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 onClick={() =>
                                   setLocation(`/table/${session.tableId}`)
                                 }
-                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                                className="hover:opacity-90 text-white font-semibold"
+                                style={getClubButtonStyle('primary')}
                               >
                                 <Eye className="w-4 h-4 mr-2" />
                                 View Table
@@ -2681,13 +2738,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 {!showTournaments && (
                   <Card className="bg-slate-800/80 border-slate-700/50 w-full max-w-full overflow-hidden backdrop-blur-sm">
                     <CardHeader className="pb-3">
-                      {/* White Label Logo in Table Area */}
-                      {whitelabelConfig.logoUrl && (
+                      {/* Club Logo in Table Area */}
+                      {(clubBranding?.logoUrl || whitelabelConfig.logoUrl) && (
                         <div className="flex justify-center mb-4">
                           <div className="flex items-center bg-slate-900/60 backdrop-blur-sm rounded-lg p-2 shadow-md border border-slate-700/30">
                             <img 
-                              src={whitelabelConfig.logoUrl} 
-                              alt={whitelabelConfig.companyName || "Logo"} 
+                              src={clubBranding?.logoUrl || whitelabelConfig.logoUrl} 
+                              alt={clubBranding?.clubName || whitelabelConfig.companyName || "Logo"} 
                               className="h-10 sm:h-12 md:h-14 w-auto object-contain max-w-[180px] sm:max-w-[220px] md:max-w-[260px]"
                               onError={(e) => {
                                 // Fallback if logo image fails to load - hide the container
@@ -2942,7 +2999,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                           gameStatus.isInActiveGame
                                         }
                                         size="sm"
-                                        className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg hover:shadow-emerald-500/25 transition-all duration-300 border border-emerald-500/30 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto"
+                                        className="hover:opacity-90 text-white shadow-lg transition-all duration-300 border backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto"
+                                        style={getClubButtonStyle('primary')}
                                       >
                                         {joinWaitListMutation.isPending ? (
                                           <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
@@ -2971,7 +3029,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                       }}
                                       size="sm"
                                       variant="outline"
-                                      className="bg-gradient-to-r from-emerald-600/20 to-emerald-500/20 border border-emerald-500/50 text-emerald-300 hover:from-emerald-500/30 hover:to-emerald-400/30 hover:border-emerald-400 hover:text-emerald-200 transition-all duration-300 shadow-lg hover:shadow-emerald-500/25 backdrop-blur-sm min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm px-3 sm:px-4"
+                                      className="border-2 hover:opacity-80 transition-all duration-300 shadow-lg backdrop-blur-sm min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm px-3 sm:px-4"
+                                      style={getClubButtonStyle('secondary')}
                                     >
                                       <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                                       View
@@ -3000,13 +3059,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 {showTournaments && (
                   <Card className="bg-slate-800/80 border-slate-700/50 w-full max-w-full overflow-hidden backdrop-blur-sm">
                     <CardHeader className="pb-3">
-                      {/* White Label Logo in Tournament Area */}
-                      {whitelabelConfig.logoUrl && (
+                      {/* Club Logo in Tournament Area */}
+                      {(clubBranding?.logoUrl || whitelabelConfig.logoUrl) && (
                         <div className="flex justify-center mb-4">
                           <div className="flex items-center bg-slate-900/60 backdrop-blur-sm rounded-lg p-2 shadow-md border border-slate-700/30">
                             <img 
-                              src={whitelabelConfig.logoUrl} 
-                              alt={whitelabelConfig.companyName || "Logo"} 
+                              src={clubBranding?.logoUrl || whitelabelConfig.logoUrl} 
+                              alt={clubBranding?.clubName || whitelabelConfig.companyName || "Logo"} 
                               className="h-10 sm:h-12 md:h-14 w-auto object-contain max-w-[180px] sm:max-w-[220px] md:max-w-[260px]"
                               onError={(e) => {
                                 // Fallback if logo image fails to load - hide the container
@@ -3156,7 +3215,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                         <Button
                                           size="sm"
                                           disabled
-                                          className="bg-emerald-600 text-white"
+                                          className="text-white"
+                                          style={getClubButtonStyle('primary')}
                                         >
                                           Registered
                                         </Button>
@@ -3207,7 +3267,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
             {/* Offers Tab - Staff Managed */}
             <TabsContent value="offers" className="space-y-4 sm:space-y-6">
-              <ScrollableOffersDisplay />
+                <ScrollableOffersDisplay branding={clubBranding} />
             </TabsContent>
 
             {/* Food & Beverage Tab */}
@@ -3252,6 +3312,15 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             </TabsContent>
 
             <TabsContent value="balance" className="space-y-4 sm:space-y-6">
+              {/* Balance Display */}
+              {user?.id && (
+                <PlayerBalanceDisplay
+                  playerId={user.id.toString()}
+                  showBreakdown={true}
+                />
+              )}
+              
+              {/* Transaction History */}
               <Card className="bg-slate-800 border-slate-700">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center">
@@ -4127,7 +4196,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                       </div>
 
                       <Button
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
+                        className="w-full hover:opacity-90 text-white disabled:opacity-50"
+                        style={getClubButtonStyle('primary')}
                         onClick={handlePanCardUpdate}
                         disabled={
                           updatePanCardMutation.isPending ||
@@ -4531,7 +4601,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                       />
                     </div>
                     <Button
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
+                      className="w-full hover:opacity-90 text-white disabled:opacity-50"
+                      style={getClubButtonStyle('primary')}
                       onClick={submitFeedback}
                       disabled={sendingFeedback || !feedbackMessage.trim()}
                     >
@@ -4634,7 +4705,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                       </div>
                       <Button
                         onClick={() => setChatDialogOpen(true)}
-                        className="bg-emerald-600 hover:bg-emerald-700"
+                        className="hover:opacity-90"
+                        style={getClubButtonStyle('primary')}
                         size="sm"
                       >
                         <MessageCircle className="w-4 h-4 mr-2" />
