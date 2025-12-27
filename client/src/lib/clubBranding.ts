@@ -31,14 +31,16 @@ export async function fetchClubBranding(clubId: string): Promise<ClubBranding | 
       return cachedBranding;
     }
 
-    const response = await fetch(`${API_BASE_URL}/clubs/${clubId}`, {
+    const response = await fetch(`${API_BASE_URL}/clubs/${clubId}/branding`, {
       headers: {
         'Content-Type': 'application/json',
       },
     });
 
     if (!response.ok) {
-      console.error('Failed to fetch club branding:', response.statusText);
+      console.error(`❌ Failed to fetch club branding: ${response.status}`);
+      const errorData = await response.json().catch(() => null);
+      console.error('❌ Error details:', errorData);
       return null;
     }
 
