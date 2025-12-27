@@ -19,6 +19,7 @@ import { useUltraFastAuth } from "@/hooks/useUltraFastAuth";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { API_BASE_URL } from "@/lib/api/config";
+import { fetchClubBranding, applyClubBranding, getGradientClasses, getGradientStyle, type ClubBranding } from "@/lib/clubBranding";
 
 export default function KYCVerification() {
   const [, setLocation] = useLocation();
@@ -26,11 +27,63 @@ export default function KYCVerification() {
   const { user, signOut } = useUltraFastAuth();
   const [kycData, setKycData] = useState<any>(null);
   const [panCard, setPanCard] = useState("");
+  const [clubBranding, setClubBranding] = useState<ClubBranding | null>(null);
   const [uploadedDocs, setUploadedDocs] = useState<{
     government_id?: { name: string; preview: string };
     pan_card?: { name: string; preview: string };
     profile_photo?: { name: string; preview: string };
   }>({});
+
+  // Load club branding
+  useEffect(() => {
+    const loadBranding = async () => {
+      // Try to get from sessionStorage first
+      const storedBranding = sessionStorage.getItem("club_branding");
+      if (storedBranding) {
+        try {
+          const branding = JSON.parse(storedBranding);
+          setClubBranding(branding);
+          applyClubBranding(branding);
+          return;
+        } catch (e) {
+          console.error("Failed to parse stored branding:", e);
+        }
+      }
+
+      // Try to get clubId from kycData or sessionStorage
+      const storedKycData = sessionStorage.getItem("kyc_redirect");
+      let clubId = null;
+      
+      if (storedKycData) {
+        try {
+          const data = JSON.parse(storedKycData);
+          clubId = data.clubId;
+        } catch (e) {
+          console.error("Error parsing KYC data:", e);
+        }
+      }
+      
+      if (!clubId) {
+        clubId = sessionStorage.getItem('clubId') || localStorage.getItem('clubId');
+      }
+
+      // Fetch from backend if we have clubId
+      if (clubId) {
+        try {
+          const branding = await fetchClubBranding(clubId);
+          if (branding) {
+            setClubBranding(branding);
+            applyClubBranding(branding);
+            sessionStorage.setItem("club_branding", JSON.stringify(branding));
+          }
+        } catch (error) {
+          console.error("Failed to fetch club branding:", error);
+        }
+      }
+    };
+
+    loadBranding();
+  }, []);
 
   useEffect(() => {
     // Get KYC data from session storage
@@ -76,7 +129,8 @@ export default function KYCVerification() {
       toast({
         title: "KYC Submitted Successfully",
         description: "Your documents are being reviewed. Please wait for approval.",
-        className: "bg-emerald-600 text-white",
+        style: clubBranding ? { backgroundColor: clubBranding.skinColor } : { backgroundColor: '#059669' },
+        className: "text-white",
       });
       // Redirect to dashboard after 1.5 seconds
       setTimeout(() => {
@@ -164,7 +218,8 @@ export default function KYCVerification() {
       toast({
         title: "Document Uploaded",
         description: "Your KYC document has been uploaded successfully",
-        className: "bg-emerald-600 text-white",
+        style: clubBranding ? { backgroundColor: clubBranding.skinColor } : { backgroundColor: '#059669' },
+        className: "text-white",
       });
     },
     onError: (error: any) => {
@@ -250,18 +305,34 @@ export default function KYCVerification() {
     setLocation("/");
   };
 
+  // Helper function to get club-branded button styles
+  const getClubButtonStyle = (variant: 'primary' | 'secondary' = 'primary') => {
+    if (!clubBranding) return {};
+    if (variant === 'primary') {
+      return { backgroundColor: clubBranding.skinColor };
+    }
+    return { borderColor: clubBranding.skinColor, color: clubBranding.skinColor };
+  };
+
+  // Get gradient classes and style for background
+  const gradientClasses = clubBranding ? getGradientClasses(clubBranding.gradient) : '';
+  const gradientStyle = clubBranding ? getGradientStyle(clubBranding.gradient) : {};
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Header */}
-      <div className="bg-slate-800/50 border-b border-slate-700">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-bold text-white">KYC Verification</h1>
-            <p className="text-sm text-slate-400">Complete your profile verification</p>
+    <div 
+      className={`min-h-screen ${gradientClasses || 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900'}`}
+      style={Object.keys(gradientStyle).length > 0 ? gradientStyle : undefined}
+    >
+      {/* Header - Mobile Responsive */}
+      <div className="bg-slate-800/50 border-b border-slate-700 backdrop-blur-sm">
+        <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
+          <div className="w-full sm:w-auto">
+            <h1 className="text-lg sm:text-xl font-bold text-white">KYC Verification</h1>
+            <p className="text-xs sm:text-sm text-slate-400">Complete your profile verification</p>
           </div>
           <Button
             variant="ghost"
-            className="text-slate-400 hover:text-white"
+            className="text-slate-400 hover:text-white w-full sm:w-auto min-h-[36px] sm:min-h-[40px] text-sm sm:text-base"
             onClick={handleSignOut}
           >
             <LogOut className="w-4 h-4 mr-2" />
@@ -270,17 +341,17 @@ export default function KYCVerification() {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+      {/* Main Content - Mobile Responsive */}
+      <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-6">
         {/* Status Card */}
         <Card className="bg-slate-800 border-slate-700">
           <CardHeader>
-            <CardTitle className="text-white flex items-center justify-between">
-              <span className="flex items-center">
-                <Clock className="w-6 h-6 mr-3 text-amber-500" />
+            <CardTitle className="text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
+              <span className="flex items-center text-base sm:text-lg">
+                <Clock className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3 text-amber-500" />
                 Verification In Progress
               </span>
-              <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30">
+              <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-xs sm:text-sm">
                 KYC Pending
               </Badge>
             </CardTitle>
@@ -315,8 +386,8 @@ export default function KYCVerification() {
         {/* Document Upload Section */}
         <Card className="bg-slate-800 border-slate-700">
           <CardHeader>
-            <CardTitle className="text-white flex items-center">
-              <Upload className="w-5 h-5 mr-2 text-emerald-500" />
+            <CardTitle className="text-white flex items-center text-base sm:text-lg">
+              <Upload className="w-4 h-4 sm:w-5 sm:h-5 mr-2" style={{ color: clubBranding?.skinColor || '#10b981' }} />
               Upload KYC Documents
             </CardTitle>
           </CardHeader>
@@ -324,20 +395,20 @@ export default function KYCVerification() {
             <div className="p-4 bg-slate-700/50 rounded-lg space-y-2">
               <p className="text-sm text-slate-300 font-medium">Required Documents:</p>
               <ul className="text-sm text-slate-400 space-y-1 ml-4">
-                <li className="flex items-center">
-                  <CheckCircle className="w-4 h-4 mr-2 text-emerald-500" />
+                <li className="flex items-center text-xs sm:text-sm">
+                  <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-2 flex-shrink-0" style={{ color: clubBranding?.skinColor || '#10b981' }} />
                   Government-issued Photo ID (Aadhaar, Passport, Driver's License)
                 </li>
-                <li className="flex items-center">
-                  <CheckCircle className="w-4 h-4 mr-2 text-emerald-500" />
+                <li className="flex items-center text-xs sm:text-sm">
+                  <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-2 flex-shrink-0" style={{ color: clubBranding?.skinColor || '#10b981' }} />
                   PAN Card (for tax purposes)
                 </li>
-                <li className="flex items-center">
-                  <CheckCircle className="w-4 h-4 mr-2 text-emerald-500" />
+                <li className="flex items-center text-xs sm:text-sm">
+                  <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-2 flex-shrink-0" style={{ color: clubBranding?.skinColor || '#10b981' }} />
                   Proof of Address (if different from ID)
                 </li>
-                <li className="flex items-center">
-                  <CheckCircle className="w-4 h-4 mr-2 text-emerald-500" />
+                <li className="flex items-center text-xs sm:text-sm">
+                  <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-2 flex-shrink-0" style={{ color: clubBranding?.skinColor || '#10b981' }} />
                   Profile Photo (clear, recent photo)
                 </li>
               </ul>
@@ -346,10 +417,10 @@ export default function KYCVerification() {
               </p>
             </div>
 
-            {/* PAN Card Input */}
-            <div className="space-y-2 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-              <Label htmlFor="panCard" className="text-sm text-white font-medium flex items-center">
-                <CreditCard className="w-4 h-4 mr-2 text-blue-400" />
+            {/* PAN Card Input - Mobile Responsive */}
+            <div className="space-y-2 p-3 sm:p-4 rounded-lg" style={clubBranding ? { backgroundColor: `${clubBranding.skinColor}10`, borderColor: `${clubBranding.skinColor}30`, borderWidth: '1px', borderStyle: 'solid' } : { backgroundColor: '#3b82f610', borderColor: '#3b82f630', borderWidth: '1px', borderStyle: 'solid' }}>
+              <Label htmlFor="panCard" className="text-xs sm:text-sm text-white font-medium flex items-center">
+                <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 mr-2" style={{ color: clubBranding?.skinColor || '#60a5fa' }} />
                 PAN Card Number *
               </Label>
               <Input
@@ -359,9 +430,9 @@ export default function KYCVerification() {
                 value={panCard}
                 onChange={(e) => setPanCard(e.target.value.toUpperCase())}
                 maxLength={10}
-                className="bg-slate-700 border-slate-600 text-white placeholder-slate-500 uppercase"
+                className="bg-slate-700 border-slate-600 text-white placeholder-slate-500 uppercase h-10 sm:h-11 text-sm sm:text-base"
               />
-              <p className="text-xs text-slate-400">
+              <p className="text-xs sm:text-sm text-slate-400">
                 Format: 5 letters, 4 digits, 1 letter (e.g., ABCDE1234F). Your PAN card must be unique within your club.
               </p>
             </div>
@@ -376,7 +447,8 @@ export default function KYCVerification() {
                 </label>
                 <Button
                   variant="outline"
-                  className="w-full border-slate-600 hover:bg-slate-700 text-white"
+                  className="w-full hover:opacity-90 text-white min-h-[44px] sm:min-h-[48px] text-sm sm:text-base"
+                  style={getClubButtonStyle('secondary')}
                   disabled={uploadKycDocumentMutation.isPending}
                   onClick={() => document.getElementById("aadhaar-upload")?.click()}
                 >
@@ -414,7 +486,8 @@ export default function KYCVerification() {
                 </label>
                 <Button
                   variant="outline"
-                  className="w-full border-slate-600 hover:bg-slate-700 text-white"
+                  className="w-full hover:opacity-90 text-white min-h-[44px] sm:min-h-[48px] text-sm sm:text-base"
+                  style={getClubButtonStyle('secondary')}
                   disabled={uploadKycDocumentMutation.isPending}
                   onClick={() => document.getElementById("pan-upload")?.click()}
                 >
@@ -452,7 +525,8 @@ export default function KYCVerification() {
                 </label>
                 <Button
                   variant="outline"
-                  className="w-full border-slate-600 hover:bg-slate-700 text-white"
+                  className="w-full hover:opacity-90 text-white min-h-[44px] sm:min-h-[48px] text-sm sm:text-base"
+                  style={getClubButtonStyle('secondary')}
                   disabled={uploadKycDocumentMutation.isPending}
                   onClick={() => document.getElementById("photo-upload")?.click()}
                 >
@@ -483,26 +557,27 @@ export default function KYCVerification() {
               </div>
             </div>
 
-            {/* Submit KYC Button */}
+            {/* Submit KYC Button - Mobile Responsive */}
             <div className="pt-4 border-t border-slate-600">
               <Button
-                className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold py-6"
+                className="w-full hover:opacity-90 text-white font-semibold py-4 sm:py-6 min-h-[52px] sm:min-h-[64px] text-sm sm:text-base"
+                style={getClubButtonStyle('primary')}
                 onClick={handlePanCardSubmit}
                 disabled={submitPanCardMutation.isPending || !panCard.trim()}
               >
                 {submitPanCardMutation.isPending ? (
                   <>
-                    <Clock className="w-5 h-5 mr-2 animate-spin" />
+                    <Clock className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
                     Submitting KYC...
                   </>
                 ) : (
                   <>
-                    <CheckCircle className="w-5 h-5 mr-2" />
+                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                     Submit KYC Documents
                   </>
                 )}
               </Button>
-              <p className="text-xs text-slate-500 text-center mt-2">
+              <p className="text-xs sm:text-sm text-slate-500 text-center mt-2 px-2">
                 Make sure you've uploaded all documents and entered your PAN card number
               </p>
             </div>
@@ -520,34 +595,34 @@ export default function KYCVerification() {
           <CardContent className="space-y-4">
             <div className="space-y-3">
               <div className="flex items-start">
-                <div className="bg-emerald-500/20 text-emerald-300 rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0 mr-3">
+                <div className="rounded-full w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center flex-shrink-0 mr-2 sm:mr-3 text-sm sm:text-base font-semibold" style={clubBranding ? { backgroundColor: `${clubBranding.skinColor}20`, color: clubBranding.skinColor } : { backgroundColor: '#10b98120', color: '#10b981' }}>
                   1
                 </div>
-                <div>
-                  <p className="text-white font-medium">Upload Documents</p>
-                  <p className="text-sm text-slate-400">
+                <div className="flex-1">
+                  <p className="text-white font-medium text-sm sm:text-base">Upload Documents</p>
+                  <p className="text-xs sm:text-sm text-slate-400">
                     Upload all required KYC documents using the form above
                   </p>
                 </div>
               </div>
               <div className="flex items-start">
-                <div className="bg-emerald-500/20 text-emerald-300 rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0 mr-3">
+                <div className="rounded-full w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center flex-shrink-0 mr-2 sm:mr-3 text-sm sm:text-base font-semibold" style={clubBranding ? { backgroundColor: `${clubBranding.skinColor}20`, color: clubBranding.skinColor } : { backgroundColor: '#10b98120', color: '#10b981' }}>
                   2
                 </div>
-                <div>
-                  <p className="text-white font-medium">Review Process</p>
-                  <p className="text-sm text-slate-400">
+                <div className="flex-1">
+                  <p className="text-white font-medium text-sm sm:text-base">Review Process</p>
+                  <p className="text-xs sm:text-sm text-slate-400">
                     Club staff will review your documents (usually within 24-48 hours)
                   </p>
                 </div>
               </div>
               <div className="flex items-start">
-                <div className="bg-emerald-500/20 text-emerald-300 rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0 mr-3">
+                <div className="rounded-full w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center flex-shrink-0 mr-2 sm:mr-3 text-sm sm:text-base font-semibold" style={clubBranding ? { backgroundColor: `${clubBranding.skinColor}20`, color: clubBranding.skinColor } : { backgroundColor: '#10b98120', color: '#10b981' }}>
                   3
                 </div>
-                <div>
-                  <p className="text-white font-medium">Account Activation</p>
-                  <p className="text-sm text-slate-400">
+                <div className="flex-1">
+                  <p className="text-white font-medium text-sm sm:text-base">Account Activation</p>
+                  <p className="text-xs sm:text-sm text-slate-400">
                     Once approved, you can access all features
                   </p>
                 </div>

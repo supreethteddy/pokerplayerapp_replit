@@ -79,7 +79,7 @@ import FoodBeverageTab from "./FoodBeverageTab";
 import { useSeatAssignment } from "@/hooks/useSeatAssignment";
 import { usePlayerGameStatus } from "@/hooks/usePlayerGameStatus";
 import { whitelabelConfig } from "@/lib/whitelabeling";
-import { fetchClubBranding, applyClubBranding, getGradientClasses, type ClubBranding } from "@/lib/clubBranding";
+import { fetchClubBranding, applyClubBranding, getGradientClasses, getGradientStyle, type ClubBranding } from "@/lib/clubBranding";
 
 // Scrollable Offers Display Component
 const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null }) => {
@@ -585,6 +585,24 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     return { borderColor: clubBranding.skinColor, color: clubBranding.skinColor };
   };
 
+  // Helper function to get logo URL (prioritize database logo, fallback to default)
+  const getLogoUrl = (): string | null => {
+    // Priority 1: Logo from database (clubBranding)
+    if (clubBranding?.logoUrl) {
+      return clubBranding.logoUrl;
+    }
+    // Priority 2: Default logo from whitelabelConfig
+    if (whitelabelConfig.logoUrl) {
+      return whitelabelConfig.logoUrl;
+    }
+    return null;
+  };
+
+  // Helper function to get club name
+  const getClubName = (): string => {
+    return clubBranding?.clubName || whitelabelConfig.companyName || "Poker Club";
+  };
+
   // Chat Dialog state
   const [chatDialogOpen, setChatDialogOpen] = useState(false);
 
@@ -1027,7 +1045,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               // Navigate to table view - the backend will handle removing from old waitlist
               setLocation(`/table/${tableId}`);
             }}
-            className="bg-amber-600 hover:bg-amber-700"
+            className="hover:opacity-90 text-white"
+            style={getClubButtonStyle('primary')}
           >
             Continue
           </Button>
@@ -2301,8 +2320,15 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     );
   }
 
+  // Get gradient classes and style for background
+  const gradientClasses = clubBranding ? getGradientClasses(clubBranding.gradient) : '';
+  const gradientStyle = clubBranding ? getGradientStyle(clubBranding.gradient) : {};
+  
   return (
-    <div className="min-h-screen bg-slate-900 w-full overflow-x-hidden dashboard-container relative">
+    <div 
+      className={`min-h-screen w-full overflow-x-hidden dashboard-container relative ${gradientClasses || 'bg-slate-900'}`}
+      style={Object.keys(gradientStyle).length > 0 ? gradientStyle : undefined}
+    >
       {/* Active Game Status Banner */}
       {gameStatus.activeGameInfo && (
         <div
@@ -2437,7 +2463,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   onClick={() =>
                     setLocation(`/table/${assignmentDetails.tableId}`)
                   }
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto min-h-[44px]"
+                  className="hover:opacity-90 text-white w-full sm:w-auto min-h-[44px]"
+                  style={getClubButtonStyle('primary')}
                 >
                   <Eye className="w-4 h-4 mr-2" />
                   View Table
@@ -2446,7 +2473,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 <Button
                   onClick={() => setShowAssignmentNotification(false)}
                   variant="outline"
-                  className="border-emerald-600 text-emerald-300 hover:bg-emerald-700 w-full sm:w-auto min-h-[44px]"
+                  className="hover:opacity-90 w-full sm:w-auto min-h-[44px]"
+                  style={getClubButtonStyle('secondary')}
                 >
                   Dismiss
                 </Button>
@@ -2461,23 +2489,31 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 lg:mb-6 space-y-3 sm:space-y-0 dashboard-header">
           <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
             {/* White Label Logo - Positioned in top left corner, above table area */}
-            {(clubBranding?.logoUrl || whitelabelConfig.logoUrl) && (
+            {getLogoUrl() && (
               <div
                 className="pointer-events-none mb-2 sm:mb-0"
                 id="whitelabel-logo-container"
               >
                 <div className="flex items-center bg-slate-900/80 backdrop-blur-sm p-1.5 sm:p-2 shadow-lg border border-slate-700/50 rounded">
                   <img
-                    src={clubBranding?.logoUrl || whitelabelConfig.logoUrl}
-                    alt={clubBranding?.clubName || whitelabelConfig.companyName || "Logo"}
+                    src={getLogoUrl()!}
+                    alt={getClubName()}
                     className="rounded-lg h-6 sm:h-8 md:h-10 lg:h-12 w-auto object-contain max-w-[120px] sm:max-w-[150px] md:max-w-[180px] lg:max-w-[220px]"
                     onError={(e) => {
-                      // Fallback if logo image fails to load - hide the container
-                      const container = document.getElementById(
-                        "whitelabel-logo-container"
-                      );
-                      if (container) {
-                        container.style.display = "none";
+                      // Fallback to default logo if database logo fails to load
+                      const img = e.target as HTMLImageElement;
+                      const defaultLogo = whitelabelConfig.logoUrl;
+                      if (defaultLogo && img.src !== defaultLogo) {
+                        console.warn("⚠️ [LOGO] Database logo failed to load, using default logo");
+                        img.src = defaultLogo;
+                      } else {
+                        // Hide container if both logos fail
+                        const container = document.getElementById(
+                          "whitelabel-logo-container"
+                        );
+                        if (container) {
+                          container.style.display = "none";
+                        }
                       }
                     }}
                   />
@@ -2485,10 +2521,16 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               </div>
             )}
             <div className="w-full sm:w-auto min-w-0 flex-1">
-              <h1 className="text-base sm:text-lg lg:text-xl xl:text-2xl font-bold text-white truncate">
+              <h1 
+                className="text-base sm:text-lg lg:text-xl xl:text-2xl font-bold truncate"
+                style={{ color: clubBranding?.skinColor || '#ffffff' }}
+              >
                 Player Dashboard
               </h1>
-              <p className="text-slate-400 text-xs sm:text-sm lg:text-base truncate">
+              <p 
+                className="text-xs sm:text-sm lg:text-base truncate"
+                style={{ color: clubBranding?.skinColor || '#94a3b8' }}
+              >
                 Welcome back, {user?.nickname || user?.firstName}!
               </p>
             </div>
@@ -2505,7 +2547,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             }}
             variant="outline"
             size="sm"
-            className="border-slate-600 text-slate-400 hover:bg-slate-700 hover:text-white w-full sm:w-auto flex-shrink-0 mt-2 sm:mt-0"
+            className="hover:opacity-90 w-full sm:w-auto flex-shrink-0 mt-2 sm:mt-0"
+            style={clubBranding ? { borderColor: clubBranding.skinColor, color: clubBranding.skinColor } : { borderColor: '#64748b', color: '#94a3b8' }}
           >
             <LogOut className="h-4 w-4 mr-2" />
             <span className="sm:inline">Sign Out</span>
@@ -2519,7 +2562,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           className="w-full max-w-full"
         >
           <TabsList
-            className="flex w-full justify-between mb-3 sm:mb-4 lg:mb-6 bg-slate-800 border border-slate-700 rounded-lg p-0.5 sm:p-1 overflow-x-auto overflow-y-hidden gap-0.5 sm:gap-1 scrollbar-hide"
+            className="flex w-full justify-between mb-3 sm:mb-4 lg:mb-6 bg-slate-800 border border-slate-700 rounded-lg p-0.5 sm:p-1 overflow-x-auto overflow-y-hidden gap-0.5 sm:gap-1 scrollbar-hide min-h-[48px] sm:min-h-[52px]"
             data-tabs-list
           >
             <TabsTrigger
@@ -2580,7 +2623,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             </TabsTrigger>
             <TabsTrigger
               value="notifications"
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px] relative overflow-visible"
+              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px] relative overflow-visible"
+              data-active-style="true"
               role="tab"
             >
               <div className="relative flex items-center justify-center">
@@ -2710,9 +2754,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                     onClick={() => setShowTournaments(false)}
                     className={`flex-1 flex items-center justify-center px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
                       !showTournaments
-                        ? "bg-emerald-600 text-white shadow-lg transform scale-105"
+                        ? "text-white shadow-lg transform scale-105"
                         : "bg-transparent text-slate-300 hover:bg-slate-700/50"
                     }`}
+                    style={!showTournaments && clubBranding ? { backgroundColor: clubBranding.skinColor } : undefined}
                   >
                     <Table className="w-4 h-4 mr-2 flex-shrink-0" />
                     <span className="hidden sm:inline">Cash Tables</span>
@@ -2722,9 +2767,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                     onClick={() => setShowTournaments(true)}
                     className={`flex-1 flex items-center justify-center px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
                       showTournaments
-                        ? "bg-emerald-600 text-white shadow-lg transform scale-105"
+                        ? "text-white shadow-lg transform scale-105"
                         : "bg-transparent text-slate-300 hover:bg-slate-700/50"
                     }`}
+                    style={showTournaments && clubBranding ? { backgroundColor: clubBranding.skinColor } : undefined}
                   >
                     <Trophy className="w-4 h-4 mr-2 flex-shrink-0" />
                     <span className="hidden sm:inline">Tournaments</span>
@@ -2739,18 +2785,26 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   <Card className="bg-slate-800/80 border-slate-700/50 w-full max-w-full overflow-hidden backdrop-blur-sm">
                     <CardHeader className="pb-3">
                       {/* Club Logo in Table Area */}
-                      {(clubBranding?.logoUrl || whitelabelConfig.logoUrl) && (
+                      {getLogoUrl() && (
                         <div className="flex justify-center mb-4">
                           <div className="flex items-center bg-slate-900/60 backdrop-blur-sm rounded-lg p-2 shadow-md border border-slate-700/30">
                             <img 
-                              src={clubBranding?.logoUrl || whitelabelConfig.logoUrl} 
-                              alt={clubBranding?.clubName || whitelabelConfig.companyName || "Logo"} 
+                              src={getLogoUrl()!} 
+                              alt={getClubName()} 
                               className="h-10 sm:h-12 md:h-14 w-auto object-contain max-w-[180px] sm:max-w-[220px] md:max-w-[260px]"
                               onError={(e) => {
-                                // Fallback if logo image fails to load - hide the container
-                                const container = (e.target as HTMLImageElement).parentElement;
-                                if (container) {
-                                  container.style.display = 'none';
+                                // Fallback to default logo if database logo fails to load
+                                const img = e.target as HTMLImageElement;
+                                const defaultLogo = whitelabelConfig.logoUrl;
+                                if (defaultLogo && img.src !== defaultLogo) {
+                                  console.warn("⚠️ [LOGO] Database logo failed to load, using default logo");
+                                  img.src = defaultLogo;
+                                } else {
+                                  // Hide container if both logos fail
+                                  const container = img.parentElement;
+                                  if (container) {
+                                    container.style.display = 'none';
+                                  }
                                 }
                               }}
                             />
@@ -3060,18 +3114,26 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   <Card className="bg-slate-800/80 border-slate-700/50 w-full max-w-full overflow-hidden backdrop-blur-sm">
                     <CardHeader className="pb-3">
                       {/* Club Logo in Tournament Area */}
-                      {(clubBranding?.logoUrl || whitelabelConfig.logoUrl) && (
+                      {getLogoUrl() && (
                         <div className="flex justify-center mb-4">
                           <div className="flex items-center bg-slate-900/60 backdrop-blur-sm rounded-lg p-2 shadow-md border border-slate-700/30">
                             <img 
-                              src={clubBranding?.logoUrl || whitelabelConfig.logoUrl} 
-                              alt={clubBranding?.clubName || whitelabelConfig.companyName || "Logo"} 
+                              src={getLogoUrl()!} 
+                              alt={getClubName()} 
                               className="h-10 sm:h-12 md:h-14 w-auto object-contain max-w-[180px] sm:max-w-[220px] md:max-w-[260px]"
                               onError={(e) => {
-                                // Fallback if logo image fails to load - hide the container
-                                const container = (e.target as HTMLImageElement).parentElement;
-                                if (container) {
-                                  container.style.display = 'none';
+                                // Fallback to default logo if database logo fails to load
+                                const img = e.target as HTMLImageElement;
+                                const defaultLogo = whitelabelConfig.logoUrl;
+                                if (defaultLogo && img.src !== defaultLogo) {
+                                  console.warn("⚠️ [LOGO] Database logo failed to load, using default logo");
+                                  img.src = defaultLogo;
+                                } else {
+                                  // Hide container if both logos fail
+                                  const container = img.parentElement;
+                                  if (container) {
+                                    container.style.display = 'none';
+                                  }
                                 }
                               }}
                             />
@@ -3272,7 +3334,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
             {/* Food & Beverage Tab */}
             <TabsContent value="food" className="space-y-4 sm:space-y-6">
-              <FoodBeverageTab user={user} />
+              <FoodBeverageTab user={user} clubBranding={clubBranding} />
             </TabsContent>
 
             {/* Session Tab - Advanced Playtime Tracking */}
@@ -3294,7 +3356,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         </p>
                         <Button
                           variant="outline"
-                          className="border-emerald-600 text-emerald-300 hover:bg-emerald-700"
+                          className="hover:opacity-90"
+                          style={getClubButtonStyle('secondary')}
                           onClick={() => setActiveTab("game")}
                         >
                           Go to Tables
@@ -3365,7 +3428,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="border-emerald-500/60 text-emerald-300 hover:bg-emerald-600/10"
+                          className="hover:opacity-90"
+                          style={getClubButtonStyle('secondary')}
                           disabled={!!submittingProfileChange}
                           onClick={async () => {
                             const current =
@@ -3402,7 +3466,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="border-emerald-500/60 text-emerald-300 hover:bg-emerald-600/10"
+                          className="hover:opacity-90"
+                          style={getClubButtonStyle('secondary')}
                           disabled={!!submittingProfileChange}
                           onClick={async () => {
                             const current = user?.email || "";
@@ -3436,7 +3501,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="border-emerald-500/60 text-emerald-300 hover:bg-emerald-600/10"
+                          className="hover:opacity-90"
+                          style={getClubButtonStyle('secondary')}
                           disabled={!!submittingProfileChange}
                           onClick={async () => {
                             const current = (user as any)?.phone || "";
@@ -4767,6 +4833,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   "Player"
                 }
                 isInDialog={true}
+                clubBranding={clubBranding}
                 onClose={() => setChatDialogOpen(false)}
               />
             )}
@@ -4876,6 +4943,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               <div className="h-full overflow-auto">
                 <TableView
                   tableId={selectedTableViewTableId}
+                  clubBranding={clubBranding}
                   onNavigate={setLocation}
                   onClose={() => setTableViewDialogOpen(false)}
                 />

@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import Pusher from 'pusher-js';
+import type { ClubBranding } from "@/lib/clubBranding";
 import { 
   ShoppingCart, 
   Plus, 
@@ -69,9 +70,10 @@ interface PlayerFnbOrder {
 
 interface FoodBeverageTabProps {
   user: any;
+  clubBranding?: ClubBranding | null;
 }
 
-export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
+export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -301,69 +303,87 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
 
   if (itemsLoading && viewMode === 'menu') {
     return (
-      <div className="space-y-6">
-        <div className="text-center py-8">
-          <UtensilsCrossed className="w-12 h-12 mx-auto mb-4 text-emerald-500 animate-pulse" />
-          <p className="text-white">Loading menu...</p>
+      <div className="space-y-4 sm:space-y-6">
+        <div className="text-center py-6 sm:py-8">
+          <UtensilsCrossed className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 sm:mb-4 animate-pulse" style={{ color: clubBranding?.skinColor || '#10b981' }} />
+          <p className="text-white text-sm sm:text-base">Loading menu...</p>
         </div>
       </div>
     );
   }
 
+  // Helper function to get club-branded button styles
+  const getClubButtonStyle = (variant: 'primary' | 'secondary' = 'primary') => {
+    if (!clubBranding) return {};
+    if (variant === 'primary') {
+      return { backgroundColor: clubBranding.skinColor };
+    }
+    return { borderColor: clubBranding.skinColor, color: clubBranding.skinColor };
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Header with Cart and view toggle */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-white flex items-center">
-            <UtensilsCrossed className="w-6 h-6 mr-2 text-emerald-500" />
+    <div className="space-y-4 sm:space-y-6">
+      {/* Header with Cart and view toggle - Mobile Responsive */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+        <div className="w-full sm:w-auto">
+          <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center">
+            <UtensilsCrossed className="w-5 h-5 sm:w-6 sm:h-6 mr-2" style={{ color: clubBranding?.skinColor || '#10b981' }} />
             Food & Beverage
           </h2>
-          <p className="text-slate-400">Order directly to your table</p>
+          <p className="text-slate-400 text-sm sm:text-base mt-1">Order directly to your table</p>
         </div>
-        <div className="flex items-center space-x-3">
-          <div className="bg-slate-800 rounded-full p-1 flex">
+        <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto">
+          <div className="bg-slate-800 rounded-full p-1 flex flex-1 sm:flex-initial w-full sm:w-auto">
             <button
-              className={`px-3 py-1 text-xs rounded-full ${
+              className={`px-3 sm:px-4 py-2 sm:py-1.5 text-xs sm:text-sm rounded-full transition-all duration-200 min-h-[44px] sm:min-h-[36px] flex-1 sm:flex-initial font-medium ${
                 viewMode === 'menu'
-                  ? 'bg-emerald-600 text-white'
-                  : 'text-slate-300'
+                  ? 'text-white shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
               }`}
+              style={viewMode === 'menu' && clubBranding ? { 
+                backgroundColor: clubBranding.skinColor,
+                boxShadow: `0 2px 8px ${clubBranding.skinColor}40`
+              } : undefined}
               onClick={() => setViewMode('menu')}
             >
               Menu
             </button>
             <button
-              className={`px-3 py-1 text-xs rounded-full ${
+              className={`px-3 sm:px-4 py-2 sm:py-1.5 text-xs sm:text-sm rounded-full transition-all duration-200 min-h-[44px] sm:min-h-[36px] flex-1 sm:flex-initial font-medium ${
                 viewMode === 'orders'
-                  ? 'bg-emerald-600 text-white'
-                  : 'text-slate-300'
+                  ? 'text-white shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
               }`}
+              style={viewMode === 'orders' && clubBranding ? { 
+                backgroundColor: clubBranding.skinColor,
+                boxShadow: `0 2px 8px ${clubBranding.skinColor}40`
+              } : undefined}
               onClick={() => setViewMode('orders')}
             >
               My Orders
             </button>
-        </div>
-        {totalCartItems > 0 && (
-          <Button 
-            onClick={() => setShowOrderDialog(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 relative"
-          >
-            <ShoppingCart className="w-4 h-4 mr-2" />
-            Cart
-              <Badge className="ml-2 bg-emerald-800 text-white">
+          </div>
+          {totalCartItems > 0 && (
+            <Button 
+              onClick={() => setShowOrderDialog(true)}
+              className="hover:opacity-90 relative min-h-[44px] sm:min-h-[40px] text-xs sm:text-sm px-3 sm:px-4 font-medium shadow-md transition-all duration-200"
+              style={getClubButtonStyle('primary')}
+            >
+              <ShoppingCart className="w-4 h-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Cart</span>
+              <Badge className="ml-1 sm:ml-2 text-white text-[10px] sm:text-xs px-1.5 sm:px-2 font-semibold" style={clubBranding ? { backgroundColor: clubBranding.skinColor, opacity: 0.9 } : { backgroundColor: '#065f46' }}>
                 {totalCartItems}
               </Badge>
-          </Button>
-        )}
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Menu view */}
       {viewMode === 'menu' && (
         <>
-      {/* Menu Items Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Menu Items Grid - Mobile Responsive */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
         {items.map((item) => {
           const quantity = getItemQuantity(item.id);
           const price = parseFloat(item.price) || 0;
@@ -372,66 +392,68 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
           return (
                 <Card
                   key={item.id}
-                  className="bg-slate-800 border-slate-700 hover:border-slate-600 transition-colors"
+                  className="bg-slate-800 border-slate-700 hover:border-slate-600 transition-colors h-full flex flex-col"
                 >
-              <CardContent className="p-4">
-                <div className="space-y-3">
-                  {/* Image */}
+              <CardContent className="p-3 sm:p-4 lg:p-5 flex-1 flex flex-col">
+                <div className="space-y-2 sm:space-y-3 flex-1 flex flex-col">
+                  {/* Image - Mobile Responsive */}
                   <OptimizedImage 
                     src={item.image_url}
                     alt={item.name}
-                    className="w-full h-40 rounded-lg object-cover"
+                    className="w-full h-36 sm:h-44 lg:h-48 rounded-lg object-cover"
                   />
                   
                   {/* Item Details */}
-                  <div>
-                    <div className="flex items-start justify-between">
-                          <h3 className="text-white font-semibold">
+                  <div className="flex-1 flex flex-col">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                          <h3 className="text-white font-semibold text-sm sm:text-base flex-1 min-w-0">
                             {item.name}
                           </h3>
                           <Badge
                             variant={
                               item.category === 'food' ? 'default' : 'secondary'
                             }
-                            className="text-xs"
+                            className="text-xs flex-shrink-0"
                           >
                         {item.category}
                       </Badge>
                     </div>
-                        <p className="text-slate-400 text-sm mt-1">
+                        <p className="text-slate-400 text-xs sm:text-sm mt-1 line-clamp-2">
                           {item.description}
                         </p>
                     
-                    {/* Price */}
-                    <div className="flex items-center justify-between mt-3">
-                      <span className="text-emerald-400 font-bold text-lg">
+                    {/* Price - Mobile Responsive */}
+                    <div className="flex items-center justify-between mt-2 sm:mt-3">
+                      <span className="font-bold text-base sm:text-lg" style={{ color: clubBranding?.skinColor || '#10b981' }}>
                         {isFree ? 'Free' : `₹${price.toFixed(2)}`}
                       </span>
                       
-                      {/* Quantity Controls */}
-                      <div className="flex items-center space-x-2">
+                      {/* Quantity Controls - Mobile Responsive */}
+                      <div className="flex items-center space-x-1.5 sm:space-x-2">
                         {quantity > 0 && (
                           <>
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-8 w-8 p-0"
+                              className="h-9 w-9 sm:h-10 sm:w-10 p-0 min-h-[36px] sm:min-h-[40px] border-2 hover:opacity-90 transition-all"
+                              style={getClubButtonStyle('secondary')}
                               onClick={() => removeFromCart(item.id)}
                             >
-                              <Minus className="w-3 h-3" />
+                              <Minus className="w-4 h-4 sm:w-5 sm:h-5" />
                             </Button>
-                            <Badge className="bg-emerald-600 text-white px-3">
+                            <Badge className="text-white px-3 sm:px-4 text-sm sm:text-base min-h-[36px] sm:min-h-[40px] flex items-center font-semibold shadow-sm" style={clubBranding ? { backgroundColor: clubBranding.skinColor } : { backgroundColor: '#059669' }}>
                               {quantity}
                             </Badge>
                           </>
                         )}
                         <Button
                           size="sm"
-                          className="bg-emerald-600 hover:bg-emerald-700 h-8 px-3"
+                          className="hover:opacity-90 h-9 sm:h-10 px-3 sm:px-4 text-xs sm:text-sm min-h-[36px] sm:min-h-[40px] font-medium shadow-md transition-all"
+                          style={getClubButtonStyle('primary')}
                           onClick={() => addToCart(item)}
                         >
-                          <Plus className="w-3 h-3 mr-1" />
-                          Add
+                          <Plus className="w-4 h-4 sm:w-5 sm:h-5 mr-1" />
+                          <span className="hidden xs:inline">Add</span>
                         </Button>
                       </div>
                     </div>
@@ -443,15 +465,15 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
         })}
       </div>
 
-      {/* Empty State */}
+      {/* Empty State - Mobile Responsive */}
       {items.length === 0 && !itemsLoading && (
         <Card className="bg-slate-800 border-slate-700">
-          <CardContent className="p-8 text-center">
-            <UtensilsCrossed className="w-16 h-16 mx-auto mb-4 text-slate-500" />
-                <h3 className="text-white text-lg font-semibold mb-2">
+          <CardContent className="p-6 sm:p-8 text-center">
+            <UtensilsCrossed className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 text-slate-500" />
+                <h3 className="text-white text-base sm:text-lg font-semibold mb-2">
                   No Menu Items Available
                 </h3>
-                <p className="text-slate-400">
+                <p className="text-slate-400 text-sm sm:text-base">
                   The kitchen menu is currently being updated. Please check back
                   later.
                 </p>
@@ -461,23 +483,23 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
         </>
       )}
 
-      {/* Orders view */}
+      {/* Orders view - Mobile Responsive */}
       {viewMode === 'orders' && (
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {ordersLoading && (
-            <div className="text-center py-6 text-slate-400 text-sm">
+            <div className="text-center py-4 sm:py-6 text-slate-400 text-xs sm:text-sm">
               Loading your orders...
             </div>
           )}
 
           {!ordersLoading && orders.length === 0 && (
             <Card className="bg-slate-800 border-slate-700">
-              <CardContent className="p-6 text-center space-y-2">
-                <UtensilsCrossed className="w-10 h-10 mx-auto mb-2 text-slate-500" />
-                <h3 className="text-white font-semibold">
+              <CardContent className="p-4 sm:p-6 text-center space-y-2">
+                <UtensilsCrossed className="w-8 h-8 sm:w-10 sm:h-10 mx-auto mb-2 text-slate-500" />
+                <h3 className="text-white font-semibold text-sm sm:text-base">
                   No orders placed yet
                 </h3>
-                <p className="text-slate-400 text-sm">
+                <p className="text-slate-400 text-xs sm:text-sm">
                   Your food & beverage orders will appear here once you place
                   them.
                 </p>
@@ -486,50 +508,50 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
           )}
 
           {activeOrders.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-emerald-300">
+            <div className="space-y-2 sm:space-y-3">
+              <h3 className="text-sm sm:text-base font-semibold" style={{ color: clubBranding?.skinColor || '#10b981' }}>
                 Current Orders
               </h3>
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {activeOrders.map((order) => (
                   <Card
                     key={order.id}
                     className="bg-slate-800 border-slate-700"
                   >
-                    <CardContent className="p-4 space-y-2">
-                      <div className="flex justify-between items-center">
-                        <div>
+                    <CardContent className="p-3 sm:p-4 space-y-2">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                        <div className="flex-1 min-w-0">
                           <div className="text-xs text-slate-400">
                             Order #{order.orderNumber}
                           </div>
-                          <div className="text-sm text-slate-300">
+                          <div className="text-xs sm:text-sm text-slate-300">
                             Table: {order.tableNumber || 'N/A'}
                           </div>
                         </div>
-                        <Badge>
+                        <Badge className="text-xs sm:text-sm flex-shrink-0">
                           {order.status.charAt(0).toUpperCase() +
                             order.status.slice(1)}
                         </Badge>
                       </div>
-                      <div className="space-y-1 text-sm text-slate-300">
+                      <div className="space-y-1 text-xs sm:text-sm text-slate-300">
                         {order.items.map((item, idx) => (
                           <div
                             key={idx}
-                            className="flex justify-between items-center"
+                            className="flex justify-between items-center gap-2"
                           >
-                            <span>
+                            <span className="flex-1 min-w-0 truncate">
                               {item.name} x{item.quantity}
                             </span>
-                            <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+                            <span className="flex-shrink-0">₹{(item.price * item.quantity).toFixed(2)}</span>
                           </div>
                         ))}
                       </div>
-                      <div className="flex justify-between items-center pt-2 border-t border-slate-700 mt-2 text-sm">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pt-2 border-t border-slate-700 mt-2 text-xs sm:text-sm">
                         <span className="text-slate-400">
                           Placed:{' '}
                           {new Date(order.createdAt).toLocaleTimeString()}
                         </span>
-                        <span className="text-emerald-400 font-semibold">
+                        <span className="font-semibold" style={{ color: clubBranding?.skinColor || '#10b981' }}>
                           {(() => {
                             const total = Number(order.totalAmount) || 0;
                             return `Total ₹${total.toFixed(2)}`;
@@ -544,19 +566,19 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
           )}
 
           {pastOrders.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-slate-300">
+            <div className="space-y-2 sm:space-y-3">
+              <h3 className="text-sm sm:text-base font-semibold text-slate-300">
                 Order History
               </h3>
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {pastOrders.map((order) => (
                   <Card
                     key={order.id}
                     className="bg-slate-800 border-slate-700"
                   >
-                    <CardContent className="p-4 space-y-1 text-sm">
-                      <div className="flex justify-between items-center">
-                        <div>
+                    <CardContent className="p-3 sm:p-4 space-y-2 text-xs sm:text-sm">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                        <div className="flex-1 min-w-0">
                           <div className="text-xs text-slate-400">
                             Order #{order.orderNumber}
                           </div>
@@ -565,23 +587,24 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
                           </div>
                         </div>
                         <Badge
-                          className={
+                          className="text-white text-xs sm:text-sm flex-shrink-0"
+                          style={
                             order.status === 'delivered'
-                              ? 'bg-emerald-600 text-white'
+                              ? clubBranding ? { backgroundColor: clubBranding.skinColor } : { backgroundColor: '#059669' }
                               : order.status === 'cancelled'
-                              ? 'bg-red-600 text-white'
-                              : ''
+                              ? { backgroundColor: '#dc2626' }
+                              : {}
                           }
                         >
                           {order.status.charAt(0).toUpperCase() +
                             order.status.slice(1)}
                         </Badge>
                       </div>
-                      <div className="flex justify-between items-center mt-1">
-                        <span className="text-slate-300">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-2 mt-1">
+                        <span className="text-slate-300 flex-1 min-w-0 truncate">
                           {order.items.map((i) => i.name).join(', ')}
                         </span>
-                        <span className="text-emerald-400 font-semibold">
+                        <span className="font-semibold flex-shrink-0" style={{ color: clubBranding?.skinColor || '#10b981' }}>
                           {(() => {
                             const total = Number(order.totalAmount) || 0;
                             return `₹${total.toFixed(2)}`;
@@ -597,26 +620,26 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
         </div>
       )}
 
-      {/* Order Dialog */}
+      {/* Order Dialog - Mobile Responsive */}
       <Dialog open={showOrderDialog} onOpenChange={setShowOrderDialog}>
-        <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-md">
+        <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-md w-[95vw] sm:w-full max-h-[90vh] sm:max-h-[85vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle className="flex items-center">
-              <ShoppingCart className="w-5 h-5 mr-2 text-emerald-500" />
+            <DialogTitle className="flex items-center text-base sm:text-lg">
+              <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 mr-2" style={{ color: clubBranding?.skinColor || '#10b981' }} />
               Review Order
             </DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {/* Order Items */}
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-[200px] sm:max-h-[300px] overflow-y-auto">
               {cart.map((item) => (
-                <div key={item.itemId} className="flex justify-between items-center py-2 border-b border-slate-700">
-                  <div>
-                    <span className="text-white">{item.name}</span>
-                    <span className="text-slate-400 ml-2">x{item.quantity}</span>
+                <div key={item.itemId} className="flex justify-between items-center py-2 border-b border-slate-700 text-sm sm:text-base">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-white block truncate">{item.name}</span>
+                    <span className="text-slate-400 text-xs sm:text-sm">x{item.quantity}</span>
                   </div>
-                  <span className="text-emerald-400 font-semibold">
+                  <span className="font-semibold ml-2 flex-shrink-0" style={{ color: clubBranding?.skinColor || '#10b981' }}>
                     ₹{(parseFloat(item.price) * item.quantity).toFixed(2)}
                   </span>
                 </div>
@@ -624,30 +647,30 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
             </div>
             
             {/* Total */}
-            <div className="flex justify-between items-center text-lg font-bold border-t border-slate-700 pt-3">
+            <div className="flex justify-between items-center text-base sm:text-lg font-bold border-t border-slate-700 pt-3">
               <span className="text-white">Total:</span>
-              <span className="text-emerald-400">₹{calculateTotal()}</span>
+              <span style={{ color: clubBranding?.skinColor || '#10b981' }}>₹{calculateTotal()}</span>
             </div>
             
             {/* Table Number */}
             <div className="space-y-2">
-              <label className="text-sm text-slate-300">Table Number (Optional)</label>
+              <label className="text-xs sm:text-sm text-slate-300">Table Number (Optional)</label>
               <Input
                 value={tableNumber}
                 onChange={(e) => setTableNumber(e.target.value)}
                 placeholder="Enter your table number"
-                className="bg-slate-700 border-slate-600 text-white"
+                className="bg-slate-700 border-slate-600 text-white h-10 sm:h-11 text-sm sm:text-base"
               />
             </div>
             
             {/* Notes */}
             <div className="space-y-2">
-              <label className="text-sm text-slate-300">Special Instructions (Optional)</label>
+              <label className="text-xs sm:text-sm text-slate-300">Special Instructions (Optional)</label>
               <Textarea
                 value={orderNotes}
                 onChange={(e) => setOrderNotes(e.target.value)}
                 placeholder="Any special requests or dietary restrictions..."
-                className="bg-slate-700 border-slate-600 text-white"
+                className="bg-slate-700 border-slate-600 text-white text-sm sm:text-base"
                 rows={3}
               />
             </div>
@@ -656,7 +679,8 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
             <Button
               onClick={handlePlaceOrder}
               disabled={placeOrderMutation.isPending}
-              className="w-full bg-emerald-600 hover:bg-emerald-700"
+              className="w-full hover:opacity-90 min-h-[48px] sm:min-h-[52px] text-sm sm:text-base font-semibold shadow-lg transition-all duration-200"
+              style={getClubButtonStyle('primary')}
             >
               {placeOrderMutation.isPending ? (
                 <>
@@ -674,20 +698,20 @@ export default function FoodBeverageTab({ user }: FoodBeverageTabProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Thank You Dialog */}
+      {/* Thank You Dialog - Mobile Responsive */}
       <Dialog open={showThankYouDialog} onOpenChange={setShowThankYouDialog}>
-        <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-sm">
-          <div className="text-center space-y-4">
-            <div className="w-16 h-16 bg-emerald-600 rounded-full mx-auto flex items-center justify-center">
-              <CheckCircle2 className="w-8 h-8 text-white" />
+        <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-sm w-[95vw] sm:w-full">
+          <div className="text-center space-y-3 sm:space-y-4 p-2 sm:p-4">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full mx-auto flex items-center justify-center" style={clubBranding ? { backgroundColor: clubBranding.skinColor } : { backgroundColor: '#059669' }}>
+              <CheckCircle2 className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-white mb-2">Order Placed!</h3>
-              <p className="text-slate-300">
+              <h3 className="text-lg sm:text-xl font-bold text-white mb-2">Order Placed!</h3>
+              <p className="text-slate-300 text-sm sm:text-base px-2">
                 Thank you for your order. The kitchen has been notified and will prepare your items shortly.
               </p>
             </div>
-            <div className="flex items-center justify-center text-emerald-400 text-sm">
+            <div className="flex items-center justify-center text-sm sm:text-base" style={{ color: clubBranding?.skinColor || '#10b981' }}>
               <Star className="w-4 h-4 mr-1" />
               <span>Estimated delivery: 15-20 minutes</span>
             </div>

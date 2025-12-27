@@ -6,6 +6,8 @@
  * No direct database or storage access from frontend.
  */
 
+import { API_BASE_URL } from './api/config';
+
 export interface ClubBranding {
   clubId: string;
   clubName: string;
@@ -17,12 +19,10 @@ export interface ClubBranding {
   termsAndConditions: string | null;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3333/api';
-
 let cachedBranding: ClubBranding | null = null;
 
 /**
- * Fetch club branding from backend
+ * Fetch club branding from backend by club ID
  */
 export async function fetchClubBranding(clubId: string): Promise<ClubBranding | null> {
   try {
@@ -46,6 +46,13 @@ export async function fetchClubBranding(clubId: string): Promise<ClubBranding | 
 
     const club = await response.json();
     
+    // Console log gradient and skinColor for verification
+    console.log('🎨 [BRANDING] Fetched club branding:', {
+      clubCode: club.code,
+      gradient: club.gradient || 'default',
+      skinColor: club.skinColor || 'default',
+    });
+    
     const branding: ClubBranding = {
       clubId: club.id,
       clubName: club.name,
@@ -53,7 +60,7 @@ export async function fetchClubBranding(clubId: string): Promise<ClubBranding | 
       logoUrl: club.logoUrl || null,
       videoUrl: club.videoUrl || null,
       skinColor: club.skinColor || '#10b981', // Default emerald
-      gradient: club.gradient || 'from-emerald-600 via-green-500 to-teal-500',
+      gradient: club.gradient || '#1a1a1a', // Default dark background
       termsAndConditions: club.termsAndConditions || null,
     };
 
@@ -63,6 +70,84 @@ export async function fetchClubBranding(clubId: string): Promise<ClubBranding | 
     return branding;
   } catch (error) {
     console.error('Error fetching club branding:', error);
+    return null;
+  }
+}
+
+/**
+ * Fetch club branding from backend by club code
+ */
+export async function fetchClubBrandingByCode(clubCode: string): Promise<ClubBranding | null> {
+  try {
+    // Check cache first
+    if (cachedBranding && cachedBranding.clubCode === clubCode) {
+      return cachedBranding;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/clubs/verify-code`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ code: clubCode }),
+    });
+
+    if (!response.ok) {
+      console.error(`❌ Failed to verify club code: ${response.status}`);
+      return null;
+    }
+
+    const result = await response.json();
+    
+    if (!result.valid || !result.clubId) {
+      console.error('❌ Invalid club code');
+      return null;
+    }
+
+    // Fetch branding using club ID
+    return await fetchClubBranding(result.clubId);
+  } catch (error) {
+    console.error('Error fetching club branding by code:', error);
+    return null;
+  }
+}
+
+/**
+ * Create branding from verify-code API response
+ */
+export function createBrandingFromVerifyResponse(result: any, clubCode: string): ClubBranding | null {
+  try {
+    const clubId = result.clubId || result.id;
+    if (!result || !result.valid || !clubId) {
+      console.warn('⚠️ [BRANDING] Invalid verify response:', result);
+      return null;
+    }
+
+    // Console log gradient and skinColor for verification
+    console.log('🎨 [BRANDING] Creating branding from verify response:', {
+      clubCode: clubCode,
+      clubId: clubId,
+      gradient: result.gradient || 'default',
+      skinColor: result.skinColor || result.skin_color || 'default',
+    });
+
+    const branding: ClubBranding = {
+      clubId: clubId,
+      clubName: result.clubName || result.name || 'Club',
+      clubCode: clubCode,
+      logoUrl: result.logoUrl || null,
+      videoUrl: result.videoUrl || null,
+      skinColor: result.skinColor || result.skin_color || '#10b981', // Default emerald
+      gradient: result.gradient || '#1a1a1a', // Default dark background
+      termsAndConditions: result.termsAndConditions || result.terms_and_conditions || null,
+    };
+
+    // Cache it
+    cachedBranding = branding;
+    
+    return branding;
+  } catch (error) {
+    console.error('Error creating branding from verify response:', error);
     return null;
   }
 }
@@ -78,6 +163,11 @@ export function applyClubBranding(branding: ClubBranding) {
   root.style.setProperty('--club-primary-color', branding.skinColor);
   root.style.setProperty('--club-gradient', branding.gradient);
   
+  // If gradient is a hex color, apply it as background color
+  if (isHexColor(branding.gradient)) {
+    root.style.setProperty('--club-background-color', branding.gradient);
+  }
+  
   // Update favicon if logo exists
   if (branding.logoUrl) {
     const favicon = document.querySelector("link[rel='icon']") as HTMLLinkElement;
@@ -90,12 +180,27 @@ export function applyClubBranding(branding: ClubBranding) {
   document.title = `${branding.clubName} - Player Portal`;
   
   console.log(`✅ Applied branding for club: ${branding.clubName} (${branding.clubCode})`);
+  console.log(`🎨 Gradient: ${branding.gradient}`);
+  console.log(`🎨 Skin Color: ${branding.skinColor}`);
 }
 
 /**
- * Get gradient Tailwind classes from gradient value
+ * Check if a string is a hex color
+ */
+function isHexColor(color: string): boolean {
+  return /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color);
+}
+
+/**
+ * Get gradient Tailwind classes or inline style from gradient value
+ * Returns either Tailwind classes or an empty string (for inline styles)
  */
 export function getGradientClasses(gradient: string): string {
+  // If it's a hex color, return empty string (will use inline style)
+  if (isHexColor(gradient)) {
+    return '';
+  }
+  
   // If it's already a Tailwind class string, return it
   if (gradient.startsWith('from-')) {
     return `bg-gradient-to-br ${gradient}`;
@@ -118,6 +223,16 @@ export function getGradientClasses(gradient: string): string {
   };
   
   return gradientMap[gradient] || 'bg-gradient-to-br from-emerald-600 via-green-500 to-teal-500';
+}
+
+/**
+ * Get gradient style object for inline styles (for hex colors)
+ */
+export function getGradientStyle(gradient: string): { backgroundColor?: string } {
+  if (isHexColor(gradient)) {
+    return { backgroundColor: gradient };
+  }
+  return {};
 }
 
 /**
