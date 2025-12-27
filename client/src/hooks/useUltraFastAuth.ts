@@ -102,6 +102,25 @@ export function useUltraFastAuth() {
       console.log('🔍 [LOGIN] Backend response:', result);
       console.log('🔍 [LOGIN] Club ID from response:', result.club?.id);
       console.log('🔍 [LOGIN] Player ID from response:', result.player?.id);
+      console.log('🔍 [LOGIN] Must reset password (raw):', result.mustResetPassword || result.player?.must_reset_password);
+      
+      // Check if password reset is required (handle both TRUE/FALSE and true/false)
+      const mustResetPasswordRaw = result.mustResetPassword || result.player?.must_reset_password || result.player?.mustResetPassword;
+      const mustResetPassword = mustResetPasswordRaw === true || 
+                                mustResetPasswordRaw === 'true' || 
+                                mustResetPasswordRaw === 'TRUE' ||
+                                mustResetPasswordRaw === 1;
+      
+      console.log('🔍 [LOGIN] Must reset password (parsed):', mustResetPassword);
+      
+      if (mustResetPassword) {
+        console.log('🔐 [LOGIN] Password reset required - returning flag');
+        return { 
+          success: false, 
+          mustResetPassword: true,
+          error: 'Password reset required'
+        };
+      }
       
       const userData = {
         id: result.player?.id || result.playerId,
