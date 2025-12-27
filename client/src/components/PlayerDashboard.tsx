@@ -3252,6 +3252,15 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             </TabsContent>
 
             <TabsContent value="balance" className="space-y-4 sm:space-y-6">
+              {/* Balance Display */}
+              {user?.id && (
+                <PlayerBalanceDisplay
+                  playerId={user.id.toString()}
+                  showBreakdown={true}
+                />
+              )}
+              
+              {/* Transaction History */}
               <Card className="bg-slate-800 border-slate-700">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center">

@@ -4,7 +4,35 @@
  */
 
 // Backend API base URL - update based on environment
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// For mobile builds, detect if running in Capacitor and use appropriate URL
+function getApiBaseUrl(): string {
+  // Check if VITE_API_BASE_URL is set (highest priority)
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  
+  // Check if running in Capacitor (mobile app)
+  const isCapacitor = typeof window !== 'undefined' && 
+    (window as any).Capacitor !== undefined;
+  
+  if (isCapacitor) {
+    // For mobile builds, use your production API URL
+    // TODO: Replace with your actual production API URL
+    return 'https://poker-crm-backend.onrender.com/api';
+  }
+  
+  // For web development, default to localhost
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    return 'http://localhost:3000/api';
+  }
+  
+  // Fallback - use current origin
+  return typeof window !== 'undefined' 
+    ? `${window.location.origin}/api`
+    : 'http://localhost:3000/api';
+}
+
+export const API_BASE_URL = getApiBaseUrl();
 
 /**
  * API endpoints for player portal
