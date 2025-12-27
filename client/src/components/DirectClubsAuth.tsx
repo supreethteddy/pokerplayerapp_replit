@@ -8,6 +8,7 @@ import { useUltraFastAuth } from "../hooks/useUltraFastAuth";
 import { useToast } from "@/hooks/use-toast";
 import { whitelabelConfig } from "@/lib/whitelabeling";
 import { API_BASE_URL } from "@/lib/api/config";
+import { fetchClubBranding, applyClubBranding, getGradientClasses, type ClubBranding } from "@/lib/clubBranding";
 
 export default function DirectClubsAuth() {
   const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
@@ -27,6 +28,7 @@ export default function DirectClubsAuth() {
   const [clubCodeInput, setClubCodeInput] = useState("");
   const [clubCodeVerified, setClubCodeVerified] = useState(false);
   const [clubCodeError, setClubCodeError] = useState("");
+  const [clubBranding, setClubBranding] = useState<ClubBranding | null>(null);
 
   // Validation states
   const [emailError, setEmailError] = useState("");
@@ -256,8 +258,22 @@ export default function DirectClubsAuth() {
     }
   };
 
+  // Apply branding if already stored
+  useEffect(() => {
+    const storedBranding = sessionStorage.getItem("club_branding");
+    if (storedBranding) {
+      try {
+        const branding = JSON.parse(storedBranding);
+        setClubBranding(branding);
+        applyClubBranding(branding);
+      } catch (e) {
+        console.error("Failed to parse stored branding:", e);
+      }
+    }
+  }, []);
+
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-3 sm:p-4">
+    <div className={`min-h-screen flex items-center justify-center p-3 sm:p-4 ${clubBranding ? getGradientClasses(clubBranding.gradient) : 'bg-black'}`}>
       <Card className="w-full max-w-md bg-gray-900 border-gray-700 relative">
         
 
@@ -280,11 +296,23 @@ export default function DirectClubsAuth() {
         <CardHeader className="text-center mb-4 sm:mb-6 lg:mb-8 px-4 sm:px-6 pt-4 sm:pt-6">
           {/* Logo */}
           <div className="flex justify-center mb-4 sm:mb-6">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-600 rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-xl sm:text-2xl">C</span>
-            </div>
+            {clubBranding?.logoUrl ? (
+              <img 
+                src={clubBranding.logoUrl} 
+                alt={clubBranding.clubName} 
+                className="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-600 rounded-full flex items-center justify-center" style={{ backgroundColor: clubBranding?.skinColor || '#3b82f6' }}>
+                <span className="text-white font-bold text-xl sm:text-2xl">
+                  {clubBranding?.clubName?.[0] || 'C'}
+                </span>
+              </div>
+            )}
           </div>
-          <h1 className="text-white text-lg sm:text-xl font-semibold mb-4 sm:mb-6">CLUBS POKER</h1>
+          <h1 className="text-white text-lg sm:text-xl font-semibold mb-4 sm:mb-6">
+            {clubBranding?.clubName || 'CLUBS POKER'}
+          </h1>
 
           {!clubCodeVerified ? (
             <div className="text-gray-300 text-xs sm:text-sm mb-3 sm:mb-4 px-2 text-center">
@@ -360,6 +388,20 @@ export default function DirectClubsAuth() {
                     sessionStorage.setItem("clubId", result.clubId); // Also store with camelCase for API
                     sessionStorage.setItem("clubCode", trimmedCode); // Store club code
                     sessionStorage.setItem("club_name", result.clubName || "");
+                    
+                    // Fetch and apply club branding immediately
+                    try {
+                      const branding = await fetchClubBranding(result.clubId);
+                      if (branding) {
+                        setClubBranding(branding);
+                        applyClubBranding(branding);
+                        // Store branding for use across app
+                        sessionStorage.setItem("club_branding", JSON.stringify(branding));
+                      }
+                    } catch (brandingError) {
+                      console.error("Failed to load club branding:", brandingError);
+                      // Continue even if branding fails
+                    }
                   } else {
                     // Invalid club code
                     setClubCodeError(result.message || "Invalid club code. Please try again.");
@@ -392,7 +434,8 @@ export default function DirectClubsAuth() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 sm:py-3 h-11 sm:h-12 text-sm sm:text-base min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full hover:opacity-90 text-white font-medium py-2.5 sm:py-3 h-11 sm:h-12 text-sm sm:text-base min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: clubBranding?.skinColor || '#3b82f6' }}
               >
                 {loading ? "Verifying..." : "Verify Club Code"}
               </Button>
@@ -518,7 +561,8 @@ export default function DirectClubsAuth() {
                   id="remember"
                   checked={rememberPassword}
                   onCheckedChange={(v) => setRememberPassword(!!v)}
-                  className="h-4 w-4 min-h-[16px] min-w-[16px] max-h-[16px] max-w-[16px] shrink-0 rounded border-gray-600 bg-gray-800 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 data-[state=checked]:text-white"
+                  className="h-4 w-4 min-h-[16px] min-w-[16px] max-h-[16px] max-w-[16px] shrink-0 rounded border-gray-600 bg-gray-800 data-[state=checked]:border-current data-[state=checked]:text-white"
+                  style={{ '--checkbox-color': clubBranding?.skinColor || '#3b82f6' } as any}
                 />
                 <label
                   htmlFor="remember"
