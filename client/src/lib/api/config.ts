@@ -44,7 +44,8 @@ export const API_ENDPOINTS = {
     playerSignup: '/auth/player/signup',
     getProfile: '/auth/player/me',
     updateProfile: '/auth/player/profile',
-    changePassword: '/auth/player/change-password',
+    resetPassword: '/auth/player/reset-password',  // First-time password reset
+    changePassword: '/auth/player/change-password', // Regular password change
     getBalance: '/auth/player/balance',
     getTransactions: '/auth/player/transactions',
     getStats: '/auth/player/stats',

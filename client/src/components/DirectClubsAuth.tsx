@@ -989,7 +989,7 @@ export default function DirectClubsAuth() {
                 try {
                   console.log("🔐 [PASSWORD RESET] Calling reset password API for:", pendingLoginCredentials?.email);
                   
-                  // Call API to reset password (this endpoint should update password and set must_reset_password to false)
+                  // Call API to reset password with current/temporary password for security
                   const response = await fetch(`${API_BASE_URL}/auth/player/reset-password`, {
                     method: 'POST',
                     headers: {
@@ -997,6 +997,7 @@ export default function DirectClubsAuth() {
                     },
                     body: JSON.stringify({
                       email: pendingLoginCredentials?.email,
+                      currentPassword: pendingLoginCredentials?.password, // ✅ Player just typed this to login
                       newPassword: newPassword,
                       clubCode: pendingLoginCredentials?.clubCode,
                     }),

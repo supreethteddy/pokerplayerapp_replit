@@ -56,7 +56,17 @@ export interface UpdatePlayerProfileDto {
 }
 
 /**
- * Change password data
+ * Reset password data (first-time password reset)
+ */
+export interface ResetPlayerPasswordDto {
+  email: string;
+  currentPassword: string;  // Temporary/current password for verification
+  newPassword: string;
+  clubCode: string;
+}
+
+/**
+ * Change password data (regular password change)
  */
 export interface ChangePlayerPasswordDto {
   currentPassword: string;
@@ -162,7 +172,21 @@ export class PlayerAuthService extends BaseAPIService {
   }
 
   /**
-   * Change player password
+   * Reset player password (first-time password reset)
+   * Used when player has mustResetPassword flag set
+   * No auth headers required - uses email + clubCode + currentPassword
+   */
+  async resetPassword(resetData: ResetPlayerPasswordDto): Promise<{ success: boolean; message: string }> {
+    return this.post<{ success: boolean; message: string }>(
+      API_ENDPOINTS.auth.resetPassword,
+      resetData,
+      false // No auth headers required
+    );
+  }
+
+  /**
+   * Change player password (regular password change)
+   * Requires auth headers (x-player-id, x-club-id)
    */
   async changePassword(passwordData: ChangePlayerPasswordDto): Promise<{ success: boolean; message: string }> {
     return this.post<{ success: boolean; message: string }>(
