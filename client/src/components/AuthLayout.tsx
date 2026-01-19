@@ -10,6 +10,7 @@ import { useToast } from '../hooks/use-toast';
 export default function AuthLayout() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [clubCode, setClubCode] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -37,7 +38,18 @@ export default function AuthLayout() {
           throw new Error('Sign up failed');
         }
       } else {
-        const result = await signIn(email, password);
+        // Sign in requires clubCode
+        if (!clubCode.trim()) {
+          toast({
+            title: "Club Code Required",
+            description: "Please enter your club code to sign in",
+            variant: "destructive"
+          });
+          setLoading(false);
+          return;
+        }
+        
+        const result = await signIn(email, password, clubCode);
         
         if (result.success) {
           sessionStorage.setItem('just_signed_in', 'true');
@@ -87,6 +99,27 @@ export default function AuthLayout() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Club Code field - REQUIRED for login */}
+              {!isSignUp && (
+                <div className="space-y-2">
+                  <Label htmlFor="clubCode" className="text-slate-300">
+                    Club Code <span className="text-red-400">*</span>
+                  </Label>
+                  <Input
+                    id="clubCode"
+                    type="text"
+                    value={clubCode}
+                    onChange={(e) => setClubCode(e.target.value.toUpperCase())}
+                    className="bg-slate-700 border-slate-600 text-white uppercase"
+                    placeholder="CLUB123"
+                    required
+                  />
+                  <p className="text-xs text-slate-400">
+                    Enter your club's unique code provided by your poker room
+                  </p>
+                </div>
+              )}
+            
               {isSignUp && (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">

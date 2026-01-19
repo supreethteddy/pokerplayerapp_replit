@@ -10,6 +10,8 @@ export interface AuthUser {
   firstName: string;
   lastName: string;
   phone: string;
+  clubId: string; // Player's club ID - REQUIRED for all API calls
+  clubCode: string; // Player's club code
   kycStatus: string;
   balance: string; // Real cash balance
   realBalance: string; // Real cash balance (same as balance)
@@ -85,95 +87,88 @@ export function useAuth() {
   }, []);
 
   const fetchUserData = async (supabaseUserId: string) => {
-    console.log('🔍 [AUTH] Fetching user data for:', supabaseUserId);
+    console.log('🔍 [PLAYER AUTH] Loading player data after Supabase auth:', supabaseUserId);
     
     try {
-      // Extended timeout for reliable Supabase connection
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        controller.abort();
-        console.log('⏰ [AUTH] Request timeout after 8 seconds - increasing timeout for better reliability');
-      }, 8000);
+      // Get stored clubId and playerId from localStorage
+      const storedPlayerId = localStorage.getItem('playerId');
+      const storedClubId = localStorage.getItem('clubId');
       
-      const response = await fetch(`/api/players/supabase/${supabaseUserId}`, {
-        signal: controller.signal,
+      if (!storedPlayerId || !storedClubId) {
+        console.log('⚠️  [PLAYER AUTH] Missing session data - user needs to login');
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+      
+      // Fetch player profile using correct endpoint
+      const response = await fetch('/api/auth/player/me', {
         credentials: 'include',
         cache: 'no-cache',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'x-player-id': storedPlayerId,
+          'x-club-id': storedClubId
         }
       });
       
-      clearTimeout(timeoutId);
-      
       if (!response.ok) {
-        if (response.status === 401) {
-          console.log('🚫 [AUTH] Unauthorized - redirecting to login');
-          setUser(null);
-          setLoading(false);
-          return;
-        }
-        if (response.status === 404) {
-          console.log('🚫 [AUTH] Player not found - signing out');
+        if (response.status === 401 || response.status === 404) {
+          console.log('🚫 [PLAYER AUTH] Session invalid - clearing and redirecting to login');
+          localStorage.removeItem('playerId');
+          localStorage.removeItem('clubId');
+          localStorage.removeItem('clubCode');
           await supabase.auth.signOut();
           setUser(null);
           setLoading(false);
-          return;
-        }
-        if (response.status === 403) {
-          console.log('🚫 [AUTH] KYC not approved - access denied');
-          const errorData = await response.json().catch(() => ({}));
-          setUser(null);
-          setLoading(false);
-          toast({
-            title: "KYC Approval Required",
-            description: errorData.message || "Wait for KYC approval from our staff team",
-            variant: "destructive",
-          });
-          await supabase.auth.signOut();
           return;
         }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
-      const userData = await response.json();
-      console.log('✅ [AUTH] User data fetched:', userData.email, `(ID: ${userData.id})`);
+      const data = await response.json();
+      console.log('✅ [PLAYER AUTH] Profile loaded:', data);
       
-      // Enhanced user data with dual balance system
+      if (!data.player || !data.club) {
+        throw new Error('Invalid profile data');
+      }
+      
+      // Set user data with clubId
       const enhancedUserData = {
-        ...userData,
-        realBalance: userData.balance || '0.00',
-        creditBalance: userData.currentCredit || '0.00',
-        creditLimit: userData.creditLimit || '0.00',
-        creditApproved: userData.creditApproved || false,
-        totalBalance: (parseFloat(userData.balance || '0.00') + parseFloat(userData.currentCredit || '0.00')).toFixed(2)
+        id: data.player.id,
+        email: data.player.email,
+        firstName: data.player.name?.split(' ')[0] || data.player.email.split('@')[0],
+        lastName: data.player.name?.split(' ').slice(1).join(' ') || '',
+        phone: data.player.phoneNumber || '',
+        clubId: data.club.id,
+        clubCode: data.club.code || localStorage.getItem('clubCode') || '',
+        kycStatus: data.player.kycStatus,
+        balance: '0.00',
+        realBalance: '0.00',
+        creditBalance: '0.00',
+        creditLimit: '0.00',
+        creditApproved: false,
+        totalBalance: '0.00',
+        totalDeposits: '0.00',
+        totalWithdrawals: '0.00',
+        totalWinnings: '0.00',
+        totalLosses: '0.00',
+        gamesPlayed: 0,
+        hoursPlayed: '0'
       };
       
-      console.log('🎉 [AUTH] User data prepared:', enhancedUserData);
+      console.log('🎉 [PLAYER AUTH] User session restored with clubId:', enhancedUserData.clubId);
       setUser(enhancedUserData);
       setLoading(false);
-      console.log('✅ [AUTH] Authentication complete - Player ID:', userData.id);
       
     } catch (error: any) {
-      console.error('❌ [AUTH] Fetch error:', error);
-      
-      // Handle specific error types with proper state management
-      if (error.name === 'AbortError') {
-        console.log('⏰ [AUTH] Request timeout - keeping existing session state');
-        // On timeout, stop loading but keep user authenticated if session exists
-        setLoading(false);
-        return; // Don't continue to other error handling
-      } else if (error.message?.includes('404')) {
-        console.log('🚫 [AUTH] Player not found - signing out');
-        await supabase.auth.signOut();
-        setUser(null);
-        setLoading(false);
-      } else {
-        // Network errors - keep trying but stop loading, DON'T clear user state
-        console.log('🔄 [AUTH] Network error - stopping loading state but keeping user session');
-        setLoading(false);
-        // Keep existing user state intact on network errors
-      }
+      console.error('❌ [PLAYER AUTH] Error loading profile:', error);
+      // Clear session on error
+      localStorage.removeItem('playerId');
+      localStorage.removeItem('clubId');
+      localStorage.removeItem('clubCode');
+      setUser(null);
+      setLoading(false);
     }
   };
 
@@ -268,32 +263,35 @@ export function useAuth() {
     }
   };
 
-  const signIn = async (email: string, password: string) => {
-    console.log('🔐 [ULTRA-FAST AUTH] Signing in:', email);
+  const signIn = async (email: string, password: string, clubCode: string) => {
+    console.log('🔐 [PLAYER AUTH] Signing in:', email, 'Club:', clubCode);
     setLoading(true);
     
     try {
-      // Use our backend authentication endpoint that handles all security gates
-      const response = await fetch('/api/auth/signin', {
+      // Use correct player login endpoint that requires clubCode
+      const response = await fetch('/api/auth/player/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ clubCode, email, password })
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        console.error('❌ [ULTRA-FAST AUTH] Backend sign in error:', data);
+        console.error('❌ [PLAYER AUTH] Backend sign in error:', data);
         setLoading(false);
         
         // Handle specific error cases from backend
         let title = "Sign In Failed";
         let description = data.message || data.error || "Invalid credentials";
         
-        if (data.error === "EMAIL_VERIFICATION_REQUIRED") {
+        if (data.message?.includes('Invalid club code')) {
+          title = "Invalid Club Code";
+          description = "Please check your club code and try again.";
+        } else if (data.error === "EMAIL_VERIFICATION_REQUIRED") {
           title = "Email Not Verified";
           description = "Please verify your email address before logging in. Check your inbox for verification link.";
         } else if (data.error === "KYC_VERIFICATION_REQUIRED") {
@@ -309,15 +307,23 @@ export function useAuth() {
         return { success: false };
       }
 
-      console.log('✅ [ULTRA-FAST AUTH] Backend authentication successful');
+      console.log('✅ [PLAYER AUTH] Backend authentication successful', data);
+      
+      // Check if response has proper structure
+      if (!data.player || !data.club) {
+        console.error('❌ [PLAYER AUTH] Invalid response structure:', data);
+        throw new Error('Invalid response from server');
+      }
+
+      const { player, club } = data;
       
       // STRICT KYC verification - block ALL non-approved statuses
-      if (data.user && data.user.kycStatus !== 'approved') {
-        console.log('🚫 [AUTH] KYC not approved - blocking login:', data.user.kycStatus);
+      if (player.kycStatus !== 'approved') {
+        console.log('🚫 [PLAYER AUTH] KYC not approved - blocking login:', player.kycStatus);
         setLoading(false);
         
         let statusMessage;
-        switch (data.user.kycStatus) {
+        switch (player.kycStatus) {
           case 'pending':
             statusMessage = "Wait for KYC approval";
             break;
@@ -340,15 +346,23 @@ export function useAuth() {
           variant: "destructive",
         });
         
-        // Force sign out to prevent dashboard access
-        await supabase.auth.signOut();
         setUser(null);
         return { success: false };
       }
       
-      // Now sign in with Supabase using the returned auth token
-      if (data.user && data.user.supabaseId) {
-        // For users with existing Supabase auth, sign them in
+      // ✅ CRITICAL: Store clubId and clubCode in localStorage for all API calls
+      localStorage.setItem('playerId', player.id);
+      localStorage.setItem('clubId', club.id);
+      localStorage.setItem('clubCode', club.code || clubCode);
+      
+      console.log('✅ [PLAYER AUTH] Stored session data:', {
+        playerId: player.id,
+        clubId: club.id,
+        clubCode: club.code || clubCode
+      });
+      
+      // Try to sign in with Supabase if player has supabaseId
+      if (player.supabaseId) {
         try {
           const { error: supabaseError } = await supabase.auth.signInWithPassword({
             email,
@@ -356,40 +370,52 @@ export function useAuth() {
           });
           
           if (supabaseError && !supabaseError.message.includes('email_not_confirmed')) {
-            console.warn('🔄 [ULTRA-FAST AUTH] Supabase sign-in issue, using direct auth:', supabaseError.message);
+            console.warn('🔄 [PLAYER AUTH] Supabase sign-in issue, using direct auth:', supabaseError.message);
           }
         } catch (supabaseError) {
-          console.warn('🔄 [ULTRA-FAST AUTH] Supabase auth warning (continuing with direct auth):', supabaseError);
+          console.warn('🔄 [PLAYER AUTH] Supabase auth warning (continuing with direct auth):', supabaseError);
         }
-        
-        // Set user data directly from backend response
-        const enhancedUserData = {
-          ...data.user,
-          realBalance: data.user.balance || '0.00',
-          creditBalance: data.user.creditBalance || '0.00',
-          creditLimit: data.user.creditLimit || '0.00',
-          creditApproved: data.user.creditApproved || false,
-          totalBalance: data.user.totalBalance || '0.00'
-        };
-        
-        console.log('🎉 [ULTRA-FAST AUTH] User data set:', enhancedUserData);
-        setUser(enhancedUserData);
-        
-        // Set session storage flag to trigger loading screen
-        sessionStorage.setItem('just_signed_in', 'true');
-        
-        setLoading(false);
-        console.log('✅ [ULTRA-FAST AUTH] Authentication complete - Player ID:', data.user.id);
-        
-        toast({
-          title: "Welcome Back",
-          description: "Successfully signed in",
-        });
-
-        return { success: true };
-      } else {
-        throw new Error('Invalid user data received');
       }
+      
+      // Set user data with clubId and clubCode
+      const enhancedUserData = {
+        id: player.id,
+        email: player.email,
+        firstName: player.name?.split(' ')[0] || player.email.split('@')[0],
+        lastName: player.name?.split(' ').slice(1).join(' ') || '',
+        phone: player.phoneNumber || '',
+        clubId: club.id, // ← CRITICAL: clubId from backend
+        clubCode: club.code || clubCode, // ← CRITICAL: clubCode
+        kycStatus: player.kycStatus,
+        balance: '0.00', // Will be loaded separately
+        realBalance: '0.00',
+        creditBalance: '0.00',
+        creditLimit: '0.00',
+        creditApproved: false,
+        totalBalance: '0.00',
+        totalDeposits: '0.00',
+        totalWithdrawals: '0.00',
+        totalWinnings: '0.00',
+        totalLosses: '0.00',
+        gamesPlayed: 0,
+        hoursPlayed: '0'
+      };
+      
+      console.log('🎉 [PLAYER AUTH] User data set with clubId:', enhancedUserData);
+      setUser(enhancedUserData);
+      
+      // Set session storage flag to trigger loading screen
+      sessionStorage.setItem('just_signed_in', 'true');
+      
+      setLoading(false);
+      console.log('✅ [PLAYER AUTH] Authentication complete - Player ID:', player.id, 'Club ID:', club.id);
+      
+      toast({
+        title: "Welcome Back",
+        description: `Signed in to ${club.name}`,
+      });
+
+      return { success: true };
 
     } catch (error: any) {
       setLoading(false);
