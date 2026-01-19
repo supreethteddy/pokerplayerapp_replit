@@ -17,19 +17,27 @@ interface PlayerTransactionHistoryProps {
 }
 
 export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransactionHistoryProps) {
-  const { data: transactions = [], isLoading } = useQuery<Transaction[]>({
-    queryKey: [`/api/player/${playerId}/transactions`, limit],
+  const { data: transactionsData, isLoading } = useQuery({
+    queryKey: [`/api/auth/player/transactions`, playerId, limit],
     queryFn: async () => {
-      const response = await fetch(`/api/player/${playerId}/transactions?limit=${limit}`);
+      const response = await fetch(`/api/auth/player/transactions?limit=${limit}`, {
+        headers: {
+          'x-player-id': playerId,
+          'x-club-id': localStorage.getItem('clubId') || sessionStorage.getItem('clubId') || '',
+        },
+        credentials: 'include',
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch transactions');
       }
       const data = await response.json();
-      // Filter transactions for this specific player only
-      return data.filter((transaction: Transaction) => transaction.player_id === parseInt(playerId));
+      return data.transactions || [];
     },
+    enabled: !!playerId,
     refetchInterval: 30000, // Refetch every 30 seconds
   });
+
+  const transactions = transactionsData || [];
 
   const getTransactionIcon = (type: string) => {
     switch (type) {

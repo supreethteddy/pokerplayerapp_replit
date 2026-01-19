@@ -42,9 +42,18 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
   }
 
   // Handle both old and new balance data formats
-  const creditBalance = parseFloat((balance as any)?.creditBalance || balance?.availableCredit || '0');
+  const creditEnabled = (balance as any)?.creditEnabled || false;
   const creditLimit = parseFloat((balance as any)?.creditLimit || '0');
-  const currentCashBalance = parseFloat((balance as any)?.currentBalance || balance?.cashBalance || '0');
+  const creditUsed = parseFloat((balance as any)?.creditUsed || '0'); // Approved credit amount
+  const remainingCreditToRequest = parseFloat((balance as any)?.availableCredit || (balance as any)?.creditBalance || '0'); // Remaining to request
+  const currentCashBalance = parseFloat((balance as any)?.availableBalance || (balance as any)?.currentBalance || balance?.cashBalance || '0');
+  
+  console.log('💰 [BALANCE DISPLAY] Raw balance data:', balance);
+  console.log('💰 [BALANCE DISPLAY] creditEnabled:', creditEnabled);
+  console.log('💰 [BALANCE DISPLAY] creditLimit:', creditLimit);
+  console.log('💰 [BALANCE DISPLAY] creditUsed:', creditUsed);
+  console.log('💰 [BALANCE DISPLAY] remainingCreditToRequest:', remainingCreditToRequest);
+  console.log('💰 [BALANCE DISPLAY] Calculated currentCashBalance:', currentCashBalance);
 
   return (
     <div className="space-y-4">
@@ -59,14 +68,17 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
         </div>
       </div>
 
-      {/* Credit Balance - Only show if player is credit eligible */}
-      {(balance as any)?.creditEligible && (
+      {/* Credit Balance - Only show if player has credit enabled */}
+      {creditEnabled && creditLimit > 0 && (
         <div className="bg-gradient-to-r from-blue-600 to-purple-700 rounded-lg p-6 text-white shadow-lg">
           <div className="text-center">
-            <h2 className="text-lg font-medium opacity-90 mb-2">Available Credit Balance</h2>
-            <div className="text-4xl font-bold mb-2">₹{creditBalance.toLocaleString()}</div>
-            <div className="text-sm opacity-75 mb-4">
+            <h2 className="text-lg font-medium opacity-90 mb-2">Approved Credit Balance</h2>
+            <div className="text-4xl font-bold mb-2">₹{creditUsed.toLocaleString()}</div>
+            <div className="text-sm opacity-75 mb-2">
               Credit Limit: ₹{creditLimit.toLocaleString()}
+            </div>
+            <div className="text-sm opacity-75 mb-2">
+              Remaining to Request: ₹{remainingCreditToRequest.toLocaleString()}
             </div>
             <div className="text-sm opacity-75 bg-black/20 rounded-full px-4 py-2 inline-block">
               Credit only - Cannot be withdrawn
@@ -75,12 +87,15 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
         </div>
       )}
 
-      {/* Total Balance Summary */}
+      {/* Total Balance Summary - Cash + Approved Credit */}
       <div className="bg-gradient-to-r from-slate-700 to-slate-800 rounded-lg p-4 text-white shadow-lg border border-slate-600">
         <div className="text-center">
-          <h3 className="text-md font-medium opacity-90 mb-2">Total Available</h3>
+          <h3 className="text-md font-medium opacity-90 mb-2">Total Available Balance</h3>
           <div className="text-2xl font-bold">
-            ₹{(currentCashBalance + ((balance as any)?.creditEligible ? creditBalance : 0)).toLocaleString()}
+            ₹{(currentCashBalance + creditUsed).toLocaleString()}
+          </div>
+          <div className="text-xs opacity-75 mt-1">
+            Cash: ₹{currentCashBalance.toLocaleString()} + Credit: ₹{creditUsed.toLocaleString()}
           </div>
         </div>
       </div>

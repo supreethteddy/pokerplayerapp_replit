@@ -41,6 +41,7 @@ export async function apiRequest(
     headers: data
       ? {
           ...authHeaders,
+          'Content-Type': 'application/json',
         }
       : {
           ...authHeaders,

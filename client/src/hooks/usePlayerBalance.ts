@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import Pusher from 'pusher-js';
+import { getAuthHeaders, API_BASE_URL, STORAGE_KEYS } from '../lib/api/config';
 
 interface PlayerBalance {
   playerId?: number;
@@ -20,9 +21,44 @@ export function usePlayerBalance(playerId: string) {
 
   // Fetch player balance from our backend API using the correct dual balance endpoint
   const { data: balance, isLoading, error } = useQuery<PlayerBalance>({
-    queryKey: [`/api/balance/${playerId}`],
+    queryKey: [`/api/auth/player/balance`],
+    queryFn: async () => {
+      console.log('🔍 [BALANCE HOOK] Fetching balance...');
+      console.log('🔍 [BALANCE HOOK] playerId:', playerId);
+      
+      // Get clubId from storage
+      const clubId = localStorage.getItem(STORAGE_KEYS.CLUB_ID) || 
+                     sessionStorage.getItem(STORAGE_KEYS.CLUB_ID);
+      
+      console.log('🔍 [BALANCE HOOK] clubId:', clubId);
+      
+      const headers = getAuthHeaders(playerId, clubId || undefined);
+      console.log('🔍 [BALANCE HOOK] Headers:', headers);
+      
+      const url = `${API_BASE_URL}/auth/player/balance`;
+      console.log('🔍 [BALANCE HOOK] Fetching from:', url);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+        credentials: 'include',
+      });
+      
+      console.log('🔍 [BALANCE HOOK] Response status:', response.status);
+      
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('❌ [BALANCE HOOK] Error:', text);
+        throw new Error(`Failed to fetch balance: ${response.status} ${text}`);
+      }
+      
+      const data = await response.json();
+      console.log('✅ [BALANCE HOOK] Balance data:', data);
+      return data;
+    },
     refetchInterval: 5000, // Refetch every 5 seconds for optimized performance
     staleTime: 0, // Always consider data stale for fresh credit updates from staff portal
+    enabled: !!playerId, // Only run query if playerId exists
   });
 
   // Real-time balance updates via Pusher (optional)
@@ -51,7 +87,7 @@ export function usePlayerBalance(playerId: string) {
         console.log('💰 [REAL-TIME BALANCE] Update received:', data);
         
         // Invalidate and refetch balance immediately for credit updates
-        queryClient.invalidateQueries({ queryKey: [`/api/balance/${playerId}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
       }
     });
 
@@ -61,7 +97,7 @@ export function usePlayerBalance(playerId: string) {
         console.log('✅ [REAL-TIME CREDIT] Credit approved by staff:', data);
         
         // Immediately refresh balance to show new credit_balance
-        queryClient.invalidateQueries({ queryKey: [`/api/balance/${playerId}`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
       }
     });
 
@@ -70,8 +106,8 @@ export function usePlayerBalance(playerId: string) {
         console.log('💳 [REAL-TIME BALANCE] Transaction update:', data);
         
         // Invalidate balance and transaction queries
-        queryClient.invalidateQueries({ queryKey: [`/api/balance/${playerId}`] });
-        queryClient.invalidateQueries({ queryKey: [`/api/player/${playerId}/transactions`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/auth/player/transactions`] });
       }
     });
 
@@ -80,7 +116,7 @@ export function usePlayerBalance(playerId: string) {
     
     playerChannel.bind('balance_updated', (data: any) => {
       console.log('💰 [REAL-TIME BALANCE] Direct player update:', data);
-      queryClient.invalidateQueries({ queryKey: [`/api/balance/${playerId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
     });
 
     playerChannel.bind('cash_out_request_submitted', (data: any) => {
@@ -102,11 +138,11 @@ export function usePlayerBalance(playerId: string) {
     balance,
     isLoading,
     error,
-    cashBalance: parseFloat((balance as any)?.currentBalance || balance?.cashBalance || '0'),
+    cashBalance: parseFloat((balance as any)?.availableBalance || (balance as any)?.currentBalance || balance?.cashBalance || '0'),
     creditBalance: parseFloat((balance as any)?.creditBalance || '0'),
     creditLimit: parseFloat((balance as any)?.creditLimit || '0'),
     creditApproved: (balance as any)?.creditApproved || false,
-    tableBalance: 0, // Hidden from player view
-    totalBalance: parseFloat((balance as any)?.totalBalance || (balance as any)?.currentBalance || balance?.cashBalance || '0')
+    tableBalance: parseFloat((balance as any)?.tableBalance || '0'),
+    totalBalance: parseFloat((balance as any)?.totalBalance || (balance as any)?.availableBalance || (balance as any)?.currentBalance || balance?.cashBalance || '0')
   };
 }

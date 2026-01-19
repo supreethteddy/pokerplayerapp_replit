@@ -76,10 +76,12 @@ import TableView from "./TableView";
 import PlayerChatSystem from "./PlayerChatSystem";
 import NotificationHistoryTab from "./NotificationHistoryTab";
 import FoodBeverageTab from "./FoodBeverageTab";
+import CreditRequestCard from "./CreditRequestCard";
 import { useSeatAssignment } from "@/hooks/useSeatAssignment";
 import { usePlayerGameStatus } from "@/hooks/usePlayerGameStatus";
 import { whitelabelConfig } from "@/lib/whitelabeling";
 import { fetchClubBranding, applyClubBranding, getGradientClasses, getGradientStyle, type ClubBranding } from "@/lib/clubBranding";
+import { usePlayerBalance } from "@/hooks/usePlayerBalance";
 
 // Scrollable Offers Display Component
 const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null }) => {
@@ -90,8 +92,11 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
   } = useQuery<{ offers: any[]; total: number }>({
     queryKey: ["/api/player-offers/active"],
     queryFn: async () => {
+      console.log('🎁 [OFFERS UI] Fetching offers from /api/player-offers/active');
       const response = await apiRequest("GET", "/api/player-offers/active");
-      return await response.json();
+      const data = await response.json();
+      console.log('🎁 [OFFERS UI] Received data:', data);
+      return data;
     },
     refetchInterval: 5000, // Refresh every 5 seconds
     retry: 1, // Only retry once to avoid spamming
@@ -99,7 +104,7 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
 
   const trackOfferView = useMutation({
     mutationFn: (offerId: string) =>
-      apiRequest("POST", "/api/offer-views", { offer_id: offerId }),
+      apiRequest("POST", "/api/player-offers/view", { offerId }),
   });
 
   const [offerDetailsOpen, setOfferDetailsOpen] = useState(false);
@@ -110,6 +115,10 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
     offersResponse && Array.isArray(offersResponse.offers)
       ? offersResponse.offers
       : [];
+  
+  console.log('🎁 [OFFERS UI] displayOffers:', displayOffers);
+  console.log('🎁 [OFFERS UI] error:', error);
+  console.log('🎁 [OFFERS UI] isLoading:', isLoading);
 
   // Handle error state gracefully
   if (error) {
@@ -188,19 +197,17 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
                         <source src={offer.video_url} type="video/mp4" />
                       </video>
                     </div>
+                  ) : offer.image_url ? (
+                    <div className="aspect-video rounded-t-lg overflow-hidden bg-slate-900">
+                      <img
+                        src={offer.image_url}
+                        alt={offer.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
                   ) : (
                     <div className={`aspect-video rounded-t-lg flex items-center justify-center ${branding ? getGradientClasses(branding.gradient) : 'bg-gradient-to-br from-emerald-600 to-emerald-800'}`}>
                       <Gift className="w-16 h-16 text-white" />
-                      <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center">
-                        <div className="text-center text-white">
-                          <div className="text-xs opacity-75 mb-1">
-                            {offer.offer_type?.toUpperCase()}
-                          </div>
-                          <div className="text-sm font-medium">
-                            {offer.target_audience?.toUpperCase()}
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   )}
 
@@ -225,19 +232,21 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
                   </h3>
 
                   {/* Dynamic description with responsive sizing */}
-                  <div className="text-slate-300 leading-relaxed mb-4">
-                    <p
-                      className={`${
-                        offer.description.length > 200
-                          ? "text-sm"
-                          : offer.description.length > 100
-                          ? "text-base"
-                          : "text-lg"
-                      }`}
-                    >
-                      {offer.description}
-                    </p>
-                  </div>
+                  {offer.description && (
+                    <div className="text-slate-300 leading-relaxed mb-4">
+                      <p
+                        className={`${
+                          offer.description.length > 200
+                            ? "text-sm"
+                            : offer.description.length > 100
+                            ? "text-base"
+                            : "text-lg"
+                        }`}
+                      >
+                        {offer.description}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Date range if available */}
                   {(offer.start_date || offer.end_date) && (
@@ -334,12 +343,6 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
                     >
                       {selectedOffer.offer_type}
                     </Badge>
-                  </div>
-                )}
-                {selectedOffer.target_audience && (
-                  <div>
-                    <p className="text-slate-400 text-sm mb-1">Target Audience</p>
-                    <p className="text-white">{selectedOffer.target_audience}</p>
                   </div>
                 )}
                 {selectedOffer.start_date && (
@@ -573,6 +576,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Get player game status for restrictions and active game display
   const gameStatus = usePlayerGameStatus();
+
+  // Get balance to check if credit is enabled
+  const { balance: playerBalance } = usePlayerBalance(user?.id?.toString() || "");
+  const creditEnabled = (playerBalance as any)?.creditEnabled || false;
 
   const [showTournaments, setShowTournaments] = useState(false);
 
@@ -2739,11 +2746,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               <OfferCarousel
                 onOfferClick={(offerId) => {
                   console.log(
-                    "🎯 [OFFER CLICK] Navigating to offer detail:",
+                    "🎯 [OFFER CLICK] Switching to offers tab:",
                     offerId
                   );
-                  // Navigate directly to offer detail page
-                  window.location.href = `/offer/${offerId}`;
+                  // Switch to offers tab instead of navigating
+                  setActiveTab("offers");
                 }}
               />
 
@@ -3233,9 +3240,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 <div className="flex items-center space-x-2">
                                   <Badge
                                     className={`${
-                                      tournament.status === "upcoming"
+                                      tournament.status === "upcoming" || tournament.status === "scheduled"
                                         ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
-                                        : tournament.status === "running"
+                                        : tournament.status === "running" || tournament.status === "active"
                                         ? "bg-green-500/20 text-green-300 border-green-500/30"
                                         : tournament.status === "finished"
                                         ? "bg-gray-500/20 text-gray-300 border-gray-500/30"
@@ -3249,7 +3256,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                         tournament.status.slice(1)
                                       : "Unknown"}
                                   </Badge>
-                                  {tournament.structure && (
+                                  {tournament.structure && typeof tournament.structure === 'object' && (
+                                    <span className="text-sm text-slate-400">
+                                      {tournament.structure.tournament_type || 'Standard'}
+                                    </span>
+                                  )}
+                                  {tournament.structure && typeof tournament.structure === 'string' && (
                                     <span className="text-sm text-slate-400">
                                       {tournament.structure}
                                     </span>
@@ -3257,7 +3269,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </div>
 
                                 <div className="flex items-center space-x-2">
-                                  {tournament.status === "upcoming" && (
+                                  {(tournament.status === "upcoming" || tournament.status === "scheduled" || tournament.status === "registration_open" || tournament.status === "registering") && (
                                     <>
                                       <Button
                                         onClick={() =>
@@ -3382,6 +3394,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   showBreakdown={true}
                 />
               )}
+              
+              {/* Credit Request Card - Show if player has credit enabled */}
+              {user?.id && creditEnabled && <CreditRequestCard />}
               
               {/* Transaction History */}
               <Card className="bg-slate-800 border-slate-700">
@@ -4918,7 +4933,29 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                           0}
                       </p>
                     </div>
-                    {selectedTournament.structure && (
+                    {selectedTournament.structure && typeof selectedTournament.structure === 'object' && (
+                      <>
+                        <div className="col-span-2">
+                          <p className="text-xs text-slate-400">Type</p>
+                          <p className="font-semibold">
+                            {selectedTournament.structure.tournament_type || 'N/A'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400">Starting Chips</p>
+                          <p className="font-semibold">
+                            {selectedTournament.structure.starting_chips?.toLocaleString() || 'N/A'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400">Blind Levels</p>
+                          <p className="font-semibold">
+                            {selectedTournament.structure.minutes_per_level ? `${selectedTournament.structure.minutes_per_level} min` : 'N/A'}
+                          </p>
+                        </div>
+                      </>
+                    )}
+                    {selectedTournament.structure && typeof selectedTournament.structure === 'string' && (
                       <div className="col-span-2">
                         <p className="text-xs text-slate-400">Structure</p>
                         <p className="font-semibold">

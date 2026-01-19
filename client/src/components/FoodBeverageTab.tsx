@@ -21,7 +21,8 @@ import {
   Clock,
   Star,
   Video,
-  Image as ImageIcon
+  Image as ImageIcon,
+  AlertCircle
 } from "lucide-react";
 
 interface FoodBeverageItem {
@@ -66,6 +67,8 @@ interface PlayerFnbOrder {
   createdAt: string;
   updatedAt: string;
   statusHistory?: { status: FnbOrderStatus; timestamp: string; updatedBy: string }[] | null;
+  cancellationReason?: string | null;
+  rejectionReason?: string | null;
 }
 
 interface FoodBeverageTabProps {
@@ -558,6 +561,17 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
                           })()}
                         </span>
                       </div>
+                      {order.status === 'cancelled' && (order.cancellationReason || order.rejectionReason) && (
+                        <div className="mt-2 p-2 bg-red-900/20 border border-red-700/30 rounded text-xs sm:text-sm">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <span className="text-red-300 font-semibold">Cancellation Reason: </span>
+                              <span className="text-red-200">{order.cancellationReason || order.rejectionReason}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}
@@ -611,6 +625,17 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
                           })()}
                         </span>
                       </div>
+                      {order.status === 'cancelled' && (order.cancellationReason || order.rejectionReason) && (
+                        <div className="mt-2 p-2 bg-red-900/20 border border-red-700/30 rounded text-xs sm:text-sm">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <span className="text-red-300 font-semibold">Cancellation Reason: </span>
+                              <span className="text-red-200">{order.cancellationReason || order.rejectionReason}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
           </CardContent>
         </Card>
                 ))}

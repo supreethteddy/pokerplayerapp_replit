@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { usePlayerBalance } from "@/hooks/usePlayerBalance";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,27 +37,29 @@ export default function CreditRequestCard() {
   const [creditAmount, setCreditAmount] = useState("");
   const [creditNote, setCreditNote] = useState("");
 
-  // Check if user is credit approved (we'll get this from the user data)
-  const isCreditApproved = user?.creditApproved || false; // This will be updated from backend
+  // Get balance to check credit status
+  const { balance } = usePlayerBalance(user?.id?.toString() || "");
+  const creditEnabled = (balance as any)?.creditEnabled || false;
+  const creditLimit = parseFloat((balance as any)?.creditLimit || '0');
+  const availableCredit = parseFloat((balance as any)?.availableCredit || '0');
 
   // Fetch credit requests for player
   const { data: creditRequests, isLoading: creditRequestsLoading } = useQuery<CreditRequest[]>({
     queryKey: ['credit-requests', user?.id],
     queryFn: async () => {
-      const response = await apiRequest('GET', `/api/credit-requests/${user?.id}`);
+      const response = await apiRequest('GET', '/api/auth/player/credit-requests');
       return response.json();
     },
-    enabled: !!user?.id && isCreditApproved,
+    enabled: !!user?.id && creditEnabled,
     refetchInterval: 2000, // Refresh every 2 seconds
   });
 
   // Submit credit request mutation
   const submitCreditRequestMutation = useMutation({
-    mutationFn: async ({ playerId, requestedAmount, requestNote }: { playerId: number; requestedAmount: number; requestNote: string }) => {
-      const response = await apiRequest('POST', '/api/credit-requests', {
-        playerId,
-        requestedAmount,
-        requestNote,
+    mutationFn: async ({ requestedAmount, requestNote }: { requestedAmount: number; requestNote: string }) => {
+      const response = await apiRequest('POST', '/api/auth/player/credit-request', {
+        amount: requestedAmount,
+        notes: requestNote,
       });
       return response.json();
     },
@@ -72,9 +75,33 @@ export default function CreditRequestCard() {
       });
     },
     onError: (error: any) => {
+      // Parse error message from backend
+      let errorMessage = "Could not submit credit request";
+      
+      if (error?.message) {
+        const msg = error.message;
+        
+        // Extract the actual error message (after status code)
+        if (msg.includes("A pending credit request already exists")) {
+          errorMessage = "You already have a pending credit request. Please wait for approval before submitting another request.";
+        } else if (msg.includes("Credit facility is not enabled")) {
+          errorMessage = "Credit facility is not enabled for your account. Please contact club management.";
+        } else if (msg.includes("KYC verification")) {
+          errorMessage = "Please complete KYC verification before requesting credit.";
+        } else if (msg.includes("Amount exceeds")) {
+          errorMessage = "Requested amount exceeds your available credit limit.";
+        } else if (msg.includes(":")) {
+          // Extract message after status code (e.g., "400: message" -> "message")
+          const parts = msg.split(":");
+          errorMessage = parts.slice(1).join(":").trim();
+        } else {
+          errorMessage = msg;
+        }
+      }
+      
       toast({
-        title: "Request Failed",
-        description: error.message || "Could not submit credit request",
+        title: "Credit Request Failed",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -90,7 +117,18 @@ export default function CreditRequestCard() {
       return;
     }
 
-    if (parseFloat(creditAmount) > 1000000) {
+    const requestedAmount = parseFloat(creditAmount);
+    
+    if (requestedAmount > availableCredit) {
+      toast({
+        title: "Amount Exceeds Available Credit",
+        description: `You can only request up to ₹${availableCredit.toLocaleString()}. Your available credit is ₹${availableCredit.toLocaleString()}.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (requestedAmount > 1000000) {
       toast({
         title: "Amount Too High",
         description: "Credit amount cannot exceed ₹10,00,000",
@@ -100,9 +138,8 @@ export default function CreditRequestCard() {
     }
 
     submitCreditRequestMutation.mutate({
-      playerId: user?.id!,
-      requestedAmount: parseFloat(creditAmount),
-      requestNote: creditNote || `Credit request for ₹${parseFloat(creditAmount).toLocaleString('en-IN')}`,
+      requestedAmount: requestedAmount,
+      requestNote: creditNote || `Credit request for ₹${requestedAmount.toLocaleString('en-IN')}`,
     });
   };
 
@@ -143,8 +180,8 @@ export default function CreditRequestCard() {
     });
   };
 
-  // Don't show credit card if user is not credit eligible
-  if (!user?.creditEligible) {
+  // Don't show credit card if user is not credit enabled
+  if (!creditEnabled || creditLimit <= 0) {
     return null;
   }
 
@@ -162,18 +199,37 @@ export default function CreditRequestCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Credit Info Display */}
+        <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm text-slate-300">Credit Limit:</span>
+            <span className="text-sm font-bold text-blue-400">₹{creditLimit.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm text-slate-300">Available Credit:</span>
+            <span className="text-sm font-bold text-green-400">₹{availableCredit.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-slate-300">Credit Used:</span>
+            <span className="text-sm font-bold text-yellow-400">₹{(creditLimit - availableCredit).toLocaleString()}</span>
+          </div>
+        </div>
+
         {/* Credit Request Form */}
         {!showCreditForm ? (
           <div className="text-center">
             <Button
               onClick={() => setShowCreditForm(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={availableCredit <= 0}
             >
               <Plus className="w-4 h-4 mr-2" />
               Request Credit
             </Button>
             <p className="text-sm text-slate-400 mt-2">
-              You are approved for credit. Request funds from the Super Admin.
+              {availableCredit > 0 
+                ? `You can request up to ₹${availableCredit.toLocaleString()} in credit.`
+                : 'You have reached your credit limit.'}
             </p>
           </div>
         ) : (
@@ -187,11 +243,14 @@ export default function CreditRequestCard() {
                 type="number"
                 value={creditAmount}
                 onChange={(e) => setCreditAmount(e.target.value)}
-                placeholder="Enter amount (e.g., 50000)"
+                placeholder={`Enter amount (max: ₹${availableCredit.toLocaleString()})`}
                 className="bg-slate-700 border-slate-600 text-white"
                 min="1"
-                max="1000000"
+                max={availableCredit}
               />
+              <p className="text-xs text-slate-400 mt-1">
+                Available credit: ₹{availableCredit.toLocaleString()}
+              </p>
             </div>
             
             <div>

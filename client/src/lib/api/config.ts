@@ -23,7 +23,7 @@ function getApiBaseUrl(): string {
   
   // For web development, default to localhost
   if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-    return 'http://localhost:3000/api';
+    return 'http://localhost:3333/api';
   }
   
   // Fallback - use current origin
