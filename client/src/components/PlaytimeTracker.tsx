@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, DollarSign, Play, Phone, X, Eye, ArrowRight } from "lucide-react";
+import { Clock, DollarSign, Play, Phone, X, Eye } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useGameStatusSync } from "@/hooks/useGameStatusSync";
@@ -109,7 +109,22 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
 
   // Fetch live session data with UNIFIED FAST REFRESH (3 seconds) for immediate synchronization
   const { data: sessionResponse, isLoading, error } = useQuery<{hasActiveSession: boolean, session: LiveSession | null}>({
-    queryKey: ['/api/live-sessions', playerId],
+    queryKey: ['/api/player-playtime/current', playerId], // playerId is for cache key only
+    queryFn: async () => {
+      // Custom queryFn to avoid playerId being added to URL path
+      const clubId = localStorage.getItem('clubId') || sessionStorage.getItem('clubId') || '';
+      const response = await fetch('http://localhost:3333/api/player-playtime/current', {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-player-id': playerId || '',
+          'x-club-id': clubId,
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch session: ${response.statusText}`);
+      }
+      return await response.json();
+    },
     refetchInterval: 3000, // UNIFIED: Fast refresh matching other game status queries
     staleTime: 1000, // Consider fresh for 1 second only for immediate updates
     enabled: !!playerId,
@@ -160,50 +175,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
     return () => clearInterval(interval);
   }, [session?.sessionStartTime, fallbackSession?.sessionStartTime]);
 
-  // Call Time mutation
-  const callTimeMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest('POST', `/api/live-sessions/${playerId}/call-time`);
-      return response;
-    },
-    onSuccess: () => {
-      toast({
-        title: "Call Time Activated",
-        description: "You have initiated call time. Complete your current hand within the time limit.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/live-sessions', playerId] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Call Time Failed",
-        description: error.message || "Failed to activate call time",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Cash Out mutation
-  const cashOutMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest('POST', `/api/live-sessions/${playerId}/cash-out`);
-      return response;
-    },
-    onSuccess: () => {
-      toast({
-        title: "Cash Out Initiated",
-        description: "Your cash out request has been sent to staff for processing.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/live-sessions', playerId] });
-      setIsDialogOpen(false);
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Cash Out Failed",
-        description: error.message || "Failed to initiate cash out",
-        variant: "destructive",
-      });
-    },
-  });
+  // Note: Call Time and Cash Out mutations removed - using direct API calls instead
 
   // Auto-open dialog when session becomes active (only once)
   const [hasAutoOpened, setHasAutoOpened] = useState(false);
@@ -240,7 +212,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
     const start = new Date(session?.sessionStartTime || new Date());
     const now = new Date();
     const minutesPlayed = (now.getTime() - start.getTime()) / (1000 * 60);
-    const dynamicMinPlay = session?.tableMinPlayTime || session?.minPlayTimeMinutes || session?.min_play_time || 2;
+    const dynamicMinPlay = session?.min_play_time_minutes || session?.min_play_time || 2;
     const timeUntilMinPlay = dynamicMinPlay - minutesPlayed;
 
     return Math.max(0, Math.ceil(timeUntilMinPlay));
@@ -258,9 +230,9 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
     if (!session) return { phase: 'UNKNOWN', description: '', timeRemaining: 0 };
 
     // Use dynamic table configuration values
-    const dynamicMinPlay = session?.tableMinPlayTime || session?.minPlayTimeMinutes || session?.min_play_time || 2;
-    const dynamicCallTime = session?.tableCallTimeDuration || session?.callTimeDurationMinutes || session?.call_time_duration || 2;
-    const dynamicCashWindow = session?.tableCashOutWindow || session?.cashOutWindowMinutes || session?.cash_out_window || 2;
+    const dynamicMinPlay = session?.min_play_time_minutes || session?.min_play_time || 2;
+    const dynamicCallTime = session?.call_time_duration || 2;
+    const dynamicCashWindow = session?.cashout_window_minutes || session?.cash_out_window || 2;
 
     switch (session?.sessionPhase) {
       case 'MINIMUM_PLAY':
@@ -299,21 +271,6 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
   const sessionDuration = getSessionDuration();
   const timeUntilMinPlay = getTimeUntilMinPlay();
   const phaseStatus = getPhaseStatus();
-
-  // Client-only session overview: time left vs planned
-  const mock = loadMockSession(playerId);
-  const plannedMs = mock.plannedSessionMinutes * 60 * 1000;
-  const startForRemaining = new Date(session?.sessionStartTime || fallbackSession?.sessionStartTime || new Date());
-  const elapsedMs = Math.max(0, Date.now() - startForRemaining.getTime());
-  const remainingMs = Math.max(0, plannedMs - elapsedMs);
-  const remainingMinutes = Math.ceil(remainingMs / 60000);
-  const progressPct = Math.min(100, Math.floor((elapsedMs / Math.max(plannedMs, 1)) * 100));
-
-  const handleExtend = (minutes = 30) => {
-    const next = { ...mock, plannedSessionMinutes: mock.plannedSessionMinutes + minutes };
-    saveMockSession(playerId, next);
-    toast({ title: "Session Extended", description: `Added ${minutes} minutes.` });
-  };
 
 
   // Enhanced condition checking: Show PlaytimeTracker if we have a session OR if fallback indicates player is seated
@@ -370,44 +327,6 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
           </DialogHeader>
 
           <div className="space-y-4 overflow-y-auto flex-1 pr-2 -mr-2">
-            {/* Session Overview (table, blinds, time left, players) */}
-            <div className="bg-slate-800 p-3 sm:p-4 rounded-lg border border-slate-700">
-              <div className="grid grid-cols-2 gap-3 text-xs sm:text-sm">
-                <div>
-                  <div className="text-slate-400">Table</div>
-                  <div className="text-white font-medium">{session?.tableName || fallbackSession?.tableName || 'Poker Table'}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-slate-400">Blinds</div>
-                  <div className="text-white font-medium">₹{mock.smallBlind}/{mock.bigBlind}</div>
-                </div>
-                <div className="col-span-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-slate-400">Time left</span>
-                    <span className="text-white font-mono">{remainingMinutes}m</span>
-                  </div>
-                  <Progress value={progressPct} className="h-2" />
-                </div>
-              </div>
-
-              <div className="mt-3">
-                <div className="text-slate-400 mb-1 text-xs">Players at table</div>
-                <div className="flex flex-wrap gap-2">
-                  {mock.players.map((p, i) => (
-                    <span key={i} className="px-2 py-1 rounded bg-slate-700 text-slate-200 text-xs">{p}</span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-3 flex gap-2">
-                <Button onClick={() => handleExtend(30)} variant="outline" className="border-emerald-600 text-emerald-300 hover:bg-emerald-700 px-3 py-2 text-xs">
-                  + Extend 30m
-                </Button>
-                <Button onClick={() => handleExtend(60)} variant="outline" className="border-emerald-600 text-emerald-300 hover:bg-emerald-700 px-3 py-2 text-xs">
-                  + Extend 60m
-                </Button>
-              </div>
-            </div>
             {/* Session Timer */}
             <div className="text-center bg-slate-800 p-3 sm:p-4 rounded-lg">
               <div className="text-xl sm:text-2xl font-mono font-bold text-white mb-1">
@@ -452,7 +371,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
             </div>
 
             {/* State Machine Status Indicators */}
-            <div className="grid grid-cols-4 gap-2 text-xs">
+            <div className="grid grid-cols-3 gap-2 text-xs">
               {/* Minimum Play Time */}
               <div className={`p-2 rounded ${session?.minPlayTimeCompleted ? 'bg-green-900/50 border border-green-500/50' : 'bg-slate-900/50 border border-slate-500/50'}`}>
                 <div className="flex items-center justify-between">
@@ -460,7 +379,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
                     Min Play
                   </span>
                   <span className={session?.minPlayTimeCompleted ? 'text-green-300' : 'text-slate-300'}>
-                    {session?.minPlayTimeCompleted ? '✓' : `${session?.minPlayTimeMinutes || 30}m`}
+                    {session?.minPlayTimeCompleted ? '✓' : `${session?.min_play_time_minutes || 30}m`}
                   </span>
                 </div>
                 <div className={`mt-1 text-xs ${session?.minPlayTimeCompleted ? 'text-green-300' : 'text-slate-400'}`}>{session?.minPlayTimeCompleted ? 'Completed' : ''}</div>
@@ -470,7 +389,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
               <div className={`p-2 rounded ${session?.callTimeAvailable ? 'bg-green-900/50 border border-green-500/50' : 'bg-slate-900/50 border border-slate-500/50'}`}>
                 <div className="flex items-center justify-between">
                   <span className={session?.callTimeAvailable ? 'text-green-400' : 'text-slate-400'}>
-                    Call Time Available
+                    Call Time
                   </span>
                   <span className={session?.callTimeAvailable ? 'text-green-300' : 'text-slate-300'}>
                     {session?.callTimeAvailable ? '✓' : '✗'}
@@ -482,56 +401,29 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
               <div className={`p-2 rounded ${session?.callTimeActive ? 'bg-orange-900/50 border border-orange-500/50' : 'bg-slate-900/50 border border-slate-500/50'}`}>
                 <div className="flex items-center justify-between">
                   <span className={session?.callTimeActive ? 'text-orange-400' : 'text-slate-400'}>
-                    Call Time Active
+                    Active
                   </span>
                   <span className={session?.callTimeActive ? 'text-orange-300' : 'text-slate-300'}>
                     {session?.callTimeActive ? `${session?.callTimeRemaining}m` : '✗'}
                   </span>
                 </div>
               </div>
-
-              {/* Cash Out Window */}
-              <div className={`p-2 rounded ${
-                session?.cashOutWindowActive 
-                  ? (session?.cashOutTimeRemaining <= 5 
-                      ? 'bg-red-900/50 border border-red-500/50 animate-pulse' 
-                      : 'bg-blue-900/50 border border-blue-500/50')
-                  : 'bg-slate-900/50 border border-slate-500/50'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <span className={
-                    session?.cashOutWindowActive 
-                      ? (session?.cashOutTimeRemaining <= 5 ? 'text-red-400' : 'text-blue-400')
-                      : 'text-slate-400'
-                  }>
-                    Cash Out
-                  </span>
-                  <span className={
-                    session?.cashOutWindowActive 
-                      ? (session?.cashOutTimeRemaining <= 5 ? 'text-red-300' : 'text-blue-300')
-                      : 'text-slate-300'
-                  }>
-                    {session?.cashOutWindowActive ? `${session?.cashOutTimeRemaining}m` : '✗'}
-                  </span>
-                </div>
-              </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+            <div className="grid grid-cols-1 gap-2 sm:gap-3">
               <Button
                 onClick={async () => {
                   console.log('🎯 [CALL TIME] Starting call time for player:', playerId);
                   try {
-                    const response = await apiRequest('POST', '/api/call-time/start', {
-                      playerId: parseInt(playerId),
-                      sessionId: session?.id
+                    const response = await apiRequest('POST', '/api/player-playtime/call-time', {
+                      tableId: session?.tableId
                     });
                     if (response.ok) {
-                      queryClient.invalidateQueries({ queryKey: ['/api/live-sessions', playerId] });
+                      queryClient.invalidateQueries({ queryKey: ['/api/player-playtime/current', playerId] });
                       toast({
                         title: "Call Time Started",
-                        description: `Your ${session?.callTimeDurationMinutes || 60}-minute call time has begun.`,
+                        description: `Your ${session?.call_time_duration || 60}-minute call time has begun.`,
                       });
                     }
                   } catch (error) {
@@ -544,57 +436,17 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
                   }
                 }}
                 disabled={!session?.callTimeAvailable || session?.callTimeActive}
-                className={`w-full py-2 sm:py-3 text-xs sm:text-sm ${
+                className={`w-full py-3 text-sm ${
                   session?.callTimeAvailable && !session?.callTimeActive
                     ? 'bg-yellow-600 hover:bg-yellow-700 border-yellow-500 text-white'
                     : 'bg-gray-700 text-gray-400 cursor-not-allowed'
                 }`}
               >
-                <Clock className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <Clock className="w-4 h-4 mr-2" />
                 {session?.callTimeActive 
                   ? `Call Time: ${session?.callTimeRemaining || 0}m left`
                   : 'Start Call Time'
                 }
-              </Button>
-
-              <Button
-                onClick={async () => {
-                  console.log('🎯 [CASH OUT] Requesting cash out for player:', playerId);
-                  try {
-                    const response = await apiRequest('POST', '/api/cash-out/request', {
-                      playerId: parseInt(playerId),
-                      sessionId: session?.id
-                    });
-                    if (response.ok) {
-                      queryClient.invalidateQueries({ queryKey: ['/api/live-sessions', playerId] });
-                      toast({
-                        title: "Cash Out Requested",
-                        description: "Your cash out request has been sent to management.",
-                      });
-                    }
-                  } catch (error) {
-                    console.error('Failed to request cash out:', error);
-                    toast({
-                      title: "Error",
-                      description: "Failed to request cash out. Please try again.",
-                      variant: "destructive"
-                    });
-                  }
-                }}
-                disabled={!session?.canCashOut}
-                className={`w-full py-2 sm:py-3 text-xs sm:text-sm ${
-                  session?.canCashOut
-                    ? 'bg-green-600 hover:bg-green-700 border-green-500 text-white'
-                    : 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                <span className="truncate">
-                  {session?.canCashOut 
-                    ? `Cash Out (${session?.cashOutTimeRemaining || 0}m left)`
-                    : 'Cash Out Unavailable'
-                  }
-                </span>
               </Button>
             </div>
 
@@ -603,25 +455,19 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
               {session?.callTimeAvailable && !session?.callTimeActive && (
                 <div className="text-yellow-400">
                   <div className="font-medium">⏰ Call Time Available</div>
-                  <div className="mt-1 text-xs text-yellow-300">Click to start {session?.tableCallTimeDuration || session?.callTimeDurationMinutes || 2}-minute countdown. After completion, you'll have {session?.tableCashOutWindow || session?.cashOutWindowMinutes || 2} minutes to cash out.</div>
+                  <div className="mt-1 text-xs text-yellow-300">Click "Start Call Time" to begin your {session?.call_time_duration || 2}-minute countdown.</div>
                 </div>
               )}
               {session?.callTimeActive && (
                 <div className="text-orange-400">
                   <div className="font-medium">🔄 Call Time Active</div>
-                  <div className="mt-1 text-xs text-orange-300">Cash out window will open in {session?.callTimeRemaining || 0} minutes</div>
+                  <div className="mt-1 text-xs text-orange-300">Complete your hand within {session?.callTimeRemaining || 0} minutes</div>
                 </div>
               )}
-              {session?.canCashOut && (
-                <div className="text-green-400">
-                  <div className="font-medium">💰 Cash Out Window Open!</div>
-                  <div className="mt-1 text-xs text-green-300">You have {session?.cashOutTimeRemaining || 0} minutes to request cash out</div>
-                </div>
-              )}
-              {!session?.callTimeAvailable && !session?.callTimeActive && !session?.canCashOut && (
+              {!session?.callTimeAvailable && !session?.callTimeActive && (
                 <div className="text-slate-300">
                   <div className="font-medium">⏱️ Minimum Play Time</div>
-                  <div className="mt-1 text-xs text-slate-400">Complete {session?.tableMinPlayTime || session?.minPlayTimeMinutes || 2} minutes before call time becomes available</div>
+                  <div className="mt-1 text-xs text-slate-400">Complete {session?.min_play_time_minutes || session?.min_play_time || 2} minutes before call time becomes available</div>
                 </div>
               )}
             </div>
@@ -637,15 +483,11 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
               <ul className="space-y-1 text-slate-400 text-xs">
                 <li className="flex justify-between">
                   <span>• Min play:</span> 
-                  <span className="font-medium text-white">{session?.tableMinPlayTime || session?.minPlayTimeMinutes || session?.min_play_time || 2}m</span>
+                  <span className="font-medium text-white">{session?.min_play_time_minutes || session?.min_play_time || 2}m</span>
                 </li>
                 <li className="flex justify-between">
                   <span>• Call time:</span> 
-                  <span className="font-medium text-white">{session?.tableCallTimeDuration || session?.callTimeDurationMinutes || session?.call_time_duration || 2}m</span>
-                </li>
-                <li className="flex justify-between">
-                  <span>• Cash window:</span> 
-                  <span className="font-medium text-white">{session?.tableCashOutWindow || session?.cashOutWindowMinutes || session?.cash_out_window || 2}m</span>
+                  <span className="font-medium text-white">{session?.call_time_duration || 2}m</span>
                 </li>
               </ul>
               

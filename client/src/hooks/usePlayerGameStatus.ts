@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useUltraFastAuth } from './useUltraFastAuth';
 import { useGameStatusSync } from './useGameStatusSync';
+import { waitlistService } from '../lib/api/waitlist.service';
 
 interface GameStatusInfo {
   isInActiveGame: boolean;
@@ -35,9 +36,13 @@ export function usePlayerGameStatus(): GameStatusInfo {
   useGameStatusSync();
 
   // UNIFIED FAST REFRESH INTERVALS (3 seconds) for immediate synchronization
-  // Get player's waitlist entries with aggressive refresh during active gaming
-  const { data: waitlistEntries = [] } = useQuery({
-    queryKey: ['/api/seat-requests', user?.id],
+  // Get player's waitlist status with aggressive refresh during active gaming
+  const { data: waitlistStatusData } = useQuery({
+    queryKey: ['/api/auth/player/waitlist', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      return await waitlistService.getWaitlistStatus();
+    },
     enabled: !!user?.id,
     refetchInterval: 3000, // Fast refresh for immediate seat assignment detection
     staleTime: 1000, // Consider fresh for 1 second only
@@ -50,22 +55,6 @@ export function usePlayerGameStatus(): GameStatusInfo {
     staleTime: 2000, // Consider fresh for 2 seconds
   });
 
-  // Get player's seated info with fast refresh  
-  const { data: seatedInfo = [] } = useQuery({
-    queryKey: ['/api/table-seats', user?.id],
-    enabled: !!user?.id,
-    refetchInterval: 3000, // Fast refresh for seated session detection
-    staleTime: 1000, // Consider fresh for 1 second only
-  });
-
-  // Primary source: seat_requests data (contains both waitlist and seated status)
-  const { data: seatRequestsData = [] } = useQuery({
-    queryKey: ['/api/seat-requests', user?.id],
-    enabled: !!user?.id,
-    refetchInterval: 3000, // Fast refresh for real-time status
-    staleTime: 1000, // Consider fresh for 1 second only
-  });
-
   // Process the game status
   let isInActiveGame = false;
   let isInInactiveGame = false;
@@ -74,83 +63,61 @@ export function usePlayerGameStatus(): GameStatusInfo {
   let restrictionMessage: string | undefined = undefined;
   let seatedSessionFallback: GameStatusInfo['seatedSessionFallback'] = undefined;
 
-  // NO mock sessions - all data should come from backend API
+  console.log('🎯 [GAME STATUS] Raw waitlistStatusData:', waitlistStatusData);
 
-  // Check for seated sessions first (higher priority)
-  const seatedSessions = Array.isArray(seatedInfo) ? seatedInfo : [];
-  const seatRequestsArray = Array.isArray(seatRequestsData) ? seatRequestsData : [];
-  
-  // Find active seated session from either source
-  const activeSeat = seatedSessions.find((seat: any) => seat.status === 'seated') ||
-                    seatRequestsArray.find((req: any) => req.status === 'seated');
-
-  if (activeSeat) {
-    // Player is seated somewhere, check if the table is active
-    const tableInfo = Array.isArray(tables) ? tables.find((t: any) => t.id === activeSeat.tableId) : null;
+  // Check if player is seated (from the waitlist status API)
+  if (waitlistStatusData?.isSeated && waitlistStatusData?.entry && waitlistStatusData?.tableInfo) {
+    const { entry, tableInfo } = waitlistStatusData as any;
     
-    if (tableInfo && tableInfo.status === 'active') {
-      isInActiveGame = true;
-      canJoinWaitlists = false;
-      restrictionMessage = `You must cash out from your active table "${tableInfo.name}" before joining another game`;
-      
-      activeGameInfo = {
-        tableId: activeSeat.tableId || activeSeat.table_id,
-        tableName: tableInfo.name || activeSeat.tableName || 'Unknown Table',
-        gameType: tableInfo.game_type || tableInfo.gameType || activeSeat.game_type || 'Texas Hold\'em',
-        position: 0, // Seated players don't have waitlist position
-        seatNumber: activeSeat.seatNumber || activeSeat.seat_number,
-        status: 'PLAYING NOW'
-      };
+    // Player is seated at a table!
+    isInActiveGame = true; // Treat all seated players as in active game
+    canJoinWaitlists = false; // Can't join another waitlist while seated
+    restrictionMessage = `You must call time from Table ${entry.tableNumber} before joining another game`;
+    
+    activeGameInfo = {
+      tableId: tableInfo.tableId,
+      tableName: tableInfo.tableName || `Table ${entry.tableNumber}`,
+      gameType: tableInfo.gameType || 'Cash Game',
+      position: 0, // Seated players don't have waitlist position
+      seatNumber: entry.seatNumber || entry.tableNumber,
+      status: 'PLAYING NOW'
+    };
 
-      // CREATE FALLBACK SESSION DATA for immediate PlaytimeTracker display
-      seatedSessionFallback = {
-        tableId: activeSeat.tableId || activeSeat.table_id,
-        tableName: tableInfo.name || activeSeat.tableName || 'Unknown Table',
-        gameType: tableInfo.game_type || tableInfo.gameType || activeSeat.game_type || 'Texas Hold\'em',
-        seatNumber: activeSeat.seatNumber || activeSeat.seat_number,
-        status: 'seated',
-        sessionStartTime: activeSeat.session_start_time || activeSeat.sessionStartTime
-      };
-    } else if (tableInfo && tableInfo.status !== 'active') {
-      isInInactiveGame = true;
-      canJoinWaitlists = true; // Can join other waitlists, will be removed from inactive table
-    }
+    // CREATE FALLBACK SESSION DATA for immediate PlaytimeTracker display
+    seatedSessionFallback = {
+      tableId: tableInfo.tableId,
+      tableName: tableInfo.tableName || `Table ${entry.tableNumber}`,
+      gameType: tableInfo.gameType || 'Cash Game',
+      seatNumber: entry.seatNumber || entry.tableNumber,
+      status: 'seated',
+      sessionStartTime: entry.seatedAt
+    };
+
+    console.log('✅ [GAME STATUS] Player is SEATED:', activeGameInfo);
+  } else if (waitlistStatusData?.onWaitlist && waitlistStatusData?.entry) {
+    // Player is on waitlist (PENDING status)
+    const { entry } = waitlistStatusData as any;
+    
+    activeGameInfo = {
+      tableId: undefined as any,
+      tableName: entry.tableType || 'Waiting for table',
+      gameType: entry.tableType || 'Cash Game',
+      position: (waitlistStatusData as any).position || 0,
+      seatNumber: entry.seatNumber || undefined,
+      status: 'ON WAITLIST'
+    };
+    canJoinWaitlists = false; // Already on a waitlist
+
+    console.log('🎯 [GAME STATUS] Player is ON WAITLIST:', activeGameInfo);
   } else {
-    // Check waitlist entries
-    const waitlistArray = Array.isArray(waitlistEntries) ? waitlistEntries : [];
-    
-    for (const entry of waitlistArray) {
-      const tableInfo = Array.isArray(tables) ? tables.find((t: any) => t.id === entry.tableId) : null;
-      
-      if (tableInfo && tableInfo.status === 'active' && entry.status === 'waiting') {
-        // Player is on waitlist for an active game
-        activeGameInfo = {
-          tableId: entry.tableId,
-          tableName: tableInfo.name || entry.tableName || 'Unknown Table',
-          gameType: tableInfo.game_type || tableInfo.gameType || entry.gameType || 'Texas Hold\'em',
-          position: entry.position || 1,
-          status: 'WAITING'
-        };
-        break;
-      }
-    }
+    console.log('ℹ️ [GAME STATUS] Player has NO active session or waitlist entry');
   }
-
-  console.log(`🎮 [GAME STATUS] Player ${user?.id} status:`, {
-    isInActiveGame,
-    isInInactiveGame,
-    canJoinWaitlists,
-    activeGameInfo,
-    seatedSessions: seatedSessions.length,
-    waitlistEntries: (Array.isArray(waitlistEntries) ? waitlistEntries : []).length,
-    seatedSessionFallback
-  });
 
   return {
     isInActiveGame,
     isInInactiveGame,
     activeGameInfo,
-    waitlistEntries: Array.isArray(waitlistEntries) ? waitlistEntries : [],
+    waitlistEntries: [], // Legacy support
     canJoinWaitlists,
     restrictionMessage,
     seatedSessionFallback // Include fallback session data for immediate sync

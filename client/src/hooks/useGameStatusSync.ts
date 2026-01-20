@@ -18,26 +18,23 @@ export function useGameStatusSync() {
     console.log('🔄 [GAME SYNC] Invalidating all game-related queries for immediate synchronization');
 
     // Invalidate all game-status related queries at once
-    queryClient.invalidateQueries({ queryKey: ['/api/seat-requests', user.id] });
-    queryClient.invalidateQueries({ queryKey: ['/api/table-seats', user.id] });
-    queryClient.invalidateQueries({ queryKey: ['/api/live-sessions', user.id] });
+    queryClient.invalidateQueries({ queryKey: ['/api/auth/player/waitlist', user.id] });
+    queryClient.invalidateQueries({ queryKey: ['/api/player-playtime/current', user.id] });
     queryClient.invalidateQueries({ queryKey: ['/api/tables'] });
-    queryClient.invalidateQueries({ queryKey: ['/api/table-status'] });
     
     // Also invalidate balance as it may change with seat assignments
-    queryClient.invalidateQueries({ queryKey: ['/api/balance', user.id] });
+    queryClient.invalidateQueries({ queryKey: ['/api/auth/player/balance', user.id] });
   };
 
   // Monitor for state transitions (waitlist → seated)
   const checkForStateTransition = () => {
     if (!user?.id) return;
 
-    // Get current seat-requests data to check for status changes
-    const seatRequestsData = queryClient.getQueryData(['/api/seat-requests', user.id]) as any[];
+    // Get current waitlist status data to check for status changes
+    const waitlistData = queryClient.getQueryData(['/api/auth/player/waitlist', user.id]) as any;
     
-    if (Array.isArray(seatRequestsData)) {
-      const hasSeatedSession = seatRequestsData.some((req: any) => req.status === 'seated');
-      const currentStatus = hasSeatedSession ? 'seated' : 'waiting';
+    if (waitlistData) {
+      const currentStatus = waitlistData.isSeated ? 'seated' : waitlistData.onWaitlist ? 'waiting' : 'none';
       
       // If status changed from waiting to seated, immediately invalidate everything
       if (previousStatus.current === 'waiting' && currentStatus === 'seated') {

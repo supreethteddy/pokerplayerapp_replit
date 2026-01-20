@@ -167,8 +167,8 @@ export function useAuth() {
       localStorage.removeItem('playerId');
       localStorage.removeItem('clubId');
       localStorage.removeItem('clubCode');
-      setUser(null);
-      setLoading(false);
+        setUser(null);
+        setLoading(false);
     }
   };
 
@@ -375,10 +375,10 @@ export function useAuth() {
         } catch (supabaseError) {
           console.warn('🔄 [PLAYER AUTH] Supabase auth warning (continuing with direct auth):', supabaseError);
         }
-      }
-      
+        }
+        
       // Set user data with clubId and clubCode
-      const enhancedUserData = {
+        const enhancedUserData = {
         id: player.id,
         email: player.email,
         firstName: player.name?.split(' ')[0] || player.email.split('@')[0],
@@ -399,23 +399,23 @@ export function useAuth() {
         totalLosses: '0.00',
         gamesPlayed: 0,
         hoursPlayed: '0'
-      };
-      
+        };
+        
       console.log('🎉 [PLAYER AUTH] User data set with clubId:', enhancedUserData);
-      setUser(enhancedUserData);
-      
-      // Set session storage flag to trigger loading screen
-      sessionStorage.setItem('just_signed_in', 'true');
-      
-      setLoading(false);
+        setUser(enhancedUserData);
+        
+        // Set session storage flag to trigger loading screen
+        sessionStorage.setItem('just_signed_in', 'true');
+        
+        setLoading(false);
       console.log('✅ [PLAYER AUTH] Authentication complete - Player ID:', player.id, 'Club ID:', club.id);
-      
-      toast({
-        title: "Welcome Back",
+        
+        toast({
+          title: "Welcome Back",
         description: `Signed in to ${club.name}`,
-      });
+        });
 
-      return { success: true };
+        return { success: true };
 
     } catch (error: any) {
       setLoading(false);

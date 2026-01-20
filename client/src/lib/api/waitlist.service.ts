@@ -40,15 +40,36 @@ export interface WaitlistEntry {
 export interface JoinWaitlistDto {
   tableType?: string;
   partySize?: number;
+  requestedSeat?: number; // Requested seat number (1-10)
 }
 
 /**
- * Waitlist status response
+ * Waitlist status response (matches backend API response)
  */
 export interface WaitlistStatusResponse {
-  entries: WaitlistEntry[];
-  currentEntry?: WaitlistEntry;
-  totalWaiting: number;
+  onWaitlist: boolean;
+  isSeated: boolean;
+  entry?: {
+    id: string;
+    playerName: string;
+    partySize: number;
+    tableType: string;
+    status: string;
+    tableNumber: number;
+    seatNumber?: number;
+    seatedAt?: string;
+    createdAt: string;
+  };
+  position: number | null;
+  totalInQueue: number | null;
+  availableTables: number | null;
+  tableInfo?: {
+    tableId: string;
+    tableName: string;
+    tableStatus: string;
+    gameType: string;
+  };
+  message?: string;
 }
 
 /**

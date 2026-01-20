@@ -62,7 +62,7 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose }:
       { 
         partySize: 1,
         tableType: currentTable?.gameType || 'Cash Game',
-        preferredSeat: seatNumber
+        requestedSeat: seatNumber // Send as requestedSeat (backend expects this field name)
       },
       {
         onSuccess: () => {

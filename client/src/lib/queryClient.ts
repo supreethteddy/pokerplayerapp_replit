@@ -60,8 +60,31 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+    const url = queryKey.join("/") as string;
+    
+    // Prepend API_BASE_URL if the URL starts with /api/
+    const fullUrl = url.startsWith("/api/")
+      ? `${API_BASE_URL}${url.substring(4)}` // Remove /api from url since API_BASE_URL already has it
+      : url;
+    
+    // Attach authenticated player/club headers for all API requests
+    const playerId =
+      localStorage.getItem(STORAGE_KEYS.PLAYER_ID) ||
+      sessionStorage.getItem(STORAGE_KEYS.PLAYER_ID) ||
+      undefined;
+    const clubId =
+      localStorage.getItem(STORAGE_KEYS.CLUB_ID) ||
+      sessionStorage.getItem(STORAGE_KEYS.CLUB_ID) ||
+      undefined;
+
+    const authHeaders = getAuthHeaders(
+      playerId as string | undefined,
+      clubId as string | undefined,
+    );
+
+    const res = await fetch(fullUrl, {
       credentials: "include",
+      headers: authHeaders,
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
