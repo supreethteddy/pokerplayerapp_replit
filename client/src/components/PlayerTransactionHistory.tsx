@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 interface Transaction {
-  id: number;
-  player_id: number;
+  id: string;
   type: string;
-  amount: string;
-  description: string;
-  created_at: string;
-  staff_id: string;
+  amount: number;
+  status: string;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface PlayerTransactionHistoryProps {
@@ -31,6 +31,8 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
         throw new Error('Failed to fetch transactions');
       }
       const data = await response.json();
+      console.log('📊 [PLAYER TRANSACTIONS] Response:', data);
+      console.log('📊 [PLAYER TRANSACTIONS] Transactions count:', data.transactions?.length || 0);
       return data.transactions || [];
     },
     enabled: !!playerId,
@@ -40,57 +42,32 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
   const transactions = transactionsData || [];
 
   const getTransactionIcon = (type: string) => {
-    switch (type) {
-      case 'cash_in': return '💰';
-      case 'cash_out': return '💳';
-      case 'table_buy_in': return '🎯';
-      case 'table_cash_out': return '🏆';
-      case 'add_credit': return '💳';
-      case 'clear_credit': return '🔄';
-      default: return '💸';
-    }
+    const t = type.toLowerCase();
+    if (t.includes('deposit') || t.includes('credit') || t.includes('bonus')) return '💰';
+    if (t.includes('cashout') || t.includes('withdrawal')) return '💳';
+    if (t.includes('buy in')) return '🎯';
+    if (t.includes('refund')) return '🔄';
+    return '💸';
   };
 
   const getTransactionLabel = (type: string) => {
-    switch (type) {
-      case 'cash_in': 
-      case 'funds_added': return 'Funds Added';
-      case 'cash_out': 
-      case 'cashier_withdrawal': return 'Cash Withdrawal';
-      case 'table_buy_in': return 'Table Buy-in';
-      case 'table_cash_out': return 'Table Cash-out';
-      case 'add_credit': return 'Add Credit';
-      case 'clear_credit': return 'Clear Credit';
-      default: return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-    }
+    // Return the type as-is, it's already properly formatted from backend
+    return type;
   };
 
   const getAmountColor = (type: string) => {
-    switch (type) {
-      case 'add_credit': return 'text-blue-400'; // Blue for add credit
-      case 'clear_credit': return 'text-orange-400'; // Orange for clear credit
-      case 'cash_in':
-      case 'table_cash_out': 
-      case 'funds_added': return 'text-emerald-400'; // Green for cash in/funds added
-      case 'cash_out':
-      case 'cashier_withdrawal':
-      case 'table_buy_in': return 'text-red-400'; // Red for cash out/withdrawals
-      default: return 'text-slate-400';
-    }
+    const t = type.toLowerCase();
+    if (t.includes('credit') || t.includes('bonus')) return 'text-blue-400';
+    if (t.includes('deposit') || t.includes('refund')) return 'text-emerald-400';
+    if (t.includes('cashout') || t.includes('withdrawal') || t.includes('buy in')) return 'text-red-400';
+    return 'text-slate-400';
   };
 
   const getAmountPrefix = (type: string) => {
-    switch (type) {
-      case 'add_credit': return '+'; // Positive for add credit
-      case 'clear_credit': return '-'; // Negative for clear credit
-      case 'cash_in':
-      case 'table_cash_out':
-      case 'funds_added': return '+'; // Positive for funds added
-      case 'cash_out':
-      case 'cashier_withdrawal':
-      case 'table_buy_in': return '-'; // Negative for withdrawals
-      default: return '';
-    }
+    const t = type.toLowerCase();
+    if (t.includes('deposit') || t.includes('credit') || t.includes('bonus') || t.includes('refund')) return '+';
+    if (t.includes('cashout') || t.includes('withdrawal') || t.includes('buy in')) return '-';
+    return '';
   };
 
   if (isLoading) {
@@ -131,23 +108,21 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
                     {getTransactionLabel(transaction.type)}
                   </div>
                   <div className="text-sm text-slate-400">
-                    {new Date(transaction.created_at).toLocaleDateString()} at{' '}
-                    {new Date(transaction.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(transaction.createdAt).toLocaleDateString()} at{' '}
+                    {new Date(transaction.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
-                  {transaction.description && (
+                  {transaction.notes && (
                     <div className="text-xs text-slate-500 mt-1">
-                      {transaction.description}
+                      {transaction.notes}
                     </div>
                   )}
-                  {transaction.staff_id && (
-                    <div className="text-xs text-slate-500">
-                      Processed by: {transaction.staff_id}
-                    </div>
-                  )}
+                  <div className="text-xs text-slate-500">
+                    Status: <span className={transaction.status === 'Completed' ? 'text-green-400' : 'text-yellow-400'}>{transaction.status}</span>
+                  </div>
                 </div>
               </div>
               <div className={`text-right font-bold text-lg ${getAmountColor(transaction.type)}`}>
-                {getAmountPrefix(transaction.type)}₹{parseFloat(transaction.amount).toLocaleString()}
+                {getAmountPrefix(transaction.type)}₹{transaction.amount.toLocaleString()}
               </div>
             </div>
           </div>
