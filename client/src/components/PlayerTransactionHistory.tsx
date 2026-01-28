@@ -20,54 +20,135 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
   const { data: transactionsData, isLoading } = useQuery({
     queryKey: [`/api/auth/player/transactions`, playerId, limit],
     queryFn: async () => {
-      const response = await fetch(`/api/auth/player/transactions?limit=${limit}`, {
-        headers: {
-          'x-player-id': playerId,
-          'x-club-id': localStorage.getItem('clubId') || sessionStorage.getItem('clubId') || '',
-        },
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch transactions');
+      // Try multiple endpoints as fallback
+      const endpoints = [
+        `/api/auth/player/transactions?limit=${limit}`,
+        `/api/player/${playerId}/transactions?limit=${limit}`,
+      ];
+
+      let lastError: Error | null = null;
+      
+      for (const endpoint of endpoints) {
+        try {
+          const response = await fetch(endpoint, {
+            headers: {
+              'x-player-id': playerId,
+              'x-club-id': localStorage.getItem('clubId') || sessionStorage.getItem('clubId') || '',
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            // Handle different response formats
+            if (Array.isArray(data)) {
+              return data;
+            } else if (data.transactions && Array.isArray(data.transactions)) {
+              return data.transactions;
+            } else if (data.data && Array.isArray(data.data)) {
+              return data.data;
+            }
+            return [];
+          }
+        } catch (error) {
+          lastError = error as Error;
+          console.warn(`Failed to fetch from ${endpoint}:`, error);
+          // Continue to next endpoint
+        }
       }
-      const data = await response.json();
-      console.log('📊 [PLAYER TRANSACTIONS] Response:', data);
-      console.log('📊 [PLAYER TRANSACTIONS] Transactions count:', data.transactions?.length || 0);
-      return data.transactions || [];
+
+      // If all endpoints failed, throw the last error
+      if (lastError) {
+        throw lastError;
+      }
+      throw new Error('Failed to fetch transactions from all endpoints');
     },
     enabled: !!playerId,
     refetchInterval: 30000, // Refetch every 30 seconds
+    retry: 2, // Retry failed requests
   });
 
   const transactions = transactionsData || [];
 
   const getTransactionIcon = (type: string) => {
-    const t = type.toLowerCase();
-    if (t.includes('deposit') || t.includes('credit') || t.includes('bonus')) return '💰';
-    if (t.includes('cashout') || t.includes('withdrawal')) return '💳';
-    if (t.includes('buy in')) return '🎯';
-    if (t.includes('refund')) return '🔄';
-    return '💸';
+    switch (type) {
+      case 'cash_in': 
+      case 'funds_added': 
+      case 'deposit': return '💰';
+      case 'cash_out': 
+      case 'cashier_withdrawal': 
+      case 'withdrawal': return '💳';
+      case 'table_buy_in': return '🎯';
+      case 'table_cash_out': return '🏆';
+      case 'add_credit': 
+      case 'credit_added': 
+      case 'credit_approved': return '💳';
+      case 'clear_credit': 
+      case 'credit_cleared': return '🔄';
+      case 'credit_transfer': return '🔄';
+      default: return '💸';
+    }
   };
 
   const getTransactionLabel = (type: string) => {
-    // Return the type as-is, it's already properly formatted from backend
-    return type;
+    switch (type) {
+      case 'cash_in': 
+      case 'funds_added': 
+      case 'deposit': return 'Funds Added';
+      case 'cash_out': 
+      case 'cashier_withdrawal': 
+      case 'withdrawal': return 'Cash Withdrawal';
+      case 'table_buy_in': return 'Table Buy-in';
+      case 'table_cash_out': return 'Table Cash-out';
+      case 'add_credit': 
+      case 'credit_added': 
+      case 'credit_approved': return 'Credit Added';
+      case 'clear_credit': 
+      case 'credit_cleared': return 'Credit Cleared';
+      case 'credit_transfer': return 'Credit Transfer';
+      default: return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
   };
 
   const getAmountColor = (type: string) => {
-    const t = type.toLowerCase();
-    if (t.includes('credit') || t.includes('bonus')) return 'text-blue-400';
-    if (t.includes('deposit') || t.includes('refund')) return 'text-emerald-400';
-    if (t.includes('cashout') || t.includes('withdrawal') || t.includes('buy in')) return 'text-red-400';
-    return 'text-slate-400';
+    switch (type) {
+      case 'add_credit': 
+      case 'credit_added': 
+      case 'credit_approved': return 'text-blue-400'; // Blue for add credit
+      case 'clear_credit': 
+      case 'credit_cleared': return 'text-orange-400'; // Orange for clear credit
+      case 'cash_in':
+      case 'table_cash_out': 
+      case 'funds_added': 
+      case 'deposit': return 'text-emerald-400'; // Green for cash in/funds added
+      case 'cash_out':
+      case 'cashier_withdrawal':
+      case 'table_buy_in': 
+      case 'withdrawal': return 'text-red-400'; // Red for cash out/withdrawals
+      case 'credit_transfer': return 'text-purple-400'; // Purple for credit transfer
+      default: return 'text-slate-400';
+    }
   };
 
   const getAmountPrefix = (type: string) => {
-    const t = type.toLowerCase();
-    if (t.includes('deposit') || t.includes('credit') || t.includes('bonus') || t.includes('refund')) return '+';
-    if (t.includes('cashout') || t.includes('withdrawal') || t.includes('buy in')) return '-';
-    return '';
+    switch (type) {
+      case 'add_credit': 
+      case 'credit_added': 
+      case 'credit_approved': return '+'; // Positive for add credit
+      case 'clear_credit': 
+      case 'credit_cleared': return '-'; // Negative for clear credit
+      case 'cash_in':
+      case 'table_cash_out':
+      case 'funds_added': 
+      case 'deposit': return '+'; // Positive for funds added
+      case 'cash_out':
+      case 'cashier_withdrawal':
+      case 'table_buy_in': 
+      case 'withdrawal': return '-'; // Negative for withdrawals
+      case 'credit_transfer': return '±'; // Transfer indicator
+      default: return '';
+    }
   };
 
   if (isLoading) {

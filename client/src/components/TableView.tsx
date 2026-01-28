@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Users, Clock, DollarSign, UserPlus, Plus, X } from "lucide-react";
+import { ArrowLeft, Users, Clock, DollarSign, UserPlus, Plus, X, LogOut } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useUltraFastAuth } from "@/hooks/useUltraFastAuth";
@@ -9,6 +9,8 @@ import { usePlayerGameStatus } from "@/hooks/usePlayerGameStatus";
 import { PlaytimeTracker } from "./PlaytimeTracker";
 import { useAvailableTables, useJoinWaitlist, useWaitlistStatus, useCancelWaitlist } from "@/hooks/usePlayerAPI";
 import { Badge } from "@/components/ui/badge";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 interface TableViewProps {
   tableId?: string;
@@ -46,43 +48,141 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose }:
   // Find table by ID (normalize both to strings for comparison)
   const currentTable = tablesArray.find((table: any) => String(table.id) === String(tableId));
 
-  // Fetch seated players from backend - will be populated when table APIs are enhanced
-  const seatedPlayers: any[] = [];  // TODO: Add API endpoint for seated players per table
-  const seatedPlayersArray = Array.isArray(seatedPlayers) ? seatedPlayers : [];
-  const potData = { pot: "0" };  // TODO: Add real-time pot data from table API
+  const queryClient = useQueryClient();
 
-  const isOnWaitlist = waitlistArray.some((req: any) => req.tableId === tableId);
-  const waitlistEntry = waitlistArray.find((req: any) => req.tableId === tableId);
-  const isUserSeated = gameStatus.isInActiveGame && gameStatus.activeGameInfo?.tableId === tableId;
-  const userSeatInfo = gameStatus.activeGameInfo || gameStatus.seatedSessionFallback;
-
-  // Join waitlist with backend API
-  const handleJoinWaitlist = (seatNumber: number) => {
-    joinWaitlistMutation.mutate(
-      { 
-        partySize: 1,
-        tableType: currentTable?.gameType || 'Cash Game',
-        requestedSeat: seatNumber // Send as requestedSeat (backend expects this field name)
-      },
-      {
-        onSuccess: () => {
+  // Join waitlist with backend API - with stale state handling
+  const handleJoinWaitlist = async (seatNumber: number) => {
+    // Proactively check for stale seated status before attempting join
+    if (gameStatus.isInActiveGame && gameStatus.activeGameInfo?.tableId) {
+      const seatedTableId = gameStatus.activeGameInfo.tableId;
+      const seatedTableExists = Array.isArray(tablesArray) && tablesArray.some(
+        (t: any) => String(t.id) === String(seatedTableId)
+      );
+      
+      if (!seatedTableExists) {
+        console.log("⚠️ [TABLE VIEW JOIN] Detected stale seated status - refreshing before join");
+        queryClient.invalidateQueries({ queryKey: ['/api/auth/player/waitlist', user?.id] });
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    // Also check waitlistData for stale seated entries
+    if (waitlistData?.isSeated && waitlistData?.tableInfo) {
+      const seatedTableId = waitlistData.tableInfo.tableId;
+      const seatedTableExists = Array.isArray(tablesArray) && tablesArray.some(
+        (t: any) => String(t.id) === String(seatedTableId)
+      );
+      
+      if (!seatedTableExists) {
+        console.log("⚠️ [TABLE VIEW JOIN] WaitlistData shows seated at non-existent table - refreshing");
+        queryClient.invalidateQueries({ queryKey: ['/api/auth/player/waitlist', user?.id] });
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    // Attempt join with retry logic for "already seated" errors
+    try {
+      await joinWaitlistMutation.mutateAsync(
+        { 
+          partySize: 1,
+          tableType: currentTable?.gameType || 'Cash Game',
+          requestedSeat: seatNumber
+        }
+      );
+      
+      // Success - close dialog and show success message
+      toast({
+        title: "Joined Waitlist!",
+        description: `You've been added to the waitlist for seat ${seatNumber}`,
+      });
+      setSelectedSeat(null);
+      setShowJoinDialog(false);
+      
+      // Invalidate all related queries
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/player/waitlist', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tables"] });
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Failed to join waitlist';
+      
+      // Check if error is about being seated
+      if (errorMessage.toLowerCase().includes('already seated') || 
+          errorMessage.toLowerCase().includes('seated at a table')) {
+        console.log("⚠️ [TABLE VIEW JOIN] Backend reports player is seated - attempting to clear stale state");
+        
+        // Force refresh all waitlist-related queries
+        queryClient.invalidateQueries({ queryKey: ['/api/auth/player/waitlist', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/tables"] });
+        
+        // Wait for backend to sync
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        // Retry the join once after refresh
+        try {
+          await joinWaitlistMutation.mutateAsync(
+            { 
+              partySize: 1,
+              tableType: currentTable?.gameType || 'Cash Game',
+              requestedSeat: seatNumber
+            }
+          );
+          
           toast({
             title: "Joined Waitlist!",
             description: `You've been added to the waitlist for seat ${seatNumber}`,
           });
           setSelectedSeat(null);
           setShowJoinDialog(false);
-        },
-        onError: (error: any) => {
+        } catch (retryError: any) {
+          const retryErrorMessage = retryError?.message || errorMessage;
           toast({
             title: "Failed to Join Waitlist",
-            description: error.message || "Please try again",
+            description: `${retryErrorMessage}. If the issue persists, please refresh the page or contact support.`,
             variant: "destructive",
           });
         }
+      } else {
+        // Other errors - show normally
+        toast({
+          title: "Failed to Join Waitlist",
+          description: errorMessage,
+          variant: "destructive",
+        });
       }
-    );
+    }
   };
+
+  // Fetch seated players for this specific table
+  const { data: seatedPlayersData, isLoading: seatedPlayersLoading } = useQuery({
+    queryKey: [`/api/table-seats/${tableId}`],
+    queryFn: async () => {
+      try {
+        const response = await apiRequest("GET", `/api/table-seats/${tableId}`);
+        if (!response.ok) {
+          return [];
+        }
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error("Failed to fetch seated players:", error);
+        return [];
+      }
+    },
+    enabled: !!tableId,
+    refetchInterval: 5000, // Refresh every 5 seconds
+  });
+
+  const seatedPlayersArray = Array.isArray(seatedPlayersData) ? seatedPlayersData : [];
+  const potData = { pot: "0" };  // TODO: Add real-time pot data from table API
+
+  const isOnWaitlist = waitlistArray.some((req: any) => req.tableId === tableId);
+  const waitlistEntry = waitlistArray.find((req: any) => req.tableId === tableId);
+  const isUserSeated = gameStatus.isInActiveGame && gameStatus.activeGameInfo?.tableId === tableId;
+  const userSeatInfo = gameStatus.activeGameInfo || gameStatus.seatedSessionFallback;
+  
+  // Check if game has started (session started means game is active)
+  const gameStarted = userSeatInfo?.sessionStarted || false;
 
   if (!currentTable) {
     return (
@@ -164,7 +264,10 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose }:
 
                   const seatedPlayer = seatedPlayersArray.find((p: any) => p.seatNumber === seatNumber);
                   const isOccupied = !!seatedPlayer;
-                  const playerBuyIn = seatedPlayer?.session_buy_in_amount || seatedPlayer?.sessionBuyInAmount || 0;
+                  const playerBuyIn = seatedPlayer?.session_buy_in_amount || seatedPlayer?.sessionBuyInAmount || seatedPlayer?.buyInAmount || 0;
+                  const playerName = seatedPlayer?.player?.firstName || seatedPlayer?.playerName || '';
+                  const playerLastName = seatedPlayer?.player?.lastName || '';
+                  const playerInitials = playerName ? `${playerName.charAt(0)}${playerLastName.charAt(0)}` : '';
 
                   return (
                     <div
@@ -195,9 +298,11 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose }:
                         }}
                       >
                         {isOccupied ? (
-                          <span className="text-white text-[10px] sm:text-xs font-bold">
-                            {seatedPlayer.player.firstName.charAt(0)}{seatedPlayer.player.lastName.charAt(0)}
-                          </span>
+                          <div className="w-full h-full rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center border-2 border-blue-400">
+                            <span className="text-white text-[10px] sm:text-xs font-bold">
+                              {playerInitials || 'P'}
+                            </span>
+                          </div>
                         ) : (
                           <Plus className={`w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400 font-bold transition-transform duration-300 ${
                             isSelected ? 'rotate-45 scale-110' : 'hover:rotate-90 hover:scale-110'
@@ -213,7 +318,7 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose }:
                             : 'text-slate-300'
                       }`}>
                         <div className="text-[10px] sm:text-xs font-medium">
-                          {isOccupied ? seatedPlayer.player.firstName : `Seat ${seatNumber}`}
+                          {isOccupied ? (playerName || `Player ${seatNumber}`) : `Seat ${seatNumber}`}
                         </div>
                         {isOccupied && playerBuyIn > 0 && (
                           <div className="text-[8px] sm:text-[10px] text-slate-400 bg-slate-800/80 px-1 rounded mt-0.5 sm:mt-1">
@@ -314,9 +419,45 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose }:
                       You are seated at Seat {userSeatInfo.seatNumber}
                     </h3>
                   </div>
-                  <div className="text-blue-300 text-xs sm:text-sm flex-shrink-0 hidden sm:block">
-                    Seated at Table
-                  </div>
+                  {!gameStarted && (
+                    <Button
+                      onClick={async () => {
+                        try {
+                          // Leave table session
+                          const response = await apiRequest("POST", `/api/table/leave`, {
+                            tableId: tableId,
+                            playerId: user?.id,
+                          });
+                          if (response.ok) {
+                            queryClient.invalidateQueries({ queryKey: [`/api/table-seats/${tableId}`] });
+                            queryClient.invalidateQueries({ queryKey: ["/api/table-seats", user?.id] });
+                            toast({
+                              title: "Left Table",
+                              description: "You have left the table. You can now join another table.",
+                            });
+                            if (onClose) onClose();
+                            else setLocation("/");
+                          }
+                        } catch (error: any) {
+                          toast({
+                            title: "Failed to Leave",
+                            description: error.message || "Could not leave table",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                      variant="outline"
+                      className="bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 flex-shrink-0 min-h-[44px] text-sm sm:text-base"
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Leave Table
+                    </Button>
+                  )}
+                  {gameStarted && (
+                    <div className="text-blue-300 text-xs sm:text-sm flex-shrink-0 hidden sm:block">
+                      Game Started
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">

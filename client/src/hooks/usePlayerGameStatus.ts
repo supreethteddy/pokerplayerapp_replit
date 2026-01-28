@@ -66,34 +66,51 @@ export function usePlayerGameStatus(): GameStatusInfo {
   console.log('🎯 [GAME STATUS] Raw waitlistStatusData:', waitlistStatusData);
 
   // Check if player is seated (from the waitlist status API)
+  // IMPORTANT: Also verify that the table still exists in the tables list
+  // This prevents showing stale game status after table deletion or session end
   if (waitlistStatusData?.isSeated && waitlistStatusData?.entry && waitlistStatusData?.tableInfo) {
     const { entry, tableInfo } = waitlistStatusData as any;
     
-    // Player is seated at a table!
-    isInActiveGame = true; // Treat all seated players as in active game
-    canJoinWaitlists = false; // Can't join another waitlist while seated
-    restrictionMessage = `You must call time from Table ${entry.tableNumber} before joining another game`;
+    // Verify table still exists in the tables list
+    const tableExists = Array.isArray(tables) && tables.some(
+      (table: any) => String(table.id) === String(tableInfo.tableId)
+    );
     
-    activeGameInfo = {
-      tableId: tableInfo.tableId,
-      tableName: tableInfo.tableName || `Table ${entry.tableNumber}`,
-      gameType: tableInfo.gameType || 'Cash Game',
-      position: 0, // Seated players don't have waitlist position
-      seatNumber: entry.seatNumber || entry.tableNumber,
-      status: 'PLAYING NOW'
-    };
+    // Only set as active game if table still exists
+    if (tableExists && tableInfo.tableId) {
+      // Player is seated at a table!
+      isInActiveGame = true; // Treat all seated players as in active game
+      canJoinWaitlists = false; // Can't join another waitlist while seated
+      restrictionMessage = `You must call time from Table ${entry.tableNumber} before joining another game`;
+      
+      activeGameInfo = {
+        tableId: tableInfo.tableId,
+        tableName: tableInfo.tableName || `Table ${entry.tableNumber}`,
+        gameType: tableInfo.gameType || 'Cash Game',
+        position: 0, // Seated players don't have waitlist position
+        seatNumber: entry.seatNumber || entry.tableNumber,
+        status: 'PLAYING NOW'
+      };
 
-    // CREATE FALLBACK SESSION DATA for immediate PlaytimeTracker display
-    seatedSessionFallback = {
-      tableId: tableInfo.tableId,
-      tableName: tableInfo.tableName || `Table ${entry.tableNumber}`,
-      gameType: tableInfo.gameType || 'Cash Game',
-      seatNumber: entry.seatNumber || entry.tableNumber,
-      status: 'seated',
-      sessionStartTime: entry.seatedAt
-    };
+      // CREATE FALLBACK SESSION DATA for immediate PlaytimeTracker display
+      seatedSessionFallback = {
+        tableId: tableInfo.tableId,
+        tableName: tableInfo.tableName || `Table ${entry.tableNumber}`,
+        gameType: tableInfo.gameType || 'Cash Game',
+        seatNumber: entry.seatNumber || entry.tableNumber,
+        status: 'seated',
+        sessionStartTime: entry.seatedAt
+      };
 
-    console.log('✅ [GAME STATUS] Player is SEATED:', activeGameInfo);
+      console.log('✅ [GAME STATUS] Player is SEATED:', activeGameInfo);
+    } else {
+      console.log('⚠️ [GAME STATUS] Player marked as seated but table no longer exists - clearing status');
+      // Table was deleted or session ended - clear the status
+      isInActiveGame = false;
+      canJoinWaitlists = true;
+      activeGameInfo = undefined;
+      seatedSessionFallback = undefined;
+    }
   } else if (waitlistStatusData?.onWaitlist && waitlistStatusData?.entry) {
     // Player is on waitlist (PENDING status)
     const { entry } = waitlistStatusData as any;

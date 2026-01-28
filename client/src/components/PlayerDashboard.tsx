@@ -54,6 +54,7 @@ import {
   RotateCcw,
   Trash2,
   Coffee,
+  DollarSign,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
@@ -172,117 +173,119 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
         </Card>
       )}
 
-      {/* Scrollable offers container */}
-      <div className="max-h-[600px] overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
-        {Array.isArray(displayOffers) &&
-          displayOffers.map((offer: any) => (
-            <Card
-              key={offer.id}
-              id={`offer-${offer.id}`}
-              className={`border-2 hover:opacity-90 transition-all duration-300 ${branding ? getGradientClasses(branding.gradient) : 'bg-gradient-to-br from-emerald-800 to-emerald-900 border-emerald-600'}`}
-              onClick={() => trackOfferView.mutate(offer.id)}
-              style={branding ? { borderColor: branding.skinColor } : {}}
-            >
-              <CardContent className="p-0">
-                {/* Staff portal media or fallback */}
-                <div className="relative">
-                  {offer.video_url ? (
-                    <div className="aspect-video rounded-t-lg overflow-hidden bg-slate-900">
-                      <video
-                        className="w-full h-full object-cover"
-                        poster={offer.image_url}
-                        controls
-                        preload="metadata"
-                      >
-                        <source src={offer.video_url} type="video/mp4" />
-                      </video>
-                    </div>
-                  ) : offer.image_url ? (
-                    <div className="aspect-video rounded-t-lg overflow-hidden bg-slate-900">
-                      <img
-                        src={offer.image_url}
-                        alt={offer.title}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className={`aspect-video rounded-t-lg flex items-center justify-center ${branding ? getGradientClasses(branding.gradient) : 'bg-gradient-to-br from-emerald-600 to-emerald-800'}`}>
-                      <Gift className="w-16 h-16 text-white" />
-                    </div>
-                  )}
+      {/* Scrollable offers container - Flex layout with responsive columns */}
+      <div className="overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
+        <div className="flex flex-wrap gap-4">
+          {Array.isArray(displayOffers) &&
+            displayOffers.map((offer: any) => (
+              <Card
+                key={offer.id}
+                id={`offer-${offer.id}`}
+                className={`w-full sm:w-[calc(50%-0.5rem)] lg:w-[calc(33.333%-0.67rem)] border-2 hover:opacity-90 transition-all duration-300 ${branding ? getGradientClasses(branding.gradient) : 'bg-gradient-to-br from-emerald-800 to-emerald-900 border-emerald-600'}`}
+                onClick={() => trackOfferView.mutate(offer.id)}
+                style={branding ? { borderColor: branding.skinColor } : {}}
+              >
+                <CardContent className="p-0">
+                  {/* Staff portal media or fallback */}
+                  <div className="relative">
+                    {offer.video_url ? (
+                      <div className="aspect-video rounded-t-lg overflow-hidden bg-slate-900">
+                        <video
+                          className="w-full h-full object-cover"
+                          poster={offer.image_url}
+                          controls
+                          preload="metadata"
+                        >
+                          <source src={offer.video_url} type="video/mp4" />
+                        </video>
+                      </div>
+                    ) : offer.image_url ? (
+                      <div className="aspect-video rounded-t-lg overflow-hidden bg-slate-900">
+                        <img
+                          src={offer.image_url}
+                          alt={offer.title}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className={`aspect-video rounded-t-lg flex items-center justify-center ${branding ? getGradientClasses(branding.gradient) : 'bg-gradient-to-br from-emerald-600 to-emerald-800'}`}>
+                        <Gift className="w-12 h-12 text-white" />
+                      </div>
+                    )}
 
-                  {/* Offer type badge */}
-                  <Badge
-                    className={`absolute top-3 right-3 ${
-                      offer.offer_type === "banner"
-                        ? "bg-blue-600"
-                        : offer.offer_type === "carousel"
-                        ? "bg-purple-600"
-                        : "bg-orange-600"
-                    }`}
-                  >
-                    {offer.offer_type}
-                  </Badge>
-                </div>
+                    {/* Offer type badge */}
+                    <Badge
+                      className={`absolute top-2 right-2 text-xs ${
+                        offer.offer_type === "banner"
+                          ? "bg-blue-600"
+                          : offer.offer_type === "carousel"
+                          ? "bg-purple-600"
+                          : "bg-orange-600"
+                      }`}
+                    >
+                      {offer.offer_type}
+                    </Badge>
+                  </div>
 
-                {/* Dynamic Content Area */}
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-white mb-3">
-                    {offer.title}
-                  </h3>
+                  {/* Dynamic Content Area */}
+                  <div className="p-4">
+                    <h3 className="text-lg font-bold text-white mb-2 line-clamp-2">
+                      {offer.title}
+                    </h3>
 
-                  {/* Dynamic description with responsive sizing */}
-                  {offer.description && (
-                    <div className="text-slate-300 leading-relaxed mb-4">
-                      <p
-                        className={`${
-                          offer.description.length > 200
-                            ? "text-sm"
-                            : offer.description.length > 100
-                            ? "text-base"
-                            : "text-lg"
-                        }`}
-                      >
-                        {offer.description}
-                      </p>
-                    </div>
-                  )}
+                    {/* Dynamic description with responsive sizing */}
+                    {offer.description && (
+                      <div className="text-slate-300 leading-relaxed mb-3">
+                        <p
+                          className={`line-clamp-3 ${
+                            offer.description.length > 150
+                              ? "text-xs"
+                              : offer.description.length > 80
+                              ? "text-sm"
+                              : "text-sm"
+                          }`}
+                        >
+                          {offer.description}
+                        </p>
+                      </div>
+                    )}
 
-                  {/* Date range if available */}
-                  {(offer.start_date || offer.end_date) && (
-                    <div className="flex items-center text-sm text-slate-400 mb-4">
-                      <Calendar className="w-4 h-4 mr-2" />
-                      {offer.start_date &&
-                        new Date(offer.start_date).toLocaleDateString()}
-                      {offer.start_date && offer.end_date && " - "}
-                      {offer.end_date &&
-                        new Date(offer.end_date).toLocaleDateString()}
-                    </div>
-                  )}
+                    {/* Date range if available */}
+                    {(offer.start_date || offer.end_date) && (
+                      <div className="flex items-center text-xs text-slate-400 mb-3">
+                        <Calendar className="w-3 h-3 mr-1" />
+                        {offer.start_date &&
+                          new Date(offer.start_date).toLocaleDateString()}
+                        {offer.start_date && offer.end_date && " - "}
+                        {offer.end_date &&
+                          new Date(offer.end_date).toLocaleDateString()}
+                      </div>
+                    )}
 
-                  {/* Action button */}
-                  <Button
-                    className="w-full hover:opacity-90"
-                    style={branding ? { backgroundColor: branding.skinColor } : {}}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      trackOfferView.mutate(offer.id);
-                      // Use click_url if available, otherwise show details dialog
-                      if (offer.click_url) {
-                        window.open(offer.click_url, "_blank");
-                      } else {
-                        setSelectedOffer(offer);
-                        setOfferDetailsOpen(true);
-                      }
-                    }}
-                  >
-                    <Star className="w-4 h-4 mr-2" />
-                    {offer.click_url ? "Visit Offer" : "View Details"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    {/* Action button */}
+                    <Button
+                      className="w-full hover:opacity-90 text-sm py-2 h-auto"
+                      style={branding ? { backgroundColor: branding.skinColor } : {}}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        trackOfferView.mutate(offer.id);
+                        // Use click_url if available, otherwise show details dialog
+                        if (offer.click_url) {
+                          window.open(offer.click_url, "_blank");
+                        } else {
+                          setSelectedOffer(offer);
+                          setOfferDetailsOpen(true);
+                        }
+                      }}
+                    >
+                      <Star className="w-3 h-3 mr-2" />
+                      {offer.click_url ? "Visit Offer" : "View Details"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+        </div>
       </div>
 
       {/* Offer Details Dialog */}
@@ -695,6 +698,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     currentPlayers: table.currentSeats || 0,
     pot: 0, // TODO: Add real-time pot data
     avgStack: 0, // TODO: Add average stack calculation
+    // Here, status === 'AVAILABLE' means the table is open and accepting players
+    // We'll treat this as "isAvailable" in the UI logic below
     isActive: table.status === 'AVAILABLE',
   }));
 
@@ -891,23 +896,100 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // Simple join waitlist - no seat selection required
   const joinWaitListMutation = useMutation({
     mutationFn: async (tableId: string) => {
+      setPendingJoinTableId(tableId); // Set pending state for this specific table
       console.log(
         "🎯 [SIMPLE JOIN] Joining waitlist for table:",
         tableId,
         "player:",
         user?.id
       );
+      
+      // Proactively check for stale seated status before attempting join
+      // If player is marked as seated but table doesn't exist, refresh status first
+      if (gameStatus.isInActiveGame && gameStatus.activeGameInfo?.tableId) {
+        const seatedTableId = gameStatus.activeGameInfo.tableId;
+        const seatedTableExists = Array.isArray(tables) && tables.some(
+          (t: any) => String(t.id) === String(seatedTableId)
+        );
+        
+        if (!seatedTableExists) {
+          console.log("⚠️ [SIMPLE JOIN] Detected stale seated status for non-existent table - refreshing status");
+          // Force refresh waitlist status to sync with backend
+          queryClient.invalidateQueries({ queryKey: ['/api/auth/player/waitlist', user?.id] });
+          queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] });
+          // Wait for refresh to complete
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+      
+      // Also check waitlistData for stale seated entries
+      if (waitlistData?.isSeated && waitlistData?.tableInfo) {
+        const seatedTableId = waitlistData.tableInfo.tableId;
+        const seatedTableExists = Array.isArray(tables) && tables.some(
+          (t: any) => String(t.id) === String(seatedTableId)
+        );
+        
+        if (!seatedTableExists) {
+          console.log("⚠️ [SIMPLE JOIN] WaitlistData shows seated at non-existent table - refreshing");
+          queryClient.invalidateQueries({ queryKey: ['/api/auth/player/waitlist', user?.id] });
+          queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] });
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+      
       const response = await apiRequest("POST", "/api/seat-requests", {
         playerId: user?.id,
         tableId: tableId,
         tableName: tables?.find((t: any) => t.id === tableId)?.name || "Table",
         seatNumber: 1, // Default seat preference
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        const errorMessage = errorData.error || errorData.message || 'Failed to join waitlist';
+        
+        // Check if error is about being seated at a non-existent table
+        if (errorMessage.toLowerCase().includes('already seated') || 
+            errorMessage.toLowerCase().includes('seated at a table')) {
+          console.log("⚠️ [SIMPLE JOIN] Backend reports player is seated - attempting to clear stale state");
+          
+          // Force refresh all waitlist-related queries
+          queryClient.invalidateQueries({ queryKey: ['/api/auth/player/waitlist', user?.id] });
+          queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/tables"] });
+          
+          // Wait longer for backend to sync
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          // Retry the join once after refresh
+          const retryResponse = await apiRequest("POST", "/api/seat-requests", {
+            playerId: user?.id,
+            tableId: tableId,
+            tableName: tables?.find((t: any) => t.id === tableId)?.name || "Table",
+            seatNumber: 1,
+          });
+          
+          if (!retryResponse.ok) {
+            const retryErrorData = await retryResponse.json().catch(() => ({ error: 'Unknown error' }));
+            const retryError = retryErrorData.error || retryErrorData.message || errorMessage;
+            throw new Error(`${retryError}. If the issue persists, please refresh the page or contact support.`);
+          }
+          
+          return retryResponse.json();
+        }
+        
+        throw new Error(errorMessage);
+      }
+      
       return response.json();
     },
     onSuccess: () => {
       console.log("✅ [SIMPLE JOIN] Success!");
+      setPendingJoinTableId(null); // Clear pending state
+      // Invalidate all related queries
       queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/player/waitlist', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tables"] });
       toast({
         title: "Joined Waitlist",
         description: "You've been added to the waitlist successfully",
@@ -915,6 +997,17 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     },
     onError: (error: any) => {
       console.error("❌ [SIMPLE JOIN] Error:", error);
+      setPendingJoinTableId(null); // Clear pending state on error
+      
+      // If error is about being seated, invalidate queries to refresh status
+      if (error.message && (
+        error.message.toLowerCase().includes('already seated') || 
+        error.message.toLowerCase().includes('seated at a table')
+      )) {
+        queryClient.invalidateQueries({ queryKey: ['/api/auth/player/waitlist', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] });
+      }
+      
       toast({
         title: "Failed to Join",
         description: error.message || "Could not join waitlist",
@@ -926,6 +1019,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // Leave wait-list mutation
   const leaveWaitListMutation = useMutation({
     mutationFn: async (tableId: string) => {
+      setPendingLeaveTableId(tableId); // Set pending state for this specific table
       console.log(
         `🚪 [LEAVE WAITLIST] Attempting to leave waitlist for table: ${tableId}`
       );
@@ -958,6 +1052,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       return result;
     },
     onSuccess: (data) => {
+      setPendingLeaveTableId(null); // Clear pending state
       queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tables"] });
       toast({
@@ -968,6 +1063,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     },
     onError: (error: any) => {
       console.error("❌ [LEAVE WAITLIST] Mutation error:", error);
+      setPendingLeaveTableId(null); // Clear pending state on error
       toast({
         title: "Failed to Leave",
         description: error.message || "Could not leave wait-list",
@@ -1075,6 +1171,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const handleLeaveWaitList = (tableId: string) => {
     leaveWaitListMutation.mutate(tableId);
   };
+
+  // Track which specific table is being acted upon for isolated state management
+  const [pendingJoinTableId, setPendingJoinTableId] = useState<string | null>(null);
+  const [pendingLeaveTableId, setPendingLeaveTableId] = useState<string | null>(null);
 
   // Removed cleanup and leave all mutations as requested
 
@@ -2337,7 +2437,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       style={Object.keys(gradientStyle).length > 0 ? gradientStyle : undefined}
     >
       {/* Active Game Status Banner */}
-      {gameStatus.activeGameInfo && (
+      {gameStatus.isInActiveGame && gameStatus.activeGameInfo && (
         <div
           className={`border-b px-3 sm:px-6 py-3 sm:py-4 notification-banner ${
             gameStatus.isInActiveGame
@@ -2742,18 +2842,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 </Card>
               )}
 
-              {/* Staff-Managed Offer Carousel */}
-              <OfferCarousel
-                onOfferClick={(offerId) => {
-                  console.log(
-                    "🎯 [OFFER CLICK] Switching to offers tab:",
-                    offerId
-                  );
-                  // Switch to offers tab instead of navigating
-                  setActiveTab("offers");
-                }}
-              />
-
               <div className="w-full max-w-full space-y-3 sm:space-y-4">
                 {/* Toggle State for Cash Tables vs Tournaments - Improved Alignment */}
                 <div className="flex items-center justify-center space-x-2 mb-6 bg-slate-800/50 rounded-xl p-1 max-w-md mx-auto">
@@ -2893,20 +2981,20 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                       <div
                                         className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full flex-shrink-0 ${
                                           table.isActive
-                                            ? "bg-red-500"
-                                            : "bg-green-500"
+                                            ? "bg-green-500"
+                                            : "bg-red-500"
                                         }`}
                                       ></div>
                                       <span
                                         className={`text-[0.65rem] sm:text-xs ${
                                           table.isActive
-                                            ? "text-red-400"
-                                            : "text-green-400"
+                                            ? "text-green-400"
+                                            : "text-red-400"
                                         }`}
                                       >
                                         {table.isActive
-                                          ? "Game In Progress"
-                                          : "Accepting Players"}
+                                          ? "Accepting Players"
+                                          : "Game In Progress"}
                                       </span>
                                     </div>
                                   </div>
@@ -2934,12 +3022,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                   {/* Average Stack element hidden as requested */}
                                 </div>
 
-                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-2">
-                                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:space-x-2 min-w-0 flex-1">
+                                <div className="flex flex-col gap-3 w-full overflow-hidden">
+                                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-2 min-w-0 flex-1 w-full">
                                     {isTableJoined(String(table.id)) ? (
                                       <>
-                                        <div className="flex flex-wrap items-center gap-2">
-                                          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs sm:text-sm whitespace-nowrap">
+                                        <div className="flex flex-wrap items-center gap-2 min-w-0">
+                                          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
                                             Joined
                                           </Badge>
                                           <span className="text-xs sm:text-sm text-slate-400 whitespace-nowrap">
@@ -2954,7 +3042,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                           typeof tableStatuses === "object" &&
                                           tableStatuses !== null &&
                                           String(table.id) in tableStatuses && (
-                                            <div className="flex items-center space-x-1">
+                                            <div className="flex items-center space-x-1 flex-shrink-0">
                                               {(
                                                 tableStatuses as Record<
                                                   string,
@@ -2962,7 +3050,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                                 >
                                               )[String(table.id)]
                                                 ?.gameStarted && (
-                                                <span className="text-[0.65rem] sm:text-xs text-amber-400">
+                                                <span className="text-[0.65rem] sm:text-xs text-amber-400 whitespace-nowrap">
                                                   ⚠️ Game started
                                                 </span>
                                               )}
@@ -2986,13 +3074,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                               )
                                             }
                                             disabled={
-                                              leaveWaitListMutation.isPending
+                                              pendingLeaveTableId === String(table.id)
                                             }
                                             size="sm"
                                             variant="outline"
-                                            className="bg-gradient-to-r from-slate-600/30 to-slate-500/30 border border-slate-400/50 text-slate-300 hover:from-slate-500/40 hover:to-slate-400/40 hover:border-slate-300 hover:text-slate-200 transition-all duration-300 shadow-lg hover:shadow-slate-500/25 backdrop-blur-sm min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto"
+                                            className="bg-gradient-to-r from-slate-600/30 to-slate-500/30 border border-slate-400/50 text-slate-300 hover:from-slate-500/40 hover:to-slate-400/40 hover:border-slate-300 hover:text-slate-200 transition-all duration-300 shadow-lg hover:shadow-slate-500/25 backdrop-blur-sm min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto flex-shrink-0"
                                           >
-                                            {leaveWaitListMutation.isPending ? (
+                                            {pendingLeaveTableId === String(table.id) ? (
                                               <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-slate-300 border-t-transparent rounded-full animate-spin mr-2" />
                                             ) : null}
                                             Leave
@@ -3000,13 +3088,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                         )}
                                       </>
                                     ) : waitlistData?.onWaitlist ? (
-                                      <div className="flex flex-col space-y-2 w-full">
-                                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 sm:p-3">
-                                          <div className="flex items-center justify-between mb-1">
-                                            <span className="text-xs sm:text-sm font-semibold text-amber-400">On Waitlist</span>
-                                            <Badge className="bg-amber-500 text-black text-xs">#{waitlistData.position}</Badge>
+                                      <div className="flex flex-col space-y-2 w-full min-w-0">
+                                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 sm:p-3 overflow-hidden">
+                                          <div className="flex items-center justify-between mb-1 gap-2">
+                                            <span className="text-xs sm:text-sm font-semibold text-amber-400 truncate">On Waitlist</span>
+                                            <Badge className="bg-amber-500 text-black text-xs flex-shrink-0">#{waitlistData.position}</Badge>
                                           </div>
-                                          <p className="text-[0.65rem] sm:text-xs text-slate-300">
+                                          <p className="text-[0.65rem] sm:text-xs text-slate-300 break-words">
                                             {waitlistData.entry?.tableType}
                                           </p>
                                         </div>
@@ -3019,7 +3107,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                           disabled={cancelWaitlistMutation.isPending}
                                           size="sm"
                                           variant="outline"
-                                          className="bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full"
+                                          className="bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full flex-shrink-0"
                                         >
                                           {cancelWaitlistMutation.isPending ? (
                                             <>
@@ -3034,21 +3122,34 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                           )}
                                         </Button>
                                       </div>
-                                    ) : gameStatus.isInActiveGame ? (
-                                      <div className="flex flex-col space-y-2 w-full">
+                                    ) : (gameStatus.isInActiveGame &&
+                                         gameStatus.activeGameInfo?.tableId === String(table.id)) ? (
+                                      <div className="flex flex-col space-y-2 w-full min-w-0">
                                         <Button
                                           disabled={true}
                                           size="sm"
-                                          className="bg-slate-600 text-slate-400 cursor-not-allowed opacity-50 min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full"
+                                          className="bg-slate-600 text-slate-400 cursor-not-allowed opacity-50 min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full flex-shrink-0"
                                         >
-                                          <AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                                          <span className="hidden sm:inline">Cannot Join - Playing at Another Table</span>
-                                          <span className="sm:hidden">Cannot Join</span>
+                                          <AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4 mr-2 flex-shrink-0" />
+                                          <span className="hidden sm:inline truncate">Cannot Join - Playing at Another Table</span>
+                                          <span className="sm:hidden truncate">Cannot Join</span>
                                         </Button>
-                                        <div className="text-[0.65rem] sm:text-xs text-amber-400 flex items-center">
-                                          <AlertTriangle className="w-3 h-3 mr-1 flex-shrink-0" />
-                                          <span className="break-words">Cash out from {gameStatus.activeGameInfo?.tableName} first</span>
+                                        <div className="text-[0.65rem] sm:text-xs text-amber-400 flex items-start gap-1 mb-2 min-w-0">
+                                          <AlertTriangle className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                                          <span className="break-words min-w-0">Cash out from {gameStatus.activeGameInfo?.tableName} first</span>
                                         </div>
+                                        {gameStatus.activeGameInfo?.tableId && (
+                                          <Link href={`/table/${gameStatus.activeGameInfo.tableId}`} className="w-full">
+                                            <Button
+                                              size="sm"
+                                              className="hover:opacity-90 text-white shadow-lg transition-all duration-300 border backdrop-blur-sm min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full flex-shrink-0"
+                                              style={getClubButtonStyle('primary')}
+                                            >
+                                              <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 mr-2 flex-shrink-0" />
+                                              <span className="truncate">Go to Table & Cash Out</span>
+                                            </Button>
+                                          </Link>
+                                        )}
                                       </div>
                                     ) : (
                                       <Button
@@ -3056,17 +3157,18 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                           handleJoinWaitList(String(table.id))
                                         }
                                         disabled={
-                                          joinWaitListMutation.isPending ||
-                                          gameStatus.isInActiveGame
+                                          pendingJoinTableId === String(table.id) ||
+                                          (gameStatus.isInActiveGame &&
+                                           gameStatus.activeGameInfo?.tableId === String(table.id))
                                         }
                                         size="sm"
-                                        className="hover:opacity-90 text-white shadow-lg transition-all duration-300 border backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto"
+                                        className="hover:opacity-90 text-white shadow-lg transition-all duration-300 border backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto flex-shrink-0"
                                         style={getClubButtonStyle('primary')}
                                       >
-                                        {joinWaitListMutation.isPending ? (
-                                          <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                                        {pendingJoinTableId === String(table.id) ? (
+                                          <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2 flex-shrink-0" />
                                         ) : (
-                                          <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                                          <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-2 flex-shrink-0" />
                                         )}
                                         <span className="hidden sm:inline">Join Wait-List</span>
                                         <span className="sm:hidden">Join</span>
@@ -3074,10 +3176,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     )}
                                   </div>
 
-                                  <div className="flex items-center justify-between sm:justify-end gap-2 sm:space-x-2 flex-shrink-0">
+                                  <div className="flex items-center justify-between sm:justify-end gap-2 flex-shrink-0 w-full sm:w-auto">
                                     <Badge
                                       variant="secondary"
-                                      className="bg-slate-600 text-slate-300 text-xs sm:text-sm whitespace-nowrap"
+                                      className="bg-slate-600 text-slate-300 text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
                                     >
                                       {table.isActive ? "Active" : "Inactive"}
                                     </Badge>
@@ -3090,11 +3192,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                       }}
                                       size="sm"
                                       variant="outline"
-                                      className="border-2 hover:opacity-80 transition-all duration-300 shadow-lg backdrop-blur-sm min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm px-3 sm:px-4"
+                                      className="border-2 hover:opacity-80 transition-all duration-300 shadow-lg backdrop-blur-sm min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm px-3 sm:px-4 flex-shrink-0 w-full sm:w-auto"
                                       style={getClubButtonStyle('secondary')}
                                     >
-                                      <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                                      View
+                                      <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1 flex-shrink-0" />
+                                      <span className="truncate">View</span>
                                     </Button>
                                   </div>
                                 </div>
@@ -3236,8 +3338,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </div>
                               </div>
 
-                              <div className="flex justify-between items-center">
-                                <div className="flex items-center space-x-2">
+                              <div className="flex flex-col gap-3 w-full overflow-hidden">
+                                <div className="flex flex-wrap items-center gap-2 min-w-0">
                                   <Badge
                                     className={`${
                                       tournament.status === "upcoming" || tournament.status === "scheduled"
@@ -3247,7 +3349,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                         : tournament.status === "finished"
                                         ? "bg-gray-500/20 text-gray-300 border-gray-500/30"
                                         : "bg-slate-500/20 text-slate-300 border-slate-500/30"
-                                    }`}
+                                    } text-xs sm:text-sm whitespace-nowrap flex-shrink-0`}
                                   >
                                     {tournament.status
                                       ? tournament.status
@@ -3257,18 +3359,18 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                       : "Unknown"}
                                   </Badge>
                                   {tournament.structure && typeof tournament.structure === 'object' && (
-                                    <span className="text-sm text-slate-400">
+                                    <span className="text-xs sm:text-sm text-slate-400 whitespace-nowrap flex-shrink-0">
                                       {tournament.structure.tournament_type || 'Standard'}
                                     </span>
                                   )}
                                   {tournament.structure && typeof tournament.structure === 'string' && (
-                                    <span className="text-sm text-slate-400">
+                                    <span className="text-xs sm:text-sm text-slate-400 whitespace-nowrap flex-shrink-0">
                                       {tournament.structure}
                                     </span>
                                   )}
                                 </div>
 
-                                <div className="flex items-center space-x-2">
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-shrink-0 w-full sm:w-auto">
                                   {(tournament.status === "upcoming" || tournament.status === "scheduled" || tournament.status === "registration_open" || tournament.status === "registering") && (
                                     <>
                                       <Button
@@ -3279,9 +3381,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                         }
                                         size="sm"
                                         variant="outline"
-                                        className="border-slate-500 text-slate-200 hover:bg-slate-600"
+                                        className="border-slate-500 text-slate-200 hover:bg-slate-600 min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto flex-shrink-0"
                                       >
-                                        View Details
+                                        <span className="truncate">View Details</span>
                                       </Button>
                                       {isRegistered(
                                         tournament.id
@@ -3289,10 +3391,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                         <Button
                                           size="sm"
                                           disabled
-                                          className="text-white"
+                                          className="text-white min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto flex-shrink-0"
                                           style={getClubButtonStyle('primary')}
                                         >
-                                          Registered
+                                          <span className="truncate">Registered</span>
                                         </Button>
                                       ) : (
                                         <Button
@@ -3303,14 +3405,14 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                           }
                                           disabled={tournamentActionLoading}
                                           size="sm"
-                                          className="bg-yellow-500 hover:bg-yellow-600 text-black"
+                                          className="bg-yellow-500 hover:bg-yellow-600 text-black min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto flex-shrink-0"
                                         >
                                           {tournamentActionLoading
                                             ? (
-                                              <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin mr-2" />
+                                              <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-black border-t-transparent rounded-full animate-spin mr-2 flex-shrink-0" />
                                             )
                                             : null}
-                                          Register
+                                          <span className="truncate">Register</span>
                                         </Button>
                                       )}
                                     </>
@@ -3352,10 +3454,14 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             {/* Session Tab - Advanced Playtime Tracking */}
             <TabsContent value="session" className="space-y-4 sm:space-y-6">
               <div className="max-w-4xl mx-auto">
-                {!gameStatus.isInActiveGame &&
-                !(
-                  Array.isArray(seatedSessions) && seatedSessions.length > 0
-                ) ? (
+                {gameStatus.isInActiveGame || 
+                 (Array.isArray(seatedSessions) && seatedSessions.length > 0) ||
+                 gameStatus.seatedSessionFallback ? (
+                  <PlaytimeTracker
+                    playerId={user?.id?.toString() || ""}
+                    gameStatus={gameStatus}
+                  />
+                ) : (
                   <Card className="bg-slate-800 border-slate-700">
                     <CardContent className="p-8">
                       <div className="text-center">
@@ -3377,11 +3483,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                       </div>
                     </CardContent>
                   </Card>
-                ) : (
-                  <PlaytimeTracker
-                    playerId={user?.id?.toString() || ""}
-                    gameStatus={gameStatus}
-                  />
                 )}
               </div>
             </TabsContent>
@@ -4829,9 +4930,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         <Dialog open={chatDialogOpen} onOpenChange={setChatDialogOpen}>
           <DialogContent
             forceMount
-            className="w-[95vw] sm:max-w-2xl max-h-[85vh] sm:max-h-[80vh] bg-slate-800 border-slate-700 p-3 sm:p-6"
+            className="w-[95vw] sm:max-w-2xl max-h-[85vh] sm:max-h-[80vh] bg-slate-800 border-slate-700 p-3 sm:p-6 overflow-hidden flex flex-col"
           >
-            <DialogHeader className="pb-3 sm:pb-4">
+            <DialogHeader className="pb-3 sm:pb-4 flex-shrink-0">
               <DialogTitle className="text-white flex items-center text-base sm:text-lg">
                 <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-emerald-400" />
                 Guest Relations Support
@@ -4839,19 +4940,21 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             </DialogHeader>
 
             {/* Chat System Integration - Direct PostgreSQL connection to Staff Portal */}
-            {user?.id && (
-              <PlayerChatSystem
-                playerId={user.id}
-                playerName={
-                  `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
-                  user?.email ||
-                  "Player"
-                }
-                isInDialog={true}
-                clubBranding={clubBranding}
-                onClose={() => setChatDialogOpen(false)}
-              />
-            )}
+            <div className="flex-1 min-h-0 overflow-hidden">
+              {user?.id && (
+                <PlayerChatSystem
+                  playerId={user.id}
+                  playerName={
+                    `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
+                    user?.email ||
+                    "Player"
+                  }
+                  isInDialog={true}
+                  clubBranding={clubBranding}
+                  onClose={() => setChatDialogOpen(false)}
+                />
+              )}
+            </div>
           </DialogContent>
         </Dialog>
 

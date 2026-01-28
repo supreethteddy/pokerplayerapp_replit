@@ -646,8 +646,8 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
       )}
 
       {/* Order Dialog - Mobile Responsive */}
-      <Dialog open={showOrderDialog} onOpenChange={setShowOrderDialog}>
-        <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-md w-[95vw] sm:w-full max-h-[90vh] sm:max-h-[85vh] overflow-y-auto p-4 sm:p-6">
+      <Dialog open={showOrderDialog} onOpenChange={setShowOrderDialog} modal={true}>
+        <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-md max-h-[85vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center text-base sm:text-lg">
               <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 mr-2" style={{ color: clubBranding?.skinColor || '#10b981' }} />

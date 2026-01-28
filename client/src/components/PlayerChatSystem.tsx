@@ -34,12 +34,24 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
     [playerId]
   );
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  
+  const scrollToBottom = (force: boolean = false) => {
+    if (!messagesContainerRef.current) return;
+    
+    const container = messagesContainerRef.current;
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+    
+    // Only auto-scroll if user is near bottom or if forced (e.g., new message sent)
+    if (force || isNearBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   useEffect(() => {
-    scrollToBottom();
+    // Only auto-scroll when new messages arrive if user is near bottom
+    // Don't force scroll on every message update to allow manual scrolling
+    scrollToBottom(false);
   }, [messages]);
 
   // Load messages function that can be called whenever chat opens
@@ -89,22 +101,74 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
         console.warn("Unable to read cached chat messages", e);
       }
 
-      // Sort by time
-      loaded.sort(
-        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      );
-
-      setMessages(loaded);
+      // Merge with existing messages to prevent losing Pusher-delivered messages
+      setMessages(prev => {
+        const byId = new Map<string, ChatMessage>();
+        const byContentAndTime = new Map<string, ChatMessage>();
+        
+        // Add existing messages first (these might include Pusher-delivered messages or optimistic updates)
+        prev.forEach(msg => {
+          byId.set(msg.id, msg);
+          // Also track by content + timestamp for player messages to prevent duplicates
+          if (!msg.isFromStaff) {
+            const key = `${msg.message}-${new Date(msg.timestamp).getTime()}`;
+            byContentAndTime.set(key, msg);
+          }
+        });
+        
+        // Add loaded messages (overwrite if same ID, but keep newer Pusher messages)
+        loaded.forEach(msg => {
+          // Skip player's own messages that are already in the list (from optimistic update)
+          if (!msg.isFromStaff && msg.sender_name === playerName) {
+            // Check if we already have this message (by content and approximate timestamp)
+            const msgTime = new Date(msg.timestamp).getTime();
+            let foundDuplicate = false;
+            
+            for (const [key, existingMsg] of byContentAndTime.entries()) {
+              const existingTime = new Date(existingMsg.timestamp).getTime();
+              // If same message content and within 10 seconds, it's a duplicate
+              if (existingMsg.message === msg.message && 
+                  Math.abs(msgTime - existingTime) < 10000) {
+                // Update the existing optimistic message with server ID if different
+                if (msg.id !== existingMsg.id) {
+                  byId.delete(existingMsg.id);
+                  byId.set(msg.id, msg);
+                }
+                foundDuplicate = true;
+                break;
+              }
+            }
+            
+            if (foundDuplicate) {
+              return; // Skip adding duplicate
+            }
+          }
+          
+          const existing = byId.get(msg.id);
+          if (!existing || new Date(msg.timestamp).getTime() >= new Date(existing.timestamp).getTime()) {
+            byId.set(msg.id, msg);
+          }
+        });
+        
+        const merged = Array.from(byId.values());
+        merged.sort(
+          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+        
+        // Update session status based on merged messages
+        const last = merged[merged.length - 1];
+        if (!last) {
+          setSessionStatus('none');
+        } else if (last.isFromStaff) {
+          setSessionStatus('active');
+        } else {
+          setSessionStatus('pending');
+        }
+        
+        return merged;
+      });
+      
       console.log('✅ [PLAYER CHAT] Loaded', loaded.length, 'messages from history');
-
-      const last = loaded[loaded.length - 1];
-      if (!last) {
-        setSessionStatus('none');
-      } else if (last.isFromStaff) {
-        setSessionStatus('active');
-      } else {
-        setSessionStatus('pending');
-      }
     } catch (error) {
       console.error('❌ [PLAYER CHAT] Failed to load messages:', error);
       setMessages([]);
@@ -156,7 +220,7 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
     const handleIncomingMessage = (data: any) => {
       console.log('📨 [PLAYER CHAT] Message received:', data);
 
-      // CRITICAL: Prevent duplicate messages from player confirmation
+      // CRITICAL: Prevent duplicate messages from player confirmation or player's own messages
       if (data.type === 'player-confirmation' && data.player_id === playerId) {
         console.log('⚠️ [PLAYER CHAT] Skipping duplicate player confirmation message');
         return; // Don't add player's own messages back to chat
@@ -169,16 +233,25 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
         sender: data.sender || (data.isFromStaff ? 'staff' : 'player'),
         sender_name: data.sender_name || data.senderName || data.staffName || 'Staff Member',
         timestamp: data.timestamp || new Date().toISOString(),
-        isFromStaff: data.sender === 'staff' || data.senderType === 'staff' || data.sender_name !== playerName
+        isFromStaff: data.sender === 'staff' || data.senderType === 'staff' || (data.sender_name !== playerName && data.sender !== 'player')
       };
+
+      // CRITICAL: Skip player's own messages - they're already added optimistically
+      if (messageData.sender === 'player' || 
+          messageData.sender_name === playerName ||
+          (!messageData.isFromStaff && data.player_id === playerId)) {
+        console.log('⚠️ [PLAYER CHAT] Skipping player\'s own message to prevent duplication');
+        return;
+      }
 
       // ONLY add messages from staff - prevent player message echoing
       if (messageData.message && messageData.isFromStaff) {
         setMessages(prev => {
-          // Prevent duplicate messages
+          // Prevent duplicate messages by ID or by content + timestamp
           const isDuplicate = prev.some(msg => 
             msg.id === messageData.id || 
             (msg.message === messageData.message && 
+             msg.isFromStaff === messageData.isFromStaff &&
              Math.abs(new Date(msg.timestamp).getTime() - new Date(messageData.timestamp).getTime()) < 5000)
           );
 
@@ -238,10 +311,21 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
     };
   }, [playerId, playerName]);
 
-  // Load messages whenever dialog opens (if in dialog mode)
+  // Load messages whenever dialog opens (if in dialog mode) and set up polling for real-time updates
   useEffect(() => {
     if (isInDialog && playerId) {
+      // Load chat history immediately when dialog opens
       loadChatHistory();
+      
+      // Set up polling interval to check for new messages every 2 seconds when dialog is open
+      // This ensures messages from admin panel are received even if Pusher has issues
+      const pollInterval = setInterval(() => {
+        loadChatHistory();
+      }, 2000);
+
+      return () => {
+        clearInterval(pollInterval);
+      };
     }
   }, [isInDialog, playerId]);
 
@@ -273,6 +357,9 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
     });
     setNewMessage('');
     setSessionStatus('pending');
+    
+    // Force scroll to bottom when user sends a message
+    setTimeout(() => scrollToBottom(true), 100);
 
     try {
       console.log('⚡ [OPTIMIZED V1.2] Sending message to staff portal via /api/player-chat/send:', messageText);
@@ -322,7 +409,7 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
   // If in dialog mode, render chat content directly without the blue bubble
   if (isInDialog) {
     return (
-      <div className="flex flex-col h-[600px] max-h-[80vh]">
+      <div className="flex flex-col h-[600px] max-h-[80vh] overflow-hidden">
         {/* Status Bar */}
         <div className={`px-3 py-2 text-sm ${getStatusColor()} bg-slate-900 border-b border-slate-600 flex items-center justify-between`}>
           <span>
@@ -340,7 +427,11 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-750 min-h-0">
+        <div 
+          ref={messagesContainerRef}
+          className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 space-y-4 bg-slate-750 min-h-0 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800"
+          style={{ overscrollBehavior: 'contain' }}
+        >
           {messages.length === 0 ? (
             <div className="text-center text-slate-400 py-12">
               <MessageCircle size={48} className="mx-auto mb-4 opacity-50" />
