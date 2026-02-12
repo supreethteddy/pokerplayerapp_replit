@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import Pusher from 'pusher-js';
+import { io, Socket } from 'socket.io-client';
+import { API_BASE_URL, STORAGE_KEYS } from '@/lib/api/config';
 import type { ClubBranding } from "@/lib/clubBranding";
 import { 
   ShoppingCart, 
@@ -79,6 +80,7 @@ interface FoodBeverageTabProps {
 export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const socketRef = useRef<Socket | null>(null);
   
   // Order state
   const [cart, setCart] = useState<OrderItem[]>([]);
@@ -88,33 +90,61 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
   const [showThankYouDialog, setShowThankYouDialog] = useState(false);
   const [viewMode, setViewMode] = useState<'menu' | 'orders'>('menu');
 
-  // Real-time updates via Pusher
+  // Real-time updates via WebSocket
   useEffect(() => {
-    if (!import.meta.env.VITE_PUSHER_KEY) return;
+    const clubId = localStorage.getItem('clubId') || sessionStorage.getItem('clubId');
+    
+    if (!clubId || !user?.id) return;
 
-    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, {
-      cluster: import.meta.env.VITE_PUSHER_CLUSTER || 'ap2',
-      forceTLS: true
+    const websocketBase =
+      import.meta.env.VITE_WEBSOCKET_URL ||
+      (API_BASE_URL.endsWith('/api')
+        ? API_BASE_URL.slice(0, -4)
+        : API_BASE_URL.replace(/\/$/, ''));
+
+    const socket = io(`${websocketBase}/realtime`, {
+      auth: { clubId, playerId: user.id },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
     });
 
-    const channel = pusher.subscribe('food-beverage');
-    
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      socket.emit('subscribe:player', { playerId: user.id, clubId });
+      socket.emit('subscribe:club', { clubId, playerId: user.id });
+    });
+
     // Listen for menu updates
-    channel.bind('menu-updated', () => {
+    socket.on('menu-updated', () => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/player/fnb/menu'] });
     });
     
     // Listen for ads updates
-    channel.bind('ads-updated', () => {
+    socket.on('ads-updated', () => {
       queryClient.invalidateQueries({ queryKey: ['/api/food-beverage/ads'] });
     });
 
+    // Listen for order status updates
+    socket.on('order-status-updated', (data: any) => {
+      if (data.playerId === user.id) {
+        queryClient.invalidateQueries({ queryKey: ['/api/auth/player/fnb/orders'] });
+        toast({
+          title: "Order Update",
+          description: `Your order #${data.orderNumber} is now ${data.status}`,
+        });
+      }
+    });
+
     return () => {
-      channel.unbind_all();
-      pusher.unsubscribe('food-beverage');
-      pusher.disconnect();
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
     };
-  }, [queryClient]);
+  }, [queryClient, user?.id]);
 
   // Fetch menu items with real-time updates (authenticated via apiRequest so x-club-id is sent)
   const { data: menuItems, isLoading: itemsLoading } = useQuery<{

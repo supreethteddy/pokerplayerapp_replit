@@ -163,10 +163,17 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
 
     socket.on("connect", () => {
       console.log("✅ [PLAYER CHAT] Connected to WebSocket");
+      console.log("📡 [PLAYER CHAT] Socket ID:", socket.id);
+      console.log("📡 [PLAYER CHAT] Subscribing to club:", storedClubId);
+      console.log("📡 [PLAYER CHAT] Subscribing to player:", playerId);
       setIsConnected(true);
       // Subscribe exactly like staff-side chat, but for this player
       socket.emit("subscribe:club", { clubId: storedClubId, playerId });
       socket.emit("subscribe:player", { playerId, clubId: storedClubId });
+    });
+
+    socket.on("subscribed", (data: any) => {
+      console.log("✅ [PLAYER CHAT] Subscription confirmed by backend:", data);
     });
 
     socket.on("disconnect", (reason) => {

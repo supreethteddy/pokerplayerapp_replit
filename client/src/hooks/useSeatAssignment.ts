@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
-import Pusher from 'pusher-js';
+import { io, Socket } from 'socket.io-client';
 import { useToast } from '@/hooks/use-toast';
+import { API_BASE_URL } from '@/lib/api/config';
 
 interface TableNotificationData {
   tableId: string;
@@ -16,44 +17,47 @@ interface TableNotificationData {
 export function useSeatAssignment(playerId: string | number) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const pusherRef = useRef<Pusher | null>(null);
+  const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
     if (!playerId) return;
 
     console.log('🪑 [SEAT ASSIGNMENT] Initializing listener for player:', playerId);
 
-    // Initialize Pusher if not already done
-    if (!pusherRef.current) {
-      const pusherKey = import.meta.env.VITE_PUSHER_KEY;
-      const pusherCluster = import.meta.env.VITE_PUSHER_CLUSTER || 'ap2';
-
-      if (!pusherKey) {
-        console.error('❌ [SEAT ASSIGNMENT] VITE_PUSHER_KEY not found');
-        return;
-      }
-
-      const pusher = new Pusher(pusherKey, {
-        cluster: pusherCluster,
-        forceTLS: true
-      });
-
-      pusherRef.current = pusher;
-
-      pusher.connection.bind('connected', () => {
-        console.log('✅ [SEAT ASSIGNMENT] Connected to Pusher');
-      });
-
-      pusher.connection.bind('disconnected', () => {
-        console.log('❌ [SEAT ASSIGNMENT] Disconnected from Pusher');
-      });
+    const clubId = localStorage.getItem('clubId') || sessionStorage.getItem('clubId');
+    if (!clubId) {
+      console.error('❌ [SEAT ASSIGNMENT] No clubId found in localStorage');
+      return;
     }
 
-    // Subscribe to player-specific channel for seat assignments
-    const playerChannel = pusherRef.current.subscribe(`player-${playerId}`);
+    // Initialize WebSocket connection
+    const websocketBase =
+      import.meta.env.VITE_WEBSOCKET_URL ||
+      (API_BASE_URL.endsWith('/api')
+        ? API_BASE_URL.slice(0, -4)
+        : API_BASE_URL.replace(/\/$/, ''));
+
+    const socket = io(`${websocketBase}/realtime`, {
+      auth: { clubId, playerId },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
+    });
+
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('✅ [SEAT ASSIGNMENT] Connected to WebSocket');
+      socket.emit('subscribe:player', { playerId, clubId });
+    });
+
+    socket.on('disconnect', () => {
+      console.log('❌ [SEAT ASSIGNMENT] Disconnected from WebSocket');
+    });
 
     // Listen for table assignment events (player assigned to table)
-    playerChannel.bind('table-assignment', (data: TableNotificationData) => {
+    socket.on('table-assignment', (data: TableNotificationData) => {
       console.log('🪑 [TABLE ASSIGNMENT] Player assigned to table:', data);
 
       // Show notification to player
@@ -70,7 +74,7 @@ export function useSeatAssignment(playerId: string | number) {
     });
 
     // Listen for table activation events (table becomes active)
-    playerChannel.bind('table-activation', (data: TableNotificationData) => {
+    socket.on('table-activation', (data: TableNotificationData) => {
       console.log('🚀 [TABLE ACTIVATION] Table became active:', data);
 
       // Show notification to player
@@ -90,15 +94,14 @@ export function useSeatAssignment(playerId: string | number) {
 
     // Cleanup function
     return () => {
-      if (pusherRef.current) {
-        pusherRef.current.unsubscribe(`player-${playerId}`);
-        pusherRef.current.disconnect();
-        pusherRef.current = null;
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
       }
     };
   }, [playerId, setLocation, toast]);
 
   return {
-    isListening: !!pusherRef.current
+    isListening: !!socketRef.current
   };
 }

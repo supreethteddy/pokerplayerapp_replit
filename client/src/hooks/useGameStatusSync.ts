@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { io, Socket } from 'socket.io-client';
 import { useUltraFastAuth } from './useUltraFastAuth';
+import { API_BASE_URL, STORAGE_KEYS } from '@/lib/api/config';
 
 /**
  * Centralized synchronization hook for game status changes
@@ -46,54 +48,50 @@ export function useGameStatusSync() {
     }
   };
 
-  // Set up Pusher real-time synchronization
+  // Set up WebSocket real-time synchronization
   useEffect(() => {
     if (!user?.id) return;
 
-    let pusher: any;
-    let playerChannel: any;
+    const clubId = localStorage.getItem('clubId') || sessionStorage.getItem('clubId');
+    
+    if (!clubId) {
+      console.warn('⚠️ [GAME SYNC] No clubId found, skipping real-time updates');
+      return;
+    }
 
-    // Import Pusher asynchronously for real-time seat assignment notifications
-    import('pusher-js').then(({ default: Pusher }) => {
-      pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, {
-        cluster: import.meta.env.VITE_PUSHER_CLUSTER,
-      });
+    const websocketBase =
+      import.meta.env.VITE_WEBSOCKET_URL ||
+      (API_BASE_URL.endsWith('/api')
+        ? API_BASE_URL.slice(0, -4)
+        : API_BASE_URL.replace(/\/$/, ''));
 
-      playerChannel = pusher.subscribe(`player-${user.id}`);
-      
-      // Listen for seat assignment events with immediate query invalidation
-      playerChannel.bind('seat_assigned', (data: any) => {
-        console.log('🪑 [SEAT ASSIGNMENT] Real-time notification received:', data);
-        invalidateAllGameQueries();
-      });
+    const socket = io(`${websocketBase}/realtime`, {
+      auth: { clubId, playerId: user.id },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
+    });
 
-      // Listen for table updates that might affect player status
-      playerChannel.bind('table_updated', (data: any) => {
-        console.log('🔄 [TABLE UPDATE] Real-time notification received:', data);
-        invalidateAllGameQueries();
-      });
+    socket.on('connect', () => {
+      console.log('✅ [GAME SYNC] Connected to WebSocket');
+      socket.emit('subscribe:player', { playerId: user.id, clubId });
+    });
 
-      return () => {
-        if (playerChannel) {
-          playerChannel.unbind('seat_assigned');
-          playerChannel.unbind('table_updated');
-          pusher.unsubscribe(`player-${user.id}`);
-        }
-        if (pusher) {
-          pusher.disconnect();
-        }
-      };
-    }).catch(console.error);
+    // Listen for seat assignment events with immediate query invalidation
+    socket.on('seat_assigned', (data: any) => {
+      console.log('🪑 [SEAT ASSIGNMENT] Real-time notification received:', data);
+      invalidateAllGameQueries();
+    });
+
+    // Listen for table updates that might affect player status
+    socket.on('table_updated', (data: any) => {
+      console.log('🔄 [TABLE UPDATE] Real-time notification received:', data);
+      invalidateAllGameQueries();
+    });
 
     return () => {
-      if (playerChannel) {
-        playerChannel.unbind('seat_assigned');
-        playerChannel.unbind('table_updated');
-        pusher?.unsubscribe(`player-${user.id}`);
-      }
-      if (pusher) {
-        pusher.disconnect();
-      }
+      socket.disconnect();
     };
   }, [user?.id, queryClient]);
 

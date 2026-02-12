@@ -72,20 +72,35 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
   // Use centralized synchronization for immediate updates
   const { invalidateAllGameQueries } = useGameStatusSync();
 
-  // Listen for real-time timing rule updates from staff portal
+  // Listen for real-time timing rule updates from staff portal via WebSocket
+  // Note: WebSocket connection is managed by useGameStatusSync hook
   useEffect(() => {
     if (!playerId) return;
 
-    // Import Pusher asynchronously for real-time synchronization
-    import('pusher-js').then(({ default: Pusher }) => {
-      const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, {
-        cluster: import.meta.env.VITE_PUSHER_CLUSTER,
+    const clubId = localStorage.getItem('clubId') || sessionStorage.getItem('clubId');
+    if (!clubId) return;
+
+    import('socket.io-client').then(({ io }) => {
+      const websocketBase =
+        import.meta.env.VITE_WEBSOCKET_URL ||
+        (import.meta.env.VITE_API_BASE_URL?.endsWith('/api')
+          ? import.meta.env.VITE_API_BASE_URL.slice(0, -4)
+          : import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, ''));
+
+      const socket = io(`${websocketBase}/realtime`, {
+        auth: { clubId, playerId },
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionAttempts: 5,
       });
 
-      const playerChannel = pusher.subscribe(`player-${playerId}`);
+      socket.on('connect', () => {
+        socket.emit('subscribe:player', { playerId, clubId });
+      });
 
       // Listen for timing rule updates with nanosecond-level sync
-      playerChannel.bind('timing_rules_updated', (data: any) => {
+      socket.on('timing_rules_updated', (data: any) => {
         console.log('🔧 [TIMING RULES] Staff updated table rules:', data);
 
         // Show immediate notification to player
@@ -100,9 +115,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
       });
 
       return () => {
-        playerChannel.unbind('timing_rules_updated');
-        pusher.unsubscribe(`player-${playerId}`);
-        pusher.disconnect();
+        socket.disconnect();
       };
     }).catch(console.error);
   }, [playerId, toast, queryClient]);

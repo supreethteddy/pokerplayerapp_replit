@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
-import Pusher from 'pusher-js';
+import { useEffect, useRef } from 'react';
+import { io, Socket } from 'socket.io-client';
 import { getAuthHeaders, API_BASE_URL, STORAGE_KEYS } from '../lib/api/config';
 
 interface PlayerBalance {
@@ -18,6 +18,7 @@ interface PlayerBalance {
 
 export function usePlayerBalance(playerId: string) {
   const queryClient = useQueryClient();
+  const socketRef = useRef<Socket | null>(null);
 
   // Fetch player balance from our backend API using the correct dual balance endpoint
   const { data: balance, isLoading, error } = useQuery<PlayerBalance>({
@@ -61,77 +62,76 @@ export function usePlayerBalance(playerId: string) {
     enabled: !!playerId, // Only run query if playerId exists
   });
 
-  // Real-time balance updates via Pusher (optional)
+  // Real-time balance updates via WebSocket
   useEffect(() => {
     if (!playerId) return;
 
-    try {
-      // Use environment variables for Pusher configuration
-      const pusherKey = import.meta.env.VITE_PUSHER_KEY;
-      const pusherCluster = import.meta.env.VITE_PUSHER_CLUSTER;
-      
-      if (!pusherKey) {
-        console.warn('⚠️ [BALANCE] VITE_PUSHER_KEY not configured, skipping real-time updates');
-        return;
-      }
-      
-      const pusher = new Pusher(pusherKey, {
-        cluster: pusherCluster || 'ap2',
-        forceTLS: true
-      });
-
-    const channel = pusher.subscribe('cross-portal-sync');
+    const clubId = localStorage.getItem('clubId') || sessionStorage.getItem('clubId');
     
-    channel.bind('player_balance_update', (data: any) => {
+    if (!clubId) {
+      console.warn('⚠️ [BALANCE] No clubId found, skipping real-time updates');
+      return;
+    }
+
+    const websocketBase =
+      import.meta.env.VITE_WEBSOCKET_URL ||
+      (API_BASE_URL.endsWith('/api')
+        ? API_BASE_URL.slice(0, -4)
+        : API_BASE_URL.replace(/\/$/, ''));
+
+    const socket = io(`${websocketBase}/realtime`, {
+      auth: { clubId, playerId },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
+    });
+
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('✅ [BALANCE] Connected to WebSocket');
+      socket.emit('subscribe:player', { playerId, clubId });
+    });
+
+    // Listen for balance update events
+    socket.on('player_balance_update', (data: any) => {
       if (data.playerId?.toString() === playerId) {
         console.log('💰 [REAL-TIME BALANCE] Update received:', data);
-        
-        // Invalidate and refetch balance immediately for credit updates
         queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
       }
     });
 
-    // Listen for staff portal credit approvals
-    channel.bind('credit_approved', (data: any) => {
+    socket.on('credit_approved', (data: any) => {
       if (data.playerId?.toString() === playerId) {
         console.log('✅ [REAL-TIME CREDIT] Credit approved by staff:', data);
-        
-        // Immediately refresh balance to show new credit_balance
         queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
       }
     });
 
-    channel.bind('wallet_transaction', (data: any) => {
+    socket.on('wallet_transaction', (data: any) => {
       if (data.playerId?.toString() === playerId) {
         console.log('💳 [REAL-TIME BALANCE] Transaction update:', data);
-        
-        // Invalidate balance and transaction queries
         queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
         queryClient.invalidateQueries({ queryKey: [`/api/auth/player/transactions`] });
       }
     });
 
-    // Listen for direct player balance updates
-    const playerChannel = pusher.subscribe(`player-${playerId}`);
-    
-    playerChannel.bind('balance_updated', (data: any) => {
+    socket.on('balance_updated', (data: any) => {
       console.log('💰 [REAL-TIME BALANCE] Direct player update:', data);
       queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
     });
 
-    playerChannel.bind('cash_out_request_submitted', (data: any) => {
+    socket.on('cash_out_request_submitted', (data: any) => {
       console.log('💳 [REAL-TIME BALANCE] Cash-out request submitted:', data);
-      // Could show notification here
     });
 
-      return () => {
-        pusher.unsubscribe('cross-portal-sync');
-        pusher.unsubscribe(`player-${playerId}`);
-        pusher.disconnect();
-      };
-    } catch (error) {
-      console.error('❌ [BALANCE] Pusher connection failed:', error);
-    }
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
   }, [playerId, queryClient]);
 
   return {

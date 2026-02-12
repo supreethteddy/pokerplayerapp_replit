@@ -44,58 +44,99 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
   // Handle both old and new balance data formats
   const creditEnabled = (balance as any)?.creditEnabled || false;
   const creditLimit = parseFloat((balance as any)?.creditLimit || '0');
-  const creditUsed = parseFloat((balance as any)?.creditUsed || '0'); // Approved credit amount
-  const remainingCreditToRequest = parseFloat((balance as any)?.availableCredit || (balance as any)?.creditBalance || '0'); // Remaining to request
-  const currentCashBalance = parseFloat((balance as any)?.availableBalance || (balance as any)?.currentBalance || balance?.cashBalance || '0');
+  const creditUsed = parseFloat((balance as any)?.creditUsed || '0'); // Total credit from credit requests
+  const remainingCreditToRequest = parseFloat((balance as any)?.availableCredit || (balance as any)?.creditBalance || '0');
+  const currentCashBalance = parseFloat((balance as any)?.availableBalance || (balance as any)?.cashBalance || '0');
+  
+  // NEW: Table balance tracking
+  const currentTableBalance = parseFloat((balance as any)?.tableBalance || '0');
+  const creditUsedOnTable = parseFloat((balance as any)?.creditUsedOnTable || '0');
+  const cashOnTable = parseFloat((balance as any)?.cashOnTable || '0');
+  const isSeated = (balance as any)?.isSeated || false;
   
   console.log('💰 [BALANCE DISPLAY] Raw balance data:', balance);
-  console.log('💰 [BALANCE DISPLAY] creditEnabled:', creditEnabled);
-  console.log('💰 [BALANCE DISPLAY] creditLimit:', creditLimit);
-  console.log('💰 [BALANCE DISPLAY] creditUsed:', creditUsed);
-  console.log('💰 [BALANCE DISPLAY] remainingCreditToRequest:', remainingCreditToRequest);
-  console.log('💰 [BALANCE DISPLAY] Calculated currentCashBalance:', currentCashBalance);
+  console.log('💰 [BALANCE DISPLAY] Cash Balance (wallet):', currentCashBalance);
+  console.log('💰 [BALANCE DISPLAY] Table Balance:', currentTableBalance);
+  console.log('💰 [BALANCE DISPLAY] Credit Used on Table:', creditUsedOnTable);
+  console.log('💰 [BALANCE DISPLAY] Cash on Table:', cashOnTable);
+  console.log('💰 [BALANCE DISPLAY] Is Seated:', isSeated);
 
   return (
     <div className="space-y-4">
-      {/* Main Cash Balance */}
-      <div className="bg-gradient-to-r from-emerald-600 to-green-700 rounded-lg p-6 text-white shadow-lg">
+      {/* Wallet Cash Balance */}
+      <div className={`rounded-lg p-6 text-white shadow-lg ${currentCashBalance < 0 ? 'bg-gradient-to-r from-red-600 to-red-700' : 'bg-gradient-to-r from-emerald-600 to-green-700'}`}>
         <div className="text-center">
-          <h2 className="text-lg font-medium opacity-90 mb-2">Available Cash Balance</h2>
-          <div className="text-5xl font-bold mb-4">₹{currentCashBalance.toLocaleString()}</div>
+          <h2 className="text-lg font-medium opacity-90 mb-2">
+            {isSeated ? 'Wallet Balance' : 'Available Cash Balance'}
+          </h2>
+          <div className="text-5xl font-bold mb-2">₹{currentCashBalance.toLocaleString()}</div>
+          {currentCashBalance < 0 && (
+            <div className="text-sm font-semibold bg-red-900/50 rounded-full px-4 py-2 mb-2">
+              ⚠️ Negative Balance - Amount Owed to Cashier
+            </div>
+          )}
           <div className="text-sm opacity-75 bg-black/20 rounded-full px-4 py-2 inline-block">
-            Visit cashier counter for cash-out
+            {isSeated ? 'Money in wallet (not on table)' : 'Visit cashier counter for cash-out'}
           </div>
         </div>
       </div>
 
-      {/* Credit Balance - Only show if player has credit enabled */}
-      {creditEnabled && creditLimit > 0 && (
-        <div className="bg-gradient-to-r from-blue-600 to-purple-700 rounded-lg p-6 text-white shadow-lg">
+      {/* Table Balance - Only show if player is seated */}
+      {isSeated && currentTableBalance > 0 && (
+        <div className="bg-gradient-to-r from-amber-600 to-orange-700 rounded-lg p-6 text-white shadow-lg">
           <div className="text-center">
-            <h2 className="text-lg font-medium opacity-90 mb-2">Approved Credit Balance</h2>
-            <div className="text-4xl font-bold mb-2">₹{creditUsed.toLocaleString()}</div>
-            <div className="text-sm opacity-75 mb-2">
-              Credit Limit: ₹{creditLimit.toLocaleString()}
-            </div>
-            <div className="text-sm opacity-75 mb-2">
-              Remaining to Request: ₹{remainingCreditToRequest.toLocaleString()}
+            <h2 className="text-lg font-medium opacity-90 mb-2">🎲 Table Balance</h2>
+            <div className="text-5xl font-bold mb-4">₹{currentTableBalance.toLocaleString()}</div>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div className="bg-black/20 rounded-lg p-3">
+                <div className="text-xs opacity-75 mb-1">Cash on Table</div>
+                <div className="text-2xl font-bold">₹{cashOnTable.toLocaleString()}</div>
+              </div>
+              <div className="bg-black/20 rounded-lg p-3">
+                <div className="text-xs opacity-75 mb-1">Credit on Table</div>
+                <div className="text-2xl font-bold">₹{creditUsedOnTable.toLocaleString()}</div>
+              </div>
             </div>
             <div className="text-sm opacity-75 bg-black/20 rounded-full px-4 py-2 inline-block">
-              Credit only - Cannot be withdrawn
+              Money currently on the table
             </div>
           </div>
         </div>
       )}
 
-      {/* Total Balance Summary - Cash + Approved Credit */}
+      {/* Credit Info - Only show if player has credit enabled */}
+      {creditEnabled && creditLimit > 0 && (
+        <div className="bg-gradient-to-r from-blue-600 to-purple-700 rounded-lg p-6 text-white shadow-lg">
+          <div className="text-center">
+            <h2 className="text-lg font-medium opacity-90 mb-2">Credit System</h2>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div className="bg-black/20 rounded-lg p-3">
+                <div className="text-xs opacity-75 mb-1">Credit Limit</div>
+                <div className="text-2xl font-bold">₹{creditLimit.toLocaleString()}</div>
+              </div>
+              <div className="bg-black/20 rounded-lg p-3">
+                <div className="text-xs opacity-75 mb-1">Remaining</div>
+                <div className="text-2xl font-bold">₹{remainingCreditToRequest.toLocaleString()}</div>
+              </div>
+            </div>
+            <div className="text-sm opacity-75 bg-black/20 rounded-full px-4 py-2 inline-block">
+              Request credit from cashier when needed
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Total Balance Summary */}
       <div className="bg-gradient-to-r from-slate-700 to-slate-800 rounded-lg p-4 text-white shadow-lg border border-slate-600">
         <div className="text-center">
-          <h3 className="text-md font-medium opacity-90 mb-2">Total Available Balance</h3>
-          <div className="text-2xl font-bold">
-            ₹{(currentCashBalance + creditUsed).toLocaleString()}
+          <h3 className="text-md font-medium opacity-90 mb-2">Total Balance Summary</h3>
+          <div className="text-3xl font-bold mb-2">
+            ₹{(currentCashBalance + currentTableBalance).toLocaleString()}
           </div>
-          <div className="text-xs opacity-75 mt-1">
-            Cash: ₹{currentCashBalance.toLocaleString()} + Credit: ₹{creditUsed.toLocaleString()}
+          <div className="text-xs opacity-75 space-y-1">
+            <div>Wallet: ₹{currentCashBalance.toLocaleString()}</div>
+            {isSeated && <div>Table: ₹{currentTableBalance.toLocaleString()}</div>}
+            {creditUsedOnTable > 0 && <div className="text-purple-300">(Includes ₹{creditUsedOnTable.toLocaleString()} credit on table)</div>}
           </div>
         </div>
       </div>
