@@ -240,6 +240,16 @@ export default function KYCVerification() {
   const handlePanCardSubmit = () => {
     const trimmedPan = panCard.trim().toUpperCase();
     
+    // Require PAN number and both Aadhaar + PAN docs before submit
+    if (!uploadedDocs.government_id || !uploadedDocs.pan_card) {
+      toast({
+        title: "Documents Required",
+        description: "Please upload both your Aadhaar card and PAN card before submitting KYC.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!trimmedPan) {
       toast({
         title: "PAN Card Required",
@@ -563,7 +573,12 @@ export default function KYCVerification() {
                 className="w-full hover:opacity-90 text-white font-semibold py-4 sm:py-6 min-h-[52px] sm:min-h-[64px] text-sm sm:text-base"
                 style={getClubButtonStyle('primary')}
                 onClick={handlePanCardSubmit}
-                disabled={submitPanCardMutation.isPending || !panCard.trim()}
+                disabled={
+                  submitPanCardMutation.isPending ||
+                  !panCard.trim() ||
+                  !uploadedDocs.government_id ||
+                  !uploadedDocs.pan_card
+                }
               >
                 {submitPanCardMutation.isPending ? (
                   <>

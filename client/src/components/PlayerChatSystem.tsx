@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import Pusher from 'pusher-js';
 import { MessageCircle, X, Send } from 'lucide-react';
 import { apiRequest } from "@/lib/queryClient";
+import { io, Socket } from "socket.io-client";
+import { API_BASE_URL, STORAGE_KEYS } from "@/lib/api/config";
 
 interface PlayerChatSystemProps {
   playerId: string;
@@ -26,7 +27,7 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
   const [sessionStatus, setSessionStatus] = useState<'none' | 'pending' | 'active' | 'recent'>('none');
   const [isOpen, setIsOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
-  const pusherRef = useRef<Pusher | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const storageKey = useMemo(
@@ -117,126 +118,166 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
 
     console.log('🚀 [PLAYER CHAT] Initializing for player:', playerId, playerName);
 
-    // Initialize Pusher with environment variables to match Staff Portal.
-    // If Pusher is not configured, fall back to HTTP-only mode so that
-    // players can still view history and send messages without real-time updates.
-    if (!import.meta.env.VITE_PUSHER_KEY) {
-      console.error('❌ [PUSHER CONFIG] VITE_PUSHER_KEY not found in environment');
-      // Fallback: still load history and allow sending messages
+    // Determine clubId from storage (matches headers used for API calls)
+    const storedClubId =
+      (typeof window !== "undefined" &&
+        (localStorage.getItem(STORAGE_KEYS.CLUB_ID) ||
+          sessionStorage.getItem(STORAGE_KEYS.CLUB_ID))) ||
+      null;
+
+    if (!storedClubId) {
+      console.warn(
+        "⚠️ [PLAYER CHAT] No clubId found in storage – falling back to HTTP-only mode",
+      );
       loadChatHistory().then(() => {
-        setIsConnected(true);
+        setIsConnected(false);
       });
       return;
     }
 
-    const pusher = new Pusher(import.meta.env.VITE_PUSHER_KEY, {
-      cluster: import.meta.env.VITE_PUSHER_CLUSTER || 'ap2',
-      forceTLS: true
+    // Derive WebSocket base URL from API_BASE_URL (same backend as staff portal)
+    const websocketBase =
+      import.meta.env.VITE_WEBSOCKET_URL ||
+      (API_BASE_URL.endsWith("/api")
+        ? API_BASE_URL.slice(0, -4)
+        : API_BASE_URL.replace(/\/$/, ""));
+
+    console.log(
+      "🔌 [PLAYER CHAT] Connecting to WebSocket:",
+      `${websocketBase}/realtime`,
+      "playerId:",
+      playerId,
+      "clubId:",
+      storedClubId,
+    );
+
+    const socket = io(`${websocketBase}/realtime`, {
+      auth: { clubId: storedClubId, playerId },
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
     });
 
-    pusherRef.current = pusher;
+    socketRef.current = socket;
 
-    pusher.connection.bind('connected', () => {
+    socket.on("connect", () => {
+      console.log("✅ [PLAYER CHAT] Connected to WebSocket");
       setIsConnected(true);
-      console.log('✅ [PLAYER CHAT] Connected to Pusher');
+      // Subscribe exactly like staff-side chat, but for this player
+      socket.emit("subscribe:club", { clubId: storedClubId, playerId });
+      socket.emit("subscribe:player", { playerId, clubId: storedClubId });
     });
 
-    pusher.connection.bind('disconnected', () => {
+    socket.on("disconnect", (reason) => {
+      console.warn("⚠️ [PLAYER CHAT] WebSocket disconnected:", reason);
       setIsConnected(false);
-      console.log('❌ [PLAYER CHAT] Disconnected from Pusher');
     });
 
-    // Subscribe to UNIFIED channels for bidirectional communication
-    const playerChannel = pusher.subscribe(`player-${playerId}`);
-    const staffChannel = pusher.subscribe('staff-portal');
+    socket.on("error", (error) => {
+      console.error("❌ [PLAYER CHAT] WebSocket error:", error);
+    });
 
-    console.log('📡 [PLAYER CHAT] Subscribed to channels:', `player-${playerId}`, 'staff-portal');
+    // Real-time message updates from unified chat system (staff → player)
+    socket.on("chat:new-message", (data: any) => {
+      try {
+        if (!data || data.playerId !== playerId || !data.message) {
+          return;
+        }
 
-    // UNIFIED event handler for all message types - PREVENT DUPLICATION
-    const handleIncomingMessage = (data: any) => {
-      console.log('📨 [PLAYER CHAT] Message received:', data);
+        const msg = data.message;
+        const isFromStaff = msg.senderType === "staff";
 
-      // CRITICAL: Prevent duplicate messages from player confirmation
-      if (data.type === 'player-confirmation' && data.player_id === playerId) {
-        console.log('⚠️ [PLAYER CHAT] Skipping duplicate player confirmation message');
-        return; // Don't add player's own messages back to chat
-      }
+        // Only show staff messages coming from backend (avoid echoing player messages)
+        if (!isFromStaff) {
+          return;
+        }
 
-      // Handle different data formats from staff portal
-      const messageData = {
-        id: data.id || data.messageId || `msg-${Date.now()}`,
-        message: data.message || data.messageText || data.text || '',
-        sender: data.sender || (data.isFromStaff ? 'staff' : 'player'),
-        sender_name: data.sender_name || data.senderName || data.staffName || 'Staff Member',
-        timestamp: data.timestamp || new Date().toISOString(),
-        isFromStaff: data.sender === 'staff' || data.senderType === 'staff' || data.sender_name !== playerName
-      };
+        const messageData: ChatMessage = {
+          id: msg.id?.toString?.() ?? `msg-${Date.now()}`,
+          message: msg.message || "",
+          sender: isFromStaff ? "staff" : "player",
+          sender_name:
+            msg.senderName ||
+            msg.sender_name ||
+            msg.staffName ||
+            "Staff Member",
+          timestamp: msg.createdAt || new Date().toISOString(),
+          isFromStaff,
+        };
 
-      // ONLY add messages from staff - prevent player message echoing
-      if (messageData.message && messageData.isFromStaff) {
-        setMessages(prev => {
-          // Prevent duplicate messages
-          const isDuplicate = prev.some(msg => 
-            msg.id === messageData.id || 
-            (msg.message === messageData.message && 
-             Math.abs(new Date(msg.timestamp).getTime() - new Date(messageData.timestamp).getTime()) < 5000)
+        if (!messageData.message) return;
+
+        setMessages((prev) => {
+          const isDuplicate = prev.some(
+            (m) =>
+              m.id === messageData.id ||
+              (m.message === messageData.message &&
+                Math.abs(
+                  new Date(m.timestamp).getTime() -
+                    new Date(messageData.timestamp).getTime(),
+                ) < 5000),
           );
 
           if (isDuplicate) {
-            console.log('⚠️ [PLAYER CHAT] Duplicate staff message detected, ignoring');
+            console.log(
+              "⚠️ [PLAYER CHAT] Duplicate staff message detected, ignoring",
+            );
             return prev;
           }
 
-          return [...prev, messageData].sort((a, b) => 
-            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+          const next = [...prev, messageData].sort(
+            (a, b) =>
+              new Date(a.timestamp).getTime() -
+              new Date(b.timestamp).getTime(),
           );
+
+          // Persist locally so chat history survives reloads
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(next));
+          } catch (e) {
+            console.warn("Unable to persist chat messages", e);
+          }
+
+          return next;
         });
 
-        // Mark as unread if chat is closed
         if (!isInDialog) {
           setHasUnread(true);
         }
 
-        setSessionStatus('active');
-      }
-    };
-
-    // Listen for messages on player channel (staff → player)
-    playerChannel.bind('chat-message-received', handleIncomingMessage);
-    playerChannel.bind('new-staff-message', handleIncomingMessage);
-    playerChannel.bind('new-message', handleIncomingMessage);
-
-    // Listen for messages on staff channel (broadcast messages)
-    staffChannel.bind('chat-message-received', (data: any) => {
-      if (data.type === 'staff-to-player' && data.playerId == playerId) {
-        handleIncomingMessage(data);
+        setSessionStatus("active");
+      } catch (e) {
+        console.error("❌ [PLAYER CHAT] Error handling chat:new-message:", e);
       }
     });
 
-    // Listen for status updates
-    playerChannel.bind('chat-status-updated', (data: any) => {
-      console.log('📊 [PLAYER CHAT] Status updated:', data);
-      if (data.playerId == playerId) {
-        setSessionStatus(data.status || 'active');
+    // Session status updates from backend (OPEN / IN_PROGRESS / RESOLVED / CLOSED)
+    socket.on("chat:session-updated", (data: any) => {
+      if (!data || data.playerId !== playerId) return;
+      const rawStatus = (data.session?.status || "").toString().toLowerCase();
 
-        // If conversation is resolved, clear messages
-        if (data.status === 'resolved') {
-          console.log('✅ [PLAYER CHAT] Conversation resolved, clearing messages');
-          setMessages([]);
-          setSessionStatus('none');
-        }
+      if (rawStatus === "closed") {
+        setSessionStatus("none");
+      } else if (rawStatus === "resolved") {
+        setSessionStatus("recent");
+      } else if (rawStatus === "open" || rawStatus === "in_progress") {
+        setSessionStatus("active");
       }
     });
 
-    // Load existing messages on initialization
+    // Initial history load
     loadChatHistory();
 
     return () => {
-      pusher.unsubscribe(`player-${playerId}`);
-      pusher.unsubscribe('staff-portal');
-      pusher.disconnect();
+      try {
+        socket.emit("unsubscribe:player", { playerId });
+      } catch (e) {
+        // ignore
+      }
+      socket.disconnect();
     };
-  }, [playerId, playerName]);
+  }, [playerId, playerName, storageKey, isInDialog]);
 
   // Load messages whenever dialog opens (if in dialog mode)
   useEffect(() => {
