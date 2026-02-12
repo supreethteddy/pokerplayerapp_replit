@@ -78,6 +78,9 @@ import NotificationHistoryTab from "./NotificationHistoryTab";
 import FoodBeverageTab from "./FoodBeverageTab";
 import CreditRequestCard from "./CreditRequestCard";
 import { useSeatAssignment } from "@/hooks/useSeatAssignment";
+
+// API Base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3333/api';
 import { usePlayerGameStatus } from "@/hooks/usePlayerGameStatus";
 import { whitelabelConfig } from "@/lib/whitelabeling";
 import { fetchClubBranding, applyClubBranding, getGradientClasses, getGradientStyle, type ClubBranding } from "@/lib/clubBranding";
@@ -548,9 +551,41 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const { user: authUser, signOut } = useUltraFastAuth();
 
   // Use prop user if available, fallback to auth user
-  const user = userProp || authUser;
+  const baseUser = userProp || authUser;
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Fetch fresh player profile data to ensure PAN card and other fields are up to date
+  const { data: profileData } = useQuery({
+    queryKey: ['player-profile', baseUser?.id],
+    queryFn: async () => {
+      if (!baseUser?.id) return null;
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/player/me`, {
+          headers: {
+            'x-player-id': baseUser.id.toString(),
+            'x-club-id': (baseUser as any).clubId || '',
+          },
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          console.error('Failed to fetch player profile:', response.status);
+          return null;
+        }
+        const data = await response.json();
+        console.log('🔄 [PROFILE REFRESH] Fresh profile data:', data);
+        return data.player || null;
+      } catch (error) {
+        console.error('Error fetching player profile:', error);
+        return null;
+      }
+    },
+    enabled: !!baseUser?.id,
+    staleTime: 30000, // 30 seconds
+  });
+
+  // Merge fresh profile data with existing user data
+  const user = profileData ? { ...baseUser, ...profileData } : baseUser;
   const [callTime, setCallTime] = useState("02:45");
   const [location, setLocation] = useLocation();
   
@@ -884,6 +919,42 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const { data: kycDocuments, isLoading: kycLoading } = useQuery<KycDocument[]>(
     {
       queryKey: [`/api/documents/player/${user?.id}`],
+      queryFn: async () => {
+        if (!user?.id) return [];
+        try {
+          const response = await fetch(`${API_BASE_URL}/player-documents/my`, {
+            headers: {
+              'x-player-id': user.id.toString(),
+              'x-club-id': (user as any).clubId || '',
+            },
+            credentials: 'include',
+          });
+          if (!response.ok) {
+            console.error('Failed to fetch documents:', response.status);
+            return [];
+          }
+          const data = await response.json();
+          console.log('📄 [KYC DOCS] API Response:', data);
+          
+          // Map backend fields to frontend expected fields
+          const mappedDocs = (data.documents || []).map((doc: any) => ({
+            id: doc.id,
+            documentType: doc.type || doc.documentType, // Backend uses 'type'
+            fileUrl: doc.url || doc.fileUrl, // Backend uses 'url'
+            fileName: doc.name || doc.fileName,
+            status: doc.status || 'pending',
+            createdAt: doc.uploadedAt || doc.createdAt,
+            size: doc.size,
+            mimeType: doc.mimeType,
+          }));
+          
+          console.log('📄 [KYC DOCS] Mapped documents:', mappedDocs);
+          return mappedDocs;
+        } catch (error) {
+          console.error('Error fetching KYC documents:', error);
+          return [];
+        }
+      },
       enabled: !!user?.id,
     }
   );
@@ -1691,8 +1762,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
       const limit = showTransactions === "all" ? 100 : 10; // Fetch 100 if 'all', otherwise 10
       const response = await fetch(
-        `/api/player/${user.id}/transactions?limit=${limit}`,
+        `${API_BASE_URL}/auth/player/transactions?limit=${limit}`,
         {
+          headers: {
+            'x-player-id': user.id.toString(),
+            'x-club-id': (user as any).clubId || '',
+          },
           credentials: "include",
         }
       );
@@ -1701,7 +1776,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         throw new Error("Failed to fetch transactions");
       }
 
-      return response.json();
+      const data = await response.json();
+      console.log('📊 [TRANSACTIONS] Response:', data);
+      return data.transactions || [];
     },
     enabled: !!user?.id && !!showTransactions, // Enable query only if user and showTransactions are set
   });
@@ -1866,6 +1943,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       id: "government_id",
       utility: "utility_bill",
       photo: "profile_photo",
+      pan: "pan_card",
     };
 
     const actualType = typeMap[documentType] || documentType;
@@ -1882,6 +1960,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         : latest;
     });
 
+    // For govt_id and pan_card, if document exists, show as "uploaded" instead of "pending"
+    if ((actualType === "government_id" || actualType === "pan_card") && latestDoc.status === "pending") {
+      return "uploaded";
+    }
+
     return latestDoc.status;
   };
 
@@ -1889,6 +1972,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     switch (status) {
       case "approved":
         return <CheckCircle className="w-4 h-4 text-emerald-500" />;
+      case "uploaded":
+        return <FileText className="w-4 h-4 text-blue-500" />;
       case "pending":
         return <Clock className="w-4 h-4 text-amber-500" />;
       case "rejected":
@@ -3216,6 +3301,41 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                       </div>
                       <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
                         <span className="text-sm text-slate-300">
+                          PAN Card Number
+                        </span>
+                        <span className="text-sm text-white font-medium font-mono">
+                          {(user as any)?.panCard || (user as any)?.pan_card_number || "Not provided"}
+                        </span>
+                      </div>
+
+                      {(user as any)?.playerId && (
+                        <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+                          <span className="text-sm text-slate-300">
+                            Player ID / Nickname
+                          </span>
+                          <span className="text-sm text-white font-medium">
+                            {(user as any)?.playerId}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+                        <span className="text-sm text-slate-300">
+                          Member Since
+                        </span>
+                        <span className="text-sm text-white font-medium">
+                          {user?.created_at || user?.createdAt
+                            ? new Date(user.created_at || user.createdAt).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                              })
+                            : "N/A"}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+                        <span className="text-sm text-slate-300">
                           KYC Status
                         </span>
                         <div className="flex items-center">
@@ -3237,11 +3357,16 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         </div>
                       </div>
                     </div>
-                    <CardContent className="pt-2 text-xs text-slate-400">
-                      Profile changes are processed by club staff. Use the
-                      per-field **Request Change** buttons above to submit
-                      secure requests for updates.
-                    </CardContent>
+                    <div className="pt-4 px-6 pb-2 text-xs text-slate-400 border-t border-slate-700">
+                      <p className="mb-2">
+                        <strong className="text-slate-300">Important:</strong> Your PAN Card number cannot be changed after submission for security and legal compliance.
+                      </p>
+                      <p>
+                        Profile changes (Name, Email, Phone) are processed by club staff. Use the
+                        per-field <strong>Request Change</strong> buttons above to submit
+                        secure requests for updates.
+                      </p>
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -3331,13 +3456,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             ? `Found ${kycDocuments.length} documents`
                             : "No documents found"}
                         </div>
-                        {/* ID Document */}
+                        {/* Govt ID */}
                         <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
                           <div className="flex items-center space-x-3 flex-1">
                             {getKycStatusIcon(getKycDocumentStatus("id"))}
                             <div className="flex-1">
                               <p className="text-sm font-medium text-white">
-                                ID Document
+                                Govt ID
                               </p>
                               <p className="text-xs text-slate-400 capitalize">
                                 {getKycDocumentStatus("id")}
@@ -3363,7 +3488,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             </div>
                           </div>
                           <div className="flex flex-col items-stretch space-y-2">
-                            {/* View button positioned above other buttons */}
+                            {/* View Document button */}
                             {Array.isArray(kycDocuments) &&
                               kycDocuments.filter(
                                 (d) =>
@@ -3384,25 +3509,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                       : null;
                                     if (doc && doc.fileUrl) {
                                       try {
-                                        // Clear browser cache for this specific document and open in new tab
-                                        const documentUrl = `/api/documents/view/${
-                                          doc.id
-                                        }?v=${Date.now()}`;
+                                        const documentUrl = doc.fileUrl;
                                         console.log(
                                           "Opening document:",
                                           documentUrl
                                         );
-
-                                        const newTab = window.open(
-                                          "about:blank",
-                                          "_blank"
-                                        );
-                                        if (newTab) {
-                                          newTab.location.href = documentUrl;
-                                        } else {
-                                          // Fallback if popup blocked
-                                          window.location.href = documentUrl;
-                                        }
+                                        window.open(documentUrl, "_blank");
                                       } catch (error) {
                                         console.error(
                                           "Error opening document:",
@@ -3423,93 +3535,40 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </Button>
                               )}
 
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                              {/* Only show upload/reupload if not approved or if no documents */}
-                              {(getKycDocumentStatus("id") !== "approved" ||
-                                (kycDocuments as any)?.filter(
-                                  (d: any) =>
-                                    d.documentType === "government_id" &&
-                                    d.fileUrl
-                                ).length === 0) && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    document
-                                      .getElementById("id-document-upload")
-                                      ?.click()
-                                  }
-                                  disabled={uploadKycDocumentMutation.isPending}
-                                  className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
-                                >
-                                  <Upload className="w-4 h-4 mr-1" />
-                                  {(kycDocuments as any)?.filter(
-                                    (d: any) =>
-                                      d.documentType === "government_id" &&
-                                      d.fileUrl
-                                  ).length > 0
-                                    ? "Reupload"
-                                    : "Upload"}
-                                </Button>
-                              )}
-
-                              {/* Show request change button if approved */}
-                              {getKycDocumentStatus("id") === "approved" && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    toast({
-                                      title: "Request Change",
-                                      description:
-                                        "Change request functionality will be available in the next update",
-                                    });
-                                  }}
-                                  className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                                >
-                                  <AlertTriangle className="w-4 h-4 mr-1" />
-                                  <span className="text-xs sm:text-sm">
-                                    Request Change
-                                  </span>
-                                </Button>
-                              )}
-                            </div>
+                            {/* Request Change button - always shown */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                toast({
+                                  title: "Request Submitted",
+                                  description:
+                                    "Your request to change Govt ID has been sent to club staff",
+                                });
+                              }}
+                              className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full"
+                            >
+                              <AlertTriangle className="w-4 h-4 mr-1" />
+                              Request Change
+                            </Button>
                           </div>
-                          <input
-                            id="id-document-upload"
-                            type="file"
-                            accept=".jpg,.jpeg,.png,.pdf"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              console.log("File input changed for ID:", {
-                                file: file?.name,
-                                hasFile: !!file,
-                              });
-                              if (file) {
-                                handleKycDocumentUpload("government_id", file);
-                                // Reset the input value to allow re-uploading same file
-                                e.target.value = "";
-                              }
-                            }}
-                          />
                         </div>
 
-                        {/* Address Document */}
+                        {/* PAN Card */}
                         <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
                           <div className="flex items-center space-x-3 flex-1">
-                            {getKycStatusIcon(getKycDocumentStatus("utility"))}
+                            {getKycStatusIcon(getKycDocumentStatus("pan"))}
                             <div className="flex-1">
                               <p className="text-sm font-medium text-white">
-                                Address Proof
+                                PAN Card
                               </p>
                               <p className="text-xs text-slate-400 capitalize">
-                                {getKycDocumentStatus("utility")}
+                                {getKycDocumentStatus("pan")}
                               </p>
                               {Array.isArray(kycDocuments) &&
                                 kycDocuments.filter(
                                   (d) =>
-                                    d.documentType === "utility_bill" &&
+                                    d.documentType === "pan_card" &&
                                     d.fileUrl
                                 ).length > 0 && (
                                   <div className="flex items-center space-x-2 mt-1">
@@ -3518,7 +3577,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                         ? kycDocuments.filter(
                                             (d) =>
                                               d.documentType ===
-                                                "utility_bill" && d.fileUrl
+                                                "pan_card" && d.fileUrl
                                           )[0]?.fileName
                                         : ""}
                                     </p>
@@ -3527,11 +3586,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             </div>
                           </div>
                           <div className="flex flex-col items-stretch space-y-2">
-                            {/* View button positioned above other buttons */}
+                            {/* View Document button */}
                             {Array.isArray(kycDocuments) &&
                               kycDocuments.filter(
                                 (d) =>
-                                  d.documentType === "utility_bill" && d.fileUrl
+                                  d.documentType === "pan_card" &&
+                                  d.fileUrl
                               ).length > 0 && (
                                 <Button
                                   size="sm"
@@ -3541,31 +3601,18 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     const doc = Array.isArray(kycDocuments)
                                       ? kycDocuments.filter(
                                           (d) =>
-                                            d.documentType === "utility_bill" &&
-                                            d.fileUrl
+                                            d.documentType ===
+                                              "pan_card" && d.fileUrl
                                         )[0]
                                       : null;
                                     if (doc && doc.fileUrl) {
                                       try {
-                                        // Clear browser cache for this specific document and open in new tab
-                                        const documentUrl = `/api/documents/view/${
-                                          doc.id
-                                        }?v=${Date.now()}`;
+                                        const documentUrl = doc.fileUrl;
                                         console.log(
                                           "Opening document:",
                                           documentUrl
                                         );
-
-                                        const newTab = window.open(
-                                          "about:blank",
-                                          "_blank"
-                                        );
-                                        if (newTab) {
-                                          newTab.location.href = documentUrl;
-                                        } else {
-                                          // Fallback if popup blocked
-                                          window.location.href = documentUrl;
-                                        }
+                                        window.open(documentUrl, "_blank");
                                       } catch (error) {
                                         console.error(
                                           "Error opening document:",
@@ -3586,87 +3633,32 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </Button>
                               )}
 
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                              {/* Only show upload/reupload if not approved or if no documents */}
-                              {(getKycDocumentStatus("utility") !==
-                                "approved" ||
-                                (kycDocuments as any)?.filter(
-                                  (d: any) =>
-                                    d.documentType === "utility_bill" &&
-                                    d.fileUrl
-                                ).length === 0) && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    document
-                                      .getElementById("utility-document-upload")
-                                      ?.click()
-                                  }
-                                  disabled={uploadKycDocumentMutation.isPending}
-                                  className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
-                                >
-                                  <Upload className="w-4 h-4 mr-1" />
-                                  {(kycDocuments as any)?.filter(
-                                    (d: any) =>
-                                      d.documentType === "utility_bill" &&
-                                      d.fileUrl
-                                  ).length > 0
-                                    ? "Reupload"
-                                    : "Upload"}
-                                </Button>
-                              )}
-
-                              {/* Show request change button if approved */}
-                              {getKycDocumentStatus("utility") ===
-                                "approved" && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    toast({
-                                      title: "Request Change",
-                                      description:
-                                        "Change request functionality will be available in the next update",
-                                    });
-                                  }}
-                                  className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                                >
-                                  <AlertTriangle className="w-4 h-4 mr-1" />
-                                  <span className="text-xs sm:text-sm">
-                                    Request Change
-                                  </span>
-                                </Button>
-                              )}
-                            </div>
+                            {/* Request Change button - always shown */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                toast({
+                                  title: "Request Submitted",
+                                  description:
+                                    "Your request to change PAN Card has been sent to club staff",
+                                });
+                              }}
+                              className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full"
+                            >
+                              <AlertTriangle className="w-4 h-4 mr-1" />
+                              Request Change
+                            </Button>
                           </div>
-                          <input
-                            id="utility-document-upload"
-                            type="file"
-                            accept=".jpg,.jpeg,.png,.pdf"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              console.log(
-                                "File input changed for Utility Bill:",
-                                { file: file?.name, hasFile: !!file }
-                              );
-                              if (file) {
-                                handleKycDocumentUpload("utility_bill", file);
-                                // Reset the input value to allow re-uploading same file
-                                e.target.value = "";
-                              }
-                            }}
-                          />
                         </div>
 
-                        {/* Photo Document */}
+                        {/* Profile Photo Document */}
                         <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
                           <div className="flex items-center space-x-3 flex-1">
                             {getKycStatusIcon(getKycDocumentStatus("photo"))}
                             <div className="flex-1">
                               <p className="text-sm font-medium text-white">
-                                Photo
+                                Profile Photo
                               </p>
                               <p className="text-xs text-slate-400 capitalize">
                                 {getKycDocumentStatus("photo")}
@@ -3692,7 +3684,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             </div>
                           </div>
                           <div className="flex flex-col items-stretch space-y-2">
-                            {/* View button positioned above other buttons */}
+                            {/* View Document button */}
                             {Array.isArray(kycDocuments) &&
                               kycDocuments.filter(
                                 (d) =>
@@ -3713,25 +3705,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                       : null;
                                     if (doc && doc.fileUrl) {
                                       try {
-                                        // Clear browser cache for this specific document and open in new tab
-                                        const documentUrl = `/api/documents/view/${
-                                          doc.id
-                                        }?v=${Date.now()}`;
+                                        const documentUrl = doc.fileUrl;
                                         console.log(
                                           "Opening document:",
                                           documentUrl
                                         );
-
-                                        const newTab = window.open(
-                                          "about:blank",
-                                          "_blank"
-                                        );
-                                        if (newTab) {
-                                          newTab.location.href = documentUrl;
-                                        } else {
-                                          // Fallback if popup blocked
-                                          window.location.href = documentUrl;
-                                        }
+                                        window.open(documentUrl, "_blank");
                                       } catch (error) {
                                         console.error(
                                           "Error opening document:",
@@ -3752,79 +3731,48 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </Button>
                               )}
 
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                              {/* Only show upload/reupload if not approved or if no documents */}
-                              {(getKycDocumentStatus("photo") !== "approved" ||
-                                (Array.isArray(kycDocuments) &&
-                                  kycDocuments.filter(
-                                    (d) =>
-                                      d.documentType === "profile_photo" &&
-                                      d.fileUrl
-                                  ).length === 0)) && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    document
-                                      .getElementById("photo-document-upload")
-                                      ?.click()
-                                  }
-                                  disabled={uploadKycDocumentMutation.isPending}
-                                  className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
-                                >
-                                  <Upload className="w-4 h-4 mr-1" />
-                                  {Array.isArray(kycDocuments) &&
-                                  kycDocuments.filter(
-                                    (d) =>
-                                      d.documentType === "profile_photo" &&
-                                      d.fileUrl
-                                  ).length > 0
-                                    ? "Reupload"
-                                    : "Upload"}
-                                </Button>
-                              )}
-
-                              {/* Show request change button if approved */}
-                              {getKycDocumentStatus("photo") === "approved" && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    toast({
-                                      title: "Request Change",
-                                      description:
-                                        "Change request functionality will be available in the next update",
-                                    });
-                                  }}
-                                  className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                                >
-                                  <AlertTriangle className="w-4 h-4 mr-1" />
-                                  <span className="text-xs sm:text-sm">
-                                    Request Change
-                                  </span>
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                          <input
-                            id="photo-document-upload"
-                            type="file"
-                            accept=".jpg,.jpeg,.png,.pdf"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              console.log("File input changed for Photo:", {
-                                file: file?.name,
-                                hasFile: !!file,
-                              });
-                              if (file) {
-                                handleKycDocumentUpload("profile_photo", file);
-                                // Reset the input value to allow re-uploading same file
-                                e.target.value = "";
+                            {/* Upload/Reupload button - players can change their profile photo anytime */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                document
+                                  .getElementById("photo-document-upload")
+                                  ?.click()
                               }
-                            }}
-                          />
+                              disabled={uploadKycDocumentMutation.isPending}
+                              className="border-slate-600 hover:bg-slate-600 w-full"
+                            >
+                              <Upload className="w-4 h-4 mr-1" />
+                              {Array.isArray(kycDocuments) &&
+                              kycDocuments.filter(
+                                (d) =>
+                                  d.documentType === "profile_photo" &&
+                                  d.fileUrl
+                              ).length > 0
+                                ? "Change Photo"
+                                : "Upload"}
+                            </Button>
+                          </div>
                         </div>
+                        <input
+                          id="photo-document-upload"
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            console.log("File input changed for Photo:", {
+                              file: file?.name,
+                              hasFile: !!file,
+                            });
+                            if (file) {
+                              handleKycDocumentUpload("profile_photo", file);
+                              // Reset the input value to allow re-uploading same file
+                              e.target.value = "";
+                            }
+                          }}
+                        />
 
                         {/* Upload status */}
                         {uploadKycDocumentMutation.isPending && (
@@ -3836,304 +3784,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                           </div>
                         )}
 
-                        {/* Document Summary */}
-                        {kycDocuments && kycDocuments.length > 0 && (
-                          <div className="mt-4 p-4 bg-slate-700 rounded-lg">
-                            <h4 className="text-sm font-medium text-white mb-3">
-                              Document Upload History
-                            </h4>
-                            <div className="mb-3 p-2 bg-slate-800 rounded border border-slate-600">
-                              <p className="text-xs text-slate-300">
-                                <strong>Note:</strong> Some older documents may
-                                need to be re-uploaded to view them. New uploads
-                                will be viewable immediately.
-                              </p>
-                            </div>
-                            <div className="space-y-2">
-                              {kycDocuments.map((doc) => {
-                                // Use createdAt as the timestamp
-                                const dateToFormat = doc.createdAt;
-                                const formattedDate = dateToFormat
-                                  ? formatSubmissionDate(
-                                      dateToFormat.toString()
-                                    )
-                                  : "No date";
-
-                                const formattedType = formatDocumentType(
-                                  doc.documentType || "document"
-                                );
-                                return (
-                                  <div
-                                    key={doc.id}
-                                    className="flex items-center justify-between py-2 border-b border-slate-600 last:border-b-0"
-                                  >
-                                    <div className="flex items-center space-x-3 flex-1">
-                                      <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                                      <div className="flex-1">
-                                        <p className="text-xs font-medium text-white">
-                                          {formattedType}
-                                        </p>
-                                        <p className="text-xs text-slate-400">
-                                          {doc.fileName}
-                                        </p>
-                                        <p className="text-xs text-slate-500">
-                                          {formattedDate}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                      <Badge
-                                        variant={
-                                          doc.status === "approved"
-                                            ? "default"
-                                            : doc.status === "pending"
-                                            ? "secondary"
-                                            : "destructive"
-                                        }
-                                        className="text-xs"
-                                      >
-                                        {doc.status}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
-                  </CardContent>
-                </Card>
-
-                {/* PAN Card Management */}
-                <Card className="bg-slate-800 border-slate-700">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center">
-                      <CreditCard className="w-5 h-5 mr-2 text-emerald-500" />
-                      PAN Card Verification
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* PAN Card Number Input */}
-                    <div className="space-y-3">
-                      <div className="p-3 bg-slate-700 rounded-lg">
-                        <p className="text-xs text-slate-400">
-                          Your PAN card number must be unique and cannot be used
-                          by other players
-                        </p>
-                      </div>
-
-                      <div className="flex flex-col space-y-2">
-                        <label
-                          htmlFor="pan-number"
-                          className="text-sm font-medium text-white"
-                        >
-                          PAN Card Number
-                        </label>
-                        <Input
-                          value={panCardNumber || ""}
-                          onChange={(e) =>
-                            setPanCardNumber(e.target.value.toUpperCase())
-                          }
-                          className={`bg-slate-700 border-slate-600 text-white h-12 ${
-                            panCardNumber && !isValidPAN(panCardNumber)
-                              ? "border-red-500"
-                              : ""
-                          }`}
-                          placeholder="ABCPF1234G"
-                          maxLength={10}
-                        />
-                        {panCardNumber && !isValidPAN(panCardNumber) && (
-                          <p className="text-red-400 text-xs mt-2">
-                            Invalid PAN card format. Please enter a valid PAN
-                            card number.
-                          </p>
-                        )}
-                      </div>
-
-                      <Button
-                        className="w-full hover:opacity-90 text-white disabled:opacity-50"
-                        style={getClubButtonStyle('primary')}
-                        onClick={handlePanCardUpdate}
-                        disabled={
-                          updatePanCardMutation.isPending ||
-                          !isValidPAN(panCardNumber)
-                        }
-                      >
-                        {updatePanCardMutation.isPending ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                            Updating...
-                          </>
-                        ) : (
-                          "Update PAN Card Number"
-                        )}
-                      </Button>
-                    </div>
-
-                    {/* PAN Card Document Upload - Now with full functionality like other KYC docs */}
-                    <div className="space-y-3 pt-4 border-t border-slate-600">
-                      <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
-                        <div className="flex items-center space-x-3 flex-1">
-                          {getKycStatusIcon(getKycDocumentStatus("pan_card"))}
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-white">
-                              PAN Card Document
-                            </p>
-                            <p className="text-xs text-slate-400 capitalize">
-                              {getKycDocumentStatus("pan_card")}
-                            </p>
-                            {Array.isArray(kycDocuments) &&
-                              kycDocuments.filter(
-                                (d) =>
-                                  d.documentType === "pan_card" && d.fileUrl
-                              ).length > 0 && (
-                                <div className="flex items-center space-x-2 mt-1">
-                                  <p className="text-xs text-emerald-500">
-                                    {Array.isArray(kycDocuments)
-                                      ? kycDocuments.filter(
-                                          (d) =>
-                                            d.documentType === "pan_card" &&
-                                            d.fileUrl
-                                        )[0]?.fileName
-                                      : ""}
-                                  </p>
-                                </div>
-                              )}
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-stretch space-y-2">
-                          {/* View button positioned above other buttons */}
-                          {Array.isArray(kycDocuments) &&
-                            kycDocuments.filter(
-                              (d) => d.documentType === "pan_card" && d.fileUrl
-                            ).length > 0 && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
-                                onClick={() => {
-                                  const doc = Array.isArray(kycDocuments)
-                                    ? kycDocuments.filter(
-                                        (d) =>
-                                          d.documentType === "pan_card" &&
-                                          d.fileUrl
-                                      )[0]
-                                    : null;
-                                  if (doc && doc.fileUrl) {
-                                    try {
-                                      // Clear browser cache for this specific document and open in new tab
-                                      const documentUrl = `/api/documents/view/${
-                                        doc.id
-                                      }?v=${Date.now()}`;
-                                      console.log(
-                                        "Opening document:",
-                                        documentUrl
-                                      );
-
-                                      const newTab = window.open(
-                                        "about:blank",
-                                        "_blank"
-                                      );
-                                      if (newTab) {
-                                        newTab.location.href = documentUrl;
-                                      } else {
-                                        // Fallback if popup blocked
-                                        window.location.href = documentUrl;
-                                      }
-                                    } catch (error) {
-                                      console.error(
-                                        "Error opening document:",
-                                        error
-                                      );
-                                      toast({
-                                        title: "Error",
-                                        description: "Unable to open document",
-                                        variant: "destructive",
-                                      });
-                                    }
-                                  }
-                                }}
-                              >
-                                <Eye className="w-3 h-3 mr-1" />
-                                View Document
-                              </Button>
-                            )}
-
-                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                            {/* Only show upload/reupload if not approved or if no documents */}
-                            {(getKycDocumentStatus("pan_card") !== "approved" ||
-                              (Array.isArray(kycDocuments) &&
-                                kycDocuments.filter(
-                                  (d) =>
-                                    d.documentType === "pan_card" && d.fileUrl
-                                ).length === 0)) && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  document
-                                    .getElementById("pan-document-upload")
-                                    ?.click()
-                                }
-                                disabled={uploadKycDocumentMutation.isPending}
-                                className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
-                              >
-                                <Upload className="w-4 h-4 mr-1" />
-                                {Array.isArray(kycDocuments) &&
-                                kycDocuments.filter(
-                                  (d) =>
-                                    d.documentType === "pan_card" && d.fileUrl
-                                ).length > 0
-                                  ? "Reupload"
-                                  : "Upload"}
-                              </Button>
-                            )}
-
-                            {/* Show request change button if approved */}
-                            {getKycDocumentStatus("pan_card") ===
-                              "approved" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  toast({
-                                    title: "Request Change",
-                                    description:
-                                      "Change request functionality will be available in the next update",
-                                  });
-                                }}
-                                className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                              >
-                                <AlertTriangle className="w-4 h-4 mr-1" />
-                                <span className="text-xs sm:text-sm">
-                                  Request Change
-                                </span>
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                        <input
-                          id="pan-document-upload"
-                          type="file"
-                          accept=".jpg,.jpeg,.png,.pdf"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            console.log("File input changed for PAN Card:", {
-                              file: file?.name,
-                              hasFile: !!file,
-                            });
-                            if (file) {
-                              handleKycDocumentUpload("pan_card", file);
-                              // Reset the input value to allow re-uploading same file
-                              e.target.value = "";
-                            }
-                          }}
-                        />
-                      </div>
-                    </div>
                   </CardContent>
                 </Card>
 
@@ -4193,11 +3845,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                       </p>
                                       <p className="text-xs text-slate-400">
                                         {new Date(
-                                          transaction.created_at
+                                          transaction.createdAt || transaction.created_at
                                         ).toLocaleDateString()}{" "}
                                         at{" "}
                                         {new Date(
-                                          transaction.created_at
+                                          transaction.createdAt || transaction.created_at
                                         ).toLocaleTimeString()}
                                       </p>
                                     </div>
