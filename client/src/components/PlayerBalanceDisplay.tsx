@@ -44,7 +44,7 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
   // Handle both old and new balance data formats
   const creditEnabled = (balance as any)?.creditEnabled || false;
   const creditLimit = parseFloat((balance as any)?.creditLimit || '0');
-  const creditUsed = parseFloat((balance as any)?.creditUsed || '0'); // Total credit from credit requests
+  const creditUsed = parseFloat((balance as any)?.creditUsed || '0'); // Total credit from approved credit requests
   const remainingCreditToRequest = parseFloat((balance as any)?.availableCredit || (balance as any)?.creditBalance || '0');
   const currentCashBalance = parseFloat((balance as any)?.availableBalance || (balance as any)?.cashBalance || '0');
   
@@ -53,6 +53,16 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
   const creditUsedOnTable = parseFloat((balance as any)?.creditUsedOnTable || '0');
   const cashOnTable = parseFloat((balance as any)?.cashOnTable || '0');
   const isSeated = (balance as any)?.isSeated || false;
+
+  // When player is NOT seated, their effective playable balance should include
+  // approved credit (creditUsed) in addition to wallet cash.
+  const displayWalletBalance = isSeated
+    ? currentCashBalance
+    : currentCashBalance + creditUsed;
+
+  const displayTotalBalance = isSeated
+    ? currentCashBalance + currentTableBalance
+    : currentCashBalance + creditUsed;
   
   console.log('💰 [BALANCE DISPLAY] Raw balance data:', balance);
   console.log('💰 [BALANCE DISPLAY] Cash Balance (wallet):', currentCashBalance);
@@ -63,7 +73,7 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
 
   return (
     <div className="space-y-4">
-      {/* Wallet Cash Balance */}
+      {/* Wallet Cash Balance (cash only) */}
       <div className={`rounded-lg p-6 text-white shadow-lg ${currentCashBalance < 0 ? 'bg-gradient-to-r from-red-600 to-red-700' : 'bg-gradient-to-r from-emerald-600 to-green-700'}`}>
         <div className="text-center">
           <h2 className="text-lg font-medium opacity-90 mb-2">
@@ -120,7 +130,7 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
               </div>
             </div>
             <div className="text-sm opacity-75 bg-black/20 rounded-full px-4 py-2 inline-block">
-              Request credit from cashier when needed
+              Request credits when needed
             </div>
           </div>
         </div>
@@ -131,12 +141,27 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
         <div className="text-center">
           <h3 className="text-md font-medium opacity-90 mb-2">Total Balance Summary</h3>
           <div className="text-3xl font-bold mb-2">
-            ₹{(currentCashBalance + currentTableBalance).toLocaleString()}
+            ₹{displayTotalBalance.toLocaleString()}
           </div>
           <div className="text-xs opacity-75 space-y-1">
-            <div>Wallet: ₹{currentCashBalance.toLocaleString()}</div>
-            {isSeated && <div>Table: ₹{currentTableBalance.toLocaleString()}</div>}
-            {creditUsedOnTable > 0 && <div className="text-purple-300">(Includes ₹{creditUsedOnTable.toLocaleString()} credit on table)</div>}
+            <div>
+              Wallet: ₹{displayWalletBalance.toLocaleString()}
+              {!isSeated && creditUsed > 0 && (
+                <span className="ml-1 text-[10px] text-purple-300">
+                  (includes ₹{creditUsed.toLocaleString()} approved credit)
+                </span>
+              )}
+            </div>
+            {isSeated && (
+              <div>
+                Table: ₹{currentTableBalance.toLocaleString()}
+                {creditUsedOnTable > 0 && (
+                  <span className="ml-1 text-[10px] text-purple-300">
+                    (includes ₹{creditUsedOnTable.toLocaleString()} credit on table)
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
