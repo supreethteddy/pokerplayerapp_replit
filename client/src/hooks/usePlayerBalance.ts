@@ -57,8 +57,8 @@ export function usePlayerBalance(playerId: string) {
       console.log('✅ [BALANCE HOOK] Balance data:', data);
       return data;
     },
-    refetchInterval: 5000, // Refetch every 5 seconds for optimized performance
-    staleTime: 0, // Always consider data stale for fresh credit updates from staff portal
+    refetchInterval: 30000, // Light fallback poll every 30s; real-time via Supabase handles instant updates
+    staleTime: 5000, // Consider fresh for 5s since real-time pushes updates
     enabled: !!playerId, // Only run query if playerId exists
   });
 

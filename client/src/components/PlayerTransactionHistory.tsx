@@ -104,8 +104,19 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
                   <span className="text-lg">{getTransactionIcon(transaction.type)}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-white">
-                    {getTransactionLabel(transaction.type)}
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-white">
+                      {getTransactionLabel(transaction.type)}
+                    </span>
+                    {(transaction as any).gameType && (
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                        (transaction as any).gameType === 'poker' 
+                          ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' 
+                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      }`}>
+                        {(transaction as any).gameType === 'poker' ? '♠ Poker' : '🃏 Rummy'}
+                      </span>
+                    )}
                   </div>
                   <div className="text-sm text-slate-400">
                     {new Date(transaction.createdAt).toLocaleDateString()} at{' '}
