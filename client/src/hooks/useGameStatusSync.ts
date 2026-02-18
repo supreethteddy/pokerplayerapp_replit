@@ -70,7 +70,8 @@ export function useGameStatusSync() {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 5,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: Infinity,
     });
 
     socket.on('connect', () => {

@@ -54,9 +54,11 @@ import {
   RotateCcw,
   Trash2,
   Coffee,
+  Lock,
+  Timer,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type {
   Table as TableType,
   SeatRequest,
@@ -543,6 +545,67 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
   );
 };
 
+// ---- Late Registration Helpers ----
+function getTournamentLateRegInfo(tournament: any): {
+  isActive: boolean;
+  lateRegAllowed: boolean;
+  lateRegOpen: boolean;
+  lateRegExpired: boolean;
+  remainingSeconds: number;
+} {
+  const isActive = tournament.status === "active" || tournament.status === "running";
+  if (!isActive || !tournament.sessionStartedAt) {
+    return { isActive, lateRegAllowed: false, lateRegOpen: false, lateRegExpired: false, remainingSeconds: 0 };
+  }
+  const lateRegMinutes = tournament.lateRegistrationMinutes || 0;
+  if (lateRegMinutes <= 0) {
+    return { isActive: true, lateRegAllowed: false, lateRegOpen: false, lateRegExpired: true, remainingSeconds: 0 };
+  }
+  const sessionStart = new Date(tournament.sessionStartedAt).getTime();
+  const lateRegEndTime = sessionStart + lateRegMinutes * 60 * 1000;
+  const remaining = Math.max(0, Math.floor((lateRegEndTime - Date.now()) / 1000));
+  return {
+    isActive: true,
+    lateRegAllowed: true,
+    lateRegOpen: remaining > 0,
+    lateRegExpired: remaining <= 0,
+    remainingSeconds: remaining,
+  };
+}
+
+function DashboardLateRegCountdown({ tournament }: { tournament: any }) {
+  const [remaining, setRemaining] = useState(() => getTournamentLateRegInfo(tournament).remainingSeconds);
+
+  useEffect(() => {
+    const info = getTournamentLateRegInfo(tournament);
+    setRemaining(info.remainingSeconds);
+    if (!info.lateRegOpen) return;
+    const interval = setInterval(() => {
+      const updated = getTournamentLateRegInfo(tournament);
+      setRemaining(updated.remainingSeconds);
+      if (updated.remainingSeconds <= 0) clearInterval(interval);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [tournament.sessionStartedAt, tournament.lateRegistrationMinutes]);
+
+  if (remaining <= 0) {
+    return (
+      <span className="flex items-center gap-1 text-red-400 text-[0.65rem] font-medium">
+        <Lock className="w-3 h-3" /> Late reg closed
+      </span>
+    );
+  }
+  const mins = Math.floor(remaining / 60);
+  const secs = remaining % 60;
+  const isUrgent = remaining <= 60;
+  return (
+    <span className={`flex items-center gap-1 text-[0.65rem] font-semibold ${isUrgent ? "text-red-300 animate-pulse" : "text-amber-300"}`}>
+      <Timer className="w-3 h-3" />
+      Late reg: {mins}:{secs.toString().padStart(2, "0")}
+    </span>
+  );
+}
+
 interface PlayerDashboardProps {
   user?: any;
 }
@@ -554,6 +617,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const baseUser = userProp || authUser;
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // 1-second tick for real-time countdown timers (e.g. late registration)
+  const [, setLateRegTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setLateRegTick((t) => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch fresh player profile data to ensure PAN card and other fields are up to date
   const { data: profileData } = useQuery({
@@ -2997,87 +3067,125 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </div>
                               </div>
 
-                              <div className="flex justify-between items-center">
-                                <div className="flex items-center space-x-2">
-                                  <Badge
-                                    className={`${
-                                      tournament.status === "upcoming" || tournament.status === "scheduled"
-                                        ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
-                                        : tournament.status === "running" || tournament.status === "active"
-                                        ? "bg-green-500/20 text-green-300 border-green-500/30"
-                                        : tournament.status === "finished"
-                                        ? "bg-gray-500/20 text-gray-300 border-gray-500/30"
-                                        : "bg-slate-500/20 text-slate-300 border-slate-500/30"
-                                    }`}
-                                  >
-                                    {tournament.status
-                                      ? tournament.status
-                                          .charAt(0)
-                                          .toUpperCase() +
-                                        tournament.status.slice(1)
-                                      : "Unknown"}
-                                  </Badge>
-                                  {tournament.structure && typeof tournament.structure === 'object' && (
-                                    <span className="text-sm text-slate-400">
-                                      {tournament.structure.tournament_type || 'Standard'}
-                                    </span>
-                                  )}
-                                  {tournament.structure && typeof tournament.structure === 'string' && (
-                                    <span className="text-sm text-slate-400">
-                                      {tournament.structure}
-                                    </span>
-                                  )}
-                                </div>
+                              {(() => {
+                                const lateInfo = getTournamentLateRegInfo(tournament);
+                                const preStartStatuses = ["scheduled", "upcoming", "registration_open", "registering"];
+                                const activeStatuses = ["active", "running"];
+                                const isPreStart = preStartStatuses.includes(tournament.status);
+                                const isTournamentActive = activeStatuses.includes(tournament.status);
+                                const playerRegistered = isRegistered(tournament.id);
+                                const isFull = (tournament.registeredPlayers ?? tournament.registered_players ?? 0) >= (tournament.maxPlayers ?? tournament.max_players ?? 999);
 
-                                <div className="flex items-center space-x-2">
-                                  {(tournament.status === "upcoming" || tournament.status === "scheduled" || tournament.status === "registration_open" || tournament.status === "registering") && (
-                                    <>
-                                      <Button
-                                        onClick={() =>
-                                          handleViewTournamentDetails(
-                                            tournament
-                                          )
-                                        }
-                                        size="sm"
-                                        variant="outline"
-                                        className="border-slate-500 text-slate-200 hover:bg-slate-600"
-                                      >
-                                        View Details
-                                      </Button>
-                                      {isRegistered(
-                                        tournament.id
-                                      ) ? (
-                                        <Button
-                                          size="sm"
-                                          disabled
-                                          className="text-white"
-                                          style={getClubButtonStyle('primary')}
-                                        >
-                                          Registered
-                                        </Button>
-                                      ) : (
-                                        <Button
-                                          onClick={() =>
-                                            handleTournamentRegister(
-                                              tournament.id
-                                            )
-                                          }
-                                          disabled={tournamentActionLoading}
-                                          size="sm"
-                                          className="bg-yellow-500 hover:bg-yellow-600 text-black"
-                                        >
-                                          {tournamentActionLoading
-                                            ? (
-                                              <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin mr-2" />
-                                            )
-                                            : null}
-                                          Register
-                                        </Button>
-                                      )}
-                                    </>
-                                  )}
-                                </div>
-                              </div>
+                                let canRegister = false;
+                                let canCancel = false;
+                                let buttonLabel = "Register";
+                                let disabledLabel = "Registration Closed";
+
+                                if (playerRegistered) {
+                                  canCancel = true;
+                                } else if (isPreStart) {
+                                  canRegister = !isFull;
+                                  disabledLabel = isFull ? "Tournament Full" : "Registration Closed";
+                                } else if (isTournamentActive) {
+                                  if (lateInfo.lateRegAllowed && lateInfo.lateRegOpen && !isFull) {
+                                    canRegister = true;
+                                    buttonLabel = "Late Register";
+                                  } else if (isFull) {
+                                    disabledLabel = "Tournament Full";
+                                  } else if (!lateInfo.lateRegAllowed) {
+                                    disabledLabel = "Registration Closed";
+                                  } else {
+                                    disabledLabel = "Late Reg Expired";
+                                  }
+                                }
+
+                                return (
+                                  <div className="space-y-2">
+                                    {/* Late reg countdown for active tournaments */}
+                                    {isTournamentActive && (
+                                      <div className="flex items-center justify-between">
+                                        <Badge className="bg-green-500/20 text-green-300 border-green-500/30">
+                                          Live
+                                        </Badge>
+                                        {lateInfo.lateRegAllowed ? (
+                                          <DashboardLateRegCountdown tournament={tournament} />
+                                        ) : (
+                                          <span className="flex items-center gap-1 text-red-400 text-[0.65rem] font-medium">
+                                            <Lock className="w-3 h-3" /> No late registration
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    <div className="flex justify-between items-center">
+                                      <div className="flex items-center space-x-2">
+                                        {!isTournamentActive && (
+                                          <Badge
+                                            className={`${
+                                              isPreStart
+                                                ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
+                                                : tournament.status === "finished"
+                                                ? "bg-gray-500/20 text-gray-300 border-gray-500/30"
+                                                : "bg-slate-500/20 text-slate-300 border-slate-500/30"
+                                            }`}
+                                          >
+                                            {tournament.status
+                                              ? tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)
+                                              : "Unknown"}
+                                          </Badge>
+                                        )}
+                                        {tournament.gameType && (
+                                          <Badge className="bg-slate-600/50 text-slate-300 text-[0.6rem]">
+                                            {tournament.gameType === "rummy" ? "Rummy" : "Poker"}
+                                          </Badge>
+                                        )}
+                                      </div>
+
+                                      <div className="flex items-center space-x-2">
+                                        {(isPreStart || isTournamentActive) && (
+                                          <>
+                                            <Button
+                                              onClick={() => handleViewTournamentDetails(tournament)}
+                                              size="sm"
+                                              variant="outline"
+                                              className="border-slate-500 text-slate-200 hover:bg-slate-600"
+                                            >
+                                              View Details
+                                            </Button>
+                                            {canCancel ? (
+                                              <Button
+                                                size="sm"
+                                                disabled
+                                                className="text-white"
+                                                style={getClubButtonStyle('primary')}
+                                              >
+                                                Registered
+                                              </Button>
+                                            ) : canRegister ? (
+                                              <Button
+                                                onClick={() => handleTournamentRegister(tournament.id)}
+                                                disabled={tournamentActionLoading}
+                                                size="sm"
+                                                className="bg-yellow-500 hover:bg-yellow-600 text-black"
+                                              >
+                                                {tournamentActionLoading ? (
+                                                  <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin mr-2" />
+                                                ) : null}
+                                                {buttonLabel}
+                                              </Button>
+                                            ) : (
+                                              <Button size="sm" disabled className="opacity-50 text-slate-400">
+                                                <Lock className="w-3 h-3 mr-1" />
+                                                {disabledLabel}
+                                              </Button>
+                                            )}
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           ))}
 
