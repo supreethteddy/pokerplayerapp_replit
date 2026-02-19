@@ -43,20 +43,28 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
 
   const getTransactionIcon = (type: string) => {
     const t = type.toLowerCase();
-    if (t.includes('deposit') || t.includes('credit') || t.includes('bonus')) return '💰';
-    if (t.includes('cashout') || t.includes('withdrawal')) return '💳';
+    if (t === 'club buy in') return '🏦';
+    if (t === 'club buy out') return '💵';
+    if (t === 'table buy in') return '🎯';
+    if (t === 'table buy out') return '🎲';
+    if (t.includes('credit')) return '💳';
+    if (t.includes('debit')) return '📤';
+    if (t.includes('deposit') || t.includes('bonus')) return '💰';
+    if (t.includes('cashout') || t.includes('withdrawal')) return '💵';
     if (t.includes('buy in')) return '🎯';
     if (t.includes('refund')) return '🔄';
     return '💸';
   };
 
   const getTransactionLabel = (type: string) => {
-    // Return the type as-is, it's already properly formatted from backend
     return type;
   };
 
   const getAmountColor = (type: string) => {
     const t = type.toLowerCase();
+    if (t === 'club buy in' || t === 'table buy out') return 'text-emerald-400';
+    if (t === 'club buy out' || t === 'table buy in') return 'text-red-400';
+    if (t === 'debit') return 'text-orange-400';
     if (t.includes('credit') || t.includes('bonus')) return 'text-blue-400';
     if (t.includes('deposit') || t.includes('refund')) return 'text-emerald-400';
     if (t.includes('cashout') || t.includes('withdrawal') || t.includes('buy in')) return 'text-red-400';
@@ -65,6 +73,8 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
 
   const getAmountPrefix = (type: string) => {
     const t = type.toLowerCase();
+    if (t === 'club buy in' || t === 'table buy out') return '+';
+    if (t === 'club buy out' || t === 'table buy in' || t === 'debit') return '-';
     if (t.includes('deposit') || t.includes('credit') || t.includes('bonus') || t.includes('refund')) return '+';
     if (t.includes('cashout') || t.includes('withdrawal') || t.includes('buy in')) return '-';
     return '';
@@ -119,8 +129,8 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
                     )}
                   </div>
                   <div className="text-sm text-slate-400">
-                    {new Date(transaction.createdAt).toLocaleDateString()} at{' '}
-                    {new Date(transaction.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(transaction.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })} at{' '}
+                    {new Date(transaction.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
                   </div>
                   {transaction.notes && (
                     <div className="text-xs text-slate-500 mt-1">

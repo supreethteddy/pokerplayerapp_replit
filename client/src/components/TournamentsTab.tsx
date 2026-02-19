@@ -324,11 +324,11 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
                       <div className="grid grid-cols-2 gap-3 mb-3">
                         <div className="flex items-center text-slate-300 text-sm">
                           <Calendar className="w-4 h-4 mr-2 text-emerald-400" />
-                          {new Date(tournament.startDate).toLocaleDateString()}
+                          {new Date(tournament.startDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
                         </div>
                         <div className="flex items-center text-slate-300 text-sm">
                           <Clock className="w-4 h-4 mr-2 text-emerald-400" />
-                          {new Date(tournament.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(tournament.startDate).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
                         </div>
                         <div className="flex items-center text-slate-300 text-sm">
                           <DollarSign className="w-4 h-4 mr-2 text-yellow-400" />

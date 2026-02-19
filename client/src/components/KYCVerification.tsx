@@ -569,6 +569,16 @@ export default function KYCVerification() {
 
             {/* Submit KYC Button - Mobile Responsive */}
             <div className="pt-4 border-t border-slate-600">
+              {(!uploadedDocs.government_id || !uploadedDocs.pan_card || !panCard.trim()) && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg mb-3">
+                  <p className="text-xs sm:text-sm text-red-300 font-medium mb-1">Required before submission:</p>
+                  <ul className="text-xs text-red-400/80 space-y-0.5 ml-3">
+                    {!uploadedDocs.government_id && <li>• Upload Aadhaar Card document</li>}
+                    {!uploadedDocs.pan_card && <li>• Upload PAN Card document</li>}
+                    {!panCard.trim() && <li>• Enter PAN Card number</li>}
+                  </ul>
+                </div>
+              )}
               <Button
                 className="w-full hover:opacity-90 text-white font-semibold py-4 sm:py-6 min-h-[52px] sm:min-h-[64px] text-sm sm:text-base"
                 style={getClubButtonStyle('primary')}
@@ -585,6 +595,16 @@ export default function KYCVerification() {
                     <Clock className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
                     Submitting KYC...
                   </>
+                ) : !uploadedDocs.government_id || !uploadedDocs.pan_card ? (
+                  <>
+                    <Upload className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                    Upload Aadhaar & PAN First
+                  </>
+                ) : !panCard.trim() ? (
+                  <>
+                    <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+                    Enter PAN Number to Submit
+                  </>
                 ) : (
                   <>
                     <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
@@ -593,7 +613,7 @@ export default function KYCVerification() {
                 )}
               </Button>
               <p className="text-xs sm:text-sm text-slate-500 text-center mt-2 px-2">
-                Make sure you've uploaded all documents and entered your PAN card number
+                Upload both Aadhaar and PAN documents, then enter your PAN number to submit
               </p>
             </div>
           </CardContent>

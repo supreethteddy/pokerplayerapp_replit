@@ -56,6 +56,7 @@ import {
   Coffee,
   Lock,
   Timer,
+  Edit3,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect, useCallback } from "react";
@@ -258,10 +259,10 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
                     <div className="flex items-center text-sm text-slate-400 mb-4">
                       <Calendar className="w-4 h-4 mr-2" />
                       {offer.start_date &&
-                        new Date(offer.start_date).toLocaleDateString()}
+                        new Date(offer.start_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
                       {offer.start_date && offer.end_date && " - "}
                       {offer.end_date &&
-                        new Date(offer.end_date).toLocaleDateString()}
+                        new Date(offer.end_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
                     </div>
                   )}
 
@@ -354,7 +355,7 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
                   <div>
                     <p className="text-slate-400 text-sm mb-1">Start Date</p>
                     <p className="text-white">
-                      {new Date(selectedOffer.start_date).toLocaleDateString()}
+                      {new Date(selectedOffer.start_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
                     </p>
                   </div>
                 )}
@@ -362,7 +363,7 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
                   <div>
                     <p className="text-slate-400 text-sm mb-1">End Date</p>
                     <p className="text-white">
-                      {new Date(selectedOffer.end_date).toLocaleDateString()}
+                      {new Date(selectedOffer.end_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
                     </p>
                   </div>
                 )}
@@ -606,6 +607,362 @@ function DashboardLateRegCountdown({ tournament }: { tournament: any }) {
   );
 }
 
+function TournamentSessionTimer({ tournament, large, isExited, exitedAt }: { tournament: any; large?: boolean; isExited?: boolean; exitedAt?: string | null }) {
+  const [elapsed, setElapsed] = useState(0);
+  const isPaused = !!tournament.pausedAt;
+  const sessionEnded = !!isExited;
+
+  useEffect(() => {
+    if (!tournament.sessionStartedAt) return;
+    const startTime = new Date(tournament.sessionStartedAt).getTime();
+    const totalPausedSecs = parseInt(tournament.totalPausedSeconds) || 0;
+    const pausedAtTime = tournament.pausedAt ? new Date(tournament.pausedAt).getTime() : null;
+    const exitTime = exitedAt ? new Date(exitedAt).getTime() : null;
+
+    const update = () => {
+      if (sessionEnded && exitTime) {
+        const elapsedUntilExit = Math.floor((exitTime - startTime) / 1000);
+        setElapsed(Math.max(0, elapsedUntilExit - totalPausedSecs));
+      } else if (isPaused && pausedAtTime) {
+        const elapsedUntilPause = Math.floor((pausedAtTime - startTime) / 1000);
+        setElapsed(Math.max(0, elapsedUntilPause - totalPausedSecs));
+      } else {
+        const totalRaw = Math.floor((Date.now() - startTime) / 1000);
+        setElapsed(Math.max(0, totalRaw - totalPausedSecs));
+      }
+    };
+    update();
+    const shouldTick = !sessionEnded && !isPaused;
+    const interval = shouldTick ? setInterval(update, 1000) : null;
+    return () => { if (interval) clearInterval(interval); };
+  }, [tournament.sessionStartedAt, tournament.pausedAt, tournament.totalPausedSeconds, isPaused, sessionEnded, exitedAt]);
+
+  if (!tournament.sessionStartedAt) return null;
+
+  const hrs = Math.floor(elapsed / 3600);
+  const mins = Math.floor((elapsed % 3600) / 60);
+  const secs = elapsed % 60;
+  const timeStr = `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+
+  if (large) {
+    return (
+      <div className={`text-3xl font-mono font-bold tabular-nums ${sessionEnded ? 'text-red-400' : isPaused ? 'text-yellow-300' : 'text-green-300'}`}>
+        {timeStr}
+        {sessionEnded && <p className="text-xs text-red-400/70 font-sans font-normal mt-1">Session Ended</p>}
+      </div>
+    );
+  }
+
+  if (sessionEnded) {
+    return (
+      <span className="flex items-center gap-1 text-[0.65rem] font-semibold text-red-400">
+        <Timer className="w-3 h-3" />
+        Eliminated
+      </span>
+    );
+  }
+
+  return (
+    <span className={`flex items-center gap-1 text-[0.65rem] font-semibold ${isPaused ? 'text-yellow-300' : 'text-green-300'}`}>
+      <Timer className="w-3 h-3" />
+      Session: {timeStr} {isPaused && '(Paused)'}
+    </span>
+  );
+}
+
+function TournamentLevelTracker({ tournament }: { tournament: any }) {
+  const [elapsed, setElapsed] = useState(0);
+  const isPaused = !!tournament.pausedAt;
+
+  useEffect(() => {
+    if (!tournament.sessionStartedAt) return;
+    const startTime = new Date(tournament.sessionStartedAt).getTime();
+    const totalPausedSecs = parseInt(tournament.totalPausedSeconds) || 0;
+    const pausedAtTime = tournament.pausedAt ? new Date(tournament.pausedAt).getTime() : null;
+
+    const update = () => {
+      if (isPaused && pausedAtTime) {
+        setElapsed(Math.max(0, Math.floor((pausedAtTime - startTime) / 1000) - totalPausedSecs));
+      } else {
+        setElapsed(Math.max(0, Math.floor((Date.now() - startTime) / 1000) - totalPausedSecs));
+      }
+    };
+    update();
+    const interval = isPaused ? null : setInterval(update, 1000);
+    return () => { if (interval) clearInterval(interval); };
+  }, [tournament.sessionStartedAt, tournament.pausedAt, tournament.totalPausedSeconds, isPaused]);
+
+  let structure = tournament.structure || {};
+  if (typeof structure === 'string') {
+    try { structure = JSON.parse(structure); } catch { structure = {}; }
+  }
+
+  const minutesPerLevel = parseInt(structure.minutes_per_level) || 15;
+  const numberOfLevels = parseInt(structure.number_of_levels) || 15;
+  const breakDuration = parseInt(structure.break_duration) || 10;
+  const breakStructureStr = structure.break_structure || '';
+  const lateRegMinutes = parseInt(structure.late_registration) || 0;
+
+  let breakEveryNLevels = 0;
+  const breakMatch = breakStructureStr.match(/(\d+)/);
+  if (breakMatch) breakEveryNLevels = parseInt(breakMatch[1]);
+
+  const elapsedMinutes = elapsed / 60;
+
+  let currentLevel = 1;
+  let timeAccountedFor = 0;
+  let onBreak = false;
+  let breakTimeRemaining = 0;
+
+  for (let level = 1; level <= numberOfLevels; level++) {
+    const levelEnd = timeAccountedFor + minutesPerLevel;
+    if (elapsedMinutes < levelEnd) {
+      currentLevel = level;
+      break;
+    }
+    timeAccountedFor = levelEnd;
+    currentLevel = level;
+    if (breakEveryNLevels > 0 && level % breakEveryNLevels === 0 && level < numberOfLevels) {
+      const breakEnd = timeAccountedFor + breakDuration;
+      if (elapsedMinutes < breakEnd) {
+        onBreak = true;
+        breakTimeRemaining = Math.ceil(breakEnd - elapsedMinutes);
+        break;
+      }
+      timeAccountedFor = breakEnd;
+    }
+  }
+
+  let levelStartTime = 0;
+  for (let l = 1; l < currentLevel; l++) {
+    levelStartTime += minutesPerLevel;
+    if (breakEveryNLevels > 0 && l % breakEveryNLevels === 0) levelStartTime += breakDuration;
+  }
+  const timeInCurrentLevel = elapsedMinutes - levelStartTime;
+  const timeRemainingInLevel = Math.max(0, minutesPerLevel - timeInCurrentLevel);
+  const remainingSecs = Math.ceil(timeRemainingInLevel * 60);
+  const remMin = Math.floor(remainingSecs / 60);
+  const remSec = remainingSecs % 60;
+
+  const lateRegOpen = lateRegMinutes > 0 && elapsedMinutes <= lateRegMinutes;
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-4 pt-0">
+      <div className="bg-emerald-900/30 rounded-lg p-3 text-center border border-emerald-700/40">
+        <p className="text-[0.65rem] text-emerald-400 uppercase tracking-wide">Current Level</p>
+        <p className="text-xl font-bold text-white">{currentLevel} / {numberOfLevels}</p>
+      </div>
+      <div className={`rounded-lg p-3 text-center border ${onBreak ? 'bg-amber-900/30 border-amber-700/40' : 'bg-blue-900/30 border-blue-700/40'}`}>
+        <p className={`text-[0.65rem] uppercase tracking-wide ${onBreak ? 'text-amber-400' : 'text-blue-400'}`}>
+          {onBreak ? 'Break Time Left' : 'Time Left in Level'}
+        </p>
+        <p className={`text-xl font-bold font-mono ${onBreak ? 'text-amber-300' : 'text-white'}`}>
+          {onBreak
+            ? `${breakTimeRemaining} min`
+            : `${remMin.toString().padStart(2, '0')}:${remSec.toString().padStart(2, '0')}`
+          }
+        </p>
+      </div>
+      <div className="bg-purple-900/30 rounded-lg p-3 text-center border border-purple-700/40">
+        <p className="text-[0.65rem] text-purple-400 uppercase tracking-wide">Level Duration</p>
+        <p className="text-xl font-bold text-white">{minutesPerLevel} min</p>
+      </div>
+      <div className="bg-slate-800 rounded-lg p-3 text-center border border-slate-700">
+        <p className="text-[0.65rem] text-slate-400 uppercase tracking-wide">Features</p>
+        <div className="flex flex-wrap justify-center gap-1 mt-1">
+          {structure.allow_rebuys && <Badge className="bg-green-500/20 text-green-300 border-green-500/30 text-[0.55rem] px-1 py-0">Rebuy</Badge>}
+          {structure.allow_reentry && <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30 text-[0.55rem] px-1 py-0">Re-entry</Badge>}
+          {structure.allow_addon && <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-[0.55rem] px-1 py-0">Add-on</Badge>}
+          {lateRegOpen && <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/30 text-[0.55rem] px-1 py-0">Late Reg Open</Badge>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TournamentSessionContent({ tournament, user, queryClient }: { tournament: any; user: any; queryClient: any }) {
+  const [rebuyLoading, setRebuyLoading] = useState(false);
+
+  const { data: playerStatus, refetch: refetchStatus } = useQuery({
+    queryKey: ['tournament-player-status', tournament.id, user?.id],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/player-tournaments/${tournament.id}/my-status`);
+      if (!res.ok) return { inTournament: true, isExited: false };
+      return res.json();
+    },
+    enabled: !!tournament.id && !!user?.id,
+    refetchInterval: 5000,
+  });
+
+  const handleRebuyReentry = async (type: 'rebuy' | 'reentry') => {
+    setRebuyLoading(true);
+    try {
+      const res = await apiRequest('POST', `/api/player-tournaments/${tournament.id}/rebuy`, { type });
+      if (res.ok) {
+        refetchStatus();
+        queryClient.invalidateQueries({ queryKey: ['/api/player-tournaments/upcoming'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/balance'] });
+        queryClient.invalidateQueries({ queryKey: ['player-tournament-statuses'] });
+      }
+    } catch (e) {
+      console.error('Rebuy/re-entry failed:', e);
+    } finally {
+      setRebuyLoading(false);
+    }
+  };
+
+  let structure = tournament.structure || {};
+  if (typeof structure === 'string') {
+    try { structure = JSON.parse(structure); } catch { structure = {}; }
+  }
+  const isPaused = !!tournament.pausedAt;
+  const buyIn = parseFloat(tournament.buyIn || tournament.buy_in || 0);
+  const lateRegMinutes = parseInt(structure.late_registration) || 0;
+  const isExited = playerStatus?.isExited || false;
+  const allowRebuys = playerStatus?.allowRebuys || structure.allow_rebuys || false;
+  const allowReentry = playerStatus?.allowReentry || structure.allow_reentry || false;
+
+  return (
+    <div className="space-y-0">
+      {/* Session Header */}
+      <div className="bg-gradient-to-r from-slate-800 to-slate-700 p-4 rounded-t-lg">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-yellow-500" />
+            <h2 className="text-lg font-bold text-white">{tournament.name}</h2>
+          </div>
+          <Badge className={isPaused
+            ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
+            : isExited
+            ? "bg-red-500/20 text-red-300 border-red-500/30"
+            : "bg-green-500/20 text-green-300 border-green-500/30"
+          }>
+            {isPaused ? '⏸ Paused' : isExited ? '✕ Eliminated' : '● Live'}
+          </Badge>
+        </div>
+
+        <div className="flex justify-center py-2">
+          <TournamentSessionTimer tournament={tournament} large isExited={isExited} exitedAt={playerStatus?.exitedAt} />
+        </div>
+        {isPaused && !isExited && (
+          <p className="text-center text-yellow-400/70 text-xs mt-1">
+            Tournament paused{tournament.pausedAt ? ` since ${new Date(tournament.pausedAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}` : ''}
+          </p>
+        )}
+      </div>
+
+      {/* Exited Player Banner + Rebuy/Re-entry */}
+      {isExited && (
+        <div className="mx-4 mt-3 p-4 bg-red-900/20 border border-red-500/30 rounded-lg text-center space-y-3">
+          <div>
+            <p className="text-red-300 font-semibold text-sm">You have been eliminated</p>
+            <p className="text-red-400/70 text-xs mt-1">
+              Balance: ₹0 {playerStatus?.rebuyCount > 0 ? `• Rebuys used: ${playerStatus.rebuyCount}` : ''}
+            </p>
+          </div>
+          {(allowRebuys || allowReentry) && (
+            <div className="flex justify-center gap-3">
+              {allowRebuys && (
+                <Button
+                  onClick={() => handleRebuyReentry('rebuy')}
+                  disabled={rebuyLoading}
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-500 text-white"
+                >
+                  {rebuyLoading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1" /> : <RotateCcw className="w-3.5 h-3.5 mr-1" />}
+                  Rebuy (₹{buyIn.toLocaleString()})
+                </Button>
+              )}
+              {allowReentry && (
+                <Button
+                  onClick={() => handleRebuyReentry('reentry')}
+                  disabled={rebuyLoading}
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-500 text-white"
+                >
+                  {rebuyLoading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1" /> : <Play className="w-3.5 h-3.5 mr-1" />}
+                  Re-entry (₹{buyIn.toLocaleString()})
+                </Button>
+              )}
+            </div>
+          )}
+          {!allowRebuys && !allowReentry && (
+            <p className="text-slate-400 text-xs">Rebuys and re-entry are not available for this tournament.</p>
+          )}
+        </div>
+      )}
+
+      {/* Live Level Info */}
+      <TournamentLevelTracker tournament={tournament} />
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-3 gap-2 px-4 pb-2">
+        <div className="bg-slate-800 rounded-lg p-2 text-center border border-slate-700">
+          <p className="text-[0.6rem] text-slate-400 uppercase">Buy-in</p>
+          <p className="text-sm font-bold text-yellow-400">₹{buyIn.toLocaleString()}</p>
+        </div>
+        <div className="bg-slate-800 rounded-lg p-2 text-center border border-slate-700">
+          <p className="text-[0.6rem] text-slate-400 uppercase">Players</p>
+          <p className="text-sm font-bold text-white">
+            {tournament.registeredPlayers || 0}/{tournament.maxPlayers || tournament.max_players || 0}
+          </p>
+        </div>
+        <div className="bg-slate-800 rounded-lg p-2 text-center border border-slate-700">
+          <p className="text-[0.6rem] text-slate-400 uppercase">Prize Pool</p>
+          <p className="text-sm font-bold text-yellow-400">₹{Number(tournament.prizePool || tournament.prize_pool || 0).toLocaleString()}</p>
+        </div>
+      </div>
+
+      {/* Tournament Details */}
+      <div className="px-4 pb-4">
+        <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
+          <h3 className="text-sm font-semibold text-slate-300 mb-2 flex items-center gap-1.5">
+            <Info className="w-3.5 h-3.5" /> Tournament Info
+          </h3>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+            {structure.tournament_type && (
+              <>
+                <span className="text-slate-400">Type</span>
+                <span className="text-white font-medium">{structure.tournament_type}</span>
+              </>
+            )}
+            {structure.starting_chips && (
+              <>
+                <span className="text-slate-400">Starting Chips</span>
+                <span className="text-white font-medium">{Number(structure.starting_chips).toLocaleString()}</span>
+              </>
+            )}
+            {structure.blind_structure && (
+              <>
+                <span className="text-slate-400">Blinds</span>
+                <span className="text-white font-medium">{structure.blind_structure}</span>
+              </>
+            )}
+            {lateRegMinutes > 0 && (
+              <>
+                <span className="text-slate-400">Late Registration</span>
+                <span className="text-white font-medium">{lateRegMinutes} min</span>
+              </>
+            )}
+            {structure.payout_structure && (
+              <>
+                <span className="text-slate-400">Payout</span>
+                <span className="text-white font-medium">{structure.payout_structure}</span>
+              </>
+            )}
+            <span className="text-slate-400">Rebuys</span>
+            <span className="text-white font-medium">{structure.allow_rebuys ? 'Yes' : 'No'}</span>
+            <span className="text-slate-400">Add-on</span>
+            <span className="text-white font-medium">{structure.allow_addon ? 'Yes' : 'No'}</span>
+            <span className="text-slate-400">Re-entry</span>
+            <span className="text-white font-medium">{structure.allow_reentry ? 'Yes' : 'No'}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface PlayerDashboardProps {
   user?: any;
 }
@@ -664,10 +1021,23 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Feedback system state
   const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [feedbackRating, setFeedbackRating] = useState<number>(0);
   const [sendingFeedback, setSendingFeedback] = useState(false);
   const [submittingProfileChange, setSubmittingProfileChange] = useState<
     string | null
   >(null);
+
+  // Change request popup dialog state
+  const [changeRequestDialog, setChangeRequestDialog] = useState<{
+    open: boolean;
+    fieldName: string;
+    fieldLabel: string;
+    currentValue: string;
+    isDocument: boolean;
+  }>({ open: false, fieldName: '', fieldLabel: '', currentValue: '', isDocument: false });
+  const [changeRequestValue, setChangeRequestValue] = useState('');
+  const [changeRequestFile, setChangeRequestFile] = useState<File | null>(null);
+  const [uploadingChangeDoc, setUploadingChangeDoc] = useState(false);
 
   // GRE Chat state variables
   const [chatMessage, setChatMessage] = useState("");
@@ -914,10 +1284,39 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     return registeredTournamentIds.includes(tournamentId);
   };
 
+  // Fetch player status for active registered tournaments
+  const activeTournamentIds = tournaments
+    ?.filter((t: any) => t.status === 'active' && registeredTournamentIds.includes(t.id))
+    ?.map((t: any) => t.id) || [];
+
+  const { data: playerTournamentStatuses } = useQuery<Record<string, any>>({
+    queryKey: ['player-tournament-statuses', user?.id, activeTournamentIds.join(',')],
+    queryFn: async () => {
+      const statuses: Record<string, any> = {};
+      for (const tid of activeTournamentIds) {
+        try {
+          const res = await apiRequest('GET', `/api/player-tournaments/${tid}/my-status`);
+          if (res.ok) statuses[tid] = await res.json();
+        } catch { /* ignore */ }
+      }
+      return statuses;
+    },
+    enabled: activeTournamentIds.length > 0 && !!user?.id,
+    refetchInterval: 5000,
+    staleTime: 2000,
+  });
+
   const [tournamentDetailsOpen, setTournamentDetailsOpen] = useState(false);
   const [selectedTournament, setSelectedTournament] = useState<any | null>(
     null
   );
+  const [tournamentSessionOpen, setTournamentSessionOpen] = useState(false);
+  const [sessionTournament, setSessionTournament] = useState<any | null>(null);
+
+  const handleViewTournamentSession = (tournament: any) => {
+    setSessionTournament(tournament);
+    setTournamentSessionOpen(true);
+  };
 
   // Fetch dual balance system data with smart refresh
   const { data: accountBalance, isLoading: balanceLoading } = useQuery({
@@ -1286,6 +1685,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             "Your profile change request has been sent to club staff for review.",
           className: "bg-emerald-600 text-white",
         });
+        refetchProfileChanges();
       } else {
         throw new Error(result?.message || "Failed to submit request");
       }
@@ -1298,6 +1698,56 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       });
     } finally {
       setSubmittingProfileChange(null);
+    }
+  };
+
+  const openChangeRequestDialog = (fieldName: string, fieldLabel: string, currentValue: string, isDocument = false) => {
+    setChangeRequestValue(isDocument ? '' : currentValue);
+    setChangeRequestFile(null);
+    setChangeRequestDialog({ open: true, fieldName, fieldLabel, currentValue, isDocument });
+  };
+
+  const handleChangeRequestSubmit = async () => {
+    const { fieldName, currentValue, isDocument } = changeRequestDialog;
+
+    if (isDocument) {
+      if (!changeRequestFile) {
+        toast({ title: "File Required", description: "Please upload the new document", variant: "destructive" });
+        return;
+      }
+      setUploadingChangeDoc(true);
+      try {
+        const playerId = user?.id;
+        const clubId = sessionStorage.getItem('clubId') || localStorage.getItem('clubId');
+        if (!playerId || !clubId) throw new Error('Missing player or club ID');
+
+        const docTypeMap: Record<string, string> = { government_id: 'government_id', pan_card: 'pan_card', profile_photo: 'profile_photo' };
+        const docType = docTypeMap[fieldName] || fieldName;
+        const formData = new FormData();
+        formData.append('file', changeRequestFile);
+        formData.append('documentType', docType);
+        formData.append('fileName', changeRequestFile.name);
+
+        await fetch(`${API_BASE_URL}/player-documents/upload`, {
+          method: 'POST',
+          headers: { 'x-player-id': playerId, 'x-club-id': clubId },
+          body: formData,
+        });
+
+        await submitProfileChangeRequest(fieldName, `New ${changeRequestDialog.fieldLabel} uploaded: ${changeRequestFile.name}`, currentValue || 'existing document');
+        setChangeRequestDialog(prev => ({ ...prev, open: false }));
+      } catch (error: any) {
+        toast({ title: "Upload Failed", description: error.message || "Failed to upload document", variant: "destructive" });
+      } finally {
+        setUploadingChangeDoc(false);
+      }
+    } else {
+      if (!changeRequestValue.trim()) {
+        toast({ title: "Value Required", description: `Please enter the new ${changeRequestDialog.fieldLabel.toLowerCase()}`, variant: "destructive" });
+        return;
+      }
+      await submitProfileChangeRequest(fieldName, changeRequestValue.trim(), currentValue || null);
+      setChangeRequestDialog(prev => ({ ...prev, open: false }));
     }
   };
 
@@ -1322,6 +1772,39 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     refetchOnWindowFocus: false,
   });
 
+  // Fetch profile change request statuses
+  const { data: profileChangeData, refetch: refetchProfileChanges } = useQuery<{
+    success: boolean;
+    requests: { id: string; fieldName: string; currentValue: string | null; requestedValue: string; status: string; reviewNotes: string | null; createdAt: string; reviewedAt: string | null }[];
+  }>({
+    queryKey: ['/api/auth/player/profile-change-requests', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/auth/player/profile-change-requests');
+      return await response.json();
+    },
+    refetchInterval: 10000,
+    staleTime: 5000,
+  });
+
+  const getFieldChangeStatus = (fieldName: string) => {
+    const requests = profileChangeData?.requests || [];
+    const pending = requests.find(r => r.fieldName === fieldName && r.status === 'pending');
+    if (pending) return { status: 'pending' as const, request: pending };
+    const rejected = requests.find(r => r.fieldName === fieldName && r.status === 'rejected');
+    if (rejected) return { status: 'rejected' as const, request: rejected };
+    return { status: 'none' as const, request: null };
+  };
+
+  const dismissRejectedRequest = async (requestId: string) => {
+    try {
+      await apiRequest('POST', `/api/auth/player/profile-change-request/${requestId}/dismiss`);
+      refetchProfileChanges();
+    } catch (e) {
+      console.error('Failed to dismiss request:', e);
+    }
+  };
+
   // Submit feedback function
   const submitFeedback = async () => {
     if (!feedbackMessage.trim() || !user?.id) {
@@ -1337,7 +1820,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     try {
       const response = await apiRequest("POST", "/api/auth/player/feedback", {
         message: feedbackMessage.trim(),
-        rating: null,
+        rating: feedbackRating > 0 ? feedbackRating : null,
       });
 
       const result = await response.json();
@@ -1347,6 +1830,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           description: "Your message has been sent to management",
         });
         setFeedbackMessage("");
+        setFeedbackRating(0);
       } else {
         throw new Error(result.error || "Failed to send feedback");
       }
@@ -1948,16 +2432,18 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
       // Format as "Aug 30, 2025 at 6:39 AM"
       return (
-        date.toLocaleDateString("en-US", {
+        date.toLocaleDateString("en-IN", {
           year: "numeric",
           month: "short",
           day: "numeric",
+          timeZone: "Asia/Kolkata",
         }) +
         " at " +
-        date.toLocaleTimeString("en-US", {
+        date.toLocaleTimeString("en-IN", {
           hour: "numeric",
           minute: "2-digit",
           hour12: true,
+          timeZone: "Asia/Kolkata",
         })
       );
     } catch (error) {
@@ -2525,7 +3011,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                   {session.sessionStartTime
                                     ? new Date(
                                         session.sessionStartTime
-                                      ).toLocaleTimeString()
+                                      ).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })
                                     : "Just now"}
                                 </p>
                               </div>
@@ -2669,7 +3155,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             <p><strong>Table Type:</strong> {waitlistData.entry.tableType}</p>
                             <p><strong>Party Size:</strong> {waitlistData.entry.partySize}</p>
                             <p><strong>Status:</strong> <span className="text-amber-400">{waitlistData.entry.status}</span></p>
-                            <p className="text-xs text-slate-400 mt-2">Joined: {new Date(waitlistData.entry.createdAt).toLocaleString()}</p>
+                            <p className="text-xs text-slate-400 mt-2">Joined: {new Date(waitlistData.entry.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</p>
                             {waitlistData.totalInQueue > 1 && (
                               <p className="text-xs text-slate-400">{waitlistData.totalInQueue} players in queue</p>
                             )}
@@ -3044,9 +3530,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     {tournament.startDate
                                       ? new Date(
                                           tournament.startDate
-                                        ).toLocaleTimeString([], {
+                                        ).toLocaleTimeString('en-IN', {
                                           hour: "2-digit",
                                           minute: "2-digit",
+                                          timeZone: "Asia/Kolkata",
                                         })
                                       : "TBA"}
                                   </p>
@@ -3074,6 +3561,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 const isPreStart = preStartStatuses.includes(tournament.status);
                                 const isTournamentActive = activeStatuses.includes(tournament.status);
                                 const playerRegistered = isRegistered(tournament.id);
+                                const playerStatus = playerTournamentStatuses?.[tournament.id];
+                                const playerExited = playerStatus?.isExited === true;
                                 const isFull = (tournament.registeredPlayers ?? tournament.registered_players ?? 0) >= (tournament.maxPlayers ?? tournament.max_players ?? 999);
 
                                 let canRegister = false;
@@ -3101,13 +3590,15 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
                                 return (
                                   <div className="space-y-2">
-                                    {/* Late reg countdown for active tournaments */}
+                                    {/* Active tournament info */}
                                     {isTournamentActive && (
                                       <div className="flex items-center justify-between">
                                         <Badge className="bg-green-500/20 text-green-300 border-green-500/30">
                                           Live
                                         </Badge>
-                                        {lateInfo.lateRegAllowed ? (
+                                        {playerRegistered ? (
+                                          <TournamentSessionTimer tournament={tournament} isExited={playerExited} exitedAt={playerStatus?.exitedAt} />
+                                        ) : lateInfo.lateRegAllowed ? (
                                           <DashboardLateRegCountdown tournament={tournament} />
                                         ) : (
                                           <span className="flex items-center gap-1 text-red-400 text-[0.65rem] font-medium">
@@ -3144,23 +3635,42 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                       <div className="flex items-center space-x-2">
                                         {(isPreStart || isTournamentActive) && (
                                           <>
-                                            <Button
-                                              onClick={() => handleViewTournamentDetails(tournament)}
-                                              size="sm"
-                                              variant="outline"
-                                              className="border-slate-500 text-slate-200 hover:bg-slate-600"
-                                            >
-                                              View Details
-                                            </Button>
-                                            {canCancel ? (
+                                            {isTournamentActive && playerRegistered ? (
                                               <Button
+                                                onClick={() => handleViewTournamentSession(tournament)}
                                                 size="sm"
-                                                disabled
-                                                className="text-white"
-                                                style={getClubButtonStyle('primary')}
+                                                className={playerExited
+                                                  ? "bg-red-700 hover:bg-red-600 text-white"
+                                                  : "bg-green-600 hover:bg-green-500 text-white"
+                                                }
                                               >
-                                                Registered
+                                                {playerExited ? (
+                                                  <><XCircle className="w-3 h-3 mr-1" /> Eliminated</>
+                                                ) : (
+                                                  <><Play className="w-3 h-3 mr-1" /> View Session</>
+                                                )}
                                               </Button>
+                                            ) : (
+                                              <Button
+                                                onClick={() => handleViewTournamentDetails(tournament)}
+                                                size="sm"
+                                                variant="outline"
+                                                className="border-slate-500 text-slate-200 hover:bg-slate-600"
+                                              >
+                                                View Details
+                                              </Button>
+                                            )}
+                                            {canCancel ? (
+                                              !isTournamentActive && (
+                                                <Button
+                                                  size="sm"
+                                                  disabled
+                                                  className="text-white"
+                                                  style={getClubButtonStyle('primary')}
+                                                >
+                                                  Registered
+                                                </Button>
+                                              )
                                             ) : canRegister ? (
                                               <Button
                                                 onClick={() => handleTournamentRegister(tournament.id)}
@@ -3300,113 +3810,131 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   <CardContent>
                     {/* Profile Details with per-field change request actions */}
                     <div className="space-y-3">
-                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-slate-700 rounded-lg gap-2">
-                        <div>
-                          <span className="text-sm text-slate-300 block">
-                            Name
-                          </span>
-                          <span className="text-sm text-white font-medium">
-                            {user?.firstName} {user?.lastName}
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="hover:opacity-90"
-                          style={getClubButtonStyle('secondary')}
-                          disabled={!!submittingProfileChange}
-                          onClick={async () => {
-                            const current =
-                              `${user?.firstName || ""} ${
-                                user?.lastName || ""
-                              }`.trim();
-                            const requested = window.prompt(
-                              "Enter the new full name you would like on your profile:",
-                              current,
-                            );
-                            if (requested === null) return;
-                            await submitProfileChangeRequest(
-                              "name",
-                              requested,
-                              current || null,
-                            );
-                          }}
-                        >
-                          {submittingProfileChange === "name"
-                            ? "Sending..."
-                            : "Request Change"}
-                        </Button>
-                      </div>
+                      {/* Name Field */}
+                      {(() => {
+                        const nameStatus = getFieldChangeStatus('name');
+                        return (
+                          <div className="p-3 bg-slate-700 rounded-lg space-y-2">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                              <div>
+                                <span className="text-sm text-slate-300 block">Name</span>
+                                <span className="text-sm text-white font-medium">{user?.firstName} {user?.lastName}</span>
+                              </div>
+                              {nameStatus.status === 'pending' ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded-lg text-xs font-semibold border border-yellow-500/30">
+                                  <Clock className="w-3 h-3" /> Pending Review
+                                </span>
+                              ) : nameStatus.status === 'none' ? (
+                                <Button size="sm" variant="outline" className="hover:opacity-90" style={getClubButtonStyle('secondary')} disabled={!!submittingProfileChange}
+                                  onClick={() => openChangeRequestDialog('name', 'Name', `${user?.firstName || ""} ${user?.lastName || ""}`.trim())}>
+                                  {submittingProfileChange === "name" ? "Sending..." : "Request Change"}
+                                </Button>
+                              ) : null}
+                            </div>
+                            {nameStatus.status === 'pending' && nameStatus.request && (
+                              <div className="text-xs text-yellow-300/70 bg-yellow-500/10 rounded px-2 py-1">
+                                Requested: <span className="font-medium text-yellow-200">{nameStatus.request.requestedValue}</span>
+                                <span className="text-slate-400 ml-1">({new Date(nameStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
+                              </div>
+                            )}
+                            {nameStatus.status === 'rejected' && nameStatus.request && (
+                              <div className="text-xs bg-red-500/10 rounded px-2 py-1.5 border border-red-500/20">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-red-300 font-semibold">Request Rejected</span>
+                                  <button onClick={() => dismissRejectedRequest(nameStatus.request!.id)} className="text-slate-400 hover:text-white text-[0.65rem] underline">Dismiss</button>
+                                </div>
+                                {nameStatus.request.reviewNotes && (
+                                  <p className="text-red-300/70 mt-0.5">Reason: {nameStatus.request.reviewNotes}</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
 
-                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-slate-700 rounded-lg gap-2">
-                        <div>
-                          <span className="text-sm text-slate-300 block">
-                            Email
-                          </span>
-                          <span className="text-sm text-white font-medium">
-                            {user?.email}
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="hover:opacity-90"
-                          style={getClubButtonStyle('secondary')}
-                          disabled={!!submittingProfileChange}
-                          onClick={async () => {
-                            const current = user?.email || "";
-                            const requested = window.prompt(
-                              "Enter the new email address you would like on your profile:",
-                              current,
-                            );
-                            if (requested === null) return;
-                            await submitProfileChangeRequest(
-                              "email",
-                              requested,
-                              current || null,
-                            );
-                          }}
-                        >
-                          {submittingProfileChange === "email"
-                            ? "Sending..."
-                            : "Request Change"}
-                        </Button>
-                      </div>
+                      {/* Email Field */}
+                      {(() => {
+                        const emailStatus = getFieldChangeStatus('email');
+                        return (
+                          <div className="p-3 bg-slate-700 rounded-lg space-y-2">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                              <div>
+                                <span className="text-sm text-slate-300 block">Email</span>
+                                <span className="text-sm text-white font-medium">{user?.email}</span>
+                              </div>
+                              {emailStatus.status === 'pending' ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded-lg text-xs font-semibold border border-yellow-500/30">
+                                  <Clock className="w-3 h-3" /> Pending Review
+                                </span>
+                              ) : emailStatus.status === 'none' ? (
+                                <Button size="sm" variant="outline" className="hover:opacity-90" style={getClubButtonStyle('secondary')} disabled={!!submittingProfileChange}
+                                  onClick={() => openChangeRequestDialog('email', 'Email', user?.email || '')}>
+                                  {submittingProfileChange === "email" ? "Sending..." : "Request Change"}
+                                </Button>
+                              ) : null}
+                            </div>
+                            {emailStatus.status === 'pending' && emailStatus.request && (
+                              <div className="text-xs text-yellow-300/70 bg-yellow-500/10 rounded px-2 py-1">
+                                Requested: <span className="font-medium text-yellow-200">{emailStatus.request.requestedValue}</span>
+                                <span className="text-slate-400 ml-1">({new Date(emailStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
+                              </div>
+                            )}
+                            {emailStatus.status === 'rejected' && emailStatus.request && (
+                              <div className="text-xs bg-red-500/10 rounded px-2 py-1.5 border border-red-500/20">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-red-300 font-semibold">Request Rejected</span>
+                                  <button onClick={() => dismissRejectedRequest(emailStatus.request!.id)} className="text-slate-400 hover:text-white text-[0.65rem] underline">Dismiss</button>
+                                </div>
+                                {emailStatus.request.reviewNotes && (
+                                  <p className="text-red-300/70 mt-0.5">Reason: {emailStatus.request.reviewNotes}</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
 
-                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-slate-700 rounded-lg gap-2">
-                        <div>
-                          <span className="text-sm text-slate-300 block">
-                            Phone
-                          </span>
-                          <span className="text-sm text-white font-medium">
-                            {user?.phone}
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="hover:opacity-90"
-                          style={getClubButtonStyle('secondary')}
-                          disabled={!!submittingProfileChange}
-                          onClick={async () => {
-                            const current = (user as any)?.phone || "";
-                            const requested = window.prompt(
-                              "Enter the new phone number you would like on your profile:",
-                              current,
-                            );
-                            if (requested === null) return;
-                            await submitProfileChangeRequest(
-                              "phone",
-                              requested,
-                              current || null,
-                            );
-                          }}
-                        >
-                          {submittingProfileChange === "phone"
-                            ? "Sending..."
-                            : "Request Change"}
-                        </Button>
-                      </div>
+                      {/* Phone Field */}
+                      {(() => {
+                        const phoneStatus = getFieldChangeStatus('phone');
+                        return (
+                          <div className="p-3 bg-slate-700 rounded-lg space-y-2">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                              <div>
+                                <span className="text-sm text-slate-300 block">Phone</span>
+                                <span className="text-sm text-white font-medium">{user?.phone}</span>
+                              </div>
+                              {phoneStatus.status === 'pending' ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded-lg text-xs font-semibold border border-yellow-500/30">
+                                  <Clock className="w-3 h-3" /> Pending Review
+                                </span>
+                              ) : phoneStatus.status === 'none' ? (
+                                <Button size="sm" variant="outline" className="hover:opacity-90" style={getClubButtonStyle('secondary')} disabled={!!submittingProfileChange}
+                                  onClick={() => openChangeRequestDialog('phone', 'Phone', (user as any)?.phone || '')}>
+                                  {submittingProfileChange === "phone" ? "Sending..." : "Request Change"}
+                                </Button>
+                              ) : null}
+                            </div>
+                            {phoneStatus.status === 'pending' && phoneStatus.request && (
+                              <div className="text-xs text-yellow-300/70 bg-yellow-500/10 rounded px-2 py-1">
+                                Requested: <span className="font-medium text-yellow-200">{phoneStatus.request.requestedValue}</span>
+                                <span className="text-slate-400 ml-1">({new Date(phoneStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
+                              </div>
+                            )}
+                            {phoneStatus.status === 'rejected' && phoneStatus.request && (
+                              <div className="text-xs bg-red-500/10 rounded px-2 py-1.5 border border-red-500/20">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-red-300 font-semibold">Request Rejected</span>
+                                  <button onClick={() => dismissRejectedRequest(phoneStatus.request!.id)} className="text-slate-400 hover:text-white text-[0.65rem] underline">Dismiss</button>
+                                </div>
+                                {phoneStatus.request.reviewNotes && (
+                                  <p className="text-red-300/70 mt-0.5">Reason: {phoneStatus.request.reviewNotes}</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
                         <span className="text-sm text-slate-300">
                           PAN Card Number
@@ -3433,10 +3961,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         </span>
                         <span className="text-sm text-white font-medium">
                           {user?.created_at || user?.createdAt
-                            ? new Date(user.created_at || user.createdAt).toLocaleDateString('en-US', {
+                            ? new Date(user.created_at || user.createdAt).toLocaleDateString('en-IN', {
                                 year: 'numeric',
                                 month: 'long',
-                                day: 'numeric'
+                                day: 'numeric',
+                                timeZone: 'Asia/Kolkata'
                               })
                             : "N/A"}
                         </span>
@@ -3521,7 +4050,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                               </p>
                             )}
                             <p className="text-xs text-slate-500 mt-2">
-                              Joined: {new Date(entry.createdAt).toLocaleString()}
+                              Joined: {new Date(entry.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
                             </p>
                           </div>
                         ))}
@@ -3643,17 +4172,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </Button>
                               )}
 
-                            {/* Request Change button - always shown */}
+                            {/* Request Change button - goes through profile change system */}
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => {
-                                toast({
-                                  title: "Request Submitted",
-                                  description:
-                                    "Your request to change Govt ID has been sent to club staff",
-                                });
-                              }}
+                              onClick={() => openChangeRequestDialog('government_id', 'Govt ID (Aadhaar)', 'existing document', true)}
+                              disabled={!!submittingProfileChange}
                               className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full"
                             >
                               <AlertTriangle className="w-4 h-4 mr-1" />
@@ -3741,17 +4265,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </Button>
                               )}
 
-                            {/* Request Change button - always shown */}
+                            {/* Request Change button - goes through profile change system */}
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => {
-                                toast({
-                                  title: "Request Submitted",
-                                  description:
-                                    "Your request to change PAN Card has been sent to club staff",
-                                });
-                              }}
+                              onClick={() => openChangeRequestDialog('pan_card', 'PAN Card', 'existing document', true)}
+                              disabled={!!submittingProfileChange}
                               className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full"
                             >
                               <AlertTriangle className="w-4 h-4 mr-1" />
@@ -3954,11 +4473,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                       <p className="text-xs text-slate-400">
                                         {new Date(
                                           transaction.createdAt || transaction.created_at
-                                        ).toLocaleDateString()}{" "}
+                                        ).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}{" "}
                                         at{" "}
                                         {new Date(
                                           transaction.createdAt || transaction.created_at
-                                        ).toLocaleTimeString()}
+                                        ).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}
                                       </p>
                                     </div>
                                     <div className="text-right">
@@ -4117,6 +4636,29 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         disabled={sendingFeedback}
                       />
                     </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-white">
+                        Rating <span className="text-slate-400 font-normal">(optional)</span>
+                      </label>
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setFeedbackRating(feedbackRating === star ? 0 : star)}
+                            className="text-2xl transition-colors focus:outline-none"
+                            disabled={sendingFeedback}
+                          >
+                            <span className={star <= feedbackRating ? 'text-yellow-400' : 'text-slate-600 hover:text-yellow-400/50'}>
+                              ★
+                            </span>
+                          </button>
+                        ))}
+                        {feedbackRating > 0 && (
+                          <span className="text-xs text-slate-400 ml-2">{feedbackRating}/5</span>
+                        )}
+                      </div>
+                    </div>
                     <Button
                       className="w-full hover:opacity-90 text-white disabled:opacity-50"
                       style={getClubButtonStyle('primary')}
@@ -4184,11 +4726,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 <span className="text-xs text-slate-400">
                                   {new Date(
                                     item.created_at,
-                                  ).toLocaleString()}
+                                  ).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
                                 </span>
                                 {item.rating != null && (
-                                  <span className="text-xs text-amber-400">
-                                    Rating: {item.rating}/5
+                                  <span className="text-xs text-yellow-400">
+                                    {'★'.repeat(item.rating)}{'☆'.repeat(5 - item.rating)}
                                   </span>
                                 )}
                               </div>
@@ -4325,7 +4867,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         {selectedTournament.startDate
                           ? new Date(
                               selectedTournament.startDate
-                            ).toLocaleString()
+                            ).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
                           : "TBA"}
                       </p>
                     </div>
@@ -4371,7 +4913,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                     </div>
                     {selectedTournament.structure && typeof selectedTournament.structure === 'object' && (
                       <>
-                        <div className="col-span-2">
+                        <div>
                           <p className="text-xs text-slate-400">Type</p>
                           <p className="font-semibold">
                             {selectedTournament.structure.tournament_type || 'N/A'}
@@ -4383,12 +4925,102 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             {selectedTournament.structure.starting_chips?.toLocaleString() || 'N/A'}
                           </p>
                         </div>
+                        {selectedTournament.structure.entry_fee != null && (
+                          <div>
+                            <p className="text-xs text-slate-400">Entry Fee</p>
+                            <p className="font-semibold">
+                              ₹{Number(selectedTournament.structure.entry_fee).toLocaleString()}
+                            </p>
+                          </div>
+                        )}
                         <div>
                           <p className="text-xs text-slate-400">Blind Levels</p>
                           <p className="font-semibold">
                             {selectedTournament.structure.minutes_per_level ? `${selectedTournament.structure.minutes_per_level} min` : 'N/A'}
                           </p>
                         </div>
+                        {selectedTournament.structure.blind_structure && (
+                          <div>
+                            <p className="text-xs text-slate-400">Blind Structure</p>
+                            <p className="font-semibold">
+                              {selectedTournament.structure.blind_structure}
+                            </p>
+                          </div>
+                        )}
+                        {selectedTournament.structure.number_of_levels && (
+                          <div>
+                            <p className="text-xs text-slate-400">Number of Levels</p>
+                            <p className="font-semibold">
+                              {selectedTournament.structure.number_of_levels}
+                            </p>
+                          </div>
+                        )}
+                        {selectedTournament.structure.break_structure && (
+                          <div>
+                            <p className="text-xs text-slate-400">Break Structure</p>
+                            <p className="font-semibold">
+                              {selectedTournament.structure.break_structure}
+                            </p>
+                          </div>
+                        )}
+                        {selectedTournament.structure.break_duration && (
+                          <div>
+                            <p className="text-xs text-slate-400">Break Duration</p>
+                            <p className="font-semibold">
+                              {selectedTournament.structure.break_duration} min
+                            </p>
+                          </div>
+                        )}
+                        {selectedTournament.structure.late_registration && (
+                          <div>
+                            <p className="text-xs text-slate-400">Late Registration</p>
+                            <p className="font-semibold">
+                              {selectedTournament.structure.late_registration} min
+                            </p>
+                          </div>
+                        )}
+                        {selectedTournament.structure.payout_structure && (
+                          <div>
+                            <p className="text-xs text-slate-400">Payout Structure</p>
+                            <p className="font-semibold">
+                              {selectedTournament.structure.payout_structure}
+                            </p>
+                          </div>
+                        )}
+                        {selectedTournament.structure.seat_draw_method && (
+                          <div>
+                            <p className="text-xs text-slate-400">Seat Draw</p>
+                            <p className="font-semibold">
+                              {selectedTournament.structure.seat_draw_method}
+                            </p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-xs text-slate-400">Rebuys</p>
+                          <p className="font-semibold">
+                            {selectedTournament.structure.allow_rebuys ? 'Yes' : 'No'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400">Re-entry</p>
+                          <p className="font-semibold">
+                            {selectedTournament.structure.allow_reentry ? 'Yes' : 'No'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400">Add-on</p>
+                          <p className="font-semibold">
+                            {selectedTournament.structure.allow_addon ? 'Yes' : 'No'}
+                          </p>
+                        </div>
+                        {selectedTournament.structure.bounty_amount > 0 && (
+                          <div>
+                            <p className="text-xs text-slate-400">Bounty</p>
+                            <p className="font-semibold">
+                              ₹{Number(selectedTournament.structure.bounty_amount).toLocaleString()}
+                            </p>
+                          </div>
+                        )}
                       </>
                     )}
                     {selectedTournament.structure && typeof selectedTournament.structure === 'string' && (
@@ -4403,6 +5035,19 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 </div>
               </>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Tournament Session Dialog - Live session view for registered players */}
+        <Dialog
+          open={tournamentSessionOpen}
+          onOpenChange={(open) => {
+            setTournamentSessionOpen(open);
+            if (!open) setSessionTournament(null);
+          }}
+        >
+          <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90vh] bg-slate-900 border-slate-700 p-0 overflow-y-auto">
+            {sessionTournament && <TournamentSessionContent tournament={sessionTournament} user={user} queryClient={queryClient} />}
           </DialogContent>
         </Dialog>
 
@@ -4426,6 +5071,83 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         </Dialog>
 
         {/* Live Session Tracking removed - already in Session tab */}
+
+        {/* Change Request Popup Dialog */}
+        <Dialog open={changeRequestDialog.open} onOpenChange={(open) => setChangeRequestDialog(prev => ({ ...prev, open }))}>
+          <DialogContent className="max-w-md bg-slate-800 border-slate-700 text-white">
+            <DialogHeader>
+              <DialogTitle className="text-white text-lg flex items-center">
+                <Edit3 className="w-5 h-5 mr-2 text-blue-400" />
+                Request {changeRequestDialog.fieldLabel} Change
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              {changeRequestDialog.currentValue && !changeRequestDialog.isDocument && (
+                <div className="p-3 bg-slate-700/50 rounded-lg">
+                  <p className="text-xs text-slate-400 mb-1">Current {changeRequestDialog.fieldLabel}</p>
+                  <p className="text-sm text-white font-medium">{changeRequestDialog.currentValue}</p>
+                </div>
+              )}
+
+              {changeRequestDialog.isDocument ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-300">Upload the new {changeRequestDialog.fieldLabel} document</p>
+                  <div className="border-2 border-dashed border-slate-600 rounded-lg p-4 text-center">
+                    <input
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        if (file && file.size > 5 * 1024 * 1024) {
+                          toast({ title: "File too large", description: "Max file size is 5MB", variant: "destructive" });
+                          return;
+                        }
+                        setChangeRequestFile(file);
+                      }}
+                      className="block w-full text-sm text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
+                    />
+                    {changeRequestFile && (
+                      <p className="text-xs text-emerald-400 mt-2 flex items-center justify-center gap-1">
+                        <CheckCircle className="w-3 h-3" /> {changeRequestFile.name}
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500">Supported: JPG, PNG, PDF (max 5MB)</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-sm text-slate-300 block">
+                    New {changeRequestDialog.fieldLabel}
+                  </label>
+                  <Input
+                    type={changeRequestDialog.fieldName === 'email' ? 'email' : changeRequestDialog.fieldName === 'phone' ? 'tel' : 'text'}
+                    value={changeRequestValue}
+                    onChange={(e) => setChangeRequestValue(e.target.value)}
+                    placeholder={`Enter new ${changeRequestDialog.fieldLabel.toLowerCase()}`}
+                    className="bg-slate-700 border-slate-600 text-white placeholder-slate-500 h-11"
+                    autoFocus
+                  />
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setChangeRequestDialog(prev => ({ ...prev, open: false }))}
+                className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-700"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleChangeRequestSubmit}
+                disabled={!!submittingProfileChange || uploadingChangeDoc || (changeRequestDialog.isDocument ? !changeRequestFile : !changeRequestValue.trim())}
+                className="flex-1 bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50"
+              >
+                {submittingProfileChange || uploadingChangeDoc ? "Submitting..." : "Submit Request"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
