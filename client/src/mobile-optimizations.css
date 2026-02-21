@@ -46,9 +46,10 @@ html, body {
     padding: 0.75rem;
   }
 
-  /* Enhanced mobile dashboard padding */
+  /* Enhanced mobile dashboard padding and top safe area */
   .dashboard-container {
     padding: 0.75rem !important;
+    padding-top: 1rem !important;
     margin: 0 !important;
   }
 

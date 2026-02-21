@@ -402,7 +402,7 @@ export default function DirectClubsAuth() {
   
   return (
     <div 
-      className={`min-h-screen flex items-center justify-center p-3 sm:p-4 ${gradientClasses || 'bg-black'}`}
+      className={`min-h-screen flex items-center justify-center pt-4 sm:pt-5 px-3 sm:px-4 pb-3 sm:pb-4 ${gradientClasses || 'bg-black'}`}
       style={Object.keys(gradientStyle).length > 0 ? gradientStyle : undefined}
     >
       <Card className="w-full max-w-md bg-gray-900 border-gray-700 relative">

@@ -96,7 +96,7 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose }:
   }
 
   return (
-    <div className="min-h-screen sm:min-h-0 bg-gradient-to-b from-slate-900 to-slate-800 text-white h-full sm:h-auto">
+    <div className="min-h-screen sm:min-h-0 bg-gradient-to-b from-slate-900 to-slate-800 text-white h-full sm:h-auto pt-2 sm:pt-4">
       {/* Header */}
       <div className="p-3 sm:p-4 flex items-center justify-between gap-2">
         <Button 
