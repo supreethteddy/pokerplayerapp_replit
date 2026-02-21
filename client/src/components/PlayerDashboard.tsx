@@ -457,8 +457,8 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
   const tierColor = d?.tierColor || '#CD7F32';
   const breakdown = d?.breakdown;
   const nextTier = d?.nextTier;
-  const products = Array.isArray(vipProducts) ? vipProducts : [];
-  const purchases = Array.isArray(purchaseHistory) ? purchaseHistory : [];
+  const products = Array.isArray(vipProducts) ? vipProducts : (vipProducts?.products || vipProducts?.data || []);
+  const purchases = Array.isArray(purchaseHistory) ? purchaseHistory : (purchaseHistory?.purchases || purchaseHistory?.data || []);
   const hasProducts = products.length > 0;
 
   const formatDate = (dateStr: string) => {

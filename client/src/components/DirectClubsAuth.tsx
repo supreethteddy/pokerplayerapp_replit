@@ -30,12 +30,12 @@ export default function DirectClubsAuth() {
   const [clubCodeVerified, setClubCodeVerified] = useState(false);
   const [clubCodeError, setClubCodeError] = useState("");
   const [clubBranding, setClubBranding] = useState<ClubBranding | null>(null);
-  
+
   // Terms & Conditions modal state
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [pendingKycRedirect, setPendingKycRedirect] = useState<any>(null);
-  
+
   // Password reset modal state (for login)
   const [showPasswordResetModal, setShowPasswordResetModal] = useState(false);
   const [newPassword, setNewPassword] = useState("");
@@ -43,7 +43,7 @@ export default function DirectClubsAuth() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordResetLoading, setPasswordResetLoading] = useState(false);
-  const [pendingLoginCredentials, setPendingLoginCredentials] = useState<{email: string, password: string, clubCode: string} | null>(null);
+  const [pendingLoginCredentials, setPendingLoginCredentials] = useState<{ email: string, password: string, clubCode: string } | null>(null);
 
   // Validation states
   const [emailError, setEmailError] = useState("");
@@ -174,10 +174,10 @@ export default function DirectClubsAuth() {
         const mustResetPasswordRaw = (result as any)?.mustResetPassword;
 
         // Check if password reset is required (handle both TRUE/FALSE and true/false)
-        const mustResetPassword = mustResetPasswordRaw === true || 
-                                  mustResetPasswordRaw === 'true' || 
-                                  mustResetPasswordRaw === 'TRUE' ||
-                                  mustResetPasswordRaw === 1;
+        const mustResetPassword = mustResetPasswordRaw === true ||
+          mustResetPasswordRaw === 'true' ||
+          mustResetPasswordRaw === 'TRUE' ||
+          mustResetPasswordRaw === 1;
 
         console.log("🔐 [AUTH] Password reset check - raw:", mustResetPasswordRaw, "parsed:", mustResetPassword);
 
@@ -313,24 +313,24 @@ export default function DirectClubsAuth() {
   useEffect(() => {
     let lastClubCode: string | null = null;
     let lastClubId: string | null = null;
-    
+
     const checkClubCodeChange = async () => {
       const currentClubCode = sessionStorage.getItem("clubCode");
       const currentClubId = sessionStorage.getItem("clubId") || sessionStorage.getItem("club_id");
-      
+
       // Only proceed if club code or ID actually changed
       if (currentClubCode === lastClubCode && currentClubId === lastClubId) {
         return; // No change, skip
       }
-      
+
       lastClubCode = currentClubCode;
       lastClubId = currentClubId;
-      
+
       if (currentClubCode && currentClubId) {
         // Check if we need to update branding
         const storedBranding = sessionStorage.getItem("club_branding");
         let needsUpdate = true;
-        
+
         if (storedBranding) {
           try {
             const branding = JSON.parse(storedBranding);
@@ -348,7 +348,7 @@ export default function DirectClubsAuth() {
             // Invalid stored branding, need to fetch
           }
         }
-        
+
         if (needsUpdate) {
           console.log("🔄 [AUTH] Club code changed, fetching new branding...");
           try {
@@ -364,10 +364,10 @@ export default function DirectClubsAuth() {
         }
       }
     };
-    
+
     // Check immediately on mount
     checkClubCodeChange();
-    
+
     // Only check periodically if we don't have branding yet (max 5 times, then stop)
     let checkCount = 0;
     const maxChecks = 5;
@@ -379,14 +379,14 @@ export default function DirectClubsAuth() {
       }
       checkClubCodeChange();
     }, 3000); // Check every 3 seconds, max 5 times (15 seconds total)
-    
+
     return () => clearInterval(interval);
   }, []); // Empty dependency array - only run on mount
 
   // Get gradient classes and style
   const gradientClasses = clubBranding ? getGradientClasses(clubBranding.gradient) : '';
   const gradientStyle = clubBranding ? getGradientStyle(clubBranding.gradient) : {};
-  
+
   // Helper function to get logo URL (prioritize database logo, fallback to default)
   const getLogoUrl = (): string | null => {
     // Priority 1: Logo from database (clubBranding)
@@ -399,14 +399,14 @@ export default function DirectClubsAuth() {
     }
     return null;
   };
-  
+
   return (
-    <div 
+    <div
       className={`min-h-screen flex items-center justify-center pt-4 sm:pt-5 px-3 sm:px-4 pb-3 sm:pb-4 ${gradientClasses || 'bg-black'}`}
       style={Object.keys(gradientStyle).length > 0 ? gradientStyle : undefined}
     >
       <Card className="w-full max-w-md bg-gray-900 border-gray-700 relative">
-        
+
 
         {/* Verification Success Message */}
         {isVerified && (
@@ -428,9 +428,9 @@ export default function DirectClubsAuth() {
           {/* Logo */}
           <div className="flex justify-center mb-4 sm:mb-6">
             {getLogoUrl() ? (
-              <img 
-                src={getLogoUrl()!} 
-                alt={clubBranding?.clubName || whitelabelConfig.companyName || 'Club'} 
+              <img
+                src={getLogoUrl()!}
+                alt={clubBranding?.clubName || whitelabelConfig.companyName || 'Club'}
                 className="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover border-2 border-slate-700"
                 onError={(e) => {
                   // Fallback to default logo if database logo fails to load
@@ -480,21 +480,19 @@ export default function DirectClubsAuth() {
               <div className="flex border-b border-gray-600 mb-4 sm:mb-6">
                 <button
                   onClick={() => setActiveTab("signin")}
-                  className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm font-medium border-b-2 transition-colors min-h-[44px] sm:min-h-[48px] flex items-center justify-center ${
-                    activeTab === "signin"
+                  className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm font-medium border-b-2 transition-colors min-h-[44px] sm:min-h-[48px] flex items-center justify-center ${activeTab === "signin"
                       ? "border-blue-500 text-blue-400"
                       : "border-transparent text-gray-400 hover:text-white"
-                  }`}
+                    }`}
                 >
                   Log In
                 </button>
                 <button
                   onClick={() => setActiveTab("signup")}
-                  className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm font-medium border-b-2 transition-colors min-h-[44px] sm:min-h-[48px] flex items-center justify-center ${
-                    activeTab === "signup"
+                  className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm font-medium border-b-2 transition-colors min-h-[44px] sm:min-h-[48px] flex items-center justify-center ${activeTab === "signup"
                       ? "border-blue-500 text-blue-400"
                       : "border-transparent text-gray-400 hover:text-white"
-                  }`}
+                    }`}
                 >
                   Sign Up
                 </button>
@@ -514,10 +512,10 @@ export default function DirectClubsAuth() {
                   setClubCodeError("Please enter a club code.");
                   return;
                 }
-                
+
                 setLoading(true);
                 setClubCodeError("");
-                
+
                 try {
                   // Validate club code with backend API
                   const response = await fetch(`${API_BASE_URL}/clubs/verify-code`, {
@@ -545,11 +543,11 @@ export default function DirectClubsAuth() {
                     sessionStorage.setItem("clubId", clubId); // Also store with camelCase for API
                     sessionStorage.setItem("clubCode", trimmedCode); // Store club code
                     sessionStorage.setItem("club_name", result.clubName || result.name || "");
-                    
+
                     // Always fetch full branding from the branding endpoint after verifying code
                     try {
                       console.log("🎨 [AUTH] Fetching full branding from API for club ID:", clubId);
-                      
+
                       // Always fetch from branding endpoint to ensure we have the latest data from Supabase
                       if (clubId) {
                         console.log(`🔄 [AUTH] Fetching branding from /clubs/${clubId}/branding endpoint...`);
@@ -627,148 +625,172 @@ export default function DirectClubsAuth() {
           {/* Email/Password Form - Second Step */}
           {clubCodeVerified && (
             <>
-          <form onSubmit={handleEmailAuth} className="space-y-3 sm:space-y-4">
-            {activeTab === "signup" && (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Input
-                    type="text"
-                    placeholder="First Name"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 text-sm sm:text-base"
-                    required
-                  />
-                  <Input
-                    type="text"
-                    placeholder="Last Name"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 text-sm sm:text-base"
-                    required
-                  />
-                </div>
-                <div>
-                  <Input
-                    type="tel"
-                    placeholder="Phone Number"
-                    value={phone}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, '');
-                      setPhone(value);
-                    }}
-                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 text-sm sm:text-base"
-                    data-testid="input-phone"
-                  />
-                  {(phoneError || validatingPhone) && (
-                    <p className="text-red-500 text-xs mt-1 ml-1">
-                      {validatingPhone ? "Checking..." : phoneError}
-                    </p>
-                  )}
-                </div>
-                {/* Nickname Input */}
-                <div>
-                  <Input
-                    type="text"
-                    placeholder="Nickname"
-                    value={nickname}
-                    onChange={(e) => setNickname(e.target.value)}
-                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 text-sm sm:text-base"
-                    data-testid="input-nickname"
-                    required
-                  />
-                  {(nicknameError || validatingNickname) && (
-                    <p className="text-red-500 text-xs mt-1 ml-1">
-                      {validatingNickname ? "Checking..." : nicknameError}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Input
-                    type="text"
-                    placeholder="Referral / Referred By (optional)"
-                    value={referralCode}
-                    onChange={(e) => setReferralCode(e.target.value)}
-                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 text-sm sm:text-base"
-                    data-testid="input-referral"
-                  />
-                </div>
-              </>
-            )}
-
-            <div>
-              <Input
-                type="email"
-                placeholder="Enter Email Address"
-                value={activeTab === "signin" ? signinEmail : signupEmail}
-                onChange={(e) => activeTab === "signin" ? setSigninEmail(e.target.value) : setSignupEmail(e.target.value)}
-                className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 text-sm sm:text-base"
-                data-testid={activeTab === "signin" ? "input-email-signin" : "input-email-signup"}
-                required
-              />
-              {activeTab === "signup" && (emailError || validatingEmail) && (
-                <p className="text-red-500 text-xs mt-1 ml-1">
-                  {validatingEmail ? "Checking..." : emailError}
-                </p>
-              )}
-            </div>
-
-            <div className="relative">
-              <Input
-                type={showPassword ? "text" : "password"}
-                placeholder="Enter Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 pr-11 sm:pr-12 text-sm sm:text-base"
-                required
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white h-7 w-7 sm:h-8 sm:w-8 p-0"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? (
-                  <EyeOff className="w-4 h-4" />
-                ) : (
-                  <Eye className="w-4 h-4" />
+              <form onSubmit={handleEmailAuth} className="space-y-3 sm:space-y-4">
+                {activeTab === "signup" && (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Input
+                        type="text"
+                        placeholder="First Name"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 text-sm sm:text-base"
+                        required
+                      />
+                      <Input
+                        type="text"
+                        placeholder="Last Name"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 text-sm sm:text-base"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Input
+                        type="tel"
+                        placeholder="Phone Number"
+                        value={phone}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '');
+                          setPhone(value);
+                        }}
+                        className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 text-sm sm:text-base"
+                        data-testid="input-phone"
+                      />
+                      {(phoneError || validatingPhone) && (
+                        <p className="text-red-500 text-xs mt-1 ml-1">
+                          {validatingPhone ? "Checking..." : phoneError}
+                        </p>
+                      )}
+                    </div>
+                    {/* Nickname Input */}
+                    <div>
+                      <Input
+                        type="text"
+                        placeholder="Nickname"
+                        value={nickname}
+                        onChange={(e) => setNickname(e.target.value)}
+                        className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 text-sm sm:text-base"
+                        data-testid="input-nickname"
+                        required
+                      />
+                      {(nicknameError || validatingNickname) && (
+                        <p className="text-red-500 text-xs mt-1 ml-1">
+                          {validatingNickname ? "Checking..." : nicknameError}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <Input
+                        type="text"
+                        placeholder="Referral / Referred By (optional)"
+                        value={referralCode}
+                        onChange={(e) => setReferralCode(e.target.value)}
+                        className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 text-sm sm:text-base"
+                        data-testid="input-referral"
+                      />
+                    </div>
+                  </>
                 )}
-              </Button>
-            </div>
 
-            {activeTab === "signin" && (
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="remember"
-                  checked={rememberPassword}
-                  onCheckedChange={(v) => setRememberPassword(!!v)}
-                  className="h-4 w-4 min-h-[16px] min-w-[16px] max-h-[16px] max-w-[16px] shrink-0 rounded border-gray-600 bg-gray-800 data-[state=checked]:border-current data-[state=checked]:text-white"
-                  style={{ '--checkbox-color': clubBranding?.skinColor || '#3b82f6' } as any}
-                />
-                <label
-                  htmlFor="remember"
-                  className="text-xs sm:text-sm text-gray-300 select-none cursor-pointer whitespace-nowrap"
+                <div>
+                  <Input
+                    type="email"
+                    placeholder="Enter Email Address"
+                    value={activeTab === "signin" ? signinEmail : signupEmail}
+                    onChange={(e) => activeTab === "signin" ? setSigninEmail(e.target.value) : setSignupEmail(e.target.value)}
+                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 text-sm sm:text-base"
+                    data-testid={activeTab === "signin" ? "input-email-signin" : "input-email-signup"}
+                    required
+                  />
+                  {activeTab === "signup" && (emailError || validatingEmail) && (
+                    <p className="text-red-500 text-xs mt-1 ml-1">
+                      {validatingEmail ? "Checking..." : emailError}
+                    </p>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="bg-gray-800 border-gray-600 text-white placeholder-gray-400 h-11 sm:h-12 pr-11 sm:pr-12 text-sm sm:text-base"
+                    required
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white h-7 w-7 sm:h-8 sm:w-8 p-0"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+
+                {activeTab === "signin" && (
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="remember"
+                      checked={rememberPassword}
+                      onCheckedChange={(v) => setRememberPassword(!!v)}
+                      className="h-4 w-4 min-h-[16px] min-w-[16px] max-h-[16px] max-w-[16px] shrink-0 rounded border-gray-600 bg-gray-800 data-[state=checked]:border-current data-[state=checked]:text-white"
+                      style={{ '--checkbox-color': clubBranding?.skinColor || '#3b82f6' } as any}
+                    />
+                    <label
+                      htmlFor="remember"
+                      className="text-xs sm:text-sm text-gray-300 select-none cursor-pointer whitespace-nowrap"
+                    >
+                      Remember password
+                    </label>
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full hover:opacity-90 text-white font-medium py-2.5 sm:py-3 h-11 sm:h-12 mt-4 sm:mt-6 text-sm sm:text-base min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: clubBranding?.skinColor || '#3b82f6' }}
                 >
-                  Remember password
-                </label>
-              </div>
-            )}
+                  {loading
+                    ? "Please wait..."
+                    : activeTab === "signin"
+                      ? "Log In"
+                      : "Sign Up"}
+                </Button>
 
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full hover:opacity-90 text-white font-medium py-2.5 sm:py-3 h-11 sm:h-12 mt-4 sm:mt-6 text-sm sm:text-base min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: clubBranding?.skinColor || '#3b82f6' }}
-            >
-              {loading
-                ? "Please wait..."
-                : activeTab === "signin"
-                  ? "Log In"
-                  : "Sign Up"}
-            </Button>
-          </form>
-          </>
+                <div className="mt-4 text-center">
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="text-gray-400 hover:text-white"
+                    onClick={() => {
+                      setClubCodeVerified(false);
+                      setClubCodeInput('');
+                      setClubBranding(null);
+                      localStorage.removeItem('clubId');
+                      sessionStorage.removeItem('clubId');
+                      localStorage.removeItem('clubCode');
+                      sessionStorage.removeItem('clubCode');
+                      sessionStorage.removeItem('club_code_verified');
+                      sessionStorage.removeItem('club_id');
+                      sessionStorage.removeItem('club_name');
+                      sessionStorage.removeItem('club_branding');
+                      window.location.reload();
+                    }}
+                  >
+                    Change Club
+                  </Button>
+                </div>
+              </form>
+            </>
           )}
         </CardContent>
       </Card>
@@ -785,13 +807,13 @@ export default function DirectClubsAuth() {
               Please read and accept the terms and conditions to continue
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="flex-1 overflow-y-auto pr-2 py-4">
             <div className="prose prose-invert max-w-none">
               {clubBranding?.termsAndConditions ? (
-                <div 
+                <div
                   className="text-slate-300 text-sm sm:text-base whitespace-pre-wrap"
-                  dangerouslySetInnerHTML={{ 
+                  dangerouslySetInnerHTML={{
                     __html: clubBranding.termsAndConditions
                   }}
                 />
@@ -855,11 +877,11 @@ export default function DirectClubsAuth() {
                   // Store KYC redirect data
                   sessionStorage.setItem('kyc_flow_active', 'true');
                   sessionStorage.setItem('kyc_redirect', JSON.stringify(pendingKycRedirect));
-                  
+
                   // Close modal and redirect
                   setShowTermsModal(false);
                   setTermsAccepted(false);
-                  
+
                   setTimeout(() => {
                     window.location.href = '/kyc';
                   }, 300);
@@ -887,7 +909,7 @@ export default function DirectClubsAuth() {
               You must update your password before logging in
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
             <div className="relative">
               <Input
@@ -988,7 +1010,7 @@ export default function DirectClubsAuth() {
                 setPasswordResetLoading(true);
                 try {
                   console.log("🔐 [PASSWORD RESET] Calling reset password API for:", pendingLoginCredentials?.email);
-                  
+
                   // Call API to reset password with current/temporary password for security
                   const response = await fetch(`${API_BASE_URL}/auth/player/reset-password`, {
                     method: 'POST',
@@ -1022,7 +1044,7 @@ export default function DirectClubsAuth() {
                     setShowPasswordResetModal(false);
                     setNewPassword("");
                     setConfirmPassword("");
-                    
+
                     // Store credentials temporarily for login
                     const email = pendingLoginCredentials?.email;
                     const clubCode = pendingLoginCredentials?.clubCode;
