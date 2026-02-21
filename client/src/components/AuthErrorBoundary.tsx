@@ -34,7 +34,7 @@ export class AuthErrorBoundary extends React.Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center pt-4 sm:pt-5 lg:pt-6 px-4 pb-4">
           <Card className="w-full max-w-md bg-slate-800 border-slate-700">
             <CardHeader className="text-center">
               <div className="flex justify-center mb-4">

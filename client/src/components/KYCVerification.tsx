@@ -330,7 +330,7 @@ export default function KYCVerification() {
 
   return (
     <div 
-      className={`min-h-screen ${gradientClasses || 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900'}`}
+      className={`min-h-screen pt-4 sm:pt-5 lg:pt-6 ${gradientClasses || 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900'}`}
       style={Object.keys(gradientStyle).length > 0 ? gradientStyle : undefined}
     >
       {/* Header - Mobile Responsive */}

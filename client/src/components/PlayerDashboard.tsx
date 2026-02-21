@@ -2,7 +2,7 @@ import { useUltraFastAuth } from "@/hooks/useUltraFastAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useRouter } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAvailableTables, useWaitlistStatus, useCancelWaitlist } from "@/hooks/usePlayerAPI";
+import { useAvailableTables, useWaitlistStatus, useCancelWaitlist, QUERY_KEYS } from "@/hooks/usePlayerAPI";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
 import { useRealtimeWaitlist } from "@/hooks/useRealtimeWaitlist";
 import { useRealtimeBalance } from "@/hooks/useRealtimeBalance";
@@ -1178,6 +1178,74 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   };
 
   const [activeTab, setActiveTab] = useState(getActiveTabFromUrl());
+  const [refreshingSection, setRefreshingSection] = useState<string | null>(null);
+
+  // Refresh handler: invalidates the right queries for the given section/tab
+  const handleRefreshSection = async (section: string) => {
+    setRefreshingSection(section);
+    try {
+      switch (section) {
+        case "game":
+        case "game-seated":
+        case "game-tables":
+        case "game-tournaments":
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["/api/tables"] }),
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.availableTables }),
+            queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] }),
+            queryClient.invalidateQueries({ queryKey: ["/api/table-seats"] }),
+            queryClient.invalidateQueries({ queryKey: ["/api/table-statuses"] }),
+            queryClient.invalidateQueries({ queryKey: ["/api/player-tournaments/upcoming"] }),
+            queryClient.invalidateQueries({ queryKey: ["/api/player-tournaments/my-registrations"] }),
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.waitlistStatus }),
+          ]);
+          break;
+        case "offers":
+          await queryClient.invalidateQueries({ queryKey: ["/api/player-offers/active"] });
+          break;
+        case "food":
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["/api/auth/player/fnb/menu"] }),
+            queryClient.invalidateQueries({ queryKey: ["/api/food-beverage/ads"] }),
+            queryClient.invalidateQueries({ queryKey: ["/api/auth/player/fnb/orders"] }),
+          ]);
+          break;
+        case "session":
+          await queryClient.invalidateQueries({ queryKey: ["/api/player-playtime/current"] });
+          break;
+        case "balance":
+        case "balance-transactions":
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["/api/balance"] }),
+            queryClient.invalidateQueries({ queryKey: ["/api/auth/player/balance"] }),
+            queryClient.invalidateQueries({ queryKey: ["/api/auth/player/transactions"] }),
+            queryClient.invalidateQueries({ queryKey: ["/api/credit-requests"] }),
+          ]);
+          break;
+        case "profile":
+        case "profile-kyc":
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: [`/api/documents/player/${user?.id}`] }),
+            queryClient.invalidateQueries({ queryKey: ["/api/players/supabase"] }),
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.waitlistStatus }),
+          ]);
+          break;
+        case "feedback":
+          await queryClient.invalidateQueries({ queryKey: ["/api/auth/player/feedback/history"] });
+          break;
+        case "notifications":
+          await queryClient.invalidateQueries({ queryKey: ["/api/push-notifications"] });
+          break;
+        default:
+          break;
+      }
+      toast({ title: "Refreshed", description: "Data updated." });
+    } catch {
+      toast({ title: "Refresh failed", description: "Please try again.", variant: "destructive" });
+    } finally {
+      setRefreshingSection(null);
+    }
+  };
 
   // Update tab when URL changes
   useEffect(() => {
@@ -2719,7 +2787,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   
   return (
     <div 
-      className={`min-h-screen w-full overflow-x-hidden dashboard-container relative ${gradientClasses || 'bg-slate-900'}`}
+      className={`min-h-screen w-full overflow-x-hidden dashboard-container relative pt-4 sm:pt-5 lg:pt-6 ${gradientClasses || 'bg-slate-900'}`}
       style={Object.keys(gradientStyle).length > 0 ? gradientStyle : undefined}
     >
       {/* Active Game Status Banner */}
@@ -3043,14 +3111,46 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               value="game"
               className="space-y-4 sm:space-y-6 w-full max-w-full"
             >
+              {/* Tab-level refresh */}
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRefreshSection("game")}
+                  disabled={!!refreshingSection}
+                  className="text-slate-300 border-slate-600 hover:bg-slate-700 hover:text-white"
+                >
+                  {refreshingSection === "game" ? (
+                    <span className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full inline-block" />
+                  ) : (
+                    <RotateCcw className="w-4 h-4" />
+                  )}
+                  <span className="ml-2">Refresh</span>
+                </Button>
+              </div>
               {/* Active Table Sessions - Show where player is currently seated */}
               {Array.isArray(seatedSessions) && seatedSessions.length > 0 && (
                 <Card className="bg-gradient-to-r from-emerald-800 to-emerald-900 border-emerald-500 w-full max-w-full">
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-white flex items-center justify-center text-lg">
-                      <Play className="w-5 h-5 mr-2 text-emerald-400" />
-                      🪑 You Are Seated!
-                    </CardTitle>
+                    <div className="flex items-center justify-between w-full">
+                      <CardTitle className="text-white flex items-center justify-center text-lg">
+                        <Play className="w-5 h-5 mr-2 text-emerald-400" />
+                        🪑 You Are Seated!
+                      </CardTitle>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRefreshSection("game-seated")}
+                        disabled={!!refreshingSection}
+                        className="text-emerald-200 hover:text-white hover:bg-emerald-700/30"
+                      >
+                        {refreshingSection === "game-seated" ? (
+                          <span className="animate-spin w-4 h-4 border-2 border-emerald-300 border-t-transparent rounded-full inline-block" />
+                        ) : (
+                          <RotateCcw className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
@@ -3204,10 +3304,25 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                           </div>
                         </div>
                       )}
-                      <CardTitle className="text-white flex items-center justify-center text-lg">
-                        <Table className="w-5 h-5 mr-2 text-emerald-500" />
-                        Live Cash Tables
-                      </CardTitle>
+                      <div className="flex items-center justify-center gap-2 w-full">
+                        <CardTitle className="text-white flex items-center justify-center text-lg">
+                          <Table className="w-5 h-5 mr-2 text-emerald-500" />
+                          Live Cash Tables
+                        </CardTitle>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRefreshSection("game-tables")}
+                          disabled={!!refreshingSection}
+                          className="text-slate-300 hover:text-white hover:bg-slate-700 ml-auto"
+                        >
+                          {refreshingSection === "game-tables" ? (
+                            <span className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full inline-block" />
+                          ) : (
+                            <RotateCcw className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
                     </CardHeader>
                     <CardContent>
                       {/* Global Waitlist Status - Shows table TYPE (not specific table) */}
@@ -3533,10 +3648,25 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                           </div>
                         </div>
                       )}
-                      <CardTitle className="text-white flex items-center justify-center text-lg">
-                        <Trophy className="w-5 h-5 mr-2 text-yellow-500" />
-                        Active Tournaments
-                      </CardTitle>
+                      <div className="flex items-center justify-center gap-2 w-full">
+                        <CardTitle className="text-white flex items-center justify-center text-lg">
+                          <Trophy className="w-5 h-5 mr-2 text-yellow-500" />
+                          Active Tournaments
+                        </CardTitle>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRefreshSection("game-tournaments")}
+                          disabled={!!refreshingSection}
+                          className="text-slate-300 hover:text-white hover:bg-slate-700 ml-auto"
+                        >
+                          {refreshingSection === "game-tournaments" ? (
+                            <span className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full inline-block" />
+                          ) : (
+                            <RotateCcw className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
                     </CardHeader>
                     <CardContent>
                       {tournamentsLoading ? (
@@ -3789,16 +3919,64 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
             {/* Offers Tab - Staff Managed */}
             <TabsContent value="offers" className="space-y-4 sm:space-y-6">
-                <ScrollableOffersDisplay branding={clubBranding} />
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRefreshSection("offers")}
+                  disabled={!!refreshingSection}
+                  className="text-slate-300 border-slate-600 hover:bg-slate-700 hover:text-white"
+                >
+                  {refreshingSection === "offers" ? (
+                    <span className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full inline-block" />
+                  ) : (
+                    <RotateCcw className="w-4 h-4" />
+                  )}
+                  <span className="ml-2">Refresh</span>
+                </Button>
+              </div>
+              <ScrollableOffersDisplay branding={clubBranding} />
             </TabsContent>
 
             {/* Food & Beverage Tab */}
             <TabsContent value="food" className="space-y-4 sm:space-y-6">
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRefreshSection("food")}
+                  disabled={!!refreshingSection}
+                  className="text-slate-300 border-slate-600 hover:bg-slate-700 hover:text-white"
+                >
+                  {refreshingSection === "food" ? (
+                    <span className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full inline-block" />
+                  ) : (
+                    <RotateCcw className="w-4 h-4" />
+                  )}
+                  <span className="ml-2">Refresh</span>
+                </Button>
+              </div>
               <FoodBeverageTab user={user} clubBranding={clubBranding} />
             </TabsContent>
 
             {/* Session Tab - Advanced Playtime Tracking */}
             <TabsContent value="session" className="space-y-4 sm:space-y-6">
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRefreshSection("session")}
+                  disabled={!!refreshingSection}
+                  className="text-slate-300 border-slate-600 hover:bg-slate-700 hover:text-white"
+                >
+                  {refreshingSection === "session" ? (
+                    <span className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full inline-block" />
+                  ) : (
+                    <RotateCcw className="w-4 h-4" />
+                  )}
+                  <span className="ml-2">Refresh</span>
+                </Button>
+              </div>
               <div className="max-w-4xl mx-auto">
                 {!gameStatus.isInActiveGame &&
                 !(
@@ -3835,6 +4013,22 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             </TabsContent>
 
             <TabsContent value="balance" className="space-y-4 sm:space-y-6">
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRefreshSection("balance")}
+                  disabled={!!refreshingSection}
+                  className="text-slate-300 border-slate-600 hover:bg-slate-700 hover:text-white"
+                >
+                  {refreshingSection === "balance" ? (
+                    <span className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full inline-block" />
+                  ) : (
+                    <RotateCcw className="w-4 h-4" />
+                  )}
+                  <span className="ml-2">Refresh</span>
+                </Button>
+              </div>
               {/* Balance Display */}
               {user?.id && (
                 <PlayerBalanceDisplay
@@ -3852,10 +4046,25 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               {/* Transaction History */}
               <Card className="bg-slate-800 border-slate-700">
                 <CardHeader>
-                  <CardTitle className="text-white flex items-center">
-                    <BarChart3 className="w-5 h-5 mr-2 text-emerald-500" />
-                    Recent Transactions
-                  </CardTitle>
+                  <div className="flex items-center justify-between w-full">
+                    <CardTitle className="text-white flex items-center">
+                      <BarChart3 className="w-5 h-5 mr-2 text-emerald-500" />
+                      Recent Transactions
+                    </CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRefreshSection("balance-transactions")}
+                      disabled={!!refreshingSection}
+                      className="text-slate-300 hover:text-white hover:bg-slate-700"
+                    >
+                      {refreshingSection === "balance-transactions" ? (
+                        <span className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full inline-block" />
+                      ) : (
+                        <RotateCcw className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="max-h-60 overflow-y-auto">
@@ -3870,14 +4079,45 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
             {/* Profile Tab */}
             <TabsContent value="profile" className="space-y-4 sm:space-y-6">
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRefreshSection("profile")}
+                  disabled={!!refreshingSection}
+                  className="text-slate-300 border-slate-600 hover:bg-slate-700 hover:text-white"
+                >
+                  {refreshingSection === "profile" ? (
+                    <span className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full inline-block" />
+                  ) : (
+                    <RotateCcw className="w-4 h-4" />
+                  )}
+                  <span className="ml-2">Refresh</span>
+                </Button>
+              </div>
               <div className="grid grid-cols-1 gap-4 sm:gap-6">
                 {/* Profile Summary */}
                 <Card className="bg-slate-800 border-slate-700">
                   <CardHeader>
-                    <CardTitle className="text-white flex items-center">
-                      <User className="w-5 h-5 mr-2 text-emerald-500" />
-                      Profile
-                    </CardTitle>
+                    <div className="flex items-center justify-between w-full">
+                      <CardTitle className="text-white flex items-center">
+                        <User className="w-5 h-5 mr-2 text-emerald-500" />
+                        Profile
+                      </CardTitle>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRefreshSection("profile")}
+                        disabled={!!refreshingSection}
+                        className="text-slate-300 hover:text-white hover:bg-slate-700"
+                      >
+                        {refreshingSection === "profile" ? (
+                          <span className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full inline-block" />
+                        ) : (
+                          <RotateCcw className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     {/* Profile Details with per-field change request actions */}
@@ -4134,10 +4374,25 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 {/* KYC Documents Management */}
                 <Card className="bg-slate-800 border-slate-700">
                   <CardHeader>
-                    <CardTitle className="text-white flex items-center">
-                      <FileText className="w-5 h-5 mr-2 text-emerald-500" />
-                      KYC Documents
-                    </CardTitle>
+                    <div className="flex items-center justify-between w-full">
+                      <CardTitle className="text-white flex items-center">
+                        <FileText className="w-5 h-5 mr-2 text-emerald-500" />
+                        KYC Documents
+                      </CardTitle>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRefreshSection("profile-kyc")}
+                        disabled={!!refreshingSection}
+                        className="text-slate-300 hover:text-white hover:bg-slate-700"
+                      >
+                        {refreshingSection === "profile-kyc" ? (
+                          <span className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full inline-block" />
+                        ) : (
+                          <RotateCcw className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {kycLoading ? (
@@ -4622,13 +4877,44 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             {/* Feedback Tab */}
             <TabsContent value="feedback" className="flex-1 overflow-y-auto">
               <div className="space-y-4 sm:space-y-6">
+                <div className="flex justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRefreshSection("feedback")}
+                    disabled={!!refreshingSection}
+                    className="text-slate-300 border-slate-600 hover:bg-slate-700 hover:text-white"
+                  >
+                    {refreshingSection === "feedback" ? (
+                      <span className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full inline-block" />
+                    ) : (
+                      <RotateCcw className="w-4 h-4" />
+                    )}
+                    <span className="ml-2">Refresh</span>
+                  </Button>
+                </div>
                 {/* Feedback to Management */}
                 <Card className="bg-slate-800 border-slate-700">
                   <CardHeader>
-                    <CardTitle className="text-white flex items-center">
-                      <MessageCircle className="w-5 h-5 mr-2 text-emerald-500" />
-                      Send Feedback to Management
-                    </CardTitle>
+                    <div className="flex items-center justify-between w-full">
+                      <CardTitle className="text-white flex items-center">
+                        <MessageCircle className="w-5 h-5 mr-2 text-emerald-500" />
+                        Send Feedback to Management
+                      </CardTitle>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRefreshSection("feedback")}
+                        disabled={!!refreshingSection}
+                        className="text-slate-300 hover:text-white hover:bg-slate-700"
+                      >
+                        {refreshingSection === "feedback" ? (
+                          <span className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full inline-block" />
+                        ) : (
+                          <RotateCcw className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
@@ -4686,10 +4972,25 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 {/* Previous Feedback History */}
                 <Card className="bg-slate-800 border-slate-700">
                   <CardHeader>
-                    <CardTitle className="text-white flex items-center">
-                      <MessageCircle className="w-5 h-5 mr-2 text-emerald-400" />
-                      Previous Feedback
-                    </CardTitle>
+                    <div className="flex items-center justify-between w-full">
+                      <CardTitle className="text-white flex items-center">
+                        <MessageCircle className="w-5 h-5 mr-2 text-emerald-400" />
+                        Previous Feedback
+                      </CardTitle>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRefreshSection("feedback")}
+                        disabled={!!refreshingSection}
+                        className="text-slate-300 hover:text-white hover:bg-slate-700"
+                      >
+                        {refreshingSection === "feedback" ? (
+                          <span className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full inline-block" />
+                        ) : (
+                          <RotateCcw className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {feedbackHistoryLoading && (
@@ -4806,6 +5107,22 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               value="notifications"
               className="space-y-4 sm:space-y-6 w-full max-w-full"
             >
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRefreshSection("notifications")}
+                  disabled={!!refreshingSection}
+                  className="text-slate-300 border-slate-600 hover:bg-slate-700 hover:text-white"
+                >
+                  {refreshingSection === "notifications" ? (
+                    <span className="animate-spin w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full inline-block" />
+                  ) : (
+                    <RotateCcw className="w-4 h-4" />
+                  )}
+                  <span className="ml-2">Refresh</span>
+                </Button>
+              </div>
               <NotificationHistoryTab />
             </TabsContent>
           </div>
@@ -5064,9 +5381,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           open={tableViewDialogOpen}
           onOpenChange={setTableViewDialogOpen}
         >
-          <DialogContent className="max-w-[95vw] sm:max-w-[90vw] lg:max-w-[85vw] max-h-[95vh] w-full h-full p-0 sm:p-2 bg-slate-900 border-slate-700 overflow-hidden">
+          <DialogContent className="table-view-dialog max-w-[98vw] sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[85vw] w-full max-h-[98vh] sm:max-h-[95vh] h-[98vh] sm:h-auto p-0 sm:p-2 bg-slate-900 border-slate-700 overflow-hidden flex flex-col">
             {selectedTableViewTableId && (
-              <div className="h-full overflow-auto">
+              <div className="flex-1 min-h-0 overflow-auto overflow-x-hidden">
                 <TableView
                   tableId={selectedTableViewTableId}
                   clubBranding={clubBranding}
