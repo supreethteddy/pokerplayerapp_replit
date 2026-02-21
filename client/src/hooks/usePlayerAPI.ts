@@ -47,7 +47,7 @@ export const QUERY_KEYS = {
  */
 export function usePlayerLogin() {
   const { toast } = useToast();
-  
+
   return useMutation({
     mutationFn: (credentials: PlayerLoginDto) => playerAuthService.login(credentials),
     onSuccess: (data) => {
@@ -74,7 +74,7 @@ export function usePlayerLogin() {
  */
 export function usePlayerSignup() {
   const { toast } = useToast();
-  
+
   return useMutation({
     mutationFn: (signupData: PlayerSignupDto) => playerAuthService.signup(signupData),
     onSuccess: (data) => {
@@ -113,9 +113,9 @@ export function usePlayerProfile() {
 export function useUpdatePlayerProfile() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+
   return useMutation({
-    mutationFn: (profileData: UpdatePlayerProfileDto) => 
+    mutationFn: (profileData: UpdatePlayerProfileDto) =>
       playerAuthService.updateProfile(profileData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.playerProfile });
@@ -140,9 +140,9 @@ export function useUpdatePlayerProfile() {
  */
 export function useChangePlayerPassword() {
   const { toast } = useToast();
-  
+
   return useMutation({
-    mutationFn: (passwordData: ChangePlayerPasswordDto) => 
+    mutationFn: (passwordData: ChangePlayerPasswordDto) =>
       playerAuthService.changePassword(passwordData),
     onSuccess: () => {
       toast({
@@ -199,7 +199,7 @@ export function usePlayerTransactions(limit: number = 50, offset: number = 0) {
 export function useJoinWaitlist() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+
   return useMutation({
     mutationFn: (data: JoinWaitlistDto) => waitlistService.joinWaitlist(data),
     onSuccess: (data) => {
@@ -239,7 +239,7 @@ export function useWaitlistStatus() {
 export function useCancelWaitlist() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+
   return useMutation({
     mutationFn: (entryId: string) => waitlistService.cancelWaitlist(entryId),
     onSuccess: () => {
@@ -298,11 +298,12 @@ export function useTableDetails(tableId: string) {
 export function useRequestCredit() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+
   return useMutation({
     mutationFn: (data: RequestCreditDto) => creditRequestService.requestCredit(data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.playerBalance });
+      queryClient.invalidateQueries({ queryKey: ['player', 'transactions'] });
       toast({
         title: 'Credit requested',
         description: data.message,
@@ -355,12 +356,13 @@ export function useFNBMenu() {
 export function useCreateFNBOrder() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+
   return useMutation({
     mutationFn: (orderData: CreateFNBOrderDto) => fnbService.createOrder(orderData),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.fnbOrders });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.playerBalance });
+      queryClient.invalidateQueries({ queryKey: ['player', 'transactions'] });
       toast({
         title: 'Order placed',
         description: data.message,
@@ -394,9 +396,9 @@ export function useFNBOrders() {
 export function useUpdateFNBOrder() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+
   return useMutation({
-    mutationFn: ({ orderId, updateData }: { orderId: string; updateData: UpdateFNBOrderDto }) => 
+    mutationFn: ({ orderId, updateData }: { orderId: string; updateData: UpdateFNBOrderDto }) =>
       fnbService.updateOrder(orderId, updateData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.fnbOrders });
@@ -421,7 +423,7 @@ export function useUpdateFNBOrder() {
 export function useCancelFNBOrder() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+
   return useMutation({
     mutationFn: (orderId: string) => fnbService.cancelOrder(orderId),
     onSuccess: () => {

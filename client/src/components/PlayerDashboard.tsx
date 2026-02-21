@@ -127,7 +127,7 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
     offersResponse && Array.isArray(offersResponse.offers)
       ? offersResponse.offers
       : [];
-  
+
   console.log('🎁 [OFFERS UI] displayOffers:', displayOffers);
   console.log('🎁 [OFFERS UI] error:', error);
   console.log('🎁 [OFFERS UI] isLoading:', isLoading);
@@ -225,13 +225,12 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
 
                   {/* Offer type badge */}
                   <Badge
-                    className={`absolute top-3 right-3 ${
-                      offer.offer_type === "banner"
-                        ? "bg-blue-600"
-                        : offer.offer_type === "carousel"
+                    className={`absolute top-3 right-3 ${offer.offer_type === "banner"
+                      ? "bg-blue-600"
+                      : offer.offer_type === "carousel"
                         ? "bg-purple-600"
                         : "bg-orange-600"
-                    }`}
+                      }`}
                   >
                     {offer.offer_type}
                   </Badge>
@@ -247,13 +246,12 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
                   {offer.description && (
                     <div className="text-slate-300 leading-relaxed mb-4">
                       <p
-                        className={`${
-                          offer.description.length > 200
-                            ? "text-sm"
-                            : offer.description.length > 100
+                        className={`${offer.description.length > 200
+                          ? "text-sm"
+                          : offer.description.length > 100
                             ? "text-base"
                             : "text-lg"
-                        }`}
+                          }`}
                       >
                         {offer.description}
                       </p>
@@ -349,8 +347,8 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
                         selectedOffer.offer_type === "banner"
                           ? "bg-blue-600"
                           : selectedOffer.offer_type === "carousel"
-                          ? "bg-purple-600"
-                          : "bg-orange-600"
+                            ? "bg-purple-600"
+                            : "bg-orange-600"
                       }
                     >
                       {selectedOffer.offer_type}
@@ -907,8 +905,8 @@ function TournamentSessionContent({ tournament, user, queryClient }: { tournamen
           <Badge className={isPaused
             ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
             : isExited
-            ? "bg-red-500/20 text-red-300 border-red-500/30"
-            : "bg-green-500/20 text-green-300 border-green-500/30"
+              ? "bg-red-500/20 text-red-300 border-red-500/30"
+              : "bg-green-500/20 text-green-300 border-green-500/30"
           }>
             {isPaused ? '⏸ Paused' : isExited ? '✕ Eliminated' : '● Live'}
           </Badge>
@@ -1088,7 +1086,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const user = profileData ? { ...baseUser, ...profileData } : baseUser;
   const [callTime, setCallTime] = useState("02:45");
   const [location, setLocation] = useLocation();
-  
+
   // Club branding state
   const [clubBranding, setClubBranding] = useState<ClubBranding | null>(null);
 
@@ -1291,13 +1289,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // Fetch live tables from backend API with realtime updates
   const { data: tablesData, isLoading: tablesLoading } = useAvailableTables();
   useRealtimeTables(); // Subscribe to realtime table updates
-  
+
   // Fetch waitlist status
   const { data: waitlistData } = useWaitlistStatus();
-  
+
   // Waitlist mutations
   const cancelWaitlistMutation = useCancelWaitlist();
-  
+
   // Enable real-time updates via Supabase (replaces polling)
   useRealtimeWaitlist(user?.id);
   useRealtimeBalance(user?.id);
@@ -1307,7 +1305,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   useRealtimeTournaments(user?.id);
   useRealtimeProfileRequests(user?.id);
   useRealtimeOffers();
-  
+
   // Map backend table data to dashboard format
   const tables = (tablesData?.tables || []).map((table: any) => ({
     id: table.id,
@@ -1419,7 +1417,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Get registered tournament IDs from backend
   const registeredTournamentIds = registrationsResponse?.registrations?.map((r: any) => r.tournamentId) || [];
-  
+
   // Helper function to check if player is registered
   const isRegistered = (tournamentId: string) => {
     return registeredTournamentIds.includes(tournamentId);
@@ -1494,14 +1492,14 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           title: "Registration Successful",
           description: "You have been registered for the tournament",
         });
-        
+
         // Save to localStorage as backup
         if (user?.id) {
           const current = registeredTournamentIds || [];
           const updated = [...current, tournamentId];
           localStorage.setItem(`tournament_registrations_${user.id}`, JSON.stringify(updated));
         }
-        
+
         // Refresh tournaments and registrations to update UI
         queryClient.invalidateQueries({
           queryKey: ["/api/player-tournaments/upcoming"],
@@ -1543,7 +1541,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           }
           const data = await response.json();
           console.log('📄 [KYC DOCS] API Response:', data);
-          
+
           // Map backend fields to frontend expected fields
           const mappedDocs = (data.documents || []).map((doc: any) => ({
             id: doc.id,
@@ -1555,7 +1553,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             size: doc.size,
             mimeType: doc.mimeType,
           }));
-          
+
           console.log('📄 [KYC DOCS] Mapped documents:', mappedDocs);
           return mappedDocs;
         } catch (error) {
@@ -1627,8 +1625,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
         throw new Error(
           errorData.error ||
-            errorData.message ||
-            `Server Error: ${response.status}`
+          errorData.message ||
+          `Server Error: ${response.status}`
         );
       }
 
@@ -1708,11 +1706,15 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Helper functions
   const isTableJoined = (tableId: string) => {
-    return seatRequests?.some((req) => req.tableId === tableId);
+    return seatRequests?.some((req: any) =>
+      String(req.tableId || req.table_id) === String(tableId)
+    );
   };
 
   const getWaitListPosition = (tableId: string) => {
-    const request = seatRequests?.find((req) => req.tableId === tableId);
+    const request = seatRequests?.find((req: any) =>
+      String(req.tableId || req.table_id) === String(tableId)
+    );
     return request?.position || 0;
   };
 
@@ -1740,7 +1742,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       });
       return;
     }
-    
+
     console.log(
       "🎯 [HANDLE JOIN] Navigating to table view for seat selection:",
       tableId
@@ -2696,7 +2698,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // KYC Status Check - Only log once if approved to avoid spam
   const [kycStatusLogged, setKycStatusLogged] = useState(false);
-  
+
   useEffect(() => {
     const isApproved = user?.kycStatus === 'approved' || user?.kycStatus === 'verified';
     if (!kycStatusLogged) {
@@ -2707,11 +2709,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       }
     }
   }, [user?.kycStatus, kycStatusLogged]);
-  
+
   // Show pending screen if KYC is explicitly 'pending' or undefined (not yet approved)
   const isKycPending = !user?.kycStatus || user?.kycStatus === 'pending';
   const isKycApproved = user?.kycStatus === 'approved' || user?.kycStatus === 'verified';
-  
+
   if (isKycPending && !isKycApproved) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -2727,11 +2729,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               <div className="w-20 h-20 mx-auto bg-amber-500/20 rounded-full flex items-center justify-center">
                 <Clock className="w-10 h-10 text-amber-400 animate-pulse" />
               </div>
-              
+
               <h2 className="text-2xl font-bold text-white">
                 Your Documents Are Under Review
               </h2>
-              
+
               <p className="text-slate-300">
                 Thank you for submitting your KYC documents. Our club staff is currently reviewing your information.
               </p>
@@ -2784,20 +2786,19 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // Get gradient classes and style for background
   const gradientClasses = clubBranding ? getGradientClasses(clubBranding.gradient) : '';
   const gradientStyle = clubBranding ? getGradientStyle(clubBranding.gradient) : {};
-  
+
   return (
-    <div 
+    <div
       className={`min-h-screen w-full overflow-x-hidden dashboard-container relative pt-4 sm:pt-5 lg:pt-6 ${gradientClasses || 'bg-slate-900'}`}
       style={Object.keys(gradientStyle).length > 0 ? gradientStyle : undefined}
     >
       {/* Active Game Status Banner */}
       {gameStatus.activeGameInfo && (
         <div
-          className={`border-b px-3 sm:px-6 py-3 sm:py-4 notification-banner ${
-            gameStatus.isInActiveGame
-              ? "bg-gradient-to-r from-amber-600 to-amber-700 border-amber-500"
-              : "bg-gradient-to-r from-emerald-600 to-emerald-700 border-emerald-500"
-          }`}
+          className={`border-b px-3 sm:px-6 py-3 sm:py-4 notification-banner ${gameStatus.isInActiveGame
+            ? "bg-gradient-to-r from-amber-600 to-amber-700 border-amber-500"
+            : "bg-gradient-to-r from-emerald-600 to-emerald-700 border-emerald-500"
+            }`}
         >
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0 gap-3">
             <div className="flex items-start sm:items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
@@ -2837,11 +2838,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             <div className="flex justify-center sm:justify-end flex-shrink-0">
               <Link href={`/table/${gameStatus.activeGameInfo.tableId}`}>
                 <Button
-                  className={`${
-                    gameStatus.isInActiveGame
-                      ? "bg-white text-amber-700 hover:bg-amber-50"
-                      : "bg-white text-emerald-700 hover:bg-emerald-50"
-                  } font-semibold px-4 sm:px-6 text-sm sm:text-base min-h-[44px] w-full sm:w-auto`}
+                  className={`${gameStatus.isInActiveGame
+                    ? "bg-white text-amber-700 hover:bg-amber-50"
+                    : "bg-white text-emerald-700 hover:bg-emerald-50"
+                    } font-semibold px-4 sm:px-6 text-sm sm:text-base min-h-[44px] w-full sm:w-auto`}
                 >
                   <Eye className="w-4 h-4 mr-2" />
                   {gameStatus.isInActiveGame ? "View Game" : "View Table"}
@@ -2982,13 +2982,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               </div>
             )}
             <div className="w-full sm:w-auto min-w-0 flex-1">
-              <h1 
+              <h1
                 className="text-base sm:text-lg lg:text-xl xl:text-2xl font-bold truncate"
                 style={{ color: clubBranding?.skinColor || '#ffffff' }}
               >
                 Player Dashboard
               </h1>
-              <p 
+              <p
                 className="text-xs sm:text-sm lg:text-base truncate"
                 style={{ color: clubBranding?.skinColor || '#94a3b8' }}
               >
@@ -3091,8 +3091,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               <div className="relative flex items-center justify-center">
                 <Bell className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
                 {notifications &&
-                Array.isArray(notifications) &&
-                notifications.length > 0 ? (
+                  Array.isArray(notifications) &&
+                  notifications.length > 0 ? (
                   <span
                     className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 min-w-[14px] sm:min-w-[16px] h-3.5 sm:h-4 bg-red-500 rounded-full text-white font-bold flex items-center justify-center px-0.5 sm:px-1 text-[0.5rem] sm:text-[0.6rem]"
                     style={{ lineHeight: "1" }}
@@ -3179,8 +3179,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 <p className="text-sm font-medium text-white">
                                   {session.sessionStartTime
                                     ? new Date(
-                                        session.sessionStartTime
-                                      ).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })
+                                      session.sessionStartTime
+                                    ).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })
                                     : "Just now"}
                                 </p>
                               </div>
@@ -3245,11 +3245,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 <div className="flex items-center justify-center space-x-2 mb-6 bg-slate-800/50 rounded-xl p-1 max-w-md mx-auto">
                   <button
                     onClick={() => setShowTournaments(false)}
-                    className={`flex-1 flex items-center justify-center px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
-                      !showTournaments
-                        ? "text-white shadow-lg transform scale-105"
-                        : "bg-transparent text-slate-300 hover:bg-slate-700/50"
-                    }`}
+                    className={`flex-1 flex items-center justify-center px-4 py-3 rounded-lg font-medium transition-all duration-200 ${!showTournaments
+                      ? "text-white shadow-lg transform scale-105"
+                      : "bg-transparent text-slate-300 hover:bg-slate-700/50"
+                      }`}
                     style={!showTournaments && clubBranding ? { backgroundColor: clubBranding.skinColor } : undefined}
                   >
                     <Table className="w-4 h-4 mr-2 flex-shrink-0" />
@@ -3258,11 +3257,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   </button>
                   <button
                     onClick={() => setShowTournaments(true)}
-                    className={`flex-1 flex items-center justify-center px-4 py-3 rounded-lg font-medium transition-all duration-200 ${
-                      showTournaments
-                        ? "text-white shadow-lg transform scale-105"
-                        : "bg-transparent text-slate-300 hover:bg-slate-700/50"
-                    }`}
+                    className={`flex-1 flex items-center justify-center px-4 py-3 rounded-lg font-medium transition-all duration-200 ${showTournaments
+                      ? "text-white shadow-lg transform scale-105"
+                      : "bg-transparent text-slate-300 hover:bg-slate-700/50"
+                      }`}
                     style={showTournaments && clubBranding ? { backgroundColor: clubBranding.skinColor } : undefined}
                   >
                     <Trophy className="w-4 h-4 mr-2 flex-shrink-0" />
@@ -3281,9 +3279,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                       {getLogoUrl() && (
                         <div className="flex justify-center mb-4">
                           <div className="flex items-center bg-slate-900/60 backdrop-blur-sm rounded-lg p-2 shadow-md border border-slate-700/30">
-                            <img 
-                              src={getLogoUrl()!} 
-                              alt={getClubName()} 
+                            <img
+                              src={getLogoUrl()!}
+                              alt={getClubName()}
                               className="h-10 sm:h-12 md:h-14 w-auto object-contain max-w-[180px] sm:max-w-[220px] md:max-w-[260px]"
                               onError={(e) => {
                                 // Fallback to default logo if database logo fails to load
@@ -3366,7 +3364,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                           </Button>
                         </div>
                       )}
-                      
+
                       {tablesLoading ? (
                         <div className="space-y-4">
                           {[1, 2, 3].map((i) => (
@@ -3392,18 +3390,16 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     {/* Game Status Indicator */}
                                     <div className="flex items-center space-x-2 mt-1.5 sm:mt-1">
                                       <div
-                                        className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full flex-shrink-0 ${
-                                          table.isActive
-                                            ? "bg-red-500"
-                                            : "bg-green-500"
-                                        }`}
+                                        className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full flex-shrink-0 ${table.isActive
+                                          ? "bg-red-500"
+                                          : "bg-green-500"
+                                          }`}
                                       ></div>
                                       <span
-                                        className={`text-[0.65rem] sm:text-xs ${
-                                          table.isActive
-                                            ? "text-red-400"
-                                            : "text-green-400"
-                                        }`}
+                                        className={`text-[0.65rem] sm:text-xs ${table.isActive
+                                          ? "text-red-400"
+                                          : "text-green-400"
+                                          }`}
                                       >
                                         {table.isActive
                                           ? "Game In Progress"
@@ -3463,10 +3459,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                                 >
                                               )[String(table.id)]
                                                 ?.gameStarted && (
-                                                <span className="text-[0.65rem] sm:text-xs text-amber-400">
-                                                  ⚠️ Game started
-                                                </span>
-                                              )}
+                                                  <span className="text-[0.65rem] sm:text-xs text-amber-400">
+                                                    ⚠️ Game started
+                                                  </span>
+                                                )}
                                             </div>
                                           )}
                                         {/* Only show Leave button if game hasn't started or player is not seated at this table */}
@@ -3478,29 +3474,29 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                           ]?.gameStarted &&
                                           gameStatus.isInActiveGame &&
                                           gameStatus.activeGameInfo?.tableId ===
-                                            String(table.id)
+                                          String(table.id)
                                         ) && (
-                                          <Button
-                                            onClick={() =>
-                                              handleLeaveWaitList(
-                                                String(table.id)
-                                              )
-                                            }
-                                            disabled={
-                                              leaveWaitListMutation.isPending
-                                            }
-                                            size="sm"
-                                            variant="outline"
-                                            className="bg-gradient-to-r from-slate-600/30 to-slate-500/30 border border-slate-400/50 text-slate-300 hover:from-slate-500/40 hover:to-slate-400/40 hover:border-slate-300 hover:text-slate-200 transition-all duration-300 shadow-lg hover:shadow-slate-500/25 backdrop-blur-sm min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto"
-                                          >
-                                            {leaveWaitListMutation.isPending ? (
-                                              <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-slate-300 border-t-transparent rounded-full animate-spin mr-2" />
-                                            ) : null}
-                                            Leave
-                                          </Button>
-                                        )}
+                                            <Button
+                                              onClick={() =>
+                                                handleLeaveWaitList(
+                                                  String(table.id)
+                                                )
+                                              }
+                                              disabled={
+                                                leaveWaitListMutation.isPending
+                                              }
+                                              size="sm"
+                                              variant="outline"
+                                              className="bg-gradient-to-r from-slate-600/30 to-slate-500/30 border border-slate-400/50 text-slate-300 hover:from-slate-500/40 hover:to-slate-400/40 hover:border-slate-300 hover:text-slate-200 transition-all duration-300 shadow-lg hover:shadow-slate-500/25 backdrop-blur-sm min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto"
+                                            >
+                                              {leaveWaitListMutation.isPending ? (
+                                                <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-slate-300 border-t-transparent rounded-full animate-spin mr-2" />
+                                              ) : null}
+                                              Leave
+                                            </Button>
+                                          )}
                                       </>
-                                    ) : waitlistData?.onWaitlist ? (
+                                    ) : (waitlistData?.onWaitlist && (String(waitlistData.entry?.table_id || waitlistData.entry?.tableId || waitlistData.tableInfo?.tableId) === String(table.id))) ? (
                                       <div className="flex flex-col space-y-2 w-full">
                                         <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 sm:p-3">
                                           <div className="flex items-center justify-between mb-1">
@@ -3604,13 +3600,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
                           {(!(tables as any) ||
                             (tables as any)?.length === 0) && (
-                            <div className="text-center py-8">
-                              <Table className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-                              <p className="text-slate-400">
-                                No tables available
-                              </p>
-                            </div>
-                          )}
+                              <div className="text-center py-8">
+                                <Table className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                                <p className="text-slate-400">
+                                  No tables available
+                                </p>
+                              </div>
+                            )}
                         </div>
                       )}
                     </CardContent>
@@ -3625,9 +3621,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                       {getLogoUrl() && (
                         <div className="flex justify-center mb-4">
                           <div className="flex items-center bg-slate-900/60 backdrop-blur-sm rounded-lg p-2 shadow-md border border-slate-700/30">
-                            <img 
-                              src={getLogoUrl()!} 
-                              alt={getClubName()} 
+                            <img
+                              src={getLogoUrl()!}
+                              alt={getClubName()}
                               className="h-10 sm:h-12 md:h-14 w-auto object-contain max-w-[180px] sm:max-w-[220px] md:max-w-[260px]"
                               onError={(e) => {
                                 // Fallback to default logo if database logo fails to load
@@ -3728,12 +3724,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                   <p className="text-xs sm:text-sm font-semibold text-emerald-500">
                                     {tournament.startDate
                                       ? new Date(
-                                          tournament.startDate
-                                        ).toLocaleTimeString('en-IN', {
-                                          hour: "2-digit",
-                                          minute: "2-digit",
-                                          timeZone: "Asia/Kolkata",
-                                        })
+                                        tournament.startDate
+                                      ).toLocaleTimeString('en-IN', {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                        timeZone: "Asia/Kolkata",
+                                      })
                                       : "TBA"}
                                   </p>
                                 </div>
@@ -3746,8 +3742,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     ₹
                                     {Number(
                                       tournament.prizePool ||
-                                        tournament.prize_pool ||
-                                        0
+                                      tournament.prize_pool ||
+                                      0
                                     ).toLocaleString()}
                                   </p>
                                 </div>
@@ -3811,13 +3807,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                       <div className="flex items-center space-x-2">
                                         {!isTournamentActive && (
                                           <Badge
-                                            className={`${
-                                              isPreStart
-                                                ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
-                                                : tournament.status === "finished"
+                                            className={`${isPreStart
+                                              ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
+                                              : tournament.status === "finished"
                                                 ? "bg-gray-500/20 text-gray-300 border-gray-500/30"
                                                 : "bg-slate-500/20 text-slate-300 border-slate-500/30"
-                                            }`}
+                                              }`}
                                           >
                                             {tournament.status
                                               ? tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)
@@ -3900,13 +3895,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
                           {(!(tournaments as any) ||
                             (tournaments as any)?.length === 0) && (
-                            <div className="text-center py-8">
-                              <Trophy className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-                              <p className="text-slate-400">
-                                No tournaments available
-                              </p>
-                            </div>
-                          )}
+                              <div className="text-center py-8">
+                                <Trophy className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                                <p className="text-slate-400">
+                                  No tournaments available
+                                </p>
+                              </div>
+                            )}
                         </div>
                       )}
                     </CardContent>
@@ -3979,9 +3974,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               </div>
               <div className="max-w-4xl mx-auto">
                 {!gameStatus.isInActiveGame &&
-                !(
-                  Array.isArray(seatedSessions) && seatedSessions.length > 0
-                ) ? (
+                  !(
+                    Array.isArray(seatedSessions) && seatedSessions.length > 0
+                  ) ? (
                   <Card className="bg-slate-800 border-slate-700">
                     <CardContent className="p-8">
                       <div className="text-center">
@@ -4036,13 +4031,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   showBreakdown={true}
                 />
               )}
-              
+
               {/* VIP Points */}
               {user?.id && <VipPointsDisplay userId={user.id} />}
 
               {/* Credit Request Card - Show if player has credit enabled */}
               {user?.id && creditEnabled && <CreditRequestCard />}
-              
+
               {/* Transaction History */}
               <Card className="bg-slate-800 border-slate-700">
                 <CardHeader>
@@ -4274,11 +4269,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         <span className="text-sm text-white font-medium">
                           {user?.created_at || user?.createdAt
                             ? new Date(user.created_at || user.createdAt).toLocaleDateString('en-IN', {
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric',
-                                timeZone: 'Asia/Kolkata'
-                              })
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              timeZone: 'Asia/Kolkata'
+                            })
                             : "N/A"}
                         </span>
                       </div>
@@ -4342,11 +4337,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </p>
                               </div>
                               <Badge className={
-                                entry.status === 'PENDING' 
+                                entry.status === 'PENDING'
                                   ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
                                   : entry.status === 'SEATED'
-                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                                  : 'bg-slate-500/20 text-slate-300 border-slate-500/30'
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                    : 'bg-slate-500/20 text-slate-300 border-slate-500/30'
                               }>
                                 {entry.status}
                               </Badge>
@@ -4563,10 +4558,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     <p className="text-xs text-emerald-500">
                                       {Array.isArray(kycDocuments)
                                         ? kycDocuments.filter(
-                                            (d) =>
-                                              d.documentType ===
-                                                "profile_photo" && d.fileUrl
-                                          )[0]?.fileName
+                                          (d) =>
+                                            d.documentType ===
+                                            "profile_photo" && d.fileUrl
+                                        )[0]?.fileName
                                         : ""}
                                     </p>
                                   </div>
@@ -4588,10 +4583,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                   onClick={() => {
                                     const doc = Array.isArray(kycDocuments)
                                       ? kycDocuments.filter(
-                                          (d) =>
-                                            d.documentType ===
-                                              "profile_photo" && d.fileUrl
-                                        )[0]
+                                        (d) =>
+                                          d.documentType ===
+                                          "profile_photo" && d.fileUrl
+                                      )[0]
                                       : null;
                                     if (doc && doc.fileUrl) {
                                       try {
@@ -4635,11 +4630,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             >
                               <Upload className="w-4 h-4 mr-1" />
                               {Array.isArray(kycDocuments) &&
-                              kycDocuments.filter(
-                                (d) =>
-                                  d.documentType === "profile_photo" &&
-                                  d.fileUrl
-                              ).length > 0
+                                kycDocuments.filter(
+                                  (d) =>
+                                    d.documentType === "profile_photo" &&
+                                    d.fileUrl
+                                ).length > 0
                                 ? "Change Photo"
                                 : "Upload"}
                             </Button>
@@ -5191,8 +5186,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                       <p className="font-semibold">
                         {selectedTournament.startDate
                           ? new Date(
-                              selectedTournament.startDate
-                            ).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+                            selectedTournament.startDate
+                          ).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
                           : "TBA"}
                       </p>
                     </div>
@@ -5208,8 +5203,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         ₹
                         {Number(
                           selectedTournament.buyIn ||
-                            selectedTournament.buy_in ||
-                            0
+                          selectedTournament.buy_in ||
+                          0
                         ).toLocaleString()}
                       </p>
                     </div>
@@ -5219,8 +5214,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         ₹
                         {Number(
                           selectedTournament.prizePool ||
-                            selectedTournament.prize_pool ||
-                            0
+                          selectedTournament.prize_pool ||
+                          0
                         ).toLocaleString()}
                       </p>
                     </div>

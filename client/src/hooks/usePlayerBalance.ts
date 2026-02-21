@@ -26,33 +26,33 @@ export function usePlayerBalance(playerId: string) {
     queryFn: async () => {
       console.log('🔍 [BALANCE HOOK] Fetching balance...');
       console.log('🔍 [BALANCE HOOK] playerId:', playerId);
-      
+
       // Get clubId from storage
-      const clubId = localStorage.getItem(STORAGE_KEYS.CLUB_ID) || 
-                     sessionStorage.getItem(STORAGE_KEYS.CLUB_ID);
-      
+      const clubId = localStorage.getItem(STORAGE_KEYS.CLUB_ID) ||
+        sessionStorage.getItem(STORAGE_KEYS.CLUB_ID);
+
       console.log('🔍 [BALANCE HOOK] clubId:', clubId);
-      
+
       const headers = getAuthHeaders(playerId, clubId || undefined);
       console.log('🔍 [BALANCE HOOK] Headers:', headers);
-      
+
       const url = `${API_BASE_URL}/auth/player/balance`;
       console.log('🔍 [BALANCE HOOK] Fetching from:', url);
-      
+
       const response = await fetch(url, {
         method: 'GET',
         headers,
         credentials: 'include',
       });
-      
+
       console.log('🔍 [BALANCE HOOK] Response status:', response.status);
-      
+
       if (!response.ok) {
         const text = await response.text();
         console.error('❌ [BALANCE HOOK] Error:', text);
         throw new Error(`Failed to fetch balance: ${response.status} ${text}`);
       }
-      
+
       const data = await response.json();
       console.log('✅ [BALANCE HOOK] Balance data:', data);
       return data;
@@ -66,7 +66,7 @@ export function usePlayerBalance(playerId: string) {
     if (!playerId) return;
 
     const clubId = localStorage.getItem('clubId') || sessionStorage.getItem('clubId');
-    
+
     if (!clubId) {
       console.warn('⚠️ [BALANCE] No clubId found, skipping real-time updates');
       return;
@@ -134,15 +134,21 @@ export function usePlayerBalance(playerId: string) {
     };
   }, [playerId, queryClient]);
 
+  const cash = parseFloat((balance as any)?.availableBalance || (balance as any)?.currentBalance || (balance as any)?.cashBalance || '0');
+  const creditDebt = parseFloat((balance as any)?.creditBalance || (balance as any)?.creditUsed || '0');
+  const netBalance = (balance as any)?.totalBalance !== undefined
+    ? parseFloat((balance as any)?.totalBalance)
+    : (cash - creditDebt);
+
   return {
     balance,
     isLoading,
     error,
-    cashBalance: parseFloat((balance as any)?.availableBalance || (balance as any)?.currentBalance || balance?.cashBalance || '0'),
-    creditBalance: parseFloat((balance as any)?.creditBalance || '0'),
+    cashBalance: cash,
+    creditBalance: creditDebt,
     creditLimit: parseFloat((balance as any)?.creditLimit || '0'),
     creditApproved: (balance as any)?.creditApproved || false,
     tableBalance: parseFloat((balance as any)?.tableBalance || '0'),
-    totalBalance: parseFloat((balance as any)?.totalBalance || (balance as any)?.availableBalance || (balance as any)?.currentBalance || balance?.cashBalance || '0')
+    totalBalance: netBalance
   };
 }

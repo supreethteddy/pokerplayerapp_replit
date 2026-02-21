@@ -60,6 +60,7 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
       setShowBuyInForm(false);
       queryClient.invalidateQueries({ queryKey: ['buyin-requests', playerId] });
       queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
+      queryClient.invalidateQueries({ queryKey: ['player', 'transactions'] });
       setTimeout(() => setBuyInMessage(null), 5000);
     },
     onError: (error: any) => {

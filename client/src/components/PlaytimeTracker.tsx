@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useGameStatusSync } from "@/hooks/useGameStatusSync";
 import { Progress } from "@/components/ui/progress";
 import { HIDE_SESSION_TIMER } from "@/lib/featureFlags";
+import { API_BASE_URL } from "@/lib/api/config";
 
 interface LiveSession {
   id: number;
@@ -122,12 +123,12 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
   }, [playerId, toast, queryClient]);
 
   // Fetch live session data with UNIFIED FAST REFRESH (3 seconds) for immediate synchronization
-  const { data: sessionResponse, isLoading, error } = useQuery<{hasActiveSession: boolean, session: LiveSession | null}>({
+  const { data: sessionResponse, isLoading, error } = useQuery<{ hasActiveSession: boolean, session: LiveSession | null }>({
     queryKey: ['/api/player-playtime/current', playerId], // playerId is for cache key only
     queryFn: async () => {
       // Custom queryFn to avoid playerId being added to URL path
       const clubId = localStorage.getItem('clubId') || sessionStorage.getItem('clubId') || '';
-      const response = await fetch('http://localhost:3333/api/player-playtime/current', {
+      const response = await fetch(`${API_BASE_URL}/player-playtime/current`, {
         headers: {
           'Content-Type': 'application/json',
           'x-player-id': playerId || '',
@@ -235,10 +236,10 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
   // Get phase-specific status information (works with fallback)
   const getPhaseStatus = () => {
     if (!session && hasSeatedPlayerFromFallback) {
-      return { 
-        phase: 'Minimum Play Time', 
-        description: 'Session tracking starting...', 
-        timeRemaining: 0 
+      return {
+        phase: 'Minimum Play Time',
+        description: 'Session tracking starting...',
+        timeRemaining: 0
       };
     }
     if (!session) return { phase: 'UNKNOWN', description: '', timeRemaining: 0 };
@@ -302,8 +303,8 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
     return null;
   }
 
-  console.log('✅ [PLAYTIME TRACKER] Rendering PlaytimeTracker!', { 
-    hasSession: !!session, 
+  console.log('✅ [PLAYTIME TRACKER] Rendering PlaytimeTracker!', {
+    hasSession: !!session,
     hasFallback: hasSeatedPlayerFromFallback,
     startTime: session?.sessionStartTime || fallbackSession?.sessionStartTime
   });
@@ -395,11 +396,10 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
                       }
                     }}
                     disabled={session?.callTimeActive}
-                    className={`w-full py-3 text-sm ${
-                      !session?.callTimeActive
-                        ? 'bg-red-600 hover:bg-red-700 border-red-500 text-white'
-                        : 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                    }`}
+                    className={`w-full py-3 text-sm ${!session?.callTimeActive
+                      ? 'bg-red-600 hover:bg-red-700 border-red-500 text-white'
+                      : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                      }`}
                   >
                     {session?.callTimeActive ? 'Exit Request Pending...' : 'Request Exit'}
                   </Button>
@@ -486,14 +486,13 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
                       }
                     }}
                     disabled={!session?.callTimeAvailable || session?.callTimeActive}
-                    className={`w-full py-3 text-sm ${
-                      session?.callTimeAvailable && !session?.callTimeActive
-                        ? 'bg-yellow-600 hover:bg-yellow-700 border-yellow-500 text-white'
-                        : 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                    }`}
+                    className={`w-full py-3 text-sm ${session?.callTimeAvailable && !session?.callTimeActive
+                      ? 'bg-yellow-600 hover:bg-yellow-700 border-yellow-500 text-white'
+                      : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                      }`}
                   >
                     <Clock className="w-4 h-4 mr-2" />
-                    {session?.callTimeActive 
+                    {session?.callTimeActive
                       ? `Call Time: ${session?.callTimeRemaining || 0}m left`
                       : 'Start Call Time'
                     }
@@ -530,11 +529,11 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
                   </div>
                   <ul className="space-y-1 text-slate-400 text-xs">
                     <li className="flex justify-between">
-                      <span>• Min play:</span> 
+                      <span>• Min play:</span>
                       <span className="font-medium text-white">{session?.min_play_time_minutes || session?.min_play_time || 2}m</span>
                     </li>
                     <li className="flex justify-between">
-                      <span>• Call time:</span> 
+                      <span>• Call time:</span>
                       <span className="font-medium text-white">{session?.call_time_duration || 2}m</span>
                     </li>
                   </ul>
