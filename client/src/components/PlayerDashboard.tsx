@@ -399,25 +399,36 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
 
   const { data: vipData, isLoading } = useQuery({
     queryKey: ["/api/player-vip/points", userId],
-    queryFn: () => apiRequest("GET", "/api/player-vip/points"),
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/player-vip/points");
+      return res.json();
+    },
     staleTime: 60000,
   });
 
   const { data: vipProducts = [] } = useQuery({
     queryKey: ["/api/player-vip/products"],
-    queryFn: () => apiRequest("GET", "/api/player-vip/products"),
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/player-vip/products");
+      return res.json();
+    },
     staleTime: 120000,
   });
 
   const { data: purchaseHistory = [] } = useQuery({
     queryKey: ["/api/player-vip/purchases", userId],
-    queryFn: () => apiRequest("GET", "/api/player-vip/purchases"),
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/player-vip/purchases");
+      return res.json();
+    },
     staleTime: 60000,
   });
 
   const purchaseMutation = useMutation({
-    mutationFn: (productId: string) =>
-      apiRequest("POST", "/api/player-vip/purchase", { productId }),
+    mutationFn: async (productId: string) => {
+      const res = await apiRequest("POST", "/api/player-vip/purchase", { productId });
+      return res.json();
+    },
     onSuccess: (data: any) => {
       toast({ title: "Purchase Successful", description: data?.message || "VIP product purchased!" });
       queryClient.invalidateQueries({ queryKey: ["/api/player-vip/points"] });
