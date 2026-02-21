@@ -158,17 +158,12 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
       const response = await apiRequest("GET", "/api/auth/player/fnb/menu");
       return await response.json();
     },
-    refetchInterval: 5000, // 5 second refresh
+    refetchInterval: 120000,
     refetchOnWindowFocus: true,
-    staleTime: 0,
+    staleTime: 30000,
     retry: 3,
   });
 
-  // NOTE: F&B ads API is not implemented yet on the backend.
-  // We intentionally removed the ads polling to avoid 404 errors
-  // while keeping the menu and ordering system fully functional.
-
-  // Player FNB orders (current + history)
   const {
     data: ordersResponse,
     isLoading: ordersLoading,
@@ -178,7 +173,7 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
       const response = await apiRequest('GET', '/api/auth/player/fnb/orders');
       return await response.json();
     },
-    refetchInterval: 5000,
+    refetchInterval: 120000,
     refetchOnWindowFocus: true,
   });
 

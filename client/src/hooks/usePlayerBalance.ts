@@ -57,9 +57,8 @@ export function usePlayerBalance(playerId: string) {
       console.log('✅ [BALANCE HOOK] Balance data:', data);
       return data;
     },
-    refetchInterval: 30000, // Light fallback poll every 30s; real-time via Supabase handles instant updates
-    staleTime: 5000, // Consider fresh for 5s since real-time pushes updates
-    enabled: !!playerId, // Only run query if playerId exists
+    staleTime: 5000,
+    enabled: !!playerId,
   });
 
   // Real-time balance updates via WebSocket

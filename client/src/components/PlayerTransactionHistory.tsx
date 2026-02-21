@@ -36,7 +36,7 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
       return data.transactions || [];
     },
     enabled: !!playerId,
-    refetchInterval: 30000, // Refetch every 30 seconds
+    staleTime: 30000,
   });
 
   const transactions = transactionsData || [];

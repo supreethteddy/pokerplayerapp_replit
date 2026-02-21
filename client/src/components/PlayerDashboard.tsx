@@ -5,6 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAvailableTables, useWaitlistStatus, useCancelWaitlist } from "@/hooks/usePlayerAPI";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
 import { useRealtimeWaitlist } from "@/hooks/useRealtimeWaitlist";
+import { useRealtimeBalance } from "@/hooks/useRealtimeBalance";
+import { useRealtimeBuyIn } from "@/hooks/useRealtimeBuyIn";
+import { useRealtimeNotifications } from "@/hooks/useRealtimeNotifications";
+import { useRealtimeCreditRequests } from "@/hooks/useRealtimeCreditRequests";
+import { useRealtimeTournaments } from "@/hooks/useRealtimeTournaments";
+import { useRealtimeProfileRequests } from "@/hooks/useRealtimeProfileRequests";
+import { useRealtimeOffers } from "@/hooks/useRealtimeOffers";
 import {
   Dialog,
   DialogContent,
@@ -104,8 +111,7 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
       console.log('🎁 [OFFERS UI] Received data:', data);
       return data;
     },
-    refetchInterval: 5000, // Refresh every 5 seconds
-    retry: 1, // Only retry once to avoid spamming
+    retry: 1,
   });
 
   const trackOfferView = useMutation({
@@ -386,163 +392,230 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
   );
 };
 
-// VIP Points Display Component
+// VIP Points Display Component (Weighted Percentage Formula)
 const VipPointsDisplay = ({ userId }: { userId: number }) => {
-  const { data: vipData, isLoading } = useQuery({
-    queryKey: ["/api/vip-points/calculate", userId],
-    refetchInterval: 30000, // Refresh every 30 seconds
-  });
-
+  const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const redeemPoints = useMutation({
-    mutationFn: (redemption: {
-      redemptionType: string;
-      pointsRequired: number;
-    }) =>
-      apiRequest("POST", "/api/vip-points/redeem", {
-        playerId: userId,
-        ...redemption,
-      }),
-    onSuccess: () => {
-      toast({
-        title: "Redemption Request Sent",
-        description:
-          "Your VIP points redemption request has been sent for approval.",
-      });
+  const { data: vipData, isLoading } = useQuery({
+    queryKey: ["/api/player-vip/points", userId],
+    queryFn: () => apiRequest("GET", "/api/player-vip/points"),
+    staleTime: 60000,
+  });
+
+  const { data: vipProducts = [] } = useQuery({
+    queryKey: ["/api/player-vip/products"],
+    queryFn: () => apiRequest("GET", "/api/player-vip/products"),
+    staleTime: 120000,
+  });
+
+  const { data: purchaseHistory = [] } = useQuery({
+    queryKey: ["/api/player-vip/purchases", userId],
+    queryFn: () => apiRequest("GET", "/api/player-vip/purchases"),
+    staleTime: 60000,
+  });
+
+  const purchaseMutation = useMutation({
+    mutationFn: (productId: string) =>
+      apiRequest("POST", "/api/player-vip/purchase", { productId }),
+    onSuccess: (data: any) => {
+      toast({ title: "Purchase Successful", description: data?.message || "VIP product purchased!" });
+      queryClient.invalidateQueries({ queryKey: ["/api/player-vip/points"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/player-vip/purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/player-vip/products"] });
     },
     onError: (error: any) => {
-      toast({
-        title: "Redemption Failed",
-        description: error.message || "Failed to process redemption request.",
-        variant: "destructive",
-      });
+      toast({ title: "Purchase Failed", description: error?.message || "Could not purchase product.", variant: "destructive" });
     },
   });
+
+  const [showStore, setShowStore] = useState(false);
 
   if (isLoading) {
     return (
       <Card className="bg-slate-800 border-slate-700">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center">
-            <Star className="w-5 h-5 mr-2 text-yellow-500" />
-            VIP Points
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-20 w-full" />
-        </CardContent>
+        <CardHeader><CardTitle className="text-white flex items-center"><Star className="w-5 h-5 mr-2 text-yellow-500" />VIP Points</CardTitle></CardHeader>
+        <CardContent><Skeleton className="h-20 w-full" /></CardContent>
       </Card>
     );
   }
 
-  const vipPoints = (vipData as any)?.totalVipPoints || 0;
-  const breakdown = vipData as any;
+  const d = vipData as any;
+  const availablePoints = d?.availablePoints || 0;
+  const earnedPoints = d?.earnedPoints || 0;
+  const pointsSpent = d?.pointsSpent || 0;
+  const tier = d?.tier || 'Bronze';
+  const tierColor = d?.tierColor || '#CD7F32';
+  const breakdown = d?.breakdown;
+  const nextTier = d?.nextTier;
+  const products = Array.isArray(vipProducts) ? vipProducts : [];
+  const purchases = Array.isArray(purchaseHistory) ? purchaseHistory : [];
+  const hasProducts = products.length > 0;
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+  };
 
   return (
-    <Card className="bg-slate-800 border-slate-700">
-      <CardHeader>
-        <CardTitle className="text-white flex items-center">
-          <Star className="w-5 h-5 mr-2 text-yellow-500" />
-          VIP Points System
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Total Points */}
-        <div className="text-center p-4 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-lg">
-          <div className="text-3xl font-bold text-yellow-400">
-            {vipPoints.toFixed(1)}
+    <>
+      <Card className="bg-slate-800 border-slate-700">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center justify-between">
+            <span className="flex items-center"><Star className="w-5 h-5 mr-2 text-yellow-500" />VIP Points</span>
+            <Badge style={{ backgroundColor: tierColor + '33', color: tierColor, borderColor: tierColor }} className="text-xs border">{tier}</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Points Summary */}
+          <div className="text-center p-4 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-lg">
+            <div className="text-3xl font-bold text-yellow-400">{availablePoints}</div>
+            <div className="text-slate-300 text-sm">Available Points</div>
+            {pointsSpent > 0 && <div className="text-xs text-slate-400 mt-1">Earned: {earnedPoints} · Spent: {pointsSpent}</div>}
           </div>
-          <div className="text-slate-300 text-sm">Total VIP Points</div>
-        </div>
 
-        {/* Points Breakdown */}
-        {breakdown && (
-          <div className="space-y-2">
-            <div className="text-white font-semibold text-sm">
-              Points Breakdown:
+          {/* Next Tier Progress */}
+          {nextTier && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs text-slate-400">
+                <span>{tier}</span>
+                <span>{nextTier.name} ({nextTier.pointsRequired} pts)</span>
+              </div>
+              <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full transition-all" style={{ width: `${Math.min(100, (earnedPoints / nextTier.pointsRequired) * 100)}%` }} />
+              </div>
+              <div className="text-xs text-slate-500 text-center">{nextTier.pointsToNext} points to {nextTier.name}</div>
             </div>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between text-slate-300">
-                <span>Big Blind (₹{breakdown?.avgBigBlind || 0} × 0.5)</span>
-                <span className="text-yellow-400">
-                  {(breakdown?.bigBlindPoints || 0).toFixed(1)}
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-300">
-                <span>Rs Played (₹{breakdown?.totalRsPlayed || 0} × 0.3)</span>
-                <span className="text-yellow-400">
-                  {(breakdown?.rsPlayedPoints || 0).toFixed(1)}
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-300">
-                <span>
-                  Visit Frequency ({breakdown?.visitFrequency || 0} days × 0.2)
-                </span>
-                <span className="text-yellow-400">
-                  {(breakdown?.frequencyPoints || 0).toFixed(1)}
-                </span>
+          )}
+
+          {/* Breakdown */}
+          {breakdown && (
+            <div className="space-y-2 bg-slate-900/50 p-3 rounded-lg">
+              <div className="text-white font-semibold text-sm">Points Breakdown</div>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between text-slate-300">
+                  <span>Table Sessions</span>
+                  <span className="text-slate-400">{breakdown.tableHours?.toFixed(1)}h</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Tournament Sessions</span>
+                  <span className="text-slate-400">{breakdown.tournamentHours?.toFixed(1)}h</span>
+                </div>
+                <div className="flex justify-between text-slate-300 border-t border-slate-700 pt-1">
+                  <span>Hours Score ({(breakdown.weightHours * 100).toFixed(0)}% weight)</span>
+                  <span className="text-yellow-400">+{breakdown.hoursContribution}</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Money Score (₹{breakdown.totalMoneySpent?.toLocaleString()} · {(breakdown.weightMoney * 100).toFixed(0)}% weight)</span>
+                  <span className="text-yellow-400">+{breakdown.moneyContribution}</span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Redemption Options */}
-        <div className="space-y-2">
-          <div className="text-white font-semibold text-sm">Redeem Points:</div>
-          <div className="grid grid-cols-1 gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600"
-              disabled={vipPoints < 500 || redeemPoints.isPending}
-              onClick={() =>
-                redeemPoints.mutate({
-                  redemptionType: "Tournament Ticket",
-                  pointsRequired: 500,
-                })
-              }
-            >
-              Tournament Ticket (500 pts)
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600"
-              disabled={vipPoints < 300 || redeemPoints.isPending}
-              onClick={() =>
-                redeemPoints.mutate({
-                  redemptionType: "Buy-in Discount",
-                  pointsRequired: 300,
-                })
-              }
-            >
-              Buy-in Discount (300 pts)
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600"
-              disabled={vipPoints < 1000 || redeemPoints.isPending}
-              onClick={() =>
-                redeemPoints.mutate({
-                  redemptionType: "Premium Product",
-                  pointsRequired: 1000,
-                })
-              }
-            >
-              Premium Product (1000 pts)
-            </Button>
+          {/* Formula */}
+          <div className="text-xs text-slate-400 p-2 bg-slate-900 rounded">
+            <strong>Formula:</strong> VIP Points = (40% × Hours Played) + (60% × Money Spent ÷ 100)
           </div>
-        </div>
 
-        {/* Formula Display */}
-        <div className="text-xs text-slate-400 p-2 bg-slate-900 rounded">
-          <strong>Formula:</strong> VIP Points = (Big Blind × 0.5) + (Rs Played
-          × 0.3) + (Visit Frequency × 0.2)
-        </div>
-      </CardContent>
-    </Card>
+          {/* VIP Store Button */}
+          {hasProducts && (
+            <Button
+              onClick={() => setShowStore(true)}
+              className="w-full bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white"
+            >
+              <Star className="w-4 h-4 mr-2" /> VIP Store ({products.length} products)
+            </Button>
+          )}
+
+          {/* Recent Purchases */}
+          {purchases.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-white font-semibold text-sm">Recent Purchases</div>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {purchases.slice(0, 5).map((p: any) => (
+                  <div key={p.id} className="flex justify-between items-center text-xs bg-slate-900/50 p-2 rounded">
+                    <span className="text-slate-300">{p.productTitle}</span>
+                    <span className="text-yellow-400">-{p.pointsSpent} pts · {formatDate(p.createdAt)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* VIP Store Modal */}
+      {showStore && (
+        <Dialog open={showStore} onOpenChange={setShowStore}>
+          <DialogContent className="w-[95vw] max-w-lg max-h-[85vh] bg-slate-900 border-slate-700 overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="text-white flex items-center">
+                <Star className="w-5 h-5 mr-2 text-yellow-500" />
+                VIP Store
+                <Badge className="ml-2 bg-yellow-500/20 text-yellow-400 border-yellow-500/30">{availablePoints} pts</Badge>
+              </DialogTitle>
+            </DialogHeader>
+            <div className="overflow-y-auto flex-1 space-y-3 pr-1">
+              {products.map((product: any) => {
+                const canAfford = availablePoints >= product.points;
+                const outOfStock = product.stock !== null && product.stock !== undefined && product.stock <= 0;
+                const mainImage = product.images?.[0]?.url || product.imageUrl;
+                return (
+                  <div key={product.id} className="bg-slate-800 rounded-lg p-3 border border-slate-700">
+                    <div className="flex gap-3">
+                      {mainImage && (
+                        <img src={mainImage} alt={product.title} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-white font-semibold text-sm truncate">{product.title}</div>
+                        {product.description && <div className="text-xs text-slate-400 mt-0.5 line-clamp-2">{product.description}</div>}
+                        <div className="flex items-center justify-between mt-2">
+                          <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs">{product.points} pts</Badge>
+                          {outOfStock ? (
+                            <span className="text-xs text-red-400">Out of Stock</span>
+                          ) : (
+                            <Button
+                              size="sm"
+                              disabled={!canAfford || purchaseMutation.isPending}
+                              onClick={() => { if (confirm(`Buy "${product.title}" for ${product.points} VIP points?`)) purchaseMutation.mutate(product.id); }}
+                              className={canAfford ? 'bg-yellow-600 hover:bg-yellow-700 text-white text-xs' : 'bg-gray-700 text-gray-400 text-xs'}
+                            >
+                              {purchaseMutation.isPending ? '...' : canAfford ? 'Buy' : 'Not enough pts'}
+                            </Button>
+                          )}
+                        </div>
+                        {product.stock !== null && product.stock !== undefined && product.stock > 0 && (
+                          <div className="text-xs text-slate-500 mt-1">{product.stock} left in stock</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {products.length === 0 && (
+                <div className="text-center text-slate-400 py-8">No VIP products available</div>
+              )}
+
+              {/* Purchase History in Store */}
+              {purchases.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-slate-700">
+                  <div className="text-white font-semibold text-sm mb-2">Your Purchases</div>
+                  <div className="space-y-1">
+                    {purchases.map((p: any) => (
+                      <div key={p.id} className="flex justify-between items-center text-xs bg-slate-800/50 p-2 rounded">
+                        <span className="text-slate-300">{p.productTitle}</span>
+                        <span className="text-slate-400">{p.pointsSpent} pts · {formatDate(p.createdAt)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 };
 
@@ -791,7 +864,7 @@ function TournamentSessionContent({ tournament, user, queryClient }: { tournamen
       return res.json();
     },
     enabled: !!tournament.id && !!user?.id,
-    refetchInterval: 5000,
+    refetchInterval: 60000,
   });
 
   const handleRebuyReentry = async (type: 'rebuy' | 'reentry') => {
@@ -1157,8 +1230,15 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // Waitlist mutations
   const cancelWaitlistMutation = useCancelWaitlist();
   
-  // Enable real-time waitlist updates via Supabase
+  // Enable real-time updates via Supabase (replaces polling)
   useRealtimeWaitlist(user?.id);
+  useRealtimeBalance(user?.id);
+  useRealtimeBuyIn(user?.id);
+  useRealtimeNotifications(user?.id);
+  useRealtimeCreditRequests(user?.id);
+  useRealtimeTournaments(user?.id);
+  useRealtimeProfileRequests(user?.id);
+  useRealtimeOffers();
   
   // Map backend table data to dashboard format
   const tables = (tablesData?.tables || []).map((table: any) => ({
@@ -1179,21 +1259,18 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   >({
     queryKey: ["/api/seat-requests", user?.id],
     enabled: !!user?.id,
-    refetchInterval: 5000, // Background refresh every 5 seconds
     refetchOnWindowFocus: true,
-    staleTime: 3000, // Consider data fresh for 3 seconds
-    gcTime: 10000, // Keep cached for 10 seconds
-    structuralSharing: true, // Only re-render if data structure changed
+    staleTime: 3000,
+    gcTime: 10000,
+    structuralSharing: true,
   });
 
-  // Fetch active seated sessions with smart refresh
   const { data: seatedSessions, isLoading: seatedLoading } = useQuery<any[]>({
     queryKey: ["/api/table-seats", user?.id],
     enabled: !!user?.id,
-    refetchInterval: 8000, // Check every 8 seconds for active sessions
     refetchOnWindowFocus: true,
-    staleTime: 5000, // Consider fresh for 5 seconds
-    gcTime: 15000, // Keep cached for 15 seconds
+    staleTime: 5000,
+    gcTime: 15000,
     structuralSharing: true,
   });
 
@@ -1220,10 +1297,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       return statusResults.reduce((acc, curr) => ({ ...acc, ...curr }), {});
     },
     enabled: !!seatRequests && seatRequests.length > 0,
-    refetchInterval: 10000, // Check every 10 seconds - less aggressive
-    staleTime: 8000, // Consider fresh for 8 seconds
-    gcTime: 20000, // Keep cached for 20 seconds
-    structuralSharing: true, // Only update if actual changes detected
+    staleTime: 8000,
+    gcTime: 20000,
+    structuralSharing: true,
   });
 
   // Find current active session for playtime tracking
@@ -1247,14 +1323,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       }
       return await response.json();
     },
-    refetchInterval: 5000, // Refresh every 5 seconds
     refetchOnWindowFocus: true,
-    staleTime: 0,
+    staleTime: 5000,
   });
 
   const tournaments = tournamentsResponse?.tournaments || [];
 
-  // Fetch player registrations
   const {
     data: registrationsResponse,
     isLoading: registrationsLoading,
@@ -1271,9 +1345,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       return await response.json();
     },
     enabled: !!user?.id,
-    refetchInterval: 5000, // Refresh every 5 seconds
     refetchOnWindowFocus: true,
-    staleTime: 0,
+    staleTime: 5000,
   });
 
   // Get registered tournament IDs from backend
@@ -1302,8 +1375,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       return statuses;
     },
     enabled: activeTournamentIds.length > 0 && !!user?.id,
-    refetchInterval: 5000,
-    staleTime: 2000,
+    staleTime: 5000,
   });
 
   const [tournamentDetailsOpen, setTournamentDetailsOpen] = useState(false);
@@ -1322,11 +1394,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const { data: accountBalance, isLoading: balanceLoading } = useQuery({
     queryKey: ["/api/balance", user?.id],
     enabled: !!user?.id,
-    refetchInterval: 15000, // Refresh every 15 seconds - balance changes are less frequent
     refetchOnWindowFocus: true,
-    staleTime: 10000, // Consider fresh for 10 seconds
-    gcTime: 30000, // Keep cached for 30 seconds
-    structuralSharing: true, // Only update UI if balance actually changed
+    staleTime: 10000,
+    gcTime: 30000,
+    structuralSharing: true,
   });
 
   // Open tournament details dialog
@@ -1627,18 +1698,15 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const { data: creditRequests, isLoading: creditRequestsLoading } = useQuery({
     queryKey: [`/api/credit-requests/${user?.id}`],
     enabled: !!user?.id,
-    refetchInterval: 2000, // Refresh every 2 seconds
   });
 
-  // Fetch push notifications with smart background refresh
   const { data: notifications, isLoading: notificationsLoading } = useQuery({
     queryKey: [`/api/push-notifications/${user?.id}`],
     enabled: !!user?.id,
-    refetchInterval: 30000, // Check every 30 seconds - notifications are handled via push system
     refetchOnWindowFocus: true,
-    staleTime: 20000, // Consider fresh for 20 seconds
-    gcTime: 60000, // Keep cached for 1 minute
-    structuralSharing: true, // Only update if new notifications
+    staleTime: 20000,
+    gcTime: 60000,
+    structuralSharing: true,
   });
 
   // Helper to submit a per-field profile change request
@@ -1728,13 +1796,15 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         formData.append('documentType', docType);
         formData.append('fileName', changeRequestFile.name);
 
-        await fetch(`${API_BASE_URL}/player-documents/upload`, {
+        const uploadRes = await fetch(`${API_BASE_URL}/player-documents/upload`, {
           method: 'POST',
           headers: { 'x-player-id': playerId, 'x-club-id': clubId },
           body: formData,
         });
+        const uploadData = await uploadRes.json();
+        const docUrl = uploadData?.document?.url || uploadData?.document?.fileUrl || '';
 
-        await submitProfileChangeRequest(fieldName, `New ${changeRequestDialog.fieldLabel} uploaded: ${changeRequestFile.name}`, currentValue || 'existing document');
+        await submitProfileChangeRequest(fieldName, docUrl || `New ${changeRequestDialog.fieldLabel} uploaded: ${changeRequestFile.name}`, currentValue || 'existing document');
         setChangeRequestDialog(prev => ({ ...prev, open: false }));
       } catch (error: any) {
         toast({ title: "Upload Failed", description: error.message || "Failed to upload document", variant: "destructive" });
@@ -1783,7 +1853,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       const response = await apiRequest('GET', '/api/auth/player/profile-change-requests');
       return await response.json();
     },
-    refetchInterval: 10000,
     staleTime: 5000,
   });
 
@@ -3774,6 +3843,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 />
               )}
               
+              {/* VIP Points */}
+              {user?.id && <VipPointsDisplay userId={user.id} />}
+
               {/* Credit Request Card - Show if player has credit enabled */}
               {user?.id && creditEnabled && <CreditRequestCard />}
               
@@ -4094,190 +4166,126 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             : "No documents found"}
                         </div>
                         {/* Govt ID */}
-                        <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
-                          <div className="flex items-center space-x-3 flex-1">
-                            {getKycStatusIcon(getKycDocumentStatus("id"))}
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-white">
-                                Govt ID
-                              </p>
-                              <p className="text-xs text-slate-400 capitalize">
-                                {getKycDocumentStatus("id")}
-                              </p>
-                              {Array.isArray(kycDocuments) &&
-                                kycDocuments.filter(
-                                  (d) =>
-                                    d.documentType === "government_id" &&
-                                    d.fileUrl
-                                ).length > 0 && (
-                                  <div className="flex items-center space-x-2 mt-1">
-                                    <p className="text-xs text-emerald-500">
-                                      {Array.isArray(kycDocuments)
-                                        ? kycDocuments.filter(
-                                            (d) =>
-                                              d.documentType ===
-                                                "government_id" && d.fileUrl
-                                          )[0]?.fileName
-                                        : ""}
-                                    </p>
+                        {(() => {
+                          const govIdStatus = getFieldChangeStatus('government_id');
+                          return (
+                            <div className="p-3 bg-slate-700 rounded-lg space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3 flex-1">
+                                  {getKycStatusIcon(getKycDocumentStatus("id"))}
+                                  <div className="flex-1">
+                                    <p className="text-sm font-medium text-white">Govt ID</p>
+                                    <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus("id")}</p>
+                                    {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === "government_id" && d.fileUrl).length > 0 && (
+                                      <p className="text-xs text-emerald-500 mt-1">
+                                        {kycDocuments.filter(d => d.documentType === "government_id" && d.fileUrl)[0]?.fileName}
+                                      </p>
+                                    )}
                                   </div>
-                                )}
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-stretch space-y-2">
-                            {/* View Document button */}
-                            {Array.isArray(kycDocuments) &&
-                              kycDocuments.filter(
-                                (d) =>
-                                  d.documentType === "government_id" &&
-                                  d.fileUrl
-                              ).length > 0 && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
-                                  onClick={() => {
-                                    const doc = Array.isArray(kycDocuments)
-                                      ? kycDocuments.filter(
-                                          (d) =>
-                                            d.documentType ===
-                                              "government_id" && d.fileUrl
-                                        )[0]
-                                      : null;
-                                    if (doc && doc.fileUrl) {
-                                      try {
-                                        const documentUrl = doc.fileUrl;
-                                        console.log(
-                                          "Opening document:",
-                                          documentUrl
-                                        );
-                                        window.open(documentUrl, "_blank");
-                                      } catch (error) {
-                                        console.error(
-                                          "Error opening document:",
-                                          error
-                                        );
-                                        toast({
-                                          title: "Error",
-                                          description:
-                                            "Unable to open document",
-                                          variant: "destructive",
-                                        });
-                                      }
-                                    }
-                                  }}
-                                >
-                                  <Eye className="w-3 h-3 mr-1" />
-                                  View Document
-                                </Button>
+                                </div>
+                                <div className="flex flex-col items-stretch space-y-2">
+                                  {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === "government_id" && d.fileUrl).length > 0 && (
+                                    <Button size="sm" variant="outline" className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
+                                      onClick={() => {
+                                        const doc = kycDocuments.filter(d => d.documentType === "government_id" && d.fileUrl)[0];
+                                        if (doc?.fileUrl) window.open(doc.fileUrl, "_blank");
+                                      }}>
+                                      <Eye className="w-3 h-3 mr-1" /> View Document
+                                    </Button>
+                                  )}
+                                  {govIdStatus.status === 'pending' ? (
+                                    <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded-lg text-xs font-semibold border border-yellow-500/30">
+                                      <Clock className="w-3 h-3" /> Pending Review
+                                    </span>
+                                  ) : (
+                                    <Button size="sm" variant="outline"
+                                      onClick={() => openChangeRequestDialog('government_id', 'Govt ID (Aadhaar)', 'existing document', true)}
+                                      disabled={!!submittingProfileChange}
+                                      className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full">
+                                      <AlertTriangle className="w-4 h-4 mr-1" /> Request Change
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                              {govIdStatus.status === 'pending' && govIdStatus.request && (
+                                <div className="text-xs text-yellow-300/70 bg-yellow-500/10 rounded px-2 py-1">
+                                  New document submitted for review
+                                  <span className="text-slate-400 ml-1">({new Date(govIdStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
+                                </div>
                               )}
-
-                            {/* Request Change button - goes through profile change system */}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => openChangeRequestDialog('government_id', 'Govt ID (Aadhaar)', 'existing document', true)}
-                              disabled={!!submittingProfileChange}
-                              className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full"
-                            >
-                              <AlertTriangle className="w-4 h-4 mr-1" />
-                              Request Change
-                            </Button>
-                          </div>
-                        </div>
+                              {govIdStatus.status === 'rejected' && govIdStatus.request && (
+                                <div className="text-xs bg-red-500/10 rounded px-2 py-1.5 border border-red-500/20">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-red-300 font-semibold">Document Change Rejected</span>
+                                    <button onClick={() => dismissRejectedRequest(govIdStatus.request!.id)} className="text-slate-400 hover:text-white text-[0.65rem] underline">Dismiss</button>
+                                  </div>
+                                  {govIdStatus.request.reviewNotes && <p className="text-red-300/70 mt-0.5">Reason: {govIdStatus.request.reviewNotes}</p>}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {/* PAN Card */}
-                        <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
-                          <div className="flex items-center space-x-3 flex-1">
-                            {getKycStatusIcon(getKycDocumentStatus("pan"))}
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-white">
-                                PAN Card
-                              </p>
-                              <p className="text-xs text-slate-400 capitalize">
-                                {getKycDocumentStatus("pan")}
-                              </p>
-                              {Array.isArray(kycDocuments) &&
-                                kycDocuments.filter(
-                                  (d) =>
-                                    d.documentType === "pan_card" &&
-                                    d.fileUrl
-                                ).length > 0 && (
-                                  <div className="flex items-center space-x-2 mt-1">
-                                    <p className="text-xs text-emerald-500">
-                                      {Array.isArray(kycDocuments)
-                                        ? kycDocuments.filter(
-                                            (d) =>
-                                              d.documentType ===
-                                                "pan_card" && d.fileUrl
-                                          )[0]?.fileName
-                                        : ""}
-                                    </p>
+                        {(() => {
+                          const panStatus = getFieldChangeStatus('pan_card');
+                          return (
+                            <div className="p-3 bg-slate-700 rounded-lg space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3 flex-1">
+                                  {getKycStatusIcon(getKycDocumentStatus("pan"))}
+                                  <div className="flex-1">
+                                    <p className="text-sm font-medium text-white">PAN Card</p>
+                                    <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus("pan")}</p>
+                                    {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === "pan_card" && d.fileUrl).length > 0 && (
+                                      <p className="text-xs text-emerald-500 mt-1">
+                                        {kycDocuments.filter(d => d.documentType === "pan_card" && d.fileUrl)[0]?.fileName}
+                                      </p>
+                                    )}
                                   </div>
-                                )}
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-stretch space-y-2">
-                            {/* View Document button */}
-                            {Array.isArray(kycDocuments) &&
-                              kycDocuments.filter(
-                                (d) =>
-                                  d.documentType === "pan_card" &&
-                                  d.fileUrl
-                              ).length > 0 && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
-                                  onClick={() => {
-                                    const doc = Array.isArray(kycDocuments)
-                                      ? kycDocuments.filter(
-                                          (d) =>
-                                            d.documentType ===
-                                              "pan_card" && d.fileUrl
-                                        )[0]
-                                      : null;
-                                    if (doc && doc.fileUrl) {
-                                      try {
-                                        const documentUrl = doc.fileUrl;
-                                        console.log(
-                                          "Opening document:",
-                                          documentUrl
-                                        );
-                                        window.open(documentUrl, "_blank");
-                                      } catch (error) {
-                                        console.error(
-                                          "Error opening document:",
-                                          error
-                                        );
-                                        toast({
-                                          title: "Error",
-                                          description:
-                                            "Unable to open document",
-                                          variant: "destructive",
-                                        });
-                                      }
-                                    }
-                                  }}
-                                >
-                                  <Eye className="w-3 h-3 mr-1" />
-                                  View Document
-                                </Button>
+                                </div>
+                                <div className="flex flex-col items-stretch space-y-2">
+                                  {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === "pan_card" && d.fileUrl).length > 0 && (
+                                    <Button size="sm" variant="outline" className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
+                                      onClick={() => {
+                                        const doc = kycDocuments.filter(d => d.documentType === "pan_card" && d.fileUrl)[0];
+                                        if (doc?.fileUrl) window.open(doc.fileUrl, "_blank");
+                                      }}>
+                                      <Eye className="w-3 h-3 mr-1" /> View Document
+                                    </Button>
+                                  )}
+                                  {panStatus.status === 'pending' ? (
+                                    <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded-lg text-xs font-semibold border border-yellow-500/30">
+                                      <Clock className="w-3 h-3" /> Pending Review
+                                    </span>
+                                  ) : (
+                                    <Button size="sm" variant="outline"
+                                      onClick={() => openChangeRequestDialog('pan_card', 'PAN Card', 'existing document', true)}
+                                      disabled={!!submittingProfileChange}
+                                      className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full">
+                                      <AlertTriangle className="w-4 h-4 mr-1" /> Request Change
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                              {panStatus.status === 'pending' && panStatus.request && (
+                                <div className="text-xs text-yellow-300/70 bg-yellow-500/10 rounded px-2 py-1">
+                                  New document submitted for review
+                                  <span className="text-slate-400 ml-1">({new Date(panStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
+                                </div>
                               )}
-
-                            {/* Request Change button - goes through profile change system */}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => openChangeRequestDialog('pan_card', 'PAN Card', 'existing document', true)}
-                              disabled={!!submittingProfileChange}
-                              className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full"
-                            >
-                              <AlertTriangle className="w-4 h-4 mr-1" />
-                              Request Change
-                            </Button>
-                          </div>
-                        </div>
+                              {panStatus.status === 'rejected' && panStatus.request && (
+                                <div className="text-xs bg-red-500/10 rounded px-2 py-1.5 border border-red-500/20">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-red-300 font-semibold">Document Change Rejected</span>
+                                    <button onClick={() => dismissRejectedRequest(panStatus.request!.id)} className="text-slate-400 hover:text-white text-[0.65rem] underline">Dismiss</button>
+                                  </div>
+                                  {panStatus.request.reviewNotes && <p className="text-red-300/70 mt-0.5">Reason: {panStatus.request.reviewNotes}</p>}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {/* Profile Photo Document */}
                         <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">

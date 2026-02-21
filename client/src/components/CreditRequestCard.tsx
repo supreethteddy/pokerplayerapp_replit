@@ -161,7 +161,8 @@ export default function CreditRequestCard() {
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    const s = (status || '').toLowerCase();
+    switch (s) {
       case 'approved':
         return (
           <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
@@ -170,6 +171,7 @@ export default function CreditRequestCard() {
           </Badge>
         );
       case 'rejected':
+      case 'denied':
         return (
           <Badge className="bg-red-500/20 text-red-300 border-red-500/30">
             <XCircle className="w-3 h-3 mr-1" />

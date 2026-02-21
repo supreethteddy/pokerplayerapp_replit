@@ -136,7 +136,8 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
       if (!response.ok) throw new Error("Failed to fetch tournaments");
       return await response.json();
     },
-    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+    staleTime: 5000,
   });
 
   // Fetch my registrations
@@ -151,7 +152,8 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
       return await response.json();
     },
     enabled: !!user?.id,
-    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+    staleTime: 5000,
   });
 
   // Register for tournament

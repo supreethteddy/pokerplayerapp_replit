@@ -139,8 +139,8 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
       }
       return await response.json();
     },
-    refetchInterval: 3000, // UNIFIED: Fast refresh matching other game status queries
-    staleTime: 1000, // Consider fresh for 1 second only for immediate updates
+    refetchInterval: 60000,
+    staleTime: 5000,
     enabled: !!playerId,
   });
 
@@ -367,145 +367,180 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
               </div>
             </div>
 
-            {/* Current Phase Status */}
-            <div className="bg-blue-900/20 border border-blue-500/30 p-2 sm:p-3 rounded-lg">
-              <div className="text-center">
-                <div className="text-xs sm:text-sm font-medium text-blue-300 mb-1">
-                  Current Phase: {phaseStatus.phase}
+            {/* Rummy tables: simplified exit UI — no call time or min play restrictions */}
+            {(session?.gameType === 'RUMMY' || session?.gameType === 'rummy') ? (
+              <>
+                <div className="bg-emerald-900/20 border border-emerald-500/30 p-3 rounded-lg text-center">
+                  <div className="text-sm font-medium text-emerald-300 mb-1">Rummy Session</div>
+                  <div className="text-xs text-emerald-400">You can exit the table anytime</div>
                 </div>
-                <div className="text-xs text-blue-400">
-                  {phaseStatus.description}
+
+                <div className="grid grid-cols-1 gap-2 sm:gap-3">
+                  <Button
+                    onClick={async () => {
+                      try {
+                        const response = await apiRequest('POST', '/api/player-playtime/call-time', {
+                          tableId: session?.tableId
+                        });
+                        if (response.ok) {
+                          queryClient.invalidateQueries({ queryKey: ['/api/player-playtime/current', playerId] });
+                          toast({
+                            title: "Exit Requested",
+                            description: "Your exit request has been sent to the staff.",
+                          });
+                        }
+                      } catch (error: any) {
+                        const msg = error?.message || "Failed to request exit.";
+                        toast({ title: "Error", description: msg, variant: "destructive" });
+                      }
+                    }}
+                    disabled={session?.callTimeActive}
+                    className={`w-full py-3 text-sm ${
+                      !session?.callTimeActive
+                        ? 'bg-red-600 hover:bg-red-700 border-red-500 text-white'
+                        : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    {session?.callTimeActive ? 'Exit Request Pending...' : 'Request Exit'}
+                  </Button>
                 </div>
-                {phaseStatus.timeRemaining > 0 && (
-                  <div className="text-sm sm:text-lg font-mono font-bold text-blue-200 mt-1 sm:mt-2">
-                    {phaseStatus.timeRemaining} minutes remaining
+
+                {session?.callTimeActive && (
+                  <div className="text-xs text-center bg-orange-900/20 p-2 rounded border border-orange-500/30">
+                    <div className="text-orange-400 font-medium">Exit request sent — waiting for staff approval</div>
                   </div>
                 )}
-              </div>
-            </div>
-
-            {/* State Machine Status Indicators */}
-            <div className="grid grid-cols-3 gap-2 text-xs">
-              {/* Minimum Play Time */}
-              <div className={`p-2 rounded ${session?.minPlayTimeCompleted ? 'bg-green-900/50 border border-green-500/50' : 'bg-slate-900/50 border border-slate-500/50'}`}>
-                <div className="flex items-center justify-between">
-                  <span className={session?.minPlayTimeCompleted ? 'text-green-400' : 'text-slate-400'}>
-                    Min Play
-                  </span>
-                  <span className={session?.minPlayTimeCompleted ? 'text-green-300' : 'text-slate-300'}>
-                    {session?.minPlayTimeCompleted ? '✓' : `${session?.min_play_time_minutes || 30}m`}
-                  </span>
+              </>
+            ) : (
+              <>
+                {/* Poker: full call time / min play flow */}
+                <div className="bg-blue-900/20 border border-blue-500/30 p-2 sm:p-3 rounded-lg">
+                  <div className="text-center">
+                    <div className="text-xs sm:text-sm font-medium text-blue-300 mb-1">
+                      Current Phase: {phaseStatus.phase}
+                    </div>
+                    <div className="text-xs text-blue-400">
+                      {phaseStatus.description}
+                    </div>
+                    {phaseStatus.timeRemaining > 0 && (
+                      <div className="text-sm sm:text-lg font-mono font-bold text-blue-200 mt-1 sm:mt-2">
+                        {phaseStatus.timeRemaining} minutes remaining
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className={`mt-1 text-xs ${session?.minPlayTimeCompleted ? 'text-green-300' : 'text-slate-400'}`}>{session?.minPlayTimeCompleted ? 'Completed' : ''}</div>
-              </div>
 
-              {/* Call Time Available */}
-              <div className={`p-2 rounded ${session?.callTimeAvailable ? 'bg-green-900/50 border border-green-500/50' : 'bg-slate-900/50 border border-slate-500/50'}`}>
-                <div className="flex items-center justify-between">
-                  <span className={session?.callTimeAvailable ? 'text-green-400' : 'text-slate-400'}>
-                    Call Time
-                  </span>
-                  <span className={session?.callTimeAvailable ? 'text-green-300' : 'text-slate-300'}>
-                    {session?.callTimeAvailable ? '✓' : '✗'}
-                  </span>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className={`p-2 rounded ${session?.minPlayTimeCompleted ? 'bg-green-900/50 border border-green-500/50' : 'bg-slate-900/50 border border-slate-500/50'}`}>
+                    <div className="flex items-center justify-between">
+                      <span className={session?.minPlayTimeCompleted ? 'text-green-400' : 'text-slate-400'}>
+                        Min Play
+                      </span>
+                      <span className={session?.minPlayTimeCompleted ? 'text-green-300' : 'text-slate-300'}>
+                        {session?.minPlayTimeCompleted ? '✓' : `${session?.min_play_time_minutes || 30}m`}
+                      </span>
+                    </div>
+                    <div className={`mt-1 text-xs ${session?.minPlayTimeCompleted ? 'text-green-300' : 'text-slate-400'}`}>{session?.minPlayTimeCompleted ? 'Completed' : ''}</div>
+                  </div>
+
+                  <div className={`p-2 rounded ${session?.callTimeAvailable ? 'bg-green-900/50 border border-green-500/50' : 'bg-slate-900/50 border border-slate-500/50'}`}>
+                    <div className="flex items-center justify-between">
+                      <span className={session?.callTimeAvailable ? 'text-green-400' : 'text-slate-400'}>
+                        Call Time
+                      </span>
+                      <span className={session?.callTimeAvailable ? 'text-green-300' : 'text-slate-300'}>
+                        {session?.callTimeAvailable ? '✓' : '✗'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className={`p-2 rounded ${session?.callTimeActive ? 'bg-orange-900/50 border border-orange-500/50' : 'bg-slate-900/50 border border-slate-500/50'}`}>
+                    <div className="flex items-center justify-between">
+                      <span className={session?.callTimeActive ? 'text-orange-400' : 'text-slate-400'}>
+                        Active
+                      </span>
+                      <span className={session?.callTimeActive ? 'text-orange-300' : 'text-slate-300'}>
+                        {session?.callTimeActive ? `${session?.callTimeRemaining}m` : '✗'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              {/* Call Time Active */}
-              <div className={`p-2 rounded ${session?.callTimeActive ? 'bg-orange-900/50 border border-orange-500/50' : 'bg-slate-900/50 border border-slate-500/50'}`}>
-                <div className="flex items-center justify-between">
-                  <span className={session?.callTimeActive ? 'text-orange-400' : 'text-slate-400'}>
-                    Active
-                  </span>
-                  <span className={session?.callTimeActive ? 'text-orange-300' : 'text-slate-300'}>
-                    {session?.callTimeActive ? `${session?.callTimeRemaining}m` : '✗'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="grid grid-cols-1 gap-2 sm:gap-3">
-              <Button
-                onClick={async () => {
-                  console.log('🎯 [CALL TIME] Starting call time for player:', playerId);
-                  try {
-                    const response = await apiRequest('POST', '/api/player-playtime/call-time', {
-                      tableId: session?.tableId
-                    });
-                    if (response.ok) {
-                      queryClient.invalidateQueries({ queryKey: ['/api/player-playtime/current', playerId] });
-                      toast({
-                        title: "Call Time Started",
-                        description: `Your ${session?.call_time_duration || 60}-minute call time has begun.`,
-                      });
+                <div className="grid grid-cols-1 gap-2 sm:gap-3">
+                  <Button
+                    onClick={async () => {
+                      try {
+                        const response = await apiRequest('POST', '/api/player-playtime/call-time', {
+                          tableId: session?.tableId
+                        });
+                        if (response.ok) {
+                          queryClient.invalidateQueries({ queryKey: ['/api/player-playtime/current', playerId] });
+                          toast({
+                            title: "Call Time Started",
+                            description: `Your ${session?.call_time_duration || 60}-minute call time has begun.`,
+                          });
+                        }
+                      } catch (error) {
+                        console.error('Failed to start call time:', error);
+                        toast({ title: "Error", description: "Failed to start call time. Please try again.", variant: "destructive" });
+                      }
+                    }}
+                    disabled={!session?.callTimeAvailable || session?.callTimeActive}
+                    className={`w-full py-3 text-sm ${
+                      session?.callTimeAvailable && !session?.callTimeActive
+                        ? 'bg-yellow-600 hover:bg-yellow-700 border-yellow-500 text-white'
+                        : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    <Clock className="w-4 h-4 mr-2" />
+                    {session?.callTimeActive 
+                      ? `Call Time: ${session?.callTimeRemaining || 0}m left`
+                      : 'Start Call Time'
                     }
-                  } catch (error) {
-                    console.error('Failed to start call time:', error);
-                    toast({
-                      title: "Error",
-                      description: "Failed to start call time. Please try again.",
-                      variant: "destructive"
-                    });
-                  }
-                }}
-                disabled={!session?.callTimeAvailable || session?.callTimeActive}
-                className={`w-full py-3 text-sm ${
-                  session?.callTimeAvailable && !session?.callTimeActive
-                    ? 'bg-yellow-600 hover:bg-yellow-700 border-yellow-500 text-white'
-                    : 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                <Clock className="w-4 h-4 mr-2" />
-                {session?.callTimeActive 
-                  ? `Call Time: ${session?.callTimeRemaining || 0}m left`
-                  : 'Start Call Time'
-                }
-              </Button>
-            </div>
+                  </Button>
+                </div>
 
-            {/* Action Status */}
-            <div className="text-xs text-center bg-slate-800/30 p-2 sm:p-3 rounded border border-slate-600">
-              {session?.callTimeAvailable && !session?.callTimeActive && (
-                <div className="text-yellow-400">
-                  <div className="font-medium">⏰ Call Time Available</div>
-                  <div className="mt-1 text-xs text-yellow-300">Click "Start Call Time" to begin your {session?.call_time_duration || 2}-minute countdown.</div>
+                <div className="text-xs text-center bg-slate-800/30 p-2 sm:p-3 rounded border border-slate-600">
+                  {session?.callTimeAvailable && !session?.callTimeActive && (
+                    <div className="text-yellow-400">
+                      <div className="font-medium">Call Time Available</div>
+                      <div className="mt-1 text-xs text-yellow-300">Click "Start Call Time" to begin your {session?.call_time_duration || 2}-minute countdown.</div>
+                    </div>
+                  )}
+                  {session?.callTimeActive && (
+                    <div className="text-orange-400">
+                      <div className="font-medium">Call Time Active</div>
+                      <div className="mt-1 text-xs text-orange-300">Complete your hand within {session?.callTimeRemaining || 0} minutes</div>
+                    </div>
+                  )}
+                  {!session?.callTimeAvailable && !session?.callTimeActive && (
+                    <div className="text-slate-300">
+                      <div className="font-medium">Minimum Play Time</div>
+                      <div className="mt-1 text-xs text-slate-400">Complete {session?.min_play_time_minutes || session?.min_play_time || 2} minutes before call time becomes available</div>
+                    </div>
+                  )}
                 </div>
-              )}
-              {session?.callTimeActive && (
-                <div className="text-orange-400">
-                  <div className="font-medium">🔄 Call Time Active</div>
-                  <div className="mt-1 text-xs text-orange-300">Complete your hand within {session?.callTimeRemaining || 0} minutes</div>
-                </div>
-              )}
-              {!session?.callTimeAvailable && !session?.callTimeActive && (
-                <div className="text-slate-300">
-                  <div className="font-medium">⏱️ Minimum Play Time</div>
-                  <div className="mt-1 text-xs text-slate-400">Complete {session?.min_play_time_minutes || session?.min_play_time || 2} minutes before call time becomes available</div>
-                </div>
-              )}
-            </div>
 
-            {/* Table Configuration */}
-            <div className="bg-slate-800/50 p-2 sm:p-3 rounded text-xs border border-slate-600">
-              <div className="font-medium mb-2 flex items-center justify-between text-slate-300">
-                <span className="text-xs">Table Configuration:</span>
-                <Badge variant="outline" className="text-xs px-1 sm:px-2 py-1 bg-blue-900/30 border-blue-500/50 text-blue-300">
-                  {session?.sessionPhase}
-                </Badge>
-              </div>
-              <ul className="space-y-1 text-slate-400 text-xs">
-                <li className="flex justify-between">
-                  <span>• Min play:</span> 
-                  <span className="font-medium text-white">{session?.min_play_time_minutes || session?.min_play_time || 2}m</span>
-                </li>
-                <li className="flex justify-between">
-                  <span>• Call time:</span> 
-                  <span className="font-medium text-white">{session?.call_time_duration || 2}m</span>
-                </li>
-              </ul>
-              
-            </div>
+                <div className="bg-slate-800/50 p-2 sm:p-3 rounded text-xs border border-slate-600">
+                  <div className="font-medium mb-2 flex items-center justify-between text-slate-300">
+                    <span className="text-xs">Table Configuration:</span>
+                    <Badge variant="outline" className="text-xs px-1 sm:px-2 py-1 bg-blue-900/30 border-blue-500/50 text-blue-300">
+                      {session?.sessionPhase}
+                    </Badge>
+                  </div>
+                  <ul className="space-y-1 text-slate-400 text-xs">
+                    <li className="flex justify-between">
+                      <span>• Min play:</span> 
+                      <span className="font-medium text-white">{session?.min_play_time_minutes || session?.min_play_time || 2}m</span>
+                    </li>
+                    <li className="flex justify-between">
+                      <span>• Call time:</span> 
+                      <span className="font-medium text-white">{session?.call_time_duration || 2}m</span>
+                    </li>
+                  </ul>
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

@@ -24,7 +24,7 @@ export default function OfferBanner({ onOfferClick }: OfferBannerProps) {
   // Fetch offer banners
   const { data: banners, isLoading } = useQuery<OfferBanner[]>({
     queryKey: ['/api/offer-banners'],
-    refetchInterval: 30000, // Refresh every 30 seconds
+    staleTime: 30000,
   });
 
   const activeBanners = banners?.filter(banner => banner.isActive) || [];

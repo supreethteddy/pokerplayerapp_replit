@@ -384,8 +384,7 @@ export function useFNBOrders() {
   return useQuery({
     queryKey: QUERY_KEYS.fnbOrders,
     queryFn: () => fnbService.getOrders(),
-    staleTime: 30 * 1000, // 30 seconds
-    refetchInterval: 60 * 1000, // Refetch every minute
+    staleTime: 30 * 1000,
   });
 }
 
