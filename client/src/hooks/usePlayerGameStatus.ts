@@ -44,15 +44,12 @@ export function usePlayerGameStatus(): GameStatusInfo {
       return await waitlistService.getWaitlistStatus();
     },
     enabled: !!user?.id,
-    refetchInterval: 3000, // Fast refresh for immediate seat assignment detection
-    staleTime: 1000, // Consider fresh for 1 second only
+    staleTime: 5000,
   });
 
-  // Get all tables to check status with fast refresh
   const { data: tables = [] } = useQuery({
     queryKey: ['/api/tables'],
-    refetchInterval: 3000, // Fast refresh for table status changes
-    staleTime: 2000, // Consider fresh for 2 seconds
+    staleTime: 5000,
   });
 
   // Process the game status

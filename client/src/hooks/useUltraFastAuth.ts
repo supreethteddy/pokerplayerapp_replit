@@ -102,6 +102,9 @@ export function useUltraFastAuth() {
       console.log('🔍 [LOGIN] Backend response:', result);
       console.log('🔍 [LOGIN] Club ID from response:', result.club?.id);
       console.log('🔍 [LOGIN] Player ID from response:', result.player?.id);
+      console.log('🔍 [LOGIN] Player object:', result.player);
+      console.log('🔍 [LOGIN] PAN Card from response:', result.player?.panCard);
+      console.log('🔍 [LOGIN] Created At from response:', result.player?.createdAt);
       console.log('🔍 [LOGIN] Must reset password (raw):', result.mustResetPassword || result.player?.must_reset_password);
       
       // Check if password reset is required (handle both TRUE/FALSE and true/false)
@@ -122,17 +125,30 @@ export function useUltraFastAuth() {
         };
       }
       
+      // Split name into firstName and lastName if backend returns full name
+      const fullName = result.player?.name || '';
+      const nameParts = fullName.trim().split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+
       const userData = {
         id: result.player?.id || result.playerId,
         email: result.player?.email || email,
-        firstName: result.player?.firstName || '',
-        lastName: result.player?.lastName || '',
+        name: fullName,
+        firstName: result.player?.firstName || firstName,
+        lastName: result.player?.lastName || lastName,
         phone: result.player?.phoneNumber || result.player?.phone || '',
         nickname: result.player?.nickname || '',
+        playerId: result.player?.playerId || result.player?.nickname || '',
+        panCard: result.player?.panCard || null,
+        pan_card_number: result.player?.panCard || null,
         referredBy: result.player?.referredBy || '',
         clubCode: clubCode.toUpperCase(),
         clubId: result.club?.id || result.player?.club?.id || result.player?.clubId,
         kycStatus: result.player?.kycStatus || 'pending',
+        kycDocuments: result.player?.kycDocuments || [],
+        createdAt: result.player?.createdAt || null,
+        created_at: result.player?.createdAt || null,
         balance: result.player?.balance || '0.00',
         currentCredit: result.player?.currentCredit || '0.00',
         creditLimit: result.player?.creditLimit || '0.00',

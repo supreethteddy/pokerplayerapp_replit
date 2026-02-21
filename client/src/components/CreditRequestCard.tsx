@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { usePlayerBalance } from "@/hooks/usePlayerBalance";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +44,24 @@ export default function CreditRequestCard() {
   const creditLimit = parseFloat((balance as any)?.creditLimit || '0');
   const availableCredit = parseFloat((balance as any)?.availableCredit || '0');
 
-  // Fetch credit requests for player
+  // Supabase real-time: instant updates when credit request is approved/rejected
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`credit-requests-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'credit_requests', filter: `player_id=eq.${user.id}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['credit-requests', user.id] });
+          queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id, queryClient]);
+
+  // Fetch credit requests for player (initial load, real-time handles updates)
   const { data: creditRequests, isLoading: creditRequestsLoading } = useQuery<CreditRequest[]>({
     queryKey: ['credit-requests', user?.id],
     queryFn: async () => {
@@ -51,7 +69,6 @@ export default function CreditRequestCard() {
       return response.json();
     },
     enabled: !!user?.id && creditEnabled,
-    refetchInterval: 2000, // Refresh every 2 seconds
   });
 
   // Submit credit request mutation
@@ -144,7 +161,8 @@ export default function CreditRequestCard() {
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    const s = (status || '').toLowerCase();
+    switch (s) {
       case 'approved':
         return (
           <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
@@ -153,6 +171,7 @@ export default function CreditRequestCard() {
           </Badge>
         );
       case 'rejected':
+      case 'denied':
         return (
           <Badge className="bg-red-500/20 text-red-300 border-red-500/30">
             <XCircle className="w-3 h-3 mr-1" />

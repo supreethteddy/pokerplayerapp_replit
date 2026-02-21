@@ -36,27 +36,35 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
       return data.transactions || [];
     },
     enabled: !!playerId,
-    refetchInterval: 30000, // Refetch every 30 seconds
+    staleTime: 30000,
   });
 
   const transactions = transactionsData || [];
 
   const getTransactionIcon = (type: string) => {
     const t = type.toLowerCase();
-    if (t.includes('deposit') || t.includes('credit') || t.includes('bonus')) return '💰';
-    if (t.includes('cashout') || t.includes('withdrawal')) return '💳';
+    if (t === 'club buy in') return '🏦';
+    if (t === 'club buy out') return '💵';
+    if (t === 'table buy in') return '🎯';
+    if (t === 'table buy out') return '🎲';
+    if (t.includes('credit')) return '💳';
+    if (t.includes('debit')) return '📤';
+    if (t.includes('deposit') || t.includes('bonus')) return '💰';
+    if (t.includes('cashout') || t.includes('withdrawal')) return '💵';
     if (t.includes('buy in')) return '🎯';
     if (t.includes('refund')) return '🔄';
     return '💸';
   };
 
   const getTransactionLabel = (type: string) => {
-    // Return the type as-is, it's already properly formatted from backend
     return type;
   };
 
   const getAmountColor = (type: string) => {
     const t = type.toLowerCase();
+    if (t === 'club buy in' || t === 'table buy out') return 'text-emerald-400';
+    if (t === 'club buy out' || t === 'table buy in') return 'text-red-400';
+    if (t === 'debit') return 'text-orange-400';
     if (t.includes('credit') || t.includes('bonus')) return 'text-blue-400';
     if (t.includes('deposit') || t.includes('refund')) return 'text-emerald-400';
     if (t.includes('cashout') || t.includes('withdrawal') || t.includes('buy in')) return 'text-red-400';
@@ -65,6 +73,8 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
 
   const getAmountPrefix = (type: string) => {
     const t = type.toLowerCase();
+    if (t === 'club buy in' || t === 'table buy out') return '+';
+    if (t === 'club buy out' || t === 'table buy in' || t === 'debit') return '-';
     if (t.includes('deposit') || t.includes('credit') || t.includes('bonus') || t.includes('refund')) return '+';
     if (t.includes('cashout') || t.includes('withdrawal') || t.includes('buy in')) return '-';
     return '';
@@ -104,12 +114,23 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
                   <span className="text-lg">{getTransactionIcon(transaction.type)}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-white">
-                    {getTransactionLabel(transaction.type)}
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-white">
+                      {getTransactionLabel(transaction.type)}
+                    </span>
+                    {(transaction as any).gameType && (
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                        (transaction as any).gameType === 'poker' 
+                          ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' 
+                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      }`}>
+                        {(transaction as any).gameType === 'poker' ? '♠ Poker' : '🃏 Rummy'}
+                      </span>
+                    )}
                   </div>
                   <div className="text-sm text-slate-400">
-                    {new Date(transaction.createdAt).toLocaleDateString()} at{' '}
-                    {new Date(transaction.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(transaction.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })} at{' '}
+                    {new Date(transaction.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
                   </div>
                   {transaction.notes && (
                     <div className="text-xs text-slate-500 mt-1">

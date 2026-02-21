@@ -5,6 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAvailableTables, useWaitlistStatus, useCancelWaitlist, QUERY_KEYS } from "@/hooks/usePlayerAPI";
 import { useRealtimeTables } from "@/hooks/useRealtimeTables";
 import { useRealtimeWaitlist } from "@/hooks/useRealtimeWaitlist";
+import { useRealtimeBalance } from "@/hooks/useRealtimeBalance";
+import { useRealtimeBuyIn } from "@/hooks/useRealtimeBuyIn";
+import { useRealtimeNotifications } from "@/hooks/useRealtimeNotifications";
+import { useRealtimeCreditRequests } from "@/hooks/useRealtimeCreditRequests";
+import { useRealtimeTournaments } from "@/hooks/useRealtimeTournaments";
+import { useRealtimeProfileRequests } from "@/hooks/useRealtimeProfileRequests";
+import { useRealtimeOffers } from "@/hooks/useRealtimeOffers";
 import {
   Dialog,
   DialogContent,
@@ -54,9 +61,12 @@ import {
   RotateCcw,
   Trash2,
   Coffee,
+  Lock,
+  Timer,
+  Edit3,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type {
   Table as TableType,
   SeatRequest,
@@ -78,6 +88,9 @@ import NotificationHistoryTab from "./NotificationHistoryTab";
 import FoodBeverageTab from "./FoodBeverageTab";
 import CreditRequestCard from "./CreditRequestCard";
 import { useSeatAssignment } from "@/hooks/useSeatAssignment";
+
+// API Base URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3333/api';
 import { usePlayerGameStatus } from "@/hooks/usePlayerGameStatus";
 import { whitelabelConfig } from "@/lib/whitelabeling";
 import { fetchClubBranding, applyClubBranding, getGradientClasses, getGradientStyle, type ClubBranding } from "@/lib/clubBranding";
@@ -98,8 +111,7 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
       console.log('🎁 [OFFERS UI] Received data:', data);
       return data;
     },
-    refetchInterval: 5000, // Refresh every 5 seconds
-    retry: 1, // Only retry once to avoid spamming
+    retry: 1,
   });
 
   const trackOfferView = useMutation({
@@ -253,10 +265,10 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
                     <div className="flex items-center text-sm text-slate-400 mb-4">
                       <Calendar className="w-4 h-4 mr-2" />
                       {offer.start_date &&
-                        new Date(offer.start_date).toLocaleDateString()}
+                        new Date(offer.start_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
                       {offer.start_date && offer.end_date && " - "}
                       {offer.end_date &&
-                        new Date(offer.end_date).toLocaleDateString()}
+                        new Date(offer.end_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
                     </div>
                   )}
 
@@ -349,7 +361,7 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
                   <div>
                     <p className="text-slate-400 text-sm mb-1">Start Date</p>
                     <p className="text-white">
-                      {new Date(selectedOffer.start_date).toLocaleDateString()}
+                      {new Date(selectedOffer.start_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
                     </p>
                   </div>
                 )}
@@ -357,7 +369,7 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
                   <div>
                     <p className="text-slate-400 text-sm mb-1">End Date</p>
                     <p className="text-white">
-                      {new Date(selectedOffer.end_date).toLocaleDateString()}
+                      {new Date(selectedOffer.end_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
                     </p>
                   </div>
                 )}
@@ -380,165 +392,649 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
   );
 };
 
-// VIP Points Display Component
+// VIP Points Display Component (Weighted Percentage Formula)
 const VipPointsDisplay = ({ userId }: { userId: number }) => {
-  const { data: vipData, isLoading } = useQuery({
-    queryKey: ["/api/vip-points/calculate", userId],
-    refetchInterval: 30000, // Refresh every 30 seconds
-  });
-
+  const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const redeemPoints = useMutation({
-    mutationFn: (redemption: {
-      redemptionType: string;
-      pointsRequired: number;
-    }) =>
-      apiRequest("POST", "/api/vip-points/redeem", {
-        playerId: userId,
-        ...redemption,
-      }),
-    onSuccess: () => {
-      toast({
-        title: "Redemption Request Sent",
-        description:
-          "Your VIP points redemption request has been sent for approval.",
-      });
+  const { data: vipData, isLoading } = useQuery({
+    queryKey: ["/api/player-vip/points", userId],
+    queryFn: () => apiRequest("GET", "/api/player-vip/points"),
+    staleTime: 60000,
+  });
+
+  const { data: vipProducts = [] } = useQuery({
+    queryKey: ["/api/player-vip/products"],
+    queryFn: () => apiRequest("GET", "/api/player-vip/products"),
+    staleTime: 120000,
+  });
+
+  const { data: purchaseHistory = [] } = useQuery({
+    queryKey: ["/api/player-vip/purchases", userId],
+    queryFn: () => apiRequest("GET", "/api/player-vip/purchases"),
+    staleTime: 60000,
+  });
+
+  const purchaseMutation = useMutation({
+    mutationFn: (productId: string) =>
+      apiRequest("POST", "/api/player-vip/purchase", { productId }),
+    onSuccess: (data: any) => {
+      toast({ title: "Purchase Successful", description: data?.message || "VIP product purchased!" });
+      queryClient.invalidateQueries({ queryKey: ["/api/player-vip/points"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/player-vip/purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/player-vip/products"] });
     },
     onError: (error: any) => {
-      toast({
-        title: "Redemption Failed",
-        description: error.message || "Failed to process redemption request.",
-        variant: "destructive",
-      });
+      toast({ title: "Purchase Failed", description: error?.message || "Could not purchase product.", variant: "destructive" });
     },
   });
+
+  const [showStore, setShowStore] = useState(false);
 
   if (isLoading) {
     return (
       <Card className="bg-slate-800 border-slate-700">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center">
-            <Star className="w-5 h-5 mr-2 text-yellow-500" />
-            VIP Points
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-20 w-full" />
-        </CardContent>
+        <CardHeader><CardTitle className="text-white flex items-center"><Star className="w-5 h-5 mr-2 text-yellow-500" />VIP Points</CardTitle></CardHeader>
+        <CardContent><Skeleton className="h-20 w-full" /></CardContent>
       </Card>
     );
   }
 
-  const vipPoints = (vipData as any)?.totalVipPoints || 0;
-  const breakdown = vipData as any;
+  const d = vipData as any;
+  const availablePoints = d?.availablePoints || 0;
+  const earnedPoints = d?.earnedPoints || 0;
+  const pointsSpent = d?.pointsSpent || 0;
+  const tier = d?.tier || 'Bronze';
+  const tierColor = d?.tierColor || '#CD7F32';
+  const breakdown = d?.breakdown;
+  const nextTier = d?.nextTier;
+  const products = Array.isArray(vipProducts) ? vipProducts : [];
+  const purchases = Array.isArray(purchaseHistory) ? purchaseHistory : [];
+  const hasProducts = products.length > 0;
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+  };
 
   return (
-    <Card className="bg-slate-800 border-slate-700">
-      <CardHeader>
-        <CardTitle className="text-white flex items-center">
-          <Star className="w-5 h-5 mr-2 text-yellow-500" />
-          VIP Points System
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Total Points */}
-        <div className="text-center p-4 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-lg">
-          <div className="text-3xl font-bold text-yellow-400">
-            {vipPoints.toFixed(1)}
+    <>
+      <Card className="bg-slate-800 border-slate-700">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center justify-between">
+            <span className="flex items-center"><Star className="w-5 h-5 mr-2 text-yellow-500" />VIP Points</span>
+            <Badge style={{ backgroundColor: tierColor + '33', color: tierColor, borderColor: tierColor }} className="text-xs border">{tier}</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Points Summary */}
+          <div className="text-center p-4 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-lg">
+            <div className="text-3xl font-bold text-yellow-400">{availablePoints}</div>
+            <div className="text-slate-300 text-sm">Available Points</div>
+            {pointsSpent > 0 && <div className="text-xs text-slate-400 mt-1">Earned: {earnedPoints} · Spent: {pointsSpent}</div>}
           </div>
-          <div className="text-slate-300 text-sm">Total VIP Points</div>
-        </div>
 
-        {/* Points Breakdown */}
-        {breakdown && (
-          <div className="space-y-2">
-            <div className="text-white font-semibold text-sm">
-              Points Breakdown:
+          {/* Next Tier Progress */}
+          {nextTier && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs text-slate-400">
+                <span>{tier}</span>
+                <span>{nextTier.name} ({nextTier.pointsRequired} pts)</span>
+              </div>
+              <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full transition-all" style={{ width: `${Math.min(100, (earnedPoints / nextTier.pointsRequired) * 100)}%` }} />
+              </div>
+              <div className="text-xs text-slate-500 text-center">{nextTier.pointsToNext} points to {nextTier.name}</div>
             </div>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between text-slate-300">
-                <span>Big Blind (₹{breakdown?.avgBigBlind || 0} × 0.5)</span>
-                <span className="text-yellow-400">
-                  {(breakdown?.bigBlindPoints || 0).toFixed(1)}
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-300">
-                <span>Rs Played (₹{breakdown?.totalRsPlayed || 0} × 0.3)</span>
-                <span className="text-yellow-400">
-                  {(breakdown?.rsPlayedPoints || 0).toFixed(1)}
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-300">
-                <span>
-                  Visit Frequency ({breakdown?.visitFrequency || 0} days × 0.2)
-                </span>
-                <span className="text-yellow-400">
-                  {(breakdown?.frequencyPoints || 0).toFixed(1)}
-                </span>
+          )}
+
+          {/* Breakdown */}
+          {breakdown && (
+            <div className="space-y-2 bg-slate-900/50 p-3 rounded-lg">
+              <div className="text-white font-semibold text-sm">Points Breakdown</div>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between text-slate-300">
+                  <span>Table Sessions</span>
+                  <span className="text-slate-400">{breakdown.tableHours?.toFixed(1)}h</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Tournament Sessions</span>
+                  <span className="text-slate-400">{breakdown.tournamentHours?.toFixed(1)}h</span>
+                </div>
+                <div className="flex justify-between text-slate-300 border-t border-slate-700 pt-1">
+                  <span>Hours Score ({(breakdown.weightHours * 100).toFixed(0)}% weight)</span>
+                  <span className="text-yellow-400">+{breakdown.hoursContribution}</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Money Score (₹{breakdown.totalMoneySpent?.toLocaleString()} · {(breakdown.weightMoney * 100).toFixed(0)}% weight)</span>
+                  <span className="text-yellow-400">+{breakdown.moneyContribution}</span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Redemption Options */}
-        <div className="space-y-2">
-          <div className="text-white font-semibold text-sm">Redeem Points:</div>
-          <div className="grid grid-cols-1 gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600"
-              disabled={vipPoints < 500 || redeemPoints.isPending}
-              onClick={() =>
-                redeemPoints.mutate({
-                  redemptionType: "Tournament Ticket",
-                  pointsRequired: 500,
-                })
-              }
-            >
-              Tournament Ticket (500 pts)
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600"
-              disabled={vipPoints < 300 || redeemPoints.isPending}
-              onClick={() =>
-                redeemPoints.mutate({
-                  redemptionType: "Buy-in Discount",
-                  pointsRequired: 300,
-                })
-              }
-            >
-              Buy-in Discount (300 pts)
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600"
-              disabled={vipPoints < 1000 || redeemPoints.isPending}
-              onClick={() =>
-                redeemPoints.mutate({
-                  redemptionType: "Premium Product",
-                  pointsRequired: 1000,
-                })
-              }
-            >
-              Premium Product (1000 pts)
-            </Button>
+          {/* Formula */}
+          <div className="text-xs text-slate-400 p-2 bg-slate-900 rounded">
+            <strong>Formula:</strong> VIP Points = (40% × Hours Played) + (60% × Money Spent ÷ 100)
           </div>
-        </div>
 
-        {/* Formula Display */}
-        <div className="text-xs text-slate-400 p-2 bg-slate-900 rounded">
-          <strong>Formula:</strong> VIP Points = (Big Blind × 0.5) + (Rs Played
-          × 0.3) + (Visit Frequency × 0.2)
-        </div>
-      </CardContent>
-    </Card>
+          {/* VIP Store Button */}
+          {hasProducts && (
+            <Button
+              onClick={() => setShowStore(true)}
+              className="w-full bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white"
+            >
+              <Star className="w-4 h-4 mr-2" /> VIP Store ({products.length} products)
+            </Button>
+          )}
+
+          {/* Recent Purchases */}
+          {purchases.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-white font-semibold text-sm">Recent Purchases</div>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {purchases.slice(0, 5).map((p: any) => (
+                  <div key={p.id} className="flex justify-between items-center text-xs bg-slate-900/50 p-2 rounded">
+                    <span className="text-slate-300">{p.productTitle}</span>
+                    <span className="text-yellow-400">-{p.pointsSpent} pts · {formatDate(p.createdAt)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* VIP Store Modal */}
+      {showStore && (
+        <Dialog open={showStore} onOpenChange={setShowStore}>
+          <DialogContent className="w-[95vw] max-w-lg max-h-[85vh] bg-slate-900 border-slate-700 overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="text-white flex items-center">
+                <Star className="w-5 h-5 mr-2 text-yellow-500" />
+                VIP Store
+                <Badge className="ml-2 bg-yellow-500/20 text-yellow-400 border-yellow-500/30">{availablePoints} pts</Badge>
+              </DialogTitle>
+            </DialogHeader>
+            <div className="overflow-y-auto flex-1 space-y-3 pr-1">
+              {products.map((product: any) => {
+                const canAfford = availablePoints >= product.points;
+                const outOfStock = product.stock !== null && product.stock !== undefined && product.stock <= 0;
+                const mainImage = product.images?.[0]?.url || product.imageUrl;
+                return (
+                  <div key={product.id} className="bg-slate-800 rounded-lg p-3 border border-slate-700">
+                    <div className="flex gap-3">
+                      {mainImage && (
+                        <img src={mainImage} alt={product.title} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-white font-semibold text-sm truncate">{product.title}</div>
+                        {product.description && <div className="text-xs text-slate-400 mt-0.5 line-clamp-2">{product.description}</div>}
+                        <div className="flex items-center justify-between mt-2">
+                          <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs">{product.points} pts</Badge>
+                          {outOfStock ? (
+                            <span className="text-xs text-red-400">Out of Stock</span>
+                          ) : (
+                            <Button
+                              size="sm"
+                              disabled={!canAfford || purchaseMutation.isPending}
+                              onClick={() => { if (confirm(`Buy "${product.title}" for ${product.points} VIP points?`)) purchaseMutation.mutate(product.id); }}
+                              className={canAfford ? 'bg-yellow-600 hover:bg-yellow-700 text-white text-xs' : 'bg-gray-700 text-gray-400 text-xs'}
+                            >
+                              {purchaseMutation.isPending ? '...' : canAfford ? 'Buy' : 'Not enough pts'}
+                            </Button>
+                          )}
+                        </div>
+                        {product.stock !== null && product.stock !== undefined && product.stock > 0 && (
+                          <div className="text-xs text-slate-500 mt-1">{product.stock} left in stock</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {products.length === 0 && (
+                <div className="text-center text-slate-400 py-8">No VIP products available</div>
+              )}
+
+              {/* Purchase History in Store */}
+              {purchases.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-slate-700">
+                  <div className="text-white font-semibold text-sm mb-2">Your Purchases</div>
+                  <div className="space-y-1">
+                    {purchases.map((p: any) => (
+                      <div key={p.id} className="flex justify-between items-center text-xs bg-slate-800/50 p-2 rounded">
+                        <span className="text-slate-300">{p.productTitle}</span>
+                        <span className="text-slate-400">{p.pointsSpent} pts · {formatDate(p.createdAt)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 };
+
+// ---- Late Registration Helpers ----
+function getTournamentLateRegInfo(tournament: any): {
+  isActive: boolean;
+  lateRegAllowed: boolean;
+  lateRegOpen: boolean;
+  lateRegExpired: boolean;
+  remainingSeconds: number;
+} {
+  const isActive = tournament.status === "active" || tournament.status === "running";
+  if (!isActive || !tournament.sessionStartedAt) {
+    return { isActive, lateRegAllowed: false, lateRegOpen: false, lateRegExpired: false, remainingSeconds: 0 };
+  }
+  const lateRegMinutes = tournament.lateRegistrationMinutes || 0;
+  if (lateRegMinutes <= 0) {
+    return { isActive: true, lateRegAllowed: false, lateRegOpen: false, lateRegExpired: true, remainingSeconds: 0 };
+  }
+  const sessionStart = new Date(tournament.sessionStartedAt).getTime();
+  const lateRegEndTime = sessionStart + lateRegMinutes * 60 * 1000;
+  const remaining = Math.max(0, Math.floor((lateRegEndTime - Date.now()) / 1000));
+  return {
+    isActive: true,
+    lateRegAllowed: true,
+    lateRegOpen: remaining > 0,
+    lateRegExpired: remaining <= 0,
+    remainingSeconds: remaining,
+  };
+}
+
+function DashboardLateRegCountdown({ tournament }: { tournament: any }) {
+  const [remaining, setRemaining] = useState(() => getTournamentLateRegInfo(tournament).remainingSeconds);
+
+  useEffect(() => {
+    const info = getTournamentLateRegInfo(tournament);
+    setRemaining(info.remainingSeconds);
+    if (!info.lateRegOpen) return;
+    const interval = setInterval(() => {
+      const updated = getTournamentLateRegInfo(tournament);
+      setRemaining(updated.remainingSeconds);
+      if (updated.remainingSeconds <= 0) clearInterval(interval);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [tournament.sessionStartedAt, tournament.lateRegistrationMinutes]);
+
+  if (remaining <= 0) {
+    return (
+      <span className="flex items-center gap-1 text-red-400 text-[0.65rem] font-medium">
+        <Lock className="w-3 h-3" /> Late reg closed
+      </span>
+    );
+  }
+  const mins = Math.floor(remaining / 60);
+  const secs = remaining % 60;
+  const isUrgent = remaining <= 60;
+  return (
+    <span className={`flex items-center gap-1 text-[0.65rem] font-semibold ${isUrgent ? "text-red-300 animate-pulse" : "text-amber-300"}`}>
+      <Timer className="w-3 h-3" />
+      Late reg: {mins}:{secs.toString().padStart(2, "0")}
+    </span>
+  );
+}
+
+function TournamentSessionTimer({ tournament, large, isExited, exitedAt }: { tournament: any; large?: boolean; isExited?: boolean; exitedAt?: string | null }) {
+  const [elapsed, setElapsed] = useState(0);
+  const isPaused = !!tournament.pausedAt;
+  const sessionEnded = !!isExited;
+
+  useEffect(() => {
+    if (!tournament.sessionStartedAt) return;
+    const startTime = new Date(tournament.sessionStartedAt).getTime();
+    const totalPausedSecs = parseInt(tournament.totalPausedSeconds) || 0;
+    const pausedAtTime = tournament.pausedAt ? new Date(tournament.pausedAt).getTime() : null;
+    const exitTime = exitedAt ? new Date(exitedAt).getTime() : null;
+
+    const update = () => {
+      if (sessionEnded && exitTime) {
+        const elapsedUntilExit = Math.floor((exitTime - startTime) / 1000);
+        setElapsed(Math.max(0, elapsedUntilExit - totalPausedSecs));
+      } else if (isPaused && pausedAtTime) {
+        const elapsedUntilPause = Math.floor((pausedAtTime - startTime) / 1000);
+        setElapsed(Math.max(0, elapsedUntilPause - totalPausedSecs));
+      } else {
+        const totalRaw = Math.floor((Date.now() - startTime) / 1000);
+        setElapsed(Math.max(0, totalRaw - totalPausedSecs));
+      }
+    };
+    update();
+    const shouldTick = !sessionEnded && !isPaused;
+    const interval = shouldTick ? setInterval(update, 1000) : null;
+    return () => { if (interval) clearInterval(interval); };
+  }, [tournament.sessionStartedAt, tournament.pausedAt, tournament.totalPausedSeconds, isPaused, sessionEnded, exitedAt]);
+
+  if (!tournament.sessionStartedAt) return null;
+
+  const hrs = Math.floor(elapsed / 3600);
+  const mins = Math.floor((elapsed % 3600) / 60);
+  const secs = elapsed % 60;
+  const timeStr = `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+
+  if (large) {
+    return (
+      <div className={`text-3xl font-mono font-bold tabular-nums ${sessionEnded ? 'text-red-400' : isPaused ? 'text-yellow-300' : 'text-green-300'}`}>
+        {timeStr}
+        {sessionEnded && <p className="text-xs text-red-400/70 font-sans font-normal mt-1">Session Ended</p>}
+      </div>
+    );
+  }
+
+  if (sessionEnded) {
+    return (
+      <span className="flex items-center gap-1 text-[0.65rem] font-semibold text-red-400">
+        <Timer className="w-3 h-3" />
+        Eliminated
+      </span>
+    );
+  }
+
+  return (
+    <span className={`flex items-center gap-1 text-[0.65rem] font-semibold ${isPaused ? 'text-yellow-300' : 'text-green-300'}`}>
+      <Timer className="w-3 h-3" />
+      Session: {timeStr} {isPaused && '(Paused)'}
+    </span>
+  );
+}
+
+function TournamentLevelTracker({ tournament }: { tournament: any }) {
+  const [elapsed, setElapsed] = useState(0);
+  const isPaused = !!tournament.pausedAt;
+
+  useEffect(() => {
+    if (!tournament.sessionStartedAt) return;
+    const startTime = new Date(tournament.sessionStartedAt).getTime();
+    const totalPausedSecs = parseInt(tournament.totalPausedSeconds) || 0;
+    const pausedAtTime = tournament.pausedAt ? new Date(tournament.pausedAt).getTime() : null;
+
+    const update = () => {
+      if (isPaused && pausedAtTime) {
+        setElapsed(Math.max(0, Math.floor((pausedAtTime - startTime) / 1000) - totalPausedSecs));
+      } else {
+        setElapsed(Math.max(0, Math.floor((Date.now() - startTime) / 1000) - totalPausedSecs));
+      }
+    };
+    update();
+    const interval = isPaused ? null : setInterval(update, 1000);
+    return () => { if (interval) clearInterval(interval); };
+  }, [tournament.sessionStartedAt, tournament.pausedAt, tournament.totalPausedSeconds, isPaused]);
+
+  let structure = tournament.structure || {};
+  if (typeof structure === 'string') {
+    try { structure = JSON.parse(structure); } catch { structure = {}; }
+  }
+
+  const minutesPerLevel = parseInt(structure.minutes_per_level) || 15;
+  const numberOfLevels = parseInt(structure.number_of_levels) || 15;
+  const breakDuration = parseInt(structure.break_duration) || 10;
+  const breakStructureStr = structure.break_structure || '';
+  const lateRegMinutes = parseInt(structure.late_registration) || 0;
+
+  let breakEveryNLevels = 0;
+  const breakMatch = breakStructureStr.match(/(\d+)/);
+  if (breakMatch) breakEveryNLevels = parseInt(breakMatch[1]);
+
+  const elapsedMinutes = elapsed / 60;
+
+  let currentLevel = 1;
+  let timeAccountedFor = 0;
+  let onBreak = false;
+  let breakTimeRemaining = 0;
+
+  for (let level = 1; level <= numberOfLevels; level++) {
+    const levelEnd = timeAccountedFor + minutesPerLevel;
+    if (elapsedMinutes < levelEnd) {
+      currentLevel = level;
+      break;
+    }
+    timeAccountedFor = levelEnd;
+    currentLevel = level;
+    if (breakEveryNLevels > 0 && level % breakEveryNLevels === 0 && level < numberOfLevels) {
+      const breakEnd = timeAccountedFor + breakDuration;
+      if (elapsedMinutes < breakEnd) {
+        onBreak = true;
+        breakTimeRemaining = Math.ceil(breakEnd - elapsedMinutes);
+        break;
+      }
+      timeAccountedFor = breakEnd;
+    }
+  }
+
+  let levelStartTime = 0;
+  for (let l = 1; l < currentLevel; l++) {
+    levelStartTime += minutesPerLevel;
+    if (breakEveryNLevels > 0 && l % breakEveryNLevels === 0) levelStartTime += breakDuration;
+  }
+  const timeInCurrentLevel = elapsedMinutes - levelStartTime;
+  const timeRemainingInLevel = Math.max(0, minutesPerLevel - timeInCurrentLevel);
+  const remainingSecs = Math.ceil(timeRemainingInLevel * 60);
+  const remMin = Math.floor(remainingSecs / 60);
+  const remSec = remainingSecs % 60;
+
+  const lateRegOpen = lateRegMinutes > 0 && elapsedMinutes <= lateRegMinutes;
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-4 pt-0">
+      <div className="bg-emerald-900/30 rounded-lg p-3 text-center border border-emerald-700/40">
+        <p className="text-[0.65rem] text-emerald-400 uppercase tracking-wide">Current Level</p>
+        <p className="text-xl font-bold text-white">{currentLevel} / {numberOfLevels}</p>
+      </div>
+      <div className={`rounded-lg p-3 text-center border ${onBreak ? 'bg-amber-900/30 border-amber-700/40' : 'bg-blue-900/30 border-blue-700/40'}`}>
+        <p className={`text-[0.65rem] uppercase tracking-wide ${onBreak ? 'text-amber-400' : 'text-blue-400'}`}>
+          {onBreak ? 'Break Time Left' : 'Time Left in Level'}
+        </p>
+        <p className={`text-xl font-bold font-mono ${onBreak ? 'text-amber-300' : 'text-white'}`}>
+          {onBreak
+            ? `${breakTimeRemaining} min`
+            : `${remMin.toString().padStart(2, '0')}:${remSec.toString().padStart(2, '0')}`
+          }
+        </p>
+      </div>
+      <div className="bg-purple-900/30 rounded-lg p-3 text-center border border-purple-700/40">
+        <p className="text-[0.65rem] text-purple-400 uppercase tracking-wide">Level Duration</p>
+        <p className="text-xl font-bold text-white">{minutesPerLevel} min</p>
+      </div>
+      <div className="bg-slate-800 rounded-lg p-3 text-center border border-slate-700">
+        <p className="text-[0.65rem] text-slate-400 uppercase tracking-wide">Features</p>
+        <div className="flex flex-wrap justify-center gap-1 mt-1">
+          {structure.allow_rebuys && <Badge className="bg-green-500/20 text-green-300 border-green-500/30 text-[0.55rem] px-1 py-0">Rebuy</Badge>}
+          {structure.allow_reentry && <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30 text-[0.55rem] px-1 py-0">Re-entry</Badge>}
+          {structure.allow_addon && <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-[0.55rem] px-1 py-0">Add-on</Badge>}
+          {lateRegOpen && <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/30 text-[0.55rem] px-1 py-0">Late Reg Open</Badge>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TournamentSessionContent({ tournament, user, queryClient }: { tournament: any; user: any; queryClient: any }) {
+  const [rebuyLoading, setRebuyLoading] = useState(false);
+
+  const { data: playerStatus, refetch: refetchStatus } = useQuery({
+    queryKey: ['tournament-player-status', tournament.id, user?.id],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/player-tournaments/${tournament.id}/my-status`);
+      if (!res.ok) return { inTournament: true, isExited: false };
+      return res.json();
+    },
+    enabled: !!tournament.id && !!user?.id,
+    refetchInterval: 60000,
+  });
+
+  const handleRebuyReentry = async (type: 'rebuy' | 'reentry') => {
+    setRebuyLoading(true);
+    try {
+      const res = await apiRequest('POST', `/api/player-tournaments/${tournament.id}/rebuy`, { type });
+      if (res.ok) {
+        refetchStatus();
+        queryClient.invalidateQueries({ queryKey: ['/api/player-tournaments/upcoming'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/balance'] });
+        queryClient.invalidateQueries({ queryKey: ['player-tournament-statuses'] });
+      }
+    } catch (e) {
+      console.error('Rebuy/re-entry failed:', e);
+    } finally {
+      setRebuyLoading(false);
+    }
+  };
+
+  let structure = tournament.structure || {};
+  if (typeof structure === 'string') {
+    try { structure = JSON.parse(structure); } catch { structure = {}; }
+  }
+  const isPaused = !!tournament.pausedAt;
+  const buyIn = parseFloat(tournament.buyIn || tournament.buy_in || 0);
+  const lateRegMinutes = parseInt(structure.late_registration) || 0;
+  const isExited = playerStatus?.isExited || false;
+  const allowRebuys = playerStatus?.allowRebuys || structure.allow_rebuys || false;
+  const allowReentry = playerStatus?.allowReentry || structure.allow_reentry || false;
+
+  return (
+    <div className="space-y-0">
+      {/* Session Header */}
+      <div className="bg-gradient-to-r from-slate-800 to-slate-700 p-4 rounded-t-lg">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-yellow-500" />
+            <h2 className="text-lg font-bold text-white">{tournament.name}</h2>
+          </div>
+          <Badge className={isPaused
+            ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
+            : isExited
+            ? "bg-red-500/20 text-red-300 border-red-500/30"
+            : "bg-green-500/20 text-green-300 border-green-500/30"
+          }>
+            {isPaused ? '⏸ Paused' : isExited ? '✕ Eliminated' : '● Live'}
+          </Badge>
+        </div>
+
+        <div className="flex justify-center py-2">
+          <TournamentSessionTimer tournament={tournament} large isExited={isExited} exitedAt={playerStatus?.exitedAt} />
+        </div>
+        {isPaused && !isExited && (
+          <p className="text-center text-yellow-400/70 text-xs mt-1">
+            Tournament paused{tournament.pausedAt ? ` since ${new Date(tournament.pausedAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}` : ''}
+          </p>
+        )}
+      </div>
+
+      {/* Exited Player Banner + Rebuy/Re-entry */}
+      {isExited && (
+        <div className="mx-4 mt-3 p-4 bg-red-900/20 border border-red-500/30 rounded-lg text-center space-y-3">
+          <div>
+            <p className="text-red-300 font-semibold text-sm">You have been eliminated</p>
+            <p className="text-red-400/70 text-xs mt-1">
+              Balance: ₹0 {playerStatus?.rebuyCount > 0 ? `• Rebuys used: ${playerStatus.rebuyCount}` : ''}
+            </p>
+          </div>
+          {(allowRebuys || allowReentry) && (
+            <div className="flex justify-center gap-3">
+              {allowRebuys && (
+                <Button
+                  onClick={() => handleRebuyReentry('rebuy')}
+                  disabled={rebuyLoading}
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-500 text-white"
+                >
+                  {rebuyLoading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1" /> : <RotateCcw className="w-3.5 h-3.5 mr-1" />}
+                  Rebuy (₹{buyIn.toLocaleString()})
+                </Button>
+              )}
+              {allowReentry && (
+                <Button
+                  onClick={() => handleRebuyReentry('reentry')}
+                  disabled={rebuyLoading}
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-500 text-white"
+                >
+                  {rebuyLoading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1" /> : <Play className="w-3.5 h-3.5 mr-1" />}
+                  Re-entry (₹{buyIn.toLocaleString()})
+                </Button>
+              )}
+            </div>
+          )}
+          {!allowRebuys && !allowReentry && (
+            <p className="text-slate-400 text-xs">Rebuys and re-entry are not available for this tournament.</p>
+          )}
+        </div>
+      )}
+
+      {/* Live Level Info */}
+      <TournamentLevelTracker tournament={tournament} />
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-3 gap-2 px-4 pb-2">
+        <div className="bg-slate-800 rounded-lg p-2 text-center border border-slate-700">
+          <p className="text-[0.6rem] text-slate-400 uppercase">Buy-in</p>
+          <p className="text-sm font-bold text-yellow-400">₹{buyIn.toLocaleString()}</p>
+        </div>
+        <div className="bg-slate-800 rounded-lg p-2 text-center border border-slate-700">
+          <p className="text-[0.6rem] text-slate-400 uppercase">Players</p>
+          <p className="text-sm font-bold text-white">
+            {tournament.registeredPlayers || 0}/{tournament.maxPlayers || tournament.max_players || 0}
+          </p>
+        </div>
+        <div className="bg-slate-800 rounded-lg p-2 text-center border border-slate-700">
+          <p className="text-[0.6rem] text-slate-400 uppercase">Prize Pool</p>
+          <p className="text-sm font-bold text-yellow-400">₹{Number(tournament.prizePool || tournament.prize_pool || 0).toLocaleString()}</p>
+        </div>
+      </div>
+
+      {/* Tournament Details */}
+      <div className="px-4 pb-4">
+        <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
+          <h3 className="text-sm font-semibold text-slate-300 mb-2 flex items-center gap-1.5">
+            <Info className="w-3.5 h-3.5" /> Tournament Info
+          </h3>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+            {structure.tournament_type && (
+              <>
+                <span className="text-slate-400">Type</span>
+                <span className="text-white font-medium">{structure.tournament_type}</span>
+              </>
+            )}
+            {structure.starting_chips && (
+              <>
+                <span className="text-slate-400">Starting Chips</span>
+                <span className="text-white font-medium">{Number(structure.starting_chips).toLocaleString()}</span>
+              </>
+            )}
+            {structure.blind_structure && (
+              <>
+                <span className="text-slate-400">Blinds</span>
+                <span className="text-white font-medium">{structure.blind_structure}</span>
+              </>
+            )}
+            {lateRegMinutes > 0 && (
+              <>
+                <span className="text-slate-400">Late Registration</span>
+                <span className="text-white font-medium">{lateRegMinutes} min</span>
+              </>
+            )}
+            {structure.payout_structure && (
+              <>
+                <span className="text-slate-400">Payout</span>
+                <span className="text-white font-medium">{structure.payout_structure}</span>
+              </>
+            )}
+            <span className="text-slate-400">Rebuys</span>
+            <span className="text-white font-medium">{structure.allow_rebuys ? 'Yes' : 'No'}</span>
+            <span className="text-slate-400">Add-on</span>
+            <span className="text-white font-medium">{structure.allow_addon ? 'Yes' : 'No'}</span>
+            <span className="text-slate-400">Re-entry</span>
+            <span className="text-white font-medium">{structure.allow_reentry ? 'Yes' : 'No'}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface PlayerDashboardProps {
   user?: any;
@@ -548,9 +1044,48 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const { user: authUser, signOut } = useUltraFastAuth();
 
   // Use prop user if available, fallback to auth user
-  const user = userProp || authUser;
+  const baseUser = userProp || authUser;
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // 1-second tick for real-time countdown timers (e.g. late registration)
+  const [, setLateRegTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setLateRegTick((t) => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch fresh player profile data to ensure PAN card and other fields are up to date
+  const { data: profileData } = useQuery({
+    queryKey: ['player-profile', baseUser?.id],
+    queryFn: async () => {
+      if (!baseUser?.id) return null;
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/player/me`, {
+          headers: {
+            'x-player-id': baseUser.id.toString(),
+            'x-club-id': (baseUser as any).clubId || '',
+          },
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          console.error('Failed to fetch player profile:', response.status);
+          return null;
+        }
+        const data = await response.json();
+        console.log('🔄 [PROFILE REFRESH] Fresh profile data:', data);
+        return data.player || null;
+      } catch (error) {
+        console.error('Error fetching player profile:', error);
+        return null;
+      }
+    },
+    enabled: !!baseUser?.id,
+    staleTime: 30000, // 30 seconds
+  });
+
+  // Merge fresh profile data with existing user data
+  const user = profileData ? { ...baseUser, ...profileData } : baseUser;
   const [callTime, setCallTime] = useState("02:45");
   const [location, setLocation] = useLocation();
   
@@ -559,10 +1094,23 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Feedback system state
   const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [feedbackRating, setFeedbackRating] = useState<number>(0);
   const [sendingFeedback, setSendingFeedback] = useState(false);
   const [submittingProfileChange, setSubmittingProfileChange] = useState<
     string | null
   >(null);
+
+  // Change request popup dialog state
+  const [changeRequestDialog, setChangeRequestDialog] = useState<{
+    open: boolean;
+    fieldName: string;
+    fieldLabel: string;
+    currentValue: string;
+    isDocument: boolean;
+  }>({ open: false, fieldName: '', fieldLabel: '', currentValue: '', isDocument: false });
+  const [changeRequestValue, setChangeRequestValue] = useState('');
+  const [changeRequestFile, setChangeRequestFile] = useState<File | null>(null);
+  const [uploadingChangeDoc, setUploadingChangeDoc] = useState(false);
 
   // GRE Chat state variables
   const [chatMessage, setChatMessage] = useState("");
@@ -750,8 +1298,15 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // Waitlist mutations
   const cancelWaitlistMutation = useCancelWaitlist();
   
-  // Enable real-time waitlist updates via Supabase
+  // Enable real-time updates via Supabase (replaces polling)
   useRealtimeWaitlist(user?.id);
+  useRealtimeBalance(user?.id);
+  useRealtimeBuyIn(user?.id);
+  useRealtimeNotifications(user?.id);
+  useRealtimeCreditRequests(user?.id);
+  useRealtimeTournaments(user?.id);
+  useRealtimeProfileRequests(user?.id);
+  useRealtimeOffers();
   
   // Map backend table data to dashboard format
   const tables = (tablesData?.tables || []).map((table: any) => ({
@@ -772,21 +1327,18 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   >({
     queryKey: ["/api/seat-requests", user?.id],
     enabled: !!user?.id,
-    refetchInterval: 5000, // Background refresh every 5 seconds
     refetchOnWindowFocus: true,
-    staleTime: 3000, // Consider data fresh for 3 seconds
-    gcTime: 10000, // Keep cached for 10 seconds
-    structuralSharing: true, // Only re-render if data structure changed
+    staleTime: 3000,
+    gcTime: 10000,
+    structuralSharing: true,
   });
 
-  // Fetch active seated sessions with smart refresh
   const { data: seatedSessions, isLoading: seatedLoading } = useQuery<any[]>({
     queryKey: ["/api/table-seats", user?.id],
     enabled: !!user?.id,
-    refetchInterval: 8000, // Check every 8 seconds for active sessions
     refetchOnWindowFocus: true,
-    staleTime: 5000, // Consider fresh for 5 seconds
-    gcTime: 15000, // Keep cached for 15 seconds
+    staleTime: 5000,
+    gcTime: 15000,
     structuralSharing: true,
   });
 
@@ -813,10 +1365,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       return statusResults.reduce((acc, curr) => ({ ...acc, ...curr }), {});
     },
     enabled: !!seatRequests && seatRequests.length > 0,
-    refetchInterval: 10000, // Check every 10 seconds - less aggressive
-    staleTime: 8000, // Consider fresh for 8 seconds
-    gcTime: 20000, // Keep cached for 20 seconds
-    structuralSharing: true, // Only update if actual changes detected
+    staleTime: 8000,
+    gcTime: 20000,
+    structuralSharing: true,
   });
 
   // Find current active session for playtime tracking
@@ -840,14 +1391,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       }
       return await response.json();
     },
-    refetchInterval: 5000, // Refresh every 5 seconds
     refetchOnWindowFocus: true,
-    staleTime: 0,
+    staleTime: 5000,
   });
 
   const tournaments = tournamentsResponse?.tournaments || [];
 
-  // Fetch player registrations
   const {
     data: registrationsResponse,
     isLoading: registrationsLoading,
@@ -864,9 +1413,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       return await response.json();
     },
     enabled: !!user?.id,
-    refetchInterval: 5000, // Refresh every 5 seconds
     refetchOnWindowFocus: true,
-    staleTime: 0,
+    staleTime: 5000,
   });
 
   // Get registered tournament IDs from backend
@@ -877,20 +1425,47 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     return registeredTournamentIds.includes(tournamentId);
   };
 
+  // Fetch player status for active registered tournaments
+  const activeTournamentIds = tournaments
+    ?.filter((t: any) => t.status === 'active' && registeredTournamentIds.includes(t.id))
+    ?.map((t: any) => t.id) || [];
+
+  const { data: playerTournamentStatuses } = useQuery<Record<string, any>>({
+    queryKey: ['player-tournament-statuses', user?.id, activeTournamentIds.join(',')],
+    queryFn: async () => {
+      const statuses: Record<string, any> = {};
+      for (const tid of activeTournamentIds) {
+        try {
+          const res = await apiRequest('GET', `/api/player-tournaments/${tid}/my-status`);
+          if (res.ok) statuses[tid] = await res.json();
+        } catch { /* ignore */ }
+      }
+      return statuses;
+    },
+    enabled: activeTournamentIds.length > 0 && !!user?.id,
+    staleTime: 5000,
+  });
+
   const [tournamentDetailsOpen, setTournamentDetailsOpen] = useState(false);
   const [selectedTournament, setSelectedTournament] = useState<any | null>(
     null
   );
+  const [tournamentSessionOpen, setTournamentSessionOpen] = useState(false);
+  const [sessionTournament, setSessionTournament] = useState<any | null>(null);
+
+  const handleViewTournamentSession = (tournament: any) => {
+    setSessionTournament(tournament);
+    setTournamentSessionOpen(true);
+  };
 
   // Fetch dual balance system data with smart refresh
   const { data: accountBalance, isLoading: balanceLoading } = useQuery({
     queryKey: ["/api/balance", user?.id],
     enabled: !!user?.id,
-    refetchInterval: 15000, // Refresh every 15 seconds - balance changes are less frequent
     refetchOnWindowFocus: true,
-    staleTime: 10000, // Consider fresh for 10 seconds
-    gcTime: 30000, // Keep cached for 30 seconds
-    structuralSharing: true, // Only update UI if balance actually changed
+    staleTime: 10000,
+    gcTime: 30000,
+    structuralSharing: true,
   });
 
   // Open tournament details dialog
@@ -952,6 +1527,42 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const { data: kycDocuments, isLoading: kycLoading } = useQuery<KycDocument[]>(
     {
       queryKey: [`/api/documents/player/${user?.id}`],
+      queryFn: async () => {
+        if (!user?.id) return [];
+        try {
+          const response = await fetch(`${API_BASE_URL}/player-documents/my`, {
+            headers: {
+              'x-player-id': user.id.toString(),
+              'x-club-id': (user as any).clubId || '',
+            },
+            credentials: 'include',
+          });
+          if (!response.ok) {
+            console.error('Failed to fetch documents:', response.status);
+            return [];
+          }
+          const data = await response.json();
+          console.log('📄 [KYC DOCS] API Response:', data);
+          
+          // Map backend fields to frontend expected fields
+          const mappedDocs = (data.documents || []).map((doc: any) => ({
+            id: doc.id,
+            documentType: doc.type || doc.documentType, // Backend uses 'type'
+            fileUrl: doc.url || doc.fileUrl, // Backend uses 'url'
+            fileName: doc.name || doc.fileName,
+            status: doc.status || 'pending',
+            createdAt: doc.uploadedAt || doc.createdAt,
+            size: doc.size,
+            mimeType: doc.mimeType,
+          }));
+          
+          console.log('📄 [KYC DOCS] Mapped documents:', mappedDocs);
+          return mappedDocs;
+        } catch (error) {
+          console.error('Error fetching KYC documents:', error);
+          return [];
+        }
+      },
       enabled: !!user?.id,
     }
   );
@@ -1155,18 +1766,15 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const { data: creditRequests, isLoading: creditRequestsLoading } = useQuery({
     queryKey: [`/api/credit-requests/${user?.id}`],
     enabled: !!user?.id,
-    refetchInterval: 2000, // Refresh every 2 seconds
   });
 
-  // Fetch push notifications with smart background refresh
   const { data: notifications, isLoading: notificationsLoading } = useQuery({
     queryKey: [`/api/push-notifications/${user?.id}`],
     enabled: !!user?.id,
-    refetchInterval: 30000, // Check every 30 seconds - notifications are handled via push system
     refetchOnWindowFocus: true,
-    staleTime: 20000, // Consider fresh for 20 seconds
-    gcTime: 60000, // Keep cached for 1 minute
-    structuralSharing: true, // Only update if new notifications
+    staleTime: 20000,
+    gcTime: 60000,
+    structuralSharing: true,
   });
 
   // Helper to submit a per-field profile change request
@@ -1213,6 +1821,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             "Your profile change request has been sent to club staff for review.",
           className: "bg-emerald-600 text-white",
         });
+        refetchProfileChanges();
       } else {
         throw new Error(result?.message || "Failed to submit request");
       }
@@ -1225,6 +1834,58 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       });
     } finally {
       setSubmittingProfileChange(null);
+    }
+  };
+
+  const openChangeRequestDialog = (fieldName: string, fieldLabel: string, currentValue: string, isDocument = false) => {
+    setChangeRequestValue(isDocument ? '' : currentValue);
+    setChangeRequestFile(null);
+    setChangeRequestDialog({ open: true, fieldName, fieldLabel, currentValue, isDocument });
+  };
+
+  const handleChangeRequestSubmit = async () => {
+    const { fieldName, currentValue, isDocument } = changeRequestDialog;
+
+    if (isDocument) {
+      if (!changeRequestFile) {
+        toast({ title: "File Required", description: "Please upload the new document", variant: "destructive" });
+        return;
+      }
+      setUploadingChangeDoc(true);
+      try {
+        const playerId = user?.id;
+        const clubId = sessionStorage.getItem('clubId') || localStorage.getItem('clubId');
+        if (!playerId || !clubId) throw new Error('Missing player or club ID');
+
+        const docTypeMap: Record<string, string> = { government_id: 'government_id', pan_card: 'pan_card', profile_photo: 'profile_photo' };
+        const docType = docTypeMap[fieldName] || fieldName;
+        const formData = new FormData();
+        formData.append('file', changeRequestFile);
+        formData.append('documentType', docType);
+        formData.append('fileName', changeRequestFile.name);
+
+        const uploadRes = await fetch(`${API_BASE_URL}/player-documents/upload`, {
+          method: 'POST',
+          headers: { 'x-player-id': playerId, 'x-club-id': clubId },
+          body: formData,
+        });
+        const uploadData = await uploadRes.json();
+        const docUrl = uploadData?.document?.url || uploadData?.document?.fileUrl || '';
+
+        await submitProfileChangeRequest(fieldName, docUrl || `New ${changeRequestDialog.fieldLabel} uploaded: ${changeRequestFile.name}`, currentValue || 'existing document');
+        setChangeRequestDialog(prev => ({ ...prev, open: false }));
+      } catch (error: any) {
+        toast({ title: "Upload Failed", description: error.message || "Failed to upload document", variant: "destructive" });
+      } finally {
+        setUploadingChangeDoc(false);
+      }
+    } else {
+      if (!changeRequestValue.trim()) {
+        toast({ title: "Value Required", description: `Please enter the new ${changeRequestDialog.fieldLabel.toLowerCase()}`, variant: "destructive" });
+        return;
+      }
+      await submitProfileChangeRequest(fieldName, changeRequestValue.trim(), currentValue || null);
+      setChangeRequestDialog(prev => ({ ...prev, open: false }));
     }
   };
 
@@ -1249,6 +1910,38 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     refetchOnWindowFocus: false,
   });
 
+  // Fetch profile change request statuses
+  const { data: profileChangeData, refetch: refetchProfileChanges } = useQuery<{
+    success: boolean;
+    requests: { id: string; fieldName: string; currentValue: string | null; requestedValue: string; status: string; reviewNotes: string | null; createdAt: string; reviewedAt: string | null }[];
+  }>({
+    queryKey: ['/api/auth/player/profile-change-requests', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/auth/player/profile-change-requests');
+      return await response.json();
+    },
+    staleTime: 5000,
+  });
+
+  const getFieldChangeStatus = (fieldName: string) => {
+    const requests = profileChangeData?.requests || [];
+    const pending = requests.find(r => r.fieldName === fieldName && r.status === 'pending');
+    if (pending) return { status: 'pending' as const, request: pending };
+    const rejected = requests.find(r => r.fieldName === fieldName && r.status === 'rejected');
+    if (rejected) return { status: 'rejected' as const, request: rejected };
+    return { status: 'none' as const, request: null };
+  };
+
+  const dismissRejectedRequest = async (requestId: string) => {
+    try {
+      await apiRequest('POST', `/api/auth/player/profile-change-request/${requestId}/dismiss`);
+      refetchProfileChanges();
+    } catch (e) {
+      console.error('Failed to dismiss request:', e);
+    }
+  };
+
   // Submit feedback function
   const submitFeedback = async () => {
     if (!feedbackMessage.trim() || !user?.id) {
@@ -1264,7 +1957,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     try {
       const response = await apiRequest("POST", "/api/auth/player/feedback", {
         message: feedbackMessage.trim(),
-        rating: null,
+        rating: feedbackRating > 0 ? feedbackRating : null,
       });
 
       const result = await response.json();
@@ -1274,6 +1967,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           description: "Your message has been sent to management",
         });
         setFeedbackMessage("");
+        setFeedbackRating(0);
       } else {
         throw new Error(result.error || "Failed to send feedback");
       }
@@ -1522,350 +2216,18 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     useState(false);
   const [assignmentDetails, setAssignmentDetails] = useState<any>(null);
 
-  // Listen for table assignment notifications via Pusher
+  // Listen for table assignment notifications via WebSocket (useSeatAssignment hook handles this now)
+  // This is kept for backward compatibility and redundancy
   useEffect(() => {
     if (user?.id) {
-      // Import Pusher client for real-time notifications
-      const initializePusher = async () => {
-        const PusherJS = (await import("pusher-js")).default;
-        const pusher = new PusherJS(import.meta.env.VITE_PUSHER_KEY!, {
-          cluster: import.meta.env.VITE_PUSHER_CLUSTER!,
-        });
-
-        const channel = pusher.subscribe(`player-${user.id}`);
-
-        // Listen for table assignment notifications
-        channel.bind("table_assigned", (data: any) => {
-          console.log(
-            "🪑 [TABLE ASSIGNMENT] Assignment notification received:",
-            data
-          );
-
-          setAssignmentDetails(data);
-          setShowAssignmentNotification(true);
-
-          // Show toast notification
-          toast({
-            title: "Table Assignment!",
-            description: `You've been assigned to ${data.tableName} - Seat ${data.seatNumber}`,
-            className: "bg-emerald-600 text-white border-emerald-500",
-          });
-
-          // Refresh waitlist and seated sessions
-          queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] });
-          queryClient.invalidateQueries({ queryKey: ["/api/table-seats"] });
-        });
-
-        return () => {
-          channel.unbind_all();
-          pusher.unsubscribe(`player-${user.id}`);
-        };
-      };
-
-      initializePusher();
+      console.log('🪑 [TABLE ASSIGNMENT] Real-time notifications handled by useSeatAssignment hook');
+      // Table assignment notifications are now handled by the useSeatAssignment hook
+      // which uses Socket.IO instead of Pusher
     }
   }, [user?.id, toast, queryClient]);
 
-  // Initialize WebSocket connection for real-time chat
-  useEffect(() => {
-    if (user?.id && !wsConnection) {
-      setChatLoading(true);
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}/chat-ws`;
-
-      console.log("🔗 [WEBSOCKET] Connecting to:", wsUrl);
-      const ws = new WebSocket(wsUrl);
-
-      ws.onopen = () => {
-        console.log("✅ [WEBSOCKET] Connected successfully");
-        setWsConnected(true);
-
-        // Staff Portal authentication format
-        ws.send(
-          JSON.stringify({
-            type: "authenticate",
-            playerId: user.id,
-            playerName: `${user.firstName} ${user.lastName}`,
-            playerEmail: user.email,
-          })
-        );
-
-        // Request chat history
-        ws.send(
-          JSON.stringify({
-            type: "get_messages",
-            playerId: user.id,
-          })
-        );
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-
-          // 🛑 CRITICAL DEBUG: COMPLETE MESSAGE PAYLOAD LOGGING
-          console.log("🛑 CRITICAL DEBUG === WEBSOCKET RECEIVE START ===");
-          console.log("RECV RAW PAYLOAD:", JSON.stringify(data, null, 2));
-          console.log("RECV PAYLOAD KEYS:", Object.keys(data));
-          console.log(
-            "RECV PAYLOAD TYPES:",
-            Object.entries(data).map(([k, v]) => `${k}: ${typeof v}`)
-          );
-
-          if (data.type === "authenticated") {
-            console.log("🔐 [WEBSOCKET] Authentication successful");
-          }
-
-          if (data.type === "chat_history") {
-            console.log(
-              "📋 [WEBSOCKET] Chat history received:",
-              data.messages.length,
-              "messages"
-            );
-
-            // 🛑 GOD-LEVEL DEBUG: COMPLETE CHAT HISTORY ANALYSIS
-            console.log("🛑 GOD-LEVEL DEBUG === CHAT HISTORY PROCESSING ===");
-            console.log(
-              "INCOMING MESSAGES FROM WS/DB:",
-              JSON.stringify(data.messages, null, 2)
-            );
-            console.log("CURRENT FILTER VARS:", {
-              currentUserId: user.id,
-              currentUserIdType: typeof user.id,
-              totalMessages: data.messages?.length || 0,
-            });
-
-            // Analyze each message for filtering compatibility
-            data.messages?.forEach((msg: any, index: number) => {
-              console.log(`MESSAGE ${index + 1} ANALYSIS:`, {
-                messageKeys: Object.keys(msg),
-                playerId: msg.player_id,
-                playerIdType: typeof msg.player_id,
-                sessionId: msg.session_id,
-                sender: msg.sender,
-                messagePreview: msg.message?.substring(0, 30) + "...",
-                willBeFiltered:
-                  msg.player_id !== user.id ? "YES - DROPPED" : "NO - INCLUDED",
-                filterReason:
-                  msg.player_id !== user.id
-                    ? `${msg.player_id} !== ${user.id}`
-                    : "ID MATCH",
-              });
-            });
-
-            // Set unified messages - single source of truth
-            setUnifiedChatMessages(data.messages || []);
-            setChatLoading(false);
-
-            console.log(
-              "✅ GOD-LEVEL DEBUG: Chat history state updated with",
-              data.messages?.length || 0,
-              "messages"
-            );
-          }
-
-          // 🛑 CRITICAL: GRE MESSAGE PROCESSING WITH COMPLETE DEBUG
-          if (data.type === "gre_message") {
-            console.log("🛑 CRITICAL DEBUG: GRE MESSAGE PROCESSING");
-            console.log("GRE RECV - Original Keys:", Object.keys(data));
-            console.log("GRE RECV - playerId variants:", {
-              playerId: data.playerId,
-              player_id: data.player_id,
-              playerIdType: typeof data.playerId,
-              player_idType: typeof data.player_id,
-            });
-            console.log("GRE RECV - Current User ID:", user.id, typeof user.id);
-
-            // CRITICAL: COMPREHENSIVE ID STANDARDIZATION
-            const normalizedPlayerId =
-              parseInt(data.playerId) ||
-              parseInt(data.player_id) ||
-              parseInt(data.targetPlayerId) ||
-              user.id;
-            const messageMatch = normalizedPlayerId === user.id;
-
-            console.log("GRE RECV - ID VALIDATION:", {
-              normalizedPlayerId,
-              currentUserId: user.id,
-              messageMatch,
-              shouldDisplay: messageMatch,
-            });
-
-            if (messageMatch) {
-              const normalizedGreMessage = {
-                id: data.messageId || data.id || Date.now().toString(),
-                player_id: normalizedPlayerId,
-                session_id: data.sessionId || data.session_id,
-                message: data.message || data.content || data.messageText,
-                sender: "gre",
-                sender_name:
-                  data.greStaffName ||
-                  data.gre_staff_name ||
-                  data.sender_name ||
-                  "GRE Staff",
-                timestamp: data.timestamp || new Date().toISOString(),
-                status: "sent",
-              };
-
-              console.log("GRE RECV - ADDING TO UI:", normalizedGreMessage);
-              setUnifiedChatMessages((prev) => {
-                const updated = [...prev, normalizedGreMessage];
-                console.log(
-                  "GRE RECV - UI STATE UPDATED:",
-                  updated.length,
-                  "total messages"
-                );
-                return updated;
-              });
-            } else {
-              console.warn("❌ GRE RECV - MESSAGE REJECTED - ID MISMATCH:", {
-                receivedId: normalizedPlayerId,
-                expectedId: user.id,
-                reason: "PLAYER_ID_MISMATCH",
-              });
-            }
-          }
-
-          if (data.type === "new_message") {
-            console.log(
-              "🔍 FRONTEND DEBUG: New message received | Raw payload:",
-              data
-            );
-
-            // STANDARDIZED MESSAGE TRANSFORMATION
-            const normalizedMessage = {
-              id: data.message?.id || data.id || Date.now().toString(),
-              player_id:
-                parseInt(data.message?.player_id) ||
-                parseInt(data.playerId) ||
-                user.id,
-              session_id: data.message?.session_id || data.sessionId,
-              message: data.message?.message || data.content,
-              sender: data.message?.sender || data.sender,
-              sender_name: data.message?.sender_name || data.senderName,
-              timestamp: data.message?.timestamp || data.timestamp,
-              status: data.message?.status || "sent",
-            };
-
-            console.log(
-              "🔍 FRONTEND DEBUG: Normalized new message | Details:",
-              {
-                originalPlayerId: data.message?.player_id || data.playerId,
-                normalizedPlayerId: normalizedMessage.player_id,
-                currentUserId: user.id,
-                validation: "UNIFIED_ID_MAPPING_APPLIED",
-              }
-            );
-
-            // PRODUCTION DATA VALIDATION - Only add if IDs match exactly
-            if (normalizedMessage.player_id === user.id) {
-              setUnifiedChatMessages((prev) => [...prev, normalizedMessage]);
-              console.log(
-                "✅ FRONTEND DEBUG: New message added to UI | PlayerId match confirmed"
-              );
-            } else {
-              console.warn(
-                "❌ FRONTEND DEBUG: New message rejected - PlayerId mismatch:",
-                {
-                  receivedPlayerId: normalizedMessage.player_id,
-                  expectedPlayerId: user.id,
-                  validation: "ID_MISMATCH_BLOCKED",
-                }
-              );
-            }
-            // Real-time message added via WebSocket - no REST API refresh needed
-          }
-
-          if (data.type === "session_started") {
-            console.log(
-              "✅ [WEBSOCKET] Chat session started with GRE:",
-              data.data?.greStaffName
-            );
-            toast({
-              title: "Chat Connected",
-              description: `Connected with ${
-                data.data?.greStaffName || "Support Staff"
-              }`,
-            });
-          }
-
-          if (data.type === "session_closed") {
-            console.log(
-              "🔒 [WEBSOCKET] Chat session closed by GRE:",
-              data.reason
-            );
-            toast({
-              title: "Chat Session Ended",
-              description:
-                data.reason || "Chat session has been closed by support staff",
-            });
-          }
-
-          if (data.type === "acknowledgment") {
-            console.log("✅ [WEBSOCKET] Message delivery confirmed");
-          }
-
-          if (data.type === "message_sent") {
-            console.log("✅ [WEBSOCKET] Message sent confirmation");
-            // Add the sent message to local state immediately for instant display
-            if (data.message) {
-              setUnifiedChatMessages((prev) => [...prev, data.message]);
-            }
-            // Also refresh chat history
-            ws.send(
-              JSON.stringify({
-                type: "get_messages",
-                playerId: user.id,
-              })
-            );
-            // Refresh REST API data for consistency
-            queryClient.invalidateQueries({
-              queryKey: [`/api/gre-chat/messages/${user.id}`],
-            });
-          }
-
-          if (data.type === "chat_closed") {
-            console.log("🔒 [WEBSOCKET] Chat session closed by GRE");
-            // Show confirmation dialog
-            if (
-              confirm(
-                "GRE staff has closed this chat session. Would you like to clear the chat history?"
-              )
-            ) {
-              setUnifiedChatMessages([]);
-              setChatMessage("");
-              toast({
-                title: "Chat Closed",
-                description: "Chat session has been closed and cleared.",
-              });
-            }
-          }
-        } catch (error) {
-          console.error("❌ [WEBSOCKET] Error parsing message:", error);
-        }
-      };
-
-      ws.onclose = () => {
-        console.log("🔌 [WEBSOCKET] Connection closed");
-        setWsConnected(false);
-        setWsConnection(null);
-      };
-
-      ws.onerror = (error) => {
-        console.error("❌ [WEBSOCKET] Connection error:", error);
-        setWsConnected(false);
-      };
-
-      setWsConnection(ws);
-    }
-
-    // Cleanup WebSocket on unmount
-    return () => {
-      if (wsConnection) {
-        wsConnection.close();
-      }
-    };
-  }, [user?.id]);
+  // ✅ Real-time chat is now handled by PlayerChatSystem component using Socket.IO
+  // (Old WebSocket code removed - see PlayerChatSystem.tsx for new implementation)
 
   // Debug: Log unified messages to console
   useEffect(() => {
@@ -2091,8 +2453,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
       const limit = showTransactions === "all" ? 100 : 10; // Fetch 100 if 'all', otherwise 10
       const response = await fetch(
-        `/api/player/${user.id}/transactions?limit=${limit}`,
+        `${API_BASE_URL}/auth/player/transactions?limit=${limit}`,
         {
+          headers: {
+            'x-player-id': user.id.toString(),
+            'x-club-id': (user as any).clubId || '',
+          },
           credentials: "include",
         }
       );
@@ -2101,7 +2467,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         throw new Error("Failed to fetch transactions");
       }
 
-      return response.json();
+      const data = await response.json();
+      console.log('📊 [TRANSACTIONS] Response:', data);
+      return data.transactions || [];
     },
     enabled: !!user?.id && !!showTransactions, // Enable query only if user and showTransactions are set
   });
@@ -2201,16 +2569,18 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
       // Format as "Aug 30, 2025 at 6:39 AM"
       return (
-        date.toLocaleDateString("en-US", {
+        date.toLocaleDateString("en-IN", {
           year: "numeric",
           month: "short",
           day: "numeric",
+          timeZone: "Asia/Kolkata",
         }) +
         " at " +
-        date.toLocaleTimeString("en-US", {
+        date.toLocaleTimeString("en-IN", {
           hour: "numeric",
           minute: "2-digit",
           hour12: true,
+          timeZone: "Asia/Kolkata",
         })
       );
     } catch (error) {
@@ -2266,6 +2636,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       id: "government_id",
       utility: "utility_bill",
       photo: "profile_photo",
+      pan: "pan_card",
     };
 
     const actualType = typeMap[documentType] || documentType;
@@ -2282,6 +2653,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         : latest;
     });
 
+    // For govt_id and pan_card, if document exists, show as "uploaded" instead of "pending"
+    if ((actualType === "government_id" || actualType === "pan_card") && latestDoc.status === "pending") {
+      return "uploaded";
+    }
+
     return latestDoc.status;
   };
 
@@ -2289,6 +2665,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     switch (status) {
       case "approved":
         return <CheckCircle className="w-4 h-4 text-emerald-500" />;
+      case "uploaded":
+        return <FileText className="w-4 h-4 text-blue-500" />;
       case "pending":
         return <Clock className="w-4 h-4 text-amber-500" />;
       case "rejected":
@@ -2382,7 +2760,15 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             <div className="flex justify-center pt-4">
               <Button
                 variant="outline"
-                onClick={() => signOut()}
+                onClick={async () => {
+                  try {
+                    await signOut();
+                    // After signing out, redirect player back to the main form/login page
+                    window.location.href = "/";
+                  } catch (error) {
+                    console.error("Sign out error from KYC pending card:", error);
+                  }
+                }}
                 className="border-slate-600 text-slate-300 hover:bg-slate-700"
               >
                 <LogOut className="w-4 h-4 mr-2" />
@@ -2794,7 +3180,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                   {session.sessionStartTime
                                     ? new Date(
                                         session.sessionStartTime
-                                      ).toLocaleTimeString()
+                                      ).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })
                                     : "Just now"}
                                 </p>
                               </div>
@@ -2953,7 +3339,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             <p><strong>Table Type:</strong> {waitlistData.entry.tableType}</p>
                             <p><strong>Party Size:</strong> {waitlistData.entry.partySize}</p>
                             <p><strong>Status:</strong> <span className="text-amber-400">{waitlistData.entry.status}</span></p>
-                            <p className="text-xs text-slate-400 mt-2">Joined: {new Date(waitlistData.entry.createdAt).toLocaleString()}</p>
+                            <p className="text-xs text-slate-400 mt-2">Joined: {new Date(waitlistData.entry.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</p>
                             {waitlistData.totalInQueue > 1 && (
                               <p className="text-xs text-slate-400">{waitlistData.totalInQueue} players in queue</p>
                             )}
@@ -3343,9 +3729,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     {tournament.startDate
                                       ? new Date(
                                           tournament.startDate
-                                        ).toLocaleTimeString([], {
+                                        ).toLocaleTimeString('en-IN', {
                                           hour: "2-digit",
                                           minute: "2-digit",
+                                          timeZone: "Asia/Kolkata",
                                         })
                                       : "TBA"}
                                   </p>
@@ -3366,87 +3753,148 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </div>
                               </div>
 
-                              <div className="flex justify-between items-center">
-                                <div className="flex items-center space-x-2">
-                                  <Badge
-                                    className={`${
-                                      tournament.status === "upcoming" || tournament.status === "scheduled"
-                                        ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
-                                        : tournament.status === "running" || tournament.status === "active"
-                                        ? "bg-green-500/20 text-green-300 border-green-500/30"
-                                        : tournament.status === "finished"
-                                        ? "bg-gray-500/20 text-gray-300 border-gray-500/30"
-                                        : "bg-slate-500/20 text-slate-300 border-slate-500/30"
-                                    }`}
-                                  >
-                                    {tournament.status
-                                      ? tournament.status
-                                          .charAt(0)
-                                          .toUpperCase() +
-                                        tournament.status.slice(1)
-                                      : "Unknown"}
-                                  </Badge>
-                                  {tournament.structure && typeof tournament.structure === 'object' && (
-                                    <span className="text-sm text-slate-400">
-                                      {tournament.structure.tournament_type || 'Standard'}
-                                    </span>
-                                  )}
-                                  {tournament.structure && typeof tournament.structure === 'string' && (
-                                    <span className="text-sm text-slate-400">
-                                      {tournament.structure}
-                                    </span>
-                                  )}
-                                </div>
+                              {(() => {
+                                const lateInfo = getTournamentLateRegInfo(tournament);
+                                const preStartStatuses = ["scheduled", "upcoming", "registration_open", "registering"];
+                                const activeStatuses = ["active", "running"];
+                                const isPreStart = preStartStatuses.includes(tournament.status);
+                                const isTournamentActive = activeStatuses.includes(tournament.status);
+                                const playerRegistered = isRegistered(tournament.id);
+                                const playerStatus = playerTournamentStatuses?.[tournament.id];
+                                const playerExited = playerStatus?.isExited === true;
+                                const isFull = (tournament.registeredPlayers ?? tournament.registered_players ?? 0) >= (tournament.maxPlayers ?? tournament.max_players ?? 999);
 
-                                <div className="flex items-center space-x-2">
-                                  {(tournament.status === "upcoming" || tournament.status === "scheduled" || tournament.status === "registration_open" || tournament.status === "registering") && (
-                                    <>
-                                      <Button
-                                        onClick={() =>
-                                          handleViewTournamentDetails(
-                                            tournament
-                                          )
-                                        }
-                                        size="sm"
-                                        variant="outline"
-                                        className="border-slate-500 text-slate-200 hover:bg-slate-600"
-                                      >
-                                        View Details
-                                      </Button>
-                                      {isRegistered(
-                                        tournament.id
-                                      ) ? (
-                                        <Button
-                                          size="sm"
-                                          disabled
-                                          className="text-white"
-                                          style={getClubButtonStyle('primary')}
-                                        >
-                                          Registered
-                                        </Button>
-                                      ) : (
-                                        <Button
-                                          onClick={() =>
-                                            handleTournamentRegister(
-                                              tournament.id
-                                            )
-                                          }
-                                          disabled={tournamentActionLoading}
-                                          size="sm"
-                                          className="bg-yellow-500 hover:bg-yellow-600 text-black"
-                                        >
-                                          {tournamentActionLoading
-                                            ? (
-                                              <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin mr-2" />
-                                            )
-                                            : null}
-                                          Register
-                                        </Button>
-                                      )}
-                                    </>
-                                  )}
-                                </div>
-                              </div>
+                                let canRegister = false;
+                                let canCancel = false;
+                                let buttonLabel = "Register";
+                                let disabledLabel = "Registration Closed";
+
+                                if (playerRegistered) {
+                                  canCancel = true;
+                                } else if (isPreStart) {
+                                  canRegister = !isFull;
+                                  disabledLabel = isFull ? "Tournament Full" : "Registration Closed";
+                                } else if (isTournamentActive) {
+                                  if (lateInfo.lateRegAllowed && lateInfo.lateRegOpen && !isFull) {
+                                    canRegister = true;
+                                    buttonLabel = "Late Register";
+                                  } else if (isFull) {
+                                    disabledLabel = "Tournament Full";
+                                  } else if (!lateInfo.lateRegAllowed) {
+                                    disabledLabel = "Registration Closed";
+                                  } else {
+                                    disabledLabel = "Late Reg Expired";
+                                  }
+                                }
+
+                                return (
+                                  <div className="space-y-2">
+                                    {/* Active tournament info */}
+                                    {isTournamentActive && (
+                                      <div className="flex items-center justify-between">
+                                        <Badge className="bg-green-500/20 text-green-300 border-green-500/30">
+                                          Live
+                                        </Badge>
+                                        {playerRegistered ? (
+                                          <TournamentSessionTimer tournament={tournament} isExited={playerExited} exitedAt={playerStatus?.exitedAt} />
+                                        ) : lateInfo.lateRegAllowed ? (
+                                          <DashboardLateRegCountdown tournament={tournament} />
+                                        ) : (
+                                          <span className="flex items-center gap-1 text-red-400 text-[0.65rem] font-medium">
+                                            <Lock className="w-3 h-3" /> No late registration
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    <div className="flex justify-between items-center">
+                                      <div className="flex items-center space-x-2">
+                                        {!isTournamentActive && (
+                                          <Badge
+                                            className={`${
+                                              isPreStart
+                                                ? "bg-blue-500/20 text-blue-300 border-blue-500/30"
+                                                : tournament.status === "finished"
+                                                ? "bg-gray-500/20 text-gray-300 border-gray-500/30"
+                                                : "bg-slate-500/20 text-slate-300 border-slate-500/30"
+                                            }`}
+                                          >
+                                            {tournament.status
+                                              ? tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)
+                                              : "Unknown"}
+                                          </Badge>
+                                        )}
+                                        {tournament.gameType && (
+                                          <Badge className="bg-slate-600/50 text-slate-300 text-[0.6rem]">
+                                            {tournament.gameType === "rummy" ? "Rummy" : "Poker"}
+                                          </Badge>
+                                        )}
+                                      </div>
+
+                                      <div className="flex items-center space-x-2">
+                                        {(isPreStart || isTournamentActive) && (
+                                          <>
+                                            {isTournamentActive && playerRegistered ? (
+                                              <Button
+                                                onClick={() => handleViewTournamentSession(tournament)}
+                                                size="sm"
+                                                className={playerExited
+                                                  ? "bg-red-700 hover:bg-red-600 text-white"
+                                                  : "bg-green-600 hover:bg-green-500 text-white"
+                                                }
+                                              >
+                                                {playerExited ? (
+                                                  <><XCircle className="w-3 h-3 mr-1" /> Eliminated</>
+                                                ) : (
+                                                  <><Play className="w-3 h-3 mr-1" /> View Session</>
+                                                )}
+                                              </Button>
+                                            ) : (
+                                              <Button
+                                                onClick={() => handleViewTournamentDetails(tournament)}
+                                                size="sm"
+                                                variant="outline"
+                                                className="border-slate-500 text-slate-200 hover:bg-slate-600"
+                                              >
+                                                View Details
+                                              </Button>
+                                            )}
+                                            {canCancel ? (
+                                              !isTournamentActive && (
+                                                <Button
+                                                  size="sm"
+                                                  disabled
+                                                  className="text-white"
+                                                  style={getClubButtonStyle('primary')}
+                                                >
+                                                  Registered
+                                                </Button>
+                                              )
+                                            ) : canRegister ? (
+                                              <Button
+                                                onClick={() => handleTournamentRegister(tournament.id)}
+                                                disabled={tournamentActionLoading}
+                                                size="sm"
+                                                className="bg-yellow-500 hover:bg-yellow-600 text-black"
+                                              >
+                                                {tournamentActionLoading ? (
+                                                  <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin mr-2" />
+                                                ) : null}
+                                                {buttonLabel}
+                                              </Button>
+                                            ) : (
+                                              <Button size="sm" disabled className="opacity-50 text-slate-400">
+                                                <Lock className="w-3 h-3 mr-1" />
+                                                {disabledLabel}
+                                              </Button>
+                                            )}
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           ))}
 
@@ -3589,6 +4037,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 />
               )}
               
+              {/* VIP Points */}
+              {user?.id && <VipPointsDisplay userId={user.id} />}
+
               {/* Credit Request Card - Show if player has credit enabled */}
               {user?.id && creditEnabled && <CreditRequestCard />}
               
@@ -3671,113 +4122,167 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   <CardContent>
                     {/* Profile Details with per-field change request actions */}
                     <div className="space-y-3">
-                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-slate-700 rounded-lg gap-2">
-                        <div>
-                          <span className="text-sm text-slate-300 block">
-                            Name
-                          </span>
-                          <span className="text-sm text-white font-medium">
-                            {user?.firstName} {user?.lastName}
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="hover:opacity-90"
-                          style={getClubButtonStyle('secondary')}
-                          disabled={!!submittingProfileChange}
-                          onClick={async () => {
-                            const current =
-                              `${user?.firstName || ""} ${
-                                user?.lastName || ""
-                              }`.trim();
-                            const requested = window.prompt(
-                              "Enter the new full name you would like on your profile:",
-                              current,
-                            );
-                            if (requested === null) return;
-                            await submitProfileChangeRequest(
-                              "name",
-                              requested,
-                              current || null,
-                            );
-                          }}
-                        >
-                          {submittingProfileChange === "name"
-                            ? "Sending..."
-                            : "Request Change"}
-                        </Button>
+                      {/* Name Field */}
+                      {(() => {
+                        const nameStatus = getFieldChangeStatus('name');
+                        return (
+                          <div className="p-3 bg-slate-700 rounded-lg space-y-2">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                              <div>
+                                <span className="text-sm text-slate-300 block">Name</span>
+                                <span className="text-sm text-white font-medium">{user?.firstName} {user?.lastName}</span>
+                              </div>
+                              {nameStatus.status === 'pending' ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded-lg text-xs font-semibold border border-yellow-500/30">
+                                  <Clock className="w-3 h-3" /> Pending Review
+                                </span>
+                              ) : nameStatus.status === 'none' ? (
+                                <Button size="sm" variant="outline" className="hover:opacity-90" style={getClubButtonStyle('secondary')} disabled={!!submittingProfileChange}
+                                  onClick={() => openChangeRequestDialog('name', 'Name', `${user?.firstName || ""} ${user?.lastName || ""}`.trim())}>
+                                  {submittingProfileChange === "name" ? "Sending..." : "Request Change"}
+                                </Button>
+                              ) : null}
+                            </div>
+                            {nameStatus.status === 'pending' && nameStatus.request && (
+                              <div className="text-xs text-yellow-300/70 bg-yellow-500/10 rounded px-2 py-1">
+                                Requested: <span className="font-medium text-yellow-200">{nameStatus.request.requestedValue}</span>
+                                <span className="text-slate-400 ml-1">({new Date(nameStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
+                              </div>
+                            )}
+                            {nameStatus.status === 'rejected' && nameStatus.request && (
+                              <div className="text-xs bg-red-500/10 rounded px-2 py-1.5 border border-red-500/20">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-red-300 font-semibold">Request Rejected</span>
+                                  <button onClick={() => dismissRejectedRequest(nameStatus.request!.id)} className="text-slate-400 hover:text-white text-[0.65rem] underline">Dismiss</button>
+                                </div>
+                                {nameStatus.request.reviewNotes && (
+                                  <p className="text-red-300/70 mt-0.5">Reason: {nameStatus.request.reviewNotes}</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Email Field */}
+                      {(() => {
+                        const emailStatus = getFieldChangeStatus('email');
+                        return (
+                          <div className="p-3 bg-slate-700 rounded-lg space-y-2">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                              <div>
+                                <span className="text-sm text-slate-300 block">Email</span>
+                                <span className="text-sm text-white font-medium">{user?.email}</span>
+                              </div>
+                              {emailStatus.status === 'pending' ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded-lg text-xs font-semibold border border-yellow-500/30">
+                                  <Clock className="w-3 h-3" /> Pending Review
+                                </span>
+                              ) : emailStatus.status === 'none' ? (
+                                <Button size="sm" variant="outline" className="hover:opacity-90" style={getClubButtonStyle('secondary')} disabled={!!submittingProfileChange}
+                                  onClick={() => openChangeRequestDialog('email', 'Email', user?.email || '')}>
+                                  {submittingProfileChange === "email" ? "Sending..." : "Request Change"}
+                                </Button>
+                              ) : null}
+                            </div>
+                            {emailStatus.status === 'pending' && emailStatus.request && (
+                              <div className="text-xs text-yellow-300/70 bg-yellow-500/10 rounded px-2 py-1">
+                                Requested: <span className="font-medium text-yellow-200">{emailStatus.request.requestedValue}</span>
+                                <span className="text-slate-400 ml-1">({new Date(emailStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
+                              </div>
+                            )}
+                            {emailStatus.status === 'rejected' && emailStatus.request && (
+                              <div className="text-xs bg-red-500/10 rounded px-2 py-1.5 border border-red-500/20">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-red-300 font-semibold">Request Rejected</span>
+                                  <button onClick={() => dismissRejectedRequest(emailStatus.request!.id)} className="text-slate-400 hover:text-white text-[0.65rem] underline">Dismiss</button>
+                                </div>
+                                {emailStatus.request.reviewNotes && (
+                                  <p className="text-red-300/70 mt-0.5">Reason: {emailStatus.request.reviewNotes}</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Phone Field */}
+                      {(() => {
+                        const phoneStatus = getFieldChangeStatus('phone');
+                        return (
+                          <div className="p-3 bg-slate-700 rounded-lg space-y-2">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                              <div>
+                                <span className="text-sm text-slate-300 block">Phone</span>
+                                <span className="text-sm text-white font-medium">{user?.phone}</span>
+                              </div>
+                              {phoneStatus.status === 'pending' ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded-lg text-xs font-semibold border border-yellow-500/30">
+                                  <Clock className="w-3 h-3" /> Pending Review
+                                </span>
+                              ) : phoneStatus.status === 'none' ? (
+                                <Button size="sm" variant="outline" className="hover:opacity-90" style={getClubButtonStyle('secondary')} disabled={!!submittingProfileChange}
+                                  onClick={() => openChangeRequestDialog('phone', 'Phone', (user as any)?.phone || '')}>
+                                  {submittingProfileChange === "phone" ? "Sending..." : "Request Change"}
+                                </Button>
+                              ) : null}
+                            </div>
+                            {phoneStatus.status === 'pending' && phoneStatus.request && (
+                              <div className="text-xs text-yellow-300/70 bg-yellow-500/10 rounded px-2 py-1">
+                                Requested: <span className="font-medium text-yellow-200">{phoneStatus.request.requestedValue}</span>
+                                <span className="text-slate-400 ml-1">({new Date(phoneStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
+                              </div>
+                            )}
+                            {phoneStatus.status === 'rejected' && phoneStatus.request && (
+                              <div className="text-xs bg-red-500/10 rounded px-2 py-1.5 border border-red-500/20">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-red-300 font-semibold">Request Rejected</span>
+                                  <button onClick={() => dismissRejectedRequest(phoneStatus.request!.id)} className="text-slate-400 hover:text-white text-[0.65rem] underline">Dismiss</button>
+                                </div>
+                                {phoneStatus.request.reviewNotes && (
+                                  <p className="text-red-300/70 mt-0.5">Reason: {phoneStatus.request.reviewNotes}</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                      <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+                        <span className="text-sm text-slate-300">
+                          PAN Card Number
+                        </span>
+                        <span className="text-sm text-white font-medium font-mono">
+                          {(user as any)?.panCard || (user as any)?.pan_card_number || "Not provided"}
+                        </span>
                       </div>
 
-                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-slate-700 rounded-lg gap-2">
-                        <div>
-                          <span className="text-sm text-slate-300 block">
-                            Email
+                      {(user as any)?.playerId && (
+                        <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+                          <span className="text-sm text-slate-300">
+                            Player ID / Nickname
                           </span>
                           <span className="text-sm text-white font-medium">
-                            {user?.email}
+                            {(user as any)?.playerId}
                           </span>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="hover:opacity-90"
-                          style={getClubButtonStyle('secondary')}
-                          disabled={!!submittingProfileChange}
-                          onClick={async () => {
-                            const current = user?.email || "";
-                            const requested = window.prompt(
-                              "Enter the new email address you would like on your profile:",
-                              current,
-                            );
-                            if (requested === null) return;
-                            await submitProfileChangeRequest(
-                              "email",
-                              requested,
-                              current || null,
-                            );
-                          }}
-                        >
-                          {submittingProfileChange === "email"
-                            ? "Sending..."
-                            : "Request Change"}
-                        </Button>
+                      )}
+
+                      <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+                        <span className="text-sm text-slate-300">
+                          Member Since
+                        </span>
+                        <span className="text-sm text-white font-medium">
+                          {user?.created_at || user?.createdAt
+                            ? new Date(user.created_at || user.createdAt).toLocaleDateString('en-IN', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                                timeZone: 'Asia/Kolkata'
+                              })
+                            : "N/A"}
+                        </span>
                       </div>
 
-                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 bg-slate-700 rounded-lg gap-2">
-                        <div>
-                          <span className="text-sm text-slate-300 block">
-                            Phone
-                          </span>
-                          <span className="text-sm text-white font-medium">
-                            {user?.phone}
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="hover:opacity-90"
-                          style={getClubButtonStyle('secondary')}
-                          disabled={!!submittingProfileChange}
-                          onClick={async () => {
-                            const current = (user as any)?.phone || "";
-                            const requested = window.prompt(
-                              "Enter the new phone number you would like on your profile:",
-                              current,
-                            );
-                            if (requested === null) return;
-                            await submitProfileChangeRequest(
-                              "phone",
-                              requested,
-                              current || null,
-                            );
-                          }}
-                        >
-                          {submittingProfileChange === "phone"
-                            ? "Sending..."
-                            : "Request Change"}
-                        </Button>
-                      </div>
                       <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
                         <span className="text-sm text-slate-300">
                           KYC Status
@@ -3801,11 +4306,16 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         </div>
                       </div>
                     </div>
-                    <CardContent className="pt-2 text-xs text-slate-400">
-                      Profile changes are processed by club staff. Use the
-                      per-field **Request Change** buttons above to submit
-                      secure requests for updates.
-                    </CardContent>
+                    <div className="pt-4 px-6 pb-2 text-xs text-slate-400 border-t border-slate-700">
+                      <p className="mb-2">
+                        <strong className="text-slate-300">Important:</strong> Your PAN Card number cannot be changed after submission for security and legal compliance.
+                      </p>
+                      <p>
+                        Profile changes (Name, Email, Phone) are processed by club staff. Use the
+                        per-field <strong>Request Change</strong> buttons above to submit
+                        secure requests for updates.
+                      </p>
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -3852,7 +4362,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                               </p>
                             )}
                             <p className="text-xs text-slate-500 mt-2">
-                              Joined: {new Date(entry.createdAt).toLocaleString()}
+                              Joined: {new Date(entry.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
                             </p>
                           </div>
                         ))}
@@ -3910,342 +4420,135 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             ? `Found ${kycDocuments.length} documents`
                             : "No documents found"}
                         </div>
-                        {/* ID Document */}
-                        <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
-                          <div className="flex items-center space-x-3 flex-1">
-                            {getKycStatusIcon(getKycDocumentStatus("id"))}
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-white">
-                                ID Document
-                              </p>
-                              <p className="text-xs text-slate-400 capitalize">
-                                {getKycDocumentStatus("id")}
-                              </p>
-                              {Array.isArray(kycDocuments) &&
-                                kycDocuments.filter(
-                                  (d) =>
-                                    d.documentType === "government_id" &&
-                                    d.fileUrl
-                                ).length > 0 && (
-                                  <div className="flex items-center space-x-2 mt-1">
-                                    <p className="text-xs text-emerald-500">
-                                      {Array.isArray(kycDocuments)
-                                        ? kycDocuments.filter(
-                                            (d) =>
-                                              d.documentType ===
-                                                "government_id" && d.fileUrl
-                                          )[0]?.fileName
-                                        : ""}
-                                    </p>
+                        {/* Govt ID */}
+                        {(() => {
+                          const govIdStatus = getFieldChangeStatus('government_id');
+                          return (
+                            <div className="p-3 bg-slate-700 rounded-lg space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3 flex-1">
+                                  {getKycStatusIcon(getKycDocumentStatus("id"))}
+                                  <div className="flex-1">
+                                    <p className="text-sm font-medium text-white">Govt ID</p>
+                                    <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus("id")}</p>
+                                    {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === "government_id" && d.fileUrl).length > 0 && (
+                                      <p className="text-xs text-emerald-500 mt-1">
+                                        {kycDocuments.filter(d => d.documentType === "government_id" && d.fileUrl)[0]?.fileName}
+                                      </p>
+                                    )}
                                   </div>
-                                )}
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-stretch space-y-2">
-                            {/* View button positioned above other buttons */}
-                            {Array.isArray(kycDocuments) &&
-                              kycDocuments.filter(
-                                (d) =>
-                                  d.documentType === "government_id" &&
-                                  d.fileUrl
-                              ).length > 0 && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
-                                  onClick={() => {
-                                    const doc = Array.isArray(kycDocuments)
-                                      ? kycDocuments.filter(
-                                          (d) =>
-                                            d.documentType ===
-                                              "government_id" && d.fileUrl
-                                        )[0]
-                                      : null;
-                                    if (doc && doc.fileUrl) {
-                                      try {
-                                        // Clear browser cache for this specific document and open in new tab
-                                        const documentUrl = `/api/documents/view/${
-                                          doc.id
-                                        }?v=${Date.now()}`;
-                                        console.log(
-                                          "Opening document:",
-                                          documentUrl
-                                        );
-
-                                        const newTab = window.open(
-                                          "about:blank",
-                                          "_blank"
-                                        );
-                                        if (newTab) {
-                                          newTab.location.href = documentUrl;
-                                        } else {
-                                          // Fallback if popup blocked
-                                          window.location.href = documentUrl;
-                                        }
-                                      } catch (error) {
-                                        console.error(
-                                          "Error opening document:",
-                                          error
-                                        );
-                                        toast({
-                                          title: "Error",
-                                          description:
-                                            "Unable to open document",
-                                          variant: "destructive",
-                                        });
-                                      }
-                                    }
-                                  }}
-                                >
-                                  <Eye className="w-3 h-3 mr-1" />
-                                  View Document
-                                </Button>
+                                </div>
+                                <div className="flex flex-col items-stretch space-y-2">
+                                  {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === "government_id" && d.fileUrl).length > 0 && (
+                                    <Button size="sm" variant="outline" className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
+                                      onClick={() => {
+                                        const doc = kycDocuments.filter(d => d.documentType === "government_id" && d.fileUrl)[0];
+                                        if (doc?.fileUrl) window.open(doc.fileUrl, "_blank");
+                                      }}>
+                                      <Eye className="w-3 h-3 mr-1" /> View Document
+                                    </Button>
+                                  )}
+                                  {govIdStatus.status === 'pending' ? (
+                                    <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded-lg text-xs font-semibold border border-yellow-500/30">
+                                      <Clock className="w-3 h-3" /> Pending Review
+                                    </span>
+                                  ) : (
+                                    <Button size="sm" variant="outline"
+                                      onClick={() => openChangeRequestDialog('government_id', 'Govt ID (Aadhaar)', 'existing document', true)}
+                                      disabled={!!submittingProfileChange}
+                                      className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full">
+                                      <AlertTriangle className="w-4 h-4 mr-1" /> Request Change
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                              {govIdStatus.status === 'pending' && govIdStatus.request && (
+                                <div className="text-xs text-yellow-300/70 bg-yellow-500/10 rounded px-2 py-1">
+                                  New document submitted for review
+                                  <span className="text-slate-400 ml-1">({new Date(govIdStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
+                                </div>
                               )}
-
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                              {/* Only show upload/reupload if not approved or if no documents */}
-                              {(getKycDocumentStatus("id") !== "approved" ||
-                                (kycDocuments as any)?.filter(
-                                  (d: any) =>
-                                    d.documentType === "government_id" &&
-                                    d.fileUrl
-                                ).length === 0) && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    document
-                                      .getElementById("id-document-upload")
-                                      ?.click()
-                                  }
-                                  disabled={uploadKycDocumentMutation.isPending}
-                                  className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
-                                >
-                                  <Upload className="w-4 h-4 mr-1" />
-                                  {(kycDocuments as any)?.filter(
-                                    (d: any) =>
-                                      d.documentType === "government_id" &&
-                                      d.fileUrl
-                                  ).length > 0
-                                    ? "Reupload"
-                                    : "Upload"}
-                                </Button>
-                              )}
-
-                              {/* Show request change button if approved */}
-                              {getKycDocumentStatus("id") === "approved" && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    toast({
-                                      title: "Request Change",
-                                      description:
-                                        "Change request functionality will be available in the next update",
-                                    });
-                                  }}
-                                  className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                                >
-                                  <AlertTriangle className="w-4 h-4 mr-1" />
-                                  <span className="text-xs sm:text-sm">
-                                    Request Change
-                                  </span>
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                          <input
-                            id="id-document-upload"
-                            type="file"
-                            accept=".jpg,.jpeg,.png,.pdf"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              console.log("File input changed for ID:", {
-                                file: file?.name,
-                                hasFile: !!file,
-                              });
-                              if (file) {
-                                handleKycDocumentUpload("government_id", file);
-                                // Reset the input value to allow re-uploading same file
-                                e.target.value = "";
-                              }
-                            }}
-                          />
-                        </div>
-
-                        {/* Address Document */}
-                        <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
-                          <div className="flex items-center space-x-3 flex-1">
-                            {getKycStatusIcon(getKycDocumentStatus("utility"))}
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-white">
-                                Address Proof
-                              </p>
-                              <p className="text-xs text-slate-400 capitalize">
-                                {getKycDocumentStatus("utility")}
-                              </p>
-                              {Array.isArray(kycDocuments) &&
-                                kycDocuments.filter(
-                                  (d) =>
-                                    d.documentType === "utility_bill" &&
-                                    d.fileUrl
-                                ).length > 0 && (
-                                  <div className="flex items-center space-x-2 mt-1">
-                                    <p className="text-xs text-emerald-500">
-                                      {Array.isArray(kycDocuments)
-                                        ? kycDocuments.filter(
-                                            (d) =>
-                                              d.documentType ===
-                                                "utility_bill" && d.fileUrl
-                                          )[0]?.fileName
-                                        : ""}
-                                    </p>
+                              {govIdStatus.status === 'rejected' && govIdStatus.request && (
+                                <div className="text-xs bg-red-500/10 rounded px-2 py-1.5 border border-red-500/20">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-red-300 font-semibold">Document Change Rejected</span>
+                                    <button onClick={() => dismissRejectedRequest(govIdStatus.request!.id)} className="text-slate-400 hover:text-white text-[0.65rem] underline">Dismiss</button>
                                   </div>
-                                )}
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-stretch space-y-2">
-                            {/* View button positioned above other buttons */}
-                            {Array.isArray(kycDocuments) &&
-                              kycDocuments.filter(
-                                (d) =>
-                                  d.documentType === "utility_bill" && d.fileUrl
-                              ).length > 0 && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
-                                  onClick={() => {
-                                    const doc = Array.isArray(kycDocuments)
-                                      ? kycDocuments.filter(
-                                          (d) =>
-                                            d.documentType === "utility_bill" &&
-                                            d.fileUrl
-                                        )[0]
-                                      : null;
-                                    if (doc && doc.fileUrl) {
-                                      try {
-                                        // Clear browser cache for this specific document and open in new tab
-                                        const documentUrl = `/api/documents/view/${
-                                          doc.id
-                                        }?v=${Date.now()}`;
-                                        console.log(
-                                          "Opening document:",
-                                          documentUrl
-                                        );
-
-                                        const newTab = window.open(
-                                          "about:blank",
-                                          "_blank"
-                                        );
-                                        if (newTab) {
-                                          newTab.location.href = documentUrl;
-                                        } else {
-                                          // Fallback if popup blocked
-                                          window.location.href = documentUrl;
-                                        }
-                                      } catch (error) {
-                                        console.error(
-                                          "Error opening document:",
-                                          error
-                                        );
-                                        toast({
-                                          title: "Error",
-                                          description:
-                                            "Unable to open document",
-                                          variant: "destructive",
-                                        });
-                                      }
-                                    }
-                                  }}
-                                >
-                                  <Eye className="w-3 h-3 mr-1" />
-                                  View Document
-                                </Button>
-                              )}
-
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                              {/* Only show upload/reupload if not approved or if no documents */}
-                              {(getKycDocumentStatus("utility") !==
-                                "approved" ||
-                                (kycDocuments as any)?.filter(
-                                  (d: any) =>
-                                    d.documentType === "utility_bill" &&
-                                    d.fileUrl
-                                ).length === 0) && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    document
-                                      .getElementById("utility-document-upload")
-                                      ?.click()
-                                  }
-                                  disabled={uploadKycDocumentMutation.isPending}
-                                  className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
-                                >
-                                  <Upload className="w-4 h-4 mr-1" />
-                                  {(kycDocuments as any)?.filter(
-                                    (d: any) =>
-                                      d.documentType === "utility_bill" &&
-                                      d.fileUrl
-                                  ).length > 0
-                                    ? "Reupload"
-                                    : "Upload"}
-                                </Button>
-                              )}
-
-                              {/* Show request change button if approved */}
-                              {getKycDocumentStatus("utility") ===
-                                "approved" && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    toast({
-                                      title: "Request Change",
-                                      description:
-                                        "Change request functionality will be available in the next update",
-                                    });
-                                  }}
-                                  className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                                >
-                                  <AlertTriangle className="w-4 h-4 mr-1" />
-                                  <span className="text-xs sm:text-sm">
-                                    Request Change
-                                  </span>
-                                </Button>
+                                  {govIdStatus.request.reviewNotes && <p className="text-red-300/70 mt-0.5">Reason: {govIdStatus.request.reviewNotes}</p>}
+                                </div>
                               )}
                             </div>
-                          </div>
-                          <input
-                            id="utility-document-upload"
-                            type="file"
-                            accept=".jpg,.jpeg,.png,.pdf"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              console.log(
-                                "File input changed for Utility Bill:",
-                                { file: file?.name, hasFile: !!file }
-                              );
-                              if (file) {
-                                handleKycDocumentUpload("utility_bill", file);
-                                // Reset the input value to allow re-uploading same file
-                                e.target.value = "";
-                              }
-                            }}
-                          />
-                        </div>
+                          );
+                        })()}
 
-                        {/* Photo Document */}
+                        {/* PAN Card */}
+                        {(() => {
+                          const panStatus = getFieldChangeStatus('pan_card');
+                          return (
+                            <div className="p-3 bg-slate-700 rounded-lg space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3 flex-1">
+                                  {getKycStatusIcon(getKycDocumentStatus("pan"))}
+                                  <div className="flex-1">
+                                    <p className="text-sm font-medium text-white">PAN Card</p>
+                                    <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus("pan")}</p>
+                                    {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === "pan_card" && d.fileUrl).length > 0 && (
+                                      <p className="text-xs text-emerald-500 mt-1">
+                                        {kycDocuments.filter(d => d.documentType === "pan_card" && d.fileUrl)[0]?.fileName}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex flex-col items-stretch space-y-2">
+                                  {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === "pan_card" && d.fileUrl).length > 0 && (
+                                    <Button size="sm" variant="outline" className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
+                                      onClick={() => {
+                                        const doc = kycDocuments.filter(d => d.documentType === "pan_card" && d.fileUrl)[0];
+                                        if (doc?.fileUrl) window.open(doc.fileUrl, "_blank");
+                                      }}>
+                                      <Eye className="w-3 h-3 mr-1" /> View Document
+                                    </Button>
+                                  )}
+                                  {panStatus.status === 'pending' ? (
+                                    <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded-lg text-xs font-semibold border border-yellow-500/30">
+                                      <Clock className="w-3 h-3" /> Pending Review
+                                    </span>
+                                  ) : (
+                                    <Button size="sm" variant="outline"
+                                      onClick={() => openChangeRequestDialog('pan_card', 'PAN Card', 'existing document', true)}
+                                      disabled={!!submittingProfileChange}
+                                      className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full">
+                                      <AlertTriangle className="w-4 h-4 mr-1" /> Request Change
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                              {panStatus.status === 'pending' && panStatus.request && (
+                                <div className="text-xs text-yellow-300/70 bg-yellow-500/10 rounded px-2 py-1">
+                                  New document submitted for review
+                                  <span className="text-slate-400 ml-1">({new Date(panStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
+                                </div>
+                              )}
+                              {panStatus.status === 'rejected' && panStatus.request && (
+                                <div className="text-xs bg-red-500/10 rounded px-2 py-1.5 border border-red-500/20">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-red-300 font-semibold">Document Change Rejected</span>
+                                    <button onClick={() => dismissRejectedRequest(panStatus.request!.id)} className="text-slate-400 hover:text-white text-[0.65rem] underline">Dismiss</button>
+                                  </div>
+                                  {panStatus.request.reviewNotes && <p className="text-red-300/70 mt-0.5">Reason: {panStatus.request.reviewNotes}</p>}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+
+                        {/* Profile Photo Document */}
                         <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
                           <div className="flex items-center space-x-3 flex-1">
                             {getKycStatusIcon(getKycDocumentStatus("photo"))}
                             <div className="flex-1">
                               <p className="text-sm font-medium text-white">
-                                Photo
+                                Profile Photo
                               </p>
                               <p className="text-xs text-slate-400 capitalize">
                                 {getKycDocumentStatus("photo")}
@@ -4271,7 +4574,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             </div>
                           </div>
                           <div className="flex flex-col items-stretch space-y-2">
-                            {/* View button positioned above other buttons */}
+                            {/* View Document button */}
                             {Array.isArray(kycDocuments) &&
                               kycDocuments.filter(
                                 (d) =>
@@ -4292,25 +4595,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                       : null;
                                     if (doc && doc.fileUrl) {
                                       try {
-                                        // Clear browser cache for this specific document and open in new tab
-                                        const documentUrl = `/api/documents/view/${
-                                          doc.id
-                                        }?v=${Date.now()}`;
+                                        const documentUrl = doc.fileUrl;
                                         console.log(
                                           "Opening document:",
                                           documentUrl
                                         );
-
-                                        const newTab = window.open(
-                                          "about:blank",
-                                          "_blank"
-                                        );
-                                        if (newTab) {
-                                          newTab.location.href = documentUrl;
-                                        } else {
-                                          // Fallback if popup blocked
-                                          window.location.href = documentUrl;
-                                        }
+                                        window.open(documentUrl, "_blank");
                                       } catch (error) {
                                         console.error(
                                           "Error opening document:",
@@ -4331,79 +4621,48 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </Button>
                               )}
 
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                              {/* Only show upload/reupload if not approved or if no documents */}
-                              {(getKycDocumentStatus("photo") !== "approved" ||
-                                (Array.isArray(kycDocuments) &&
-                                  kycDocuments.filter(
-                                    (d) =>
-                                      d.documentType === "profile_photo" &&
-                                      d.fileUrl
-                                  ).length === 0)) && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    document
-                                      .getElementById("photo-document-upload")
-                                      ?.click()
-                                  }
-                                  disabled={uploadKycDocumentMutation.isPending}
-                                  className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
-                                >
-                                  <Upload className="w-4 h-4 mr-1" />
-                                  {Array.isArray(kycDocuments) &&
-                                  kycDocuments.filter(
-                                    (d) =>
-                                      d.documentType === "profile_photo" &&
-                                      d.fileUrl
-                                  ).length > 0
-                                    ? "Reupload"
-                                    : "Upload"}
-                                </Button>
-                              )}
-
-                              {/* Show request change button if approved */}
-                              {getKycDocumentStatus("photo") === "approved" && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    toast({
-                                      title: "Request Change",
-                                      description:
-                                        "Change request functionality will be available in the next update",
-                                    });
-                                  }}
-                                  className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                                >
-                                  <AlertTriangle className="w-4 h-4 mr-1" />
-                                  <span className="text-xs sm:text-sm">
-                                    Request Change
-                                  </span>
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                          <input
-                            id="photo-document-upload"
-                            type="file"
-                            accept=".jpg,.jpeg,.png,.pdf"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              console.log("File input changed for Photo:", {
-                                file: file?.name,
-                                hasFile: !!file,
-                              });
-                              if (file) {
-                                handleKycDocumentUpload("profile_photo", file);
-                                // Reset the input value to allow re-uploading same file
-                                e.target.value = "";
+                            {/* Upload/Reupload button - players can change their profile photo anytime */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                document
+                                  .getElementById("photo-document-upload")
+                                  ?.click()
                               }
-                            }}
-                          />
+                              disabled={uploadKycDocumentMutation.isPending}
+                              className="border-slate-600 hover:bg-slate-600 w-full"
+                            >
+                              <Upload className="w-4 h-4 mr-1" />
+                              {Array.isArray(kycDocuments) &&
+                              kycDocuments.filter(
+                                (d) =>
+                                  d.documentType === "profile_photo" &&
+                                  d.fileUrl
+                              ).length > 0
+                                ? "Change Photo"
+                                : "Upload"}
+                            </Button>
+                          </div>
                         </div>
+                        <input
+                          id="photo-document-upload"
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            console.log("File input changed for Photo:", {
+                              file: file?.name,
+                              hasFile: !!file,
+                            });
+                            if (file) {
+                              handleKycDocumentUpload("profile_photo", file);
+                              // Reset the input value to allow re-uploading same file
+                              e.target.value = "";
+                            }
+                          }}
+                        />
 
                         {/* Upload status */}
                         {uploadKycDocumentMutation.isPending && (
@@ -4415,304 +4674,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                           </div>
                         )}
 
-                        {/* Document Summary */}
-                        {kycDocuments && kycDocuments.length > 0 && (
-                          <div className="mt-4 p-4 bg-slate-700 rounded-lg">
-                            <h4 className="text-sm font-medium text-white mb-3">
-                              Document Upload History
-                            </h4>
-                            <div className="mb-3 p-2 bg-slate-800 rounded border border-slate-600">
-                              <p className="text-xs text-slate-300">
-                                <strong>Note:</strong> Some older documents may
-                                need to be re-uploaded to view them. New uploads
-                                will be viewable immediately.
-                              </p>
-                            </div>
-                            <div className="space-y-2">
-                              {kycDocuments.map((doc) => {
-                                // Use createdAt as the timestamp
-                                const dateToFormat = doc.createdAt;
-                                const formattedDate = dateToFormat
-                                  ? formatSubmissionDate(
-                                      dateToFormat.toString()
-                                    )
-                                  : "No date";
-
-                                const formattedType = formatDocumentType(
-                                  doc.documentType || "document"
-                                );
-                                return (
-                                  <div
-                                    key={doc.id}
-                                    className="flex items-center justify-between py-2 border-b border-slate-600 last:border-b-0"
-                                  >
-                                    <div className="flex items-center space-x-3 flex-1">
-                                      <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                                      <div className="flex-1">
-                                        <p className="text-xs font-medium text-white">
-                                          {formattedType}
-                                        </p>
-                                        <p className="text-xs text-slate-400">
-                                          {doc.fileName}
-                                        </p>
-                                        <p className="text-xs text-slate-500">
-                                          {formattedDate}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                      <Badge
-                                        variant={
-                                          doc.status === "approved"
-                                            ? "default"
-                                            : doc.status === "pending"
-                                            ? "secondary"
-                                            : "destructive"
-                                        }
-                                        className="text-xs"
-                                      >
-                                        {doc.status}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
-                  </CardContent>
-                </Card>
-
-                {/* PAN Card Management */}
-                <Card className="bg-slate-800 border-slate-700">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center">
-                      <CreditCard className="w-5 h-5 mr-2 text-emerald-500" />
-                      PAN Card Verification
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* PAN Card Number Input */}
-                    <div className="space-y-3">
-                      <div className="p-3 bg-slate-700 rounded-lg">
-                        <p className="text-xs text-slate-400">
-                          Your PAN card number must be unique and cannot be used
-                          by other players
-                        </p>
-                      </div>
-
-                      <div className="flex flex-col space-y-2">
-                        <label
-                          htmlFor="pan-number"
-                          className="text-sm font-medium text-white"
-                        >
-                          PAN Card Number
-                        </label>
-                        <Input
-                          value={panCardNumber || ""}
-                          onChange={(e) =>
-                            setPanCardNumber(e.target.value.toUpperCase())
-                          }
-                          className={`bg-slate-700 border-slate-600 text-white h-12 ${
-                            panCardNumber && !isValidPAN(panCardNumber)
-                              ? "border-red-500"
-                              : ""
-                          }`}
-                          placeholder="ABCPF1234G"
-                          maxLength={10}
-                        />
-                        {panCardNumber && !isValidPAN(panCardNumber) && (
-                          <p className="text-red-400 text-xs mt-2">
-                            Invalid PAN card format. Please enter a valid PAN
-                            card number.
-                          </p>
-                        )}
-                      </div>
-
-                      <Button
-                        className="w-full hover:opacity-90 text-white disabled:opacity-50"
-                        style={getClubButtonStyle('primary')}
-                        onClick={handlePanCardUpdate}
-                        disabled={
-                          updatePanCardMutation.isPending ||
-                          !isValidPAN(panCardNumber)
-                        }
-                      >
-                        {updatePanCardMutation.isPending ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                            Updating...
-                          </>
-                        ) : (
-                          "Update PAN Card Number"
-                        )}
-                      </Button>
-                    </div>
-
-                    {/* PAN Card Document Upload - Now with full functionality like other KYC docs */}
-                    <div className="space-y-3 pt-4 border-t border-slate-600">
-                      <div className="flex items-center justify-between p-3 bg-slate-700 rounded-lg">
-                        <div className="flex items-center space-x-3 flex-1">
-                          {getKycStatusIcon(getKycDocumentStatus("pan_card"))}
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-white">
-                              PAN Card Document
-                            </p>
-                            <p className="text-xs text-slate-400 capitalize">
-                              {getKycDocumentStatus("pan_card")}
-                            </p>
-                            {Array.isArray(kycDocuments) &&
-                              kycDocuments.filter(
-                                (d) =>
-                                  d.documentType === "pan_card" && d.fileUrl
-                              ).length > 0 && (
-                                <div className="flex items-center space-x-2 mt-1">
-                                  <p className="text-xs text-emerald-500">
-                                    {Array.isArray(kycDocuments)
-                                      ? kycDocuments.filter(
-                                          (d) =>
-                                            d.documentType === "pan_card" &&
-                                            d.fileUrl
-                                        )[0]?.fileName
-                                      : ""}
-                                  </p>
-                                </div>
-                              )}
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-stretch space-y-2">
-                          {/* View button positioned above other buttons */}
-                          {Array.isArray(kycDocuments) &&
-                            kycDocuments.filter(
-                              (d) => d.documentType === "pan_card" && d.fileUrl
-                            ).length > 0 && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
-                                onClick={() => {
-                                  const doc = Array.isArray(kycDocuments)
-                                    ? kycDocuments.filter(
-                                        (d) =>
-                                          d.documentType === "pan_card" &&
-                                          d.fileUrl
-                                      )[0]
-                                    : null;
-                                  if (doc && doc.fileUrl) {
-                                    try {
-                                      // Clear browser cache for this specific document and open in new tab
-                                      const documentUrl = `/api/documents/view/${
-                                        doc.id
-                                      }?v=${Date.now()}`;
-                                      console.log(
-                                        "Opening document:",
-                                        documentUrl
-                                      );
-
-                                      const newTab = window.open(
-                                        "about:blank",
-                                        "_blank"
-                                      );
-                                      if (newTab) {
-                                        newTab.location.href = documentUrl;
-                                      } else {
-                                        // Fallback if popup blocked
-                                        window.location.href = documentUrl;
-                                      }
-                                    } catch (error) {
-                                      console.error(
-                                        "Error opening document:",
-                                        error
-                                      );
-                                      toast({
-                                        title: "Error",
-                                        description: "Unable to open document",
-                                        variant: "destructive",
-                                      });
-                                    }
-                                  }
-                                }}
-                              >
-                                <Eye className="w-3 h-3 mr-1" />
-                                View Document
-                              </Button>
-                            )}
-
-                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                            {/* Only show upload/reupload if not approved or if no documents */}
-                            {(getKycDocumentStatus("pan_card") !== "approved" ||
-                              (Array.isArray(kycDocuments) &&
-                                kycDocuments.filter(
-                                  (d) =>
-                                    d.documentType === "pan_card" && d.fileUrl
-                                ).length === 0)) && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  document
-                                    .getElementById("pan-document-upload")
-                                    ?.click()
-                                }
-                                disabled={uploadKycDocumentMutation.isPending}
-                                className="border-slate-600 hover:bg-slate-600 w-full sm:w-auto"
-                              >
-                                <Upload className="w-4 h-4 mr-1" />
-                                {Array.isArray(kycDocuments) &&
-                                kycDocuments.filter(
-                                  (d) =>
-                                    d.documentType === "pan_card" && d.fileUrl
-                                ).length > 0
-                                  ? "Reupload"
-                                  : "Upload"}
-                              </Button>
-                            )}
-
-                            {/* Show request change button if approved */}
-                            {getKycDocumentStatus("pan_card") ===
-                              "approved" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  toast({
-                                    title: "Request Change",
-                                    description:
-                                      "Change request functionality will be available in the next update",
-                                  });
-                                }}
-                                className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full sm:w-auto"
-                              >
-                                <AlertTriangle className="w-4 h-4 mr-1" />
-                                <span className="text-xs sm:text-sm">
-                                  Request Change
-                                </span>
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                        <input
-                          id="pan-document-upload"
-                          type="file"
-                          accept=".jpg,.jpeg,.png,.pdf"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            console.log("File input changed for PAN Card:", {
-                              file: file?.name,
-                              hasFile: !!file,
-                            });
-                            if (file) {
-                              handleKycDocumentUpload("pan_card", file);
-                              // Reset the input value to allow re-uploading same file
-                              e.target.value = "";
-                            }
-                          }}
-                        />
-                      </div>
-                    </div>
                   </CardContent>
                 </Card>
 
@@ -4772,12 +4735,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                       </p>
                                       <p className="text-xs text-slate-400">
                                         {new Date(
-                                          transaction.created_at
-                                        ).toLocaleDateString()}{" "}
+                                          transaction.createdAt || transaction.created_at
+                                        ).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}{" "}
                                         at{" "}
                                         {new Date(
-                                          transaction.created_at
-                                        ).toLocaleTimeString()}
+                                          transaction.createdAt || transaction.created_at
+                                        ).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}
                                       </p>
                                     </div>
                                     <div className="text-right">
@@ -4967,6 +4930,29 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         disabled={sendingFeedback}
                       />
                     </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-white">
+                        Rating <span className="text-slate-400 font-normal">(optional)</span>
+                      </label>
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setFeedbackRating(feedbackRating === star ? 0 : star)}
+                            className="text-2xl transition-colors focus:outline-none"
+                            disabled={sendingFeedback}
+                          >
+                            <span className={star <= feedbackRating ? 'text-yellow-400' : 'text-slate-600 hover:text-yellow-400/50'}>
+                              ★
+                            </span>
+                          </button>
+                        ))}
+                        {feedbackRating > 0 && (
+                          <span className="text-xs text-slate-400 ml-2">{feedbackRating}/5</span>
+                        )}
+                      </div>
+                    </div>
                     <Button
                       className="w-full hover:opacity-90 text-white disabled:opacity-50"
                       style={getClubButtonStyle('primary')}
@@ -5049,11 +5035,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 <span className="text-xs text-slate-400">
                                   {new Date(
                                     item.created_at,
-                                  ).toLocaleString()}
+                                  ).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
                                 </span>
                                 {item.rating != null && (
-                                  <span className="text-xs text-amber-400">
-                                    Rating: {item.rating}/5
+                                  <span className="text-xs text-yellow-400">
+                                    {'★'.repeat(item.rating)}{'☆'.repeat(5 - item.rating)}
                                   </span>
                                 )}
                               </div>
@@ -5206,7 +5192,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         {selectedTournament.startDate
                           ? new Date(
                               selectedTournament.startDate
-                            ).toLocaleString()
+                            ).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
                           : "TBA"}
                       </p>
                     </div>
@@ -5252,7 +5238,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                     </div>
                     {selectedTournament.structure && typeof selectedTournament.structure === 'object' && (
                       <>
-                        <div className="col-span-2">
+                        <div>
                           <p className="text-xs text-slate-400">Type</p>
                           <p className="font-semibold">
                             {selectedTournament.structure.tournament_type || 'N/A'}
@@ -5264,12 +5250,102 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             {selectedTournament.structure.starting_chips?.toLocaleString() || 'N/A'}
                           </p>
                         </div>
+                        {selectedTournament.structure.entry_fee != null && (
+                          <div>
+                            <p className="text-xs text-slate-400">Entry Fee</p>
+                            <p className="font-semibold">
+                              ₹{Number(selectedTournament.structure.entry_fee).toLocaleString()}
+                            </p>
+                          </div>
+                        )}
                         <div>
                           <p className="text-xs text-slate-400">Blind Levels</p>
                           <p className="font-semibold">
                             {selectedTournament.structure.minutes_per_level ? `${selectedTournament.structure.minutes_per_level} min` : 'N/A'}
                           </p>
                         </div>
+                        {selectedTournament.structure.blind_structure && (
+                          <div>
+                            <p className="text-xs text-slate-400">Blind Structure</p>
+                            <p className="font-semibold">
+                              {selectedTournament.structure.blind_structure}
+                            </p>
+                          </div>
+                        )}
+                        {selectedTournament.structure.number_of_levels && (
+                          <div>
+                            <p className="text-xs text-slate-400">Number of Levels</p>
+                            <p className="font-semibold">
+                              {selectedTournament.structure.number_of_levels}
+                            </p>
+                          </div>
+                        )}
+                        {selectedTournament.structure.break_structure && (
+                          <div>
+                            <p className="text-xs text-slate-400">Break Structure</p>
+                            <p className="font-semibold">
+                              {selectedTournament.structure.break_structure}
+                            </p>
+                          </div>
+                        )}
+                        {selectedTournament.structure.break_duration && (
+                          <div>
+                            <p className="text-xs text-slate-400">Break Duration</p>
+                            <p className="font-semibold">
+                              {selectedTournament.structure.break_duration} min
+                            </p>
+                          </div>
+                        )}
+                        {selectedTournament.structure.late_registration && (
+                          <div>
+                            <p className="text-xs text-slate-400">Late Registration</p>
+                            <p className="font-semibold">
+                              {selectedTournament.structure.late_registration} min
+                            </p>
+                          </div>
+                        )}
+                        {selectedTournament.structure.payout_structure && (
+                          <div>
+                            <p className="text-xs text-slate-400">Payout Structure</p>
+                            <p className="font-semibold">
+                              {selectedTournament.structure.payout_structure}
+                            </p>
+                          </div>
+                        )}
+                        {selectedTournament.structure.seat_draw_method && (
+                          <div>
+                            <p className="text-xs text-slate-400">Seat Draw</p>
+                            <p className="font-semibold">
+                              {selectedTournament.structure.seat_draw_method}
+                            </p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-xs text-slate-400">Rebuys</p>
+                          <p className="font-semibold">
+                            {selectedTournament.structure.allow_rebuys ? 'Yes' : 'No'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400">Re-entry</p>
+                          <p className="font-semibold">
+                            {selectedTournament.structure.allow_reentry ? 'Yes' : 'No'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400">Add-on</p>
+                          <p className="font-semibold">
+                            {selectedTournament.structure.allow_addon ? 'Yes' : 'No'}
+                          </p>
+                        </div>
+                        {selectedTournament.structure.bounty_amount > 0 && (
+                          <div>
+                            <p className="text-xs text-slate-400">Bounty</p>
+                            <p className="font-semibold">
+                              ₹{Number(selectedTournament.structure.bounty_amount).toLocaleString()}
+                            </p>
+                          </div>
+                        )}
                       </>
                     )}
                     {selectedTournament.structure && typeof selectedTournament.structure === 'string' && (
@@ -5284,6 +5360,19 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 </div>
               </>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Tournament Session Dialog - Live session view for registered players */}
+        <Dialog
+          open={tournamentSessionOpen}
+          onOpenChange={(open) => {
+            setTournamentSessionOpen(open);
+            if (!open) setSessionTournament(null);
+          }}
+        >
+          <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90vh] bg-slate-900 border-slate-700 p-0 overflow-y-auto">
+            {sessionTournament && <TournamentSessionContent tournament={sessionTournament} user={user} queryClient={queryClient} />}
           </DialogContent>
         </Dialog>
 
@@ -5307,6 +5396,83 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         </Dialog>
 
         {/* Live Session Tracking removed - already in Session tab */}
+
+        {/* Change Request Popup Dialog */}
+        <Dialog open={changeRequestDialog.open} onOpenChange={(open) => setChangeRequestDialog(prev => ({ ...prev, open }))}>
+          <DialogContent className="max-w-md bg-slate-800 border-slate-700 text-white">
+            <DialogHeader>
+              <DialogTitle className="text-white text-lg flex items-center">
+                <Edit3 className="w-5 h-5 mr-2 text-blue-400" />
+                Request {changeRequestDialog.fieldLabel} Change
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              {changeRequestDialog.currentValue && !changeRequestDialog.isDocument && (
+                <div className="p-3 bg-slate-700/50 rounded-lg">
+                  <p className="text-xs text-slate-400 mb-1">Current {changeRequestDialog.fieldLabel}</p>
+                  <p className="text-sm text-white font-medium">{changeRequestDialog.currentValue}</p>
+                </div>
+              )}
+
+              {changeRequestDialog.isDocument ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-300">Upload the new {changeRequestDialog.fieldLabel} document</p>
+                  <div className="border-2 border-dashed border-slate-600 rounded-lg p-4 text-center">
+                    <input
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        if (file && file.size > 5 * 1024 * 1024) {
+                          toast({ title: "File too large", description: "Max file size is 5MB", variant: "destructive" });
+                          return;
+                        }
+                        setChangeRequestFile(file);
+                      }}
+                      className="block w-full text-sm text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
+                    />
+                    {changeRequestFile && (
+                      <p className="text-xs text-emerald-400 mt-2 flex items-center justify-center gap-1">
+                        <CheckCircle className="w-3 h-3" /> {changeRequestFile.name}
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500">Supported: JPG, PNG, PDF (max 5MB)</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-sm text-slate-300 block">
+                    New {changeRequestDialog.fieldLabel}
+                  </label>
+                  <Input
+                    type={changeRequestDialog.fieldName === 'email' ? 'email' : changeRequestDialog.fieldName === 'phone' ? 'tel' : 'text'}
+                    value={changeRequestValue}
+                    onChange={(e) => setChangeRequestValue(e.target.value)}
+                    placeholder={`Enter new ${changeRequestDialog.fieldLabel.toLowerCase()}`}
+                    className="bg-slate-700 border-slate-600 text-white placeholder-slate-500 h-11"
+                    autoFocus
+                  />
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setChangeRequestDialog(prev => ({ ...prev, open: false }))}
+                className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-700"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleChangeRequestSubmit}
+                disabled={!!submittingProfileChange || uploadingChangeDoc || (changeRequestDialog.isDocument ? !changeRequestFile : !changeRequestValue.trim())}
+                className="flex-1 bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50"
+              >
+                {submittingProfileChange || uploadingChangeDoc ? "Submitting..." : "Submit Request"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

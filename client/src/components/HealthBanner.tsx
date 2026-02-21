@@ -16,7 +16,7 @@ export default function HealthBanner() {
       const response = await apiRequest('GET', '/api/health');
       return await response.json();
     },
-    refetchInterval: 30000, // Check every 30 seconds
+    refetchInterval: 60000,
     retry: 3,
   });
 
