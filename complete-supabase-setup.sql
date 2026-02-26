@@ -245,26 +245,26 @@ CREATE POLICY "Service role can manage all seat requests" ON seat_requests
 -- Tables are public (read-only for players)
 ALTER TABLE tables DISABLE ROW LEVEL SECURITY;
 
--- Create storage buckets for file uploads
+-- Create storage buckets for file uploads (all player KYC uses kyc-docs)
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('kyc-documents', 'kyc-documents', false)
+VALUES ('kyc-docs', 'kyc-docs', false)
 ON CONFLICT (id) DO NOTHING;
 
 -- Create storage policies
 CREATE POLICY "Players can upload their own KYC documents" ON storage.objects
     FOR INSERT WITH CHECK (
-        bucket_id = 'kyc-documents' AND 
+        bucket_id = 'kyc-docs' AND 
         (storage.foldername(name))[1] = auth.uid()::text
     );
 
 CREATE POLICY "Players can view their own KYC documents" ON storage.objects
     FOR SELECT USING (
-        bucket_id = 'kyc-documents' AND 
+        bucket_id = 'kyc-docs' AND 
         (storage.foldername(name))[1] = auth.uid()::text
     );
 
 CREATE POLICY "Service role can manage all KYC documents" ON storage.objects
-    FOR ALL USING (auth.role() = 'service_role' AND bucket_id = 'kyc-documents');
+    FOR ALL USING (auth.role() = 'service_role' AND bucket_id = 'kyc-docs');
 
 -- Create views for reporting and analytics
 CREATE OR REPLACE VIEW player_stats AS

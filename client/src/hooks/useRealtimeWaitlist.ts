@@ -21,7 +21,7 @@ export function useRealtimeWaitlist(playerId: number | string | null | undefined
         {
           event: '*', // INSERT, UPDATE, DELETE
           schema: 'public',
-          table: 'waitlist',
+          table: 'waitlist_entries',
           filter: `player_id=eq.${playerId}`,
         },
         (payload) => {

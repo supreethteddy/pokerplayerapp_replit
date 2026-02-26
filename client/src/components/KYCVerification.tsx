@@ -19,7 +19,10 @@ import { useUltraFastAuth } from "@/hooks/useUltraFastAuth";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { API_BASE_URL } from "@/lib/api/config";
+import { supabase } from "@/lib/supabase";
 import { fetchClubBranding, applyClubBranding, getGradientClasses, getGradientStyle, type ClubBranding } from "@/lib/clubBranding";
+
+const KYC_BUCKET = "kyc-docs";
 
 export default function KYCVerification() {
   const [, setLocation] = useLocation();
@@ -160,7 +163,8 @@ export default function KYCVerification() {
     },
   });
 
-  // KYC document upload mutation
+  // KYC document upload mutation — uploads directly from browser to Supabase Storage,
+  // then records the path via the /record endpoint (no backend → Storage call).
   const uploadKycDocumentMutation = useMutation({
     mutationFn: async ({
       documentType,
@@ -169,50 +173,61 @@ export default function KYCVerification() {
       documentType: string;
       file: File;
     }) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('documentType', documentType);
-      formData.append('fileName', file.name);
-
       const playerId = kycData?.playerId || kycData?.id || user?.id;
       let clubId = kycData?.clubId;
-      
-      // Fallback: Try to get clubId from sessionStorage if not in kycData
+
       if (!clubId) {
-        const storedClubId = sessionStorage.getItem('clubId') || localStorage.getItem('clubId');
-        if (storedClubId) {
-          clubId = storedClubId;
-        }
+        clubId = sessionStorage.getItem('clubId') || localStorage.getItem('clubId') || undefined;
       }
 
       if (!playerId || !clubId) {
         throw new Error('Player ID and Club ID are required for upload');
       }
 
-      console.log('📤 [KYC UPLOAD] Uploading document:', {
-        documentType,
-        fileName: file.name,
-        playerId,
-        clubId,
-        fileSize: file.size
+      console.log('📤 [KYC UPLOAD] Uploading document (client-side):', {
+        documentType, fileName: file.name, playerId, clubId, fileSize: file.size,
       });
 
-      const response = await fetch(`${API_BASE_URL}/player-documents/upload`, {
+      // Step 1: Upload file directly from browser to Supabase Storage
+      const ext = file.name.split('.').pop() || 'pdf';
+      const filePath = `${clubId}/${playerId}/${documentType}/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(KYC_BUCKET)
+        .upload(filePath, file, {
+          contentType: file.type || 'application/octet-stream',
+          upsert: true,
+        });
+
+      if (uploadError) {
+        throw new Error(uploadError.message || 'Failed to upload to storage');
+      }
+
+      // Step 2: Tell the backend to record the document URL (no Storage call from backend)
+      const recordRes = await fetch(`${API_BASE_URL}/player-documents/record`, {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'x-player-id': playerId,
           'x-club-id': clubId,
         },
-        body: formData,
-        credentials: 'include',
+        body: JSON.stringify({
+          playerId,
+          clubId,
+          documentType,
+          filePath,
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.type,
+        }),
       });
 
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error || 'Upload failed');
+      if (!recordRes.ok) {
+        const err = await recordRes.json().catch(() => ({ message: 'Failed to record document' }));
+        throw new Error(err.message || 'Failed to record document');
       }
 
-      return response.json();
+      return recordRes.json();
     },
     onSuccess: () => {
       toast({

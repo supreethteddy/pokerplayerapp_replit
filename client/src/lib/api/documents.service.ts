@@ -68,12 +68,13 @@ class DocumentsService extends BaseAPIService {
     if (data?.name) formData.append('name', data.name);
 
     // Use fetch directly for file upload
-    const response = await fetch(`${this.baseURL}/player-documents/upload`, {
+    const { playerId, clubId } = this.getPlayerSession();
+    const response = await fetch(`${this.baseUrl}/player-documents/upload`, {
       method: 'POST',
       body: formData,
       headers: {
-        'x-player-id': this.getPlayerId() || '',
-        'x-club-id': this.getClubId() || '',
+        'x-player-id': playerId || '',
+        'x-club-id': clubId || '',
       },
     });
 
