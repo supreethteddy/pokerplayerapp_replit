@@ -16,6 +16,7 @@ import {
   Timer,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { useRealtimeTournaments } from "@/hooks/useRealtimeTournaments";
 
 interface TournamentsTabProps {
   user: any;
@@ -122,7 +123,10 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch upcoming tournaments
+  // Real-time updates when admin starts/ends session, pauses, completes tournament or eliminates player
+  useRealtimeTournaments(user?.id, user?.clubId);
+
+  // Fetch upcoming tournaments (refetch every 10s so pause/end/session updates appear without refresh)
   const { data: tournamentsData, isLoading: tournamentsLoading } = useQuery<{
     tournaments: any[];
     total: number;
@@ -137,7 +141,8 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
       return await response.json();
     },
     refetchOnWindowFocus: true,
-    staleTime: 5000,
+    refetchInterval: 10000,
+    staleTime: 3000,
   });
 
   // Fetch my registrations

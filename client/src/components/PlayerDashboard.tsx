@@ -873,7 +873,8 @@ function TournamentSessionContent({ tournament, user, queryClient }: { tournamen
       return res.json();
     },
     enabled: !!tournament.id && !!user?.id,
-    refetchInterval: 60000,
+    refetchInterval: 5000,
+    staleTime: 2000,
   });
 
   const handleRebuyReentry = async (type: 'rebuy' | 'reentry') => {
@@ -1313,22 +1314,43 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   useRealtimeBuyIn(user?.id);
   useRealtimeNotifications(user?.id);
   useRealtimeCreditRequests(user?.id);
-  useRealtimeTournaments(user?.id);
+  useRealtimeTournaments(user?.id, user?.clubId);
   useRealtimeProfileRequests(user?.id);
   useRealtimeOffers();
 
   // Map backend table data to dashboard format
-  const tables = (tablesData?.tables || []).map((table: any) => ({
-    id: table.id,
-    name: `Table ${table.tableNumber}`,
-    gameType: "Texas Hold'em",
-    stakes: `₹${table.minBuyIn || 0}.00/₹${table.maxBuyIn || 0}.00`,
-    maxPlayers: table.maxSeats || 9,
-    currentPlayers: table.currentSeats || 0,
-    pot: 0, // TODO: Add real-time pot data
-    avgStack: 0, // TODO: Add average stack calculation
-    isActive: table.status === 'AVAILABLE',
-  }));
+  const tables = (tablesData?.tables || []).map((table: any) => {
+    const isRummy = table.tableType === 'RUMMY';
+    const gameTypeLabel = isRummy
+      ? `Rummy${table.rummyVariant ? ` – ${table.rummyVariant}` : ''}`
+      : table.tableType === 'CASH' ? "Cash Game (Poker)"
+      : table.tableType === 'HIGH_STAKES' ? "High Stakes (Poker)"
+      : table.tableType === 'TOURNAMENT' ? "Tournament (Poker)"
+      : table.tableType === 'PRIVATE' ? "Private (Poker)"
+      : "Texas Hold'em";
+    const stakesLabel = isRummy
+      ? (table.entryFee ? `Entry: ₹${Number(table.entryFee).toLocaleString()}` : 'Points Game')
+      : `₹${table.minBuyIn || 0}/₹${table.maxBuyIn || 0}`;
+    return {
+      id: table.id,
+      name: `Table ${table.tableNumber}`,
+      gameType: gameTypeLabel,
+      tableType: table.tableType,
+      isRummy,
+      rummyVariant: table.rummyVariant || null,
+      entryFee: table.entryFee || null,
+      pointsValue: table.pointsValue || null,
+      numberOfDeals: table.numberOfDeals || null,
+      dropPoints: table.dropPoints || null,
+      maxPoints: table.maxPoints || null,
+      stakes: stakesLabel,
+      maxPlayers: table.maxSeats || 9,
+      currentPlayers: table.currentSeats || 0,
+      pot: 0,
+      avgStack: 0,
+      isActive: table.status === 'AVAILABLE',
+    };
+  });
 
   // Fetch seat requests with smart refresh
   const { data: seatRequests, isLoading: requestsLoading } = useQuery<
@@ -3384,20 +3406,49 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         </div>
                       ) : (
                         <div className="space-y-3 sm:space-y-4">
+                          {/* Poker Tables */}
+                          {tables && tables.filter((t: any) => !t.isRummy).length > 0 && (
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">♠ Poker Tables</span>
+                              </div>
+                            </div>
+                          )}
+                          {/* Rummy Tables */}
+                          {tables && tables.filter((t: any) => t.isRummy).length > 0 && (
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-xs font-semibold text-rose-400 uppercase tracking-wide">🃏 Rummy Tables</span>
+                              </div>
+                            </div>
+                          )}
                           {tables &&
-                            tables.map((table) => (
+                            tables.map((table: any) => (
                               <div
                                 key={table.id}
-                                className="bg-slate-700 p-3 sm:p-4 rounded-lg"
+                                className={`p-3 sm:p-4 rounded-lg ${table.isRummy ? 'bg-rose-950/40 border border-rose-800/30' : 'bg-slate-700'}`}
                               >
                                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3 sm:gap-0">
                                   <div className="flex-1 min-w-0">
-                                    <h3 className="font-semibold text-white text-sm sm:text-base truncate">
-                                      {table.name}
-                                    </h3>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <h3 className="font-semibold text-white text-sm sm:text-base truncate">
+                                        {table.name}
+                                      </h3>
+                                      {table.isRummy && (
+                                        <Badge className="bg-rose-600/80 text-white text-[10px] px-1.5 py-0 flex-shrink-0">RUMMY</Badge>
+                                      )}
+                                    </div>
                                     <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
                                       {table.gameType}
                                     </p>
+                                    {/* Rummy extra info */}
+                                    {table.isRummy && (table.pointsValue || table.numberOfDeals) && (
+                                      <p className="text-[10px] text-rose-300/80 mt-0.5">
+                                        {table.pointsValue ? `₹${table.pointsValue}/pt` : ''}
+                                        {table.pointsValue && table.numberOfDeals ? ' • ' : ''}
+                                        {table.numberOfDeals ? `${table.numberOfDeals} deals` : ''}
+                                      </p>
+                                    )}
                                     {/* Game Status Indicator */}
                                     <div className="flex items-center space-x-2 mt-1.5 sm:mt-1">
                                       <div

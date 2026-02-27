@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { API_BASE_URL } from '@/lib/api/config';
+import type { PlayerProfileUpdatedDetail } from '@/hooks/useRealtimeProfileRequests';
 
 export function useUltraFastAuth() {
   const [user, setUser] = useState<any>(null);
@@ -61,6 +62,39 @@ export function useUltraFastAuth() {
     };
 
     checkAuthState();
+  }, []);
+
+  // Listen for admin-approved field updates and patch user state immediately (no logout needed)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { fieldName, newValue } = (e as CustomEvent<PlayerProfileUpdatedDetail>).detail;
+
+      setUser((prev: any) => {
+        if (!prev) return prev;
+
+        const patch: Record<string, string> = {};
+        if (fieldName === 'name') {
+          patch.name = newValue;
+          const parts = newValue.trim().split(' ');
+          patch.firstName = parts[0] || '';
+          patch.lastName = parts.slice(1).join(' ') || '';
+        } else if (fieldName === 'email') {
+          patch.email = newValue;
+        } else if (fieldName === 'phoneNumber') {
+          patch.phone = newValue;
+        }
+
+        const updated = { ...prev, ...patch };
+
+        // Keep sessionStorage in sync
+        sessionStorage.setItem('authenticated_user', JSON.stringify(updated));
+
+        return updated;
+      });
+    };
+
+    window.addEventListener('player-profile-updated', handler);
+    return () => window.removeEventListener('player-profile-updated', handler);
   }, []);
 
   const handleSignOut = async () => {

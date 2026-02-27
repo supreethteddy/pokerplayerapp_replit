@@ -66,7 +66,7 @@ AS $$
 DECLARE
     storage_url TEXT;
 BEGIN
-    storage_url := 'https://oyhnpnymlezjusnwpjeu.supabase.co/storage/v1/object/public/kyc-documents/';
+    storage_url := 'https://oyhnpnymlezjusnwpjeu.supabase.co/storage/v1/object/public/kyc-docs/';
     
     RETURN QUERY 
     SELECT 
@@ -82,16 +82,16 @@ BEGIN
 END;
 $$;
 
--- Create storage bucket policies
+-- Create storage bucket policies (all player KYC uses kyc-docs)
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('kyc-documents', 'kyc-documents', true)
+VALUES ('kyc-docs', 'kyc-docs', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
 -- Storage policy: Allow authenticated users to upload their own documents
 CREATE POLICY "Users can upload their own documents"
 ON storage.objects FOR INSERT
 WITH CHECK (
-    bucket_id = 'kyc-documents' AND
+    bucket_id = 'kyc-docs' AND
     (storage.foldername(name))[1] IN (
         SELECT id::text FROM players 
         WHERE supabase_id = auth.uid()::text
@@ -101,13 +101,13 @@ WITH CHECK (
 -- Storage policy: Allow public read access to documents
 CREATE POLICY "Public read access to documents"
 ON storage.objects FOR SELECT
-USING (bucket_id = 'kyc-documents');
+USING (bucket_id = 'kyc-docs');
 
 -- Storage policy: Allow staff to access all documents
 CREATE POLICY "Staff can access all documents"
 ON storage.objects FOR SELECT
 USING (
-    bucket_id = 'kyc-documents' AND
+    bucket_id = 'kyc-docs' AND
     (
         (SELECT coalesce((auth.jwt()->>'app_metadata')::jsonb->>'role', 'user')) = 'staff'
         OR true -- Allow all access for development
