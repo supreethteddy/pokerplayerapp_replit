@@ -1324,10 +1324,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     const gameTypeLabel = isRummy
       ? `Rummy${table.rummyVariant ? ` – ${table.rummyVariant}` : ''}`
       : table.tableType === 'CASH' ? "Cash Game (Poker)"
-      : table.tableType === 'HIGH_STAKES' ? "High Stakes (Poker)"
-      : table.tableType === 'TOURNAMENT' ? "Tournament (Poker)"
-      : table.tableType === 'PRIVATE' ? "Private (Poker)"
-      : "Texas Hold'em";
+        : table.tableType === 'HIGH_STAKES' ? "High Stakes (Poker)"
+          : table.tableType === 'TOURNAMENT' ? "Tournament (Poker)"
+            : table.tableType === 'PRIVATE' ? "Private (Poker)"
+              : "Texas Hold'em";
     const stakesLabel = isRummy
       ? (table.entryFee ? `Entry: ₹${Number(table.entryFee).toLocaleString()}` : 'Points Game')
       : `₹${table.minBuyIn || 0}/₹${table.maxBuyIn || 0}`;
@@ -3405,260 +3405,453 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                           ))}
                         </div>
                       ) : (
-                        <div className="space-y-3 sm:space-y-4">
-                          {/* Poker Tables */}
-                          {tables && tables.filter((t: any) => !t.isRummy).length > 0 && (
-                            <div>
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">♠ Poker Tables</span>
-                              </div>
-                            </div>
-                          )}
-                          {/* Rummy Tables */}
+                        <div className="space-y-4 sm:space-y-6">
+                          {/* Rummy Tables Section */}
                           {tables && tables.filter((t: any) => t.isRummy).length > 0 && (
-                            <div>
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-xs font-semibold text-rose-400 uppercase tracking-wide">🃏 Rummy Tables</span>
+                            <div className="space-y-2 sm:space-y-3">
+                              <div className="flex items-center gap-2 px-1">
+                                <span className="text-xs sm:text-sm font-bold text-rose-400 uppercase tracking-widest border-l-4 border-rose-500 pl-2">🃏 Rummy Tables</span>
                               </div>
-                            </div>
-                          )}
-                          {tables &&
-                            tables.map((table: any) => (
-                              <div
-                                key={table.id}
-                                className={`p-3 sm:p-4 rounded-lg ${table.isRummy ? 'bg-rose-950/40 border border-rose-800/30' : 'bg-slate-700'}`}
-                              >
-                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3 sm:gap-0">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <h3 className="font-semibold text-white text-sm sm:text-base truncate">
-                                        {table.name}
-                                      </h3>
-                                      {table.isRummy && (
-                                        <Badge className="bg-rose-600/80 text-white text-[10px] px-1.5 py-0 flex-shrink-0">RUMMY</Badge>
-                                      )}
-                                    </div>
-                                    <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-                                      {table.gameType}
-                                    </p>
-                                    {/* Rummy extra info */}
-                                    {table.isRummy && (table.pointsValue || table.numberOfDeals) && (
-                                      <p className="text-[10px] text-rose-300/80 mt-0.5">
-                                        {table.pointsValue ? `₹${table.pointsValue}/pt` : ''}
-                                        {table.pointsValue && table.numberOfDeals ? ' • ' : ''}
-                                        {table.numberOfDeals ? `${table.numberOfDeals} deals` : ''}
-                                      </p>
-                                    )}
-                                    {/* Game Status Indicator */}
-                                    <div className="flex items-center space-x-2 mt-1.5 sm:mt-1">
-                                      <div
-                                        className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full flex-shrink-0 ${table.isActive
-                                          ? "bg-red-500"
-                                          : "bg-green-500"
-                                          }`}
-                                      ></div>
-                                      <span
-                                        className={`text-[0.65rem] sm:text-xs ${table.isActive
-                                          ? "text-red-400"
-                                          : "text-green-400"
-                                          }`}
-                                      >
-                                        {table.isActive
-                                          ? "Game In Progress"
-                                          : "Accepting Players"}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div className="text-left sm:text-right flex-shrink-0">
-                                    <p className="text-xs sm:text-sm text-slate-400">
-                                      Stakes
-                                    </p>
-                                    <p className="text-base sm:text-lg font-semibold text-emerald-500">
-                                      {table.stakes}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 gap-3 sm:gap-4 mb-3">
-                                  <div className="text-center">
-                                    <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 mx-auto mb-1" />
-                                    <p className="text-[0.65rem] sm:text-xs text-slate-400">
-                                      Players
-                                    </p>
-                                    <p className="text-xs sm:text-sm font-semibold text-white">
-                                      {table.currentPlayers || 0}/
-                                      {table.maxPlayers || 9}
-                                    </p>
-                                  </div>
-                                  {/* Average Stack element hidden as requested */}
-                                </div>
-
-                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-2">
-                                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:space-x-2 min-w-0 flex-1">
-                                    {isTableJoined(String(table.id)) ? (
-                                      <>
-                                        <div className="flex flex-wrap items-center gap-2">
-                                          <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs sm:text-sm whitespace-nowrap">
-                                            Joined
-                                          </Badge>
-                                          <span className="text-xs sm:text-sm text-slate-400 whitespace-nowrap">
-                                            Position:{" "}
-                                            {getWaitListPosition(
-                                              String(table.id)
-                                            )}
-                                          </span>
-                                        </div>
-                                        {/* Show game status for waitlisted players */}
-                                        {tableStatuses &&
-                                          typeof tableStatuses === "object" &&
-                                          tableStatuses !== null &&
-                                          String(table.id) in tableStatuses && (
-                                            <div className="flex items-center space-x-1">
-                                              {(
-                                                tableStatuses as Record<
-                                                  string,
-                                                  any
-                                                >
-                                              )[String(table.id)]
-                                                ?.gameStarted && (
-                                                  <span className="text-[0.65rem] sm:text-xs text-amber-400">
-                                                    ⚠️ Game started
-                                                  </span>
-                                                )}
-                                            </div>
-                                          )}
-                                        {/* Only show Leave button if game hasn't started or player is not seated at this table */}
-                                        {!(
-                                          tableStatuses &&
-                                          typeof tableStatuses === "object" &&
-                                          (tableStatuses as any)[
-                                            String(table.id)
-                                          ]?.gameStarted &&
-                                          gameStatus.isInActiveGame &&
-                                          gameStatus.activeGameInfo?.tableId ===
-                                          String(table.id)
-                                        ) && (
-                                            <Button
-                                              onClick={() =>
-                                                handleLeaveWaitList(
-                                                  String(table.id)
-                                                )
-                                              }
-                                              disabled={
-                                                leaveWaitListMutation.isPending
-                                              }
-                                              size="sm"
-                                              variant="outline"
-                                              className="bg-gradient-to-r from-slate-600/30 to-slate-500/30 border border-slate-400/50 text-slate-300 hover:from-slate-500/40 hover:to-slate-400/40 hover:border-slate-300 hover:text-slate-200 transition-all duration-300 shadow-lg hover:shadow-slate-500/25 backdrop-blur-sm min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto"
-                                            >
-                                              {leaveWaitListMutation.isPending ? (
-                                                <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-slate-300 border-t-transparent rounded-full animate-spin mr-2" />
-                                              ) : null}
-                                              Leave
-                                            </Button>
-                                          )}
-                                      </>
-                                    ) : (waitlistData?.onWaitlist && (String(waitlistData.entry?.table_id || waitlistData.entry?.tableId || waitlistData.tableInfo?.tableId) === String(table.id))) ? (
-                                      <div className="flex flex-col space-y-2 w-full">
-                                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 sm:p-3">
-                                          <div className="flex items-center justify-between mb-1">
-                                            <span className="text-xs sm:text-sm font-semibold text-amber-400">On Waitlist</span>
-                                            <Badge className="bg-amber-500 text-black text-xs">#{waitlistData.position}</Badge>
+                              <div className="grid grid-cols-1 gap-2.5 sm:gap-3.5">
+                                {tables
+                                  .filter((t: any) => t.isRummy)
+                                  .map((table: any) => (
+                                    <div
+                                      key={table.id}
+                                      className="p-2.5 sm:p-3 rounded-lg bg-rose-950/40 border border-rose-800/30"
+                                    >
+                                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3 sm:gap-0">
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <h3 className="font-semibold text-white text-sm sm:text-base truncate">
+                                              {table.name}
+                                            </h3>
+                                            <Badge className="bg-rose-600/80 text-white text-[10px] px-1.5 py-0 flex-shrink-0">RUMMY</Badge>
                                           </div>
-                                          <p className="text-[0.65rem] sm:text-xs text-slate-300">
-                                            {waitlistData.entry?.tableType}
+                                          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+                                            {table.gameType}
+                                          </p>
+                                          {/* Rummy extra info */}
+                                          {(table.pointsValue || table.numberOfDeals) && (
+                                            <p className="text-[10px] text-rose-300/80 mt-0.5">
+                                              {table.pointsValue ? `₹${table.pointsValue}/pt` : ''}
+                                              {table.pointsValue && table.numberOfDeals ? ' • ' : ''}
+                                              {table.numberOfDeals ? `${table.numberOfDeals} deals` : ''}
+                                            </p>
+                                          )}
+                                          {/* Game Status Indicator */}
+                                          <div className="flex items-center space-x-2 mt-1.5 sm:mt-1">
+                                            <div
+                                              className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full flex-shrink-0 ${table.isActive
+                                                ? "bg-red-500"
+                                                : "bg-green-500"
+                                                }`}
+                                            ></div>
+                                            <span
+                                              className={`text-[0.65rem] sm:text-xs ${table.isActive
+                                                ? "text-red-400"
+                                                : "text-green-400"
+                                                }`}
+                                            >
+                                              {table.isActive
+                                                ? "Game In Progress"
+                                                : "Accepting Players"}
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <div className="text-left sm:text-right flex-shrink-0">
+                                          <p className="text-xs sm:text-sm text-slate-400">
+                                            Stakes
+                                          </p>
+                                          <p className="text-base sm:text-lg font-semibold text-emerald-500">
+                                            {table.stakes}
                                           </p>
                                         </div>
-                                        <Button
-                                          onClick={() => {
-                                            if (waitlistData?.entry?.id) {
-                                              cancelWaitlistMutation.mutate(waitlistData.entry.id);
-                                            }
-                                          }}
-                                          disabled={cancelWaitlistMutation.isPending}
-                                          size="sm"
-                                          variant="outline"
-                                          className="bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full"
-                                        >
-                                          {cancelWaitlistMutation.isPending ? (
-                                            <>
-                                              <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin mr-2" />
-                                              Leaving...
-                                            </>
-                                          ) : (
-                                            <>
-                                              <X className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                                              Leave Waitlist
-                                            </>
-                                          )}
-                                        </Button>
                                       </div>
-                                    ) : gameStatus.isInActiveGame ? (
-                                      <div className="flex flex-col space-y-2 w-full">
-                                        <Button
-                                          disabled={true}
-                                          size="sm"
-                                          className="bg-slate-600 text-slate-400 cursor-not-allowed opacity-50 min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full"
-                                        >
-                                          <AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                                          <span className="hidden sm:inline">Cannot Join - Playing at Another Table</span>
-                                          <span className="sm:hidden">Cannot Join</span>
-                                        </Button>
-                                        <div className="text-[0.65rem] sm:text-xs text-amber-400 flex items-center">
-                                          <AlertTriangle className="w-3 h-3 mr-1 flex-shrink-0" />
-                                          <span className="break-words">Cash out from {gameStatus.activeGameInfo?.tableName} first</span>
+
+                                      <div className="grid grid-cols-1 gap-3 sm:gap-4 mb-3">
+                                        <div className="text-center">
+                                          <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 mx-auto mb-1" />
+                                          <p className="text-[0.65rem] sm:text-xs text-slate-400">
+                                            Players
+                                          </p>
+                                          <p className="text-xs sm:text-sm font-semibold text-white">
+                                            {table.currentPlayers || 0}/
+                                            {table.maxPlayers || 9}
+                                          </p>
                                         </div>
                                       </div>
-                                    ) : (
-                                      <Button
-                                        onClick={() =>
-                                          handleJoinWaitList(String(table.id))
-                                        }
-                                        disabled={
-                                          joinWaitListMutation.isPending ||
-                                          gameStatus.isInActiveGame
-                                        }
-                                        size="sm"
-                                        className="hover:opacity-90 text-white shadow-lg transition-all duration-300 border backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto"
-                                        style={getClubButtonStyle('primary')}
-                                      >
-                                        {joinWaitListMutation.isPending ? (
-                                          <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                                        ) : (
-                                          <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                                        )}
-                                        <span className="hidden sm:inline">Join Wait-List</span>
-                                        <span className="sm:hidden">Join</span>
-                                      </Button>
-                                    )}
-                                  </div>
 
-                                  <div className="flex items-center justify-between sm:justify-end gap-2 sm:space-x-2 flex-shrink-0">
-                                    <Badge
-                                      variant="secondary"
-                                      className="bg-slate-600 text-slate-300 text-xs sm:text-sm whitespace-nowrap"
-                                    >
-                                      {table.isActive ? "Active" : "Inactive"}
-                                    </Badge>
-                                    <Button
-                                      onClick={() => {
-                                        setSelectedTableViewTableId(
-                                          String(table.id)
-                                        );
-                                        setTableViewDialogOpen(true);
-                                      }}
-                                      size="sm"
-                                      variant="outline"
-                                      className="border-2 hover:opacity-80 transition-all duration-300 shadow-lg backdrop-blur-sm min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm px-3 sm:px-4"
-                                      style={getClubButtonStyle('secondary')}
-                                    >
-                                      <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                                      View
-                                    </Button>
-                                  </div>
-                                </div>
+                                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-2">
+                                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:space-x-2 min-w-0 flex-1">
+                                          {isTableJoined(String(table.id)) ? (
+                                            <>
+                                              <div className="flex flex-wrap items-center gap-2">
+                                                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs sm:text-sm whitespace-nowrap">
+                                                  Joined
+                                                </Badge>
+                                                <span className="text-xs sm:text-sm text-slate-400 whitespace-nowrap">
+                                                  Position:{" "}
+                                                  {getWaitListPosition(
+                                                    String(table.id)
+                                                  )}
+                                                </span>
+                                              </div>
+                                              {tableStatuses &&
+                                                typeof tableStatuses === "object" &&
+                                                tableStatuses !== null &&
+                                                String(table.id) in tableStatuses && (
+                                                  <div className="flex items-center space-x-1">
+                                                    {(
+                                                      tableStatuses as Record<
+                                                        string,
+                                                        any
+                                                      >
+                                                    )[String(table.id)]
+                                                      ?.gameStarted && (
+                                                        <span className="text-[0.65rem] sm:text-xs text-amber-400">
+                                                          ⚠️ Game started
+                                                        </span>
+                                                      )}
+                                                  </div>
+                                                )}
+                                              {!(
+                                                tableStatuses &&
+                                                typeof tableStatuses === "object" &&
+                                                (tableStatuses as any)[
+                                                  String(table.id)
+                                                ]?.gameStarted &&
+                                                gameStatus.isInActiveGame &&
+                                                gameStatus.activeGameInfo?.tableId ===
+                                                String(table.id)
+                                              ) && (
+                                                  <Button
+                                                    onClick={() =>
+                                                      handleLeaveWaitList(
+                                                        String(table.id)
+                                                      )
+                                                    }
+                                                    disabled={
+                                                      leaveWaitListMutation.isPending
+                                                    }
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="bg-gradient-to-r from-slate-600/30 to-slate-500/30 border border-slate-400/50 text-slate-300 hover:from-slate-500/40 hover:to-slate-400/40 hover:border-slate-300 hover:text-slate-200 transition-all duration-300 shadow-lg hover:shadow-slate-500/25 backdrop-blur-sm min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto"
+                                                  >
+                                                    {leaveWaitListMutation.isPending ? (
+                                                      <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-slate-300 border-t-transparent rounded-full animate-spin mr-2" />
+                                                    ) : null}
+                                                    Leave
+                                                  </Button>
+                                                )}
+                                            </>
+                                          ) : (waitlistData?.onWaitlist && (String(waitlistData.entry?.table_id || waitlistData.entry?.tableId || waitlistData.tableInfo?.tableId) === String(table.id))) ? (
+                                            <div className="flex flex-col space-y-2 w-full">
+                                              <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 sm:p-3">
+                                                <div className="flex items-center justify-between mb-1">
+                                                  <span className="text-xs sm:text-sm font-semibold text-amber-400">On Waitlist</span>
+                                                  <Badge className="bg-amber-500 text-black text-xs">#{waitlistData.position}</Badge>
+                                                </div>
+                                                <p className="text-[0.65rem] sm:text-xs text-slate-300">
+                                                  {waitlistData.entry?.tableType}
+                                                </p>
+                                              </div>
+                                              <Button
+                                                onClick={() => {
+                                                  if (waitlistData?.entry?.id) {
+                                                    cancelWaitlistMutation.mutate(waitlistData.entry.id);
+                                                  }
+                                                }}
+                                                disabled={cancelWaitlistMutation.isPending}
+                                                size="sm"
+                                                variant="outline"
+                                                className="bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full"
+                                              >
+                                                {cancelWaitlistMutation.isPending ? (
+                                                  <>
+                                                    <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin mr-2" />
+                                                    Leaving...
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <X className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                                                    Leave Waitlist
+                                                  </>
+                                                )}
+                                              </Button>
+                                            </div>
+                                          ) : (
+                                            <Button
+                                              onClick={() =>
+                                                handleJoinWaitList(String(table.id))
+                                              }
+                                              disabled={
+                                                joinWaitListMutation.isPending ||
+                                                gameStatus.isInActiveGame
+                                              }
+                                              size="sm"
+                                              className="hover:opacity-90 text-white shadow-lg transition-all duration-300 border backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto"
+                                              style={getClubButtonStyle('primary')}
+                                            >
+                                              {joinWaitListMutation.isPending ? (
+                                                <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                                              ) : (
+                                                <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                                              )}
+                                              <span className="hidden sm:inline">Join Wait-List</span>
+                                              <span className="sm:hidden">Join</span>
+                                            </Button>
+                                          )}
+                                        </div>
+
+                                        <div className="flex items-center justify-between sm:justify-end gap-2 sm:space-x-2 flex-shrink-0">
+                                          <Badge
+                                            variant="secondary"
+                                            className="bg-slate-600 text-slate-300 text-xs sm:text-sm whitespace-nowrap"
+                                          >
+                                            {table.isActive ? "Active" : "Inactive"}
+                                          </Badge>
+                                          <Button
+                                            onClick={() => {
+                                              setSelectedTableViewTableId(
+                                                String(table.id)
+                                              );
+                                              setTableViewDialogOpen(true);
+                                            }}
+                                            size="sm"
+                                            variant="outline"
+                                            className="border-2 hover:opacity-80 transition-all duration-300 shadow-lg backdrop-blur-sm min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm px-3 sm:px-4"
+                                            style={getClubButtonStyle('secondary')}
+                                          >
+                                            <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+                                            View
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
                               </div>
-                            ))}
+                            </div>
+                          )}
+
+                          {/* Poker Tables Section */}
+                          {tables && tables.filter((t: any) => !t.isRummy).length > 0 && (
+                            <div className="space-y-2 sm:space-y-3">
+                              <div className="flex items-center gap-2 px-1">
+                                <span className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-widest border-l-4 border-slate-500 pl-2">♠ Poker Tables</span>
+                              </div>
+                              <div className="grid grid-cols-1 gap-2.5 sm:gap-3.5">
+                                {tables
+                                  .filter((t: any) => !t.isRummy)
+                                  .map((table: any) => (
+                                    <div
+                                      key={table.id}
+                                      className="p-2.5 sm:p-3 rounded-lg bg-slate-700"
+                                    >
+                                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3 sm:gap-0">
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <h3 className="font-semibold text-white text-sm sm:text-base truncate">
+                                              {table.name}
+                                            </h3>
+                                          </div>
+                                          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+                                            {table.gameType}
+                                          </p>
+                                          {/* Game Status Indicator */}
+                                          <div className="flex items-center space-x-2 mt-1.5 sm:mt-1">
+                                            <div
+                                              className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full flex-shrink-0 ${table.isActive
+                                                ? "bg-red-500"
+                                                : "bg-green-500"
+                                                }`}
+                                            ></div>
+                                            <span
+                                              className={`text-[0.65rem] sm:text-xs ${table.isActive
+                                                ? "text-red-400"
+                                                : "text-green-400"
+                                                }`}
+                                            >
+                                              {table.isActive
+                                                ? "Game In Progress"
+                                                : "Accepting Players"}
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <div className="text-left sm:text-right flex-shrink-0">
+                                          <p className="text-xs sm:text-sm text-slate-400">
+                                            Stakes
+                                          </p>
+                                          <p className="text-base sm:text-lg font-semibold text-emerald-500">
+                                            {table.stakes}
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      <div className="grid grid-cols-1 gap-3 sm:gap-4 mb-3">
+                                        <div className="text-center">
+                                          <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 mx-auto mb-1" />
+                                          <p className="text-[0.65rem] sm:text-xs text-slate-400">
+                                            Players
+                                          </p>
+                                          <p className="text-xs sm:text-sm font-semibold text-white">
+                                            {table.currentPlayers || 0}/
+                                            {table.maxPlayers || 9}
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-2">
+                                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:space-x-2 min-w-0 flex-1">
+                                          {isTableJoined(String(table.id)) ? (
+                                            <>
+                                              <div className="flex flex-wrap items-center gap-2">
+                                                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs sm:text-sm whitespace-nowrap">
+                                                  Joined
+                                                </Badge>
+                                                <span className="text-xs sm:text-sm text-slate-400 whitespace-nowrap">
+                                                  Position:{" "}
+                                                  {getWaitListPosition(
+                                                    String(table.id)
+                                                  )}
+                                                </span>
+                                              </div>
+                                              {tableStatuses &&
+                                                typeof tableStatuses === "object" &&
+                                                tableStatuses !== null &&
+                                                String(table.id) in tableStatuses && (
+                                                  <div className="flex items-center space-x-1">
+                                                    {(
+                                                      tableStatuses as Record<
+                                                        string,
+                                                        any
+                                                      >
+                                                    )[String(table.id)]
+                                                      ?.gameStarted && (
+                                                        <span className="text-[0.65rem] sm:text-xs text-amber-400">
+                                                          ⚠️ Game started
+                                                        </span>
+                                                      )}
+                                                  </div>
+                                                )}
+                                              {!(
+                                                tableStatuses &&
+                                                typeof tableStatuses === "object" &&
+                                                (tableStatuses as any)[
+                                                  String(table.id)
+                                                ]?.gameStarted &&
+                                                gameStatus.isInActiveGame &&
+                                                gameStatus.activeGameInfo?.tableId ===
+                                                String(table.id)
+                                              ) && (
+                                                  <Button
+                                                    onClick={() =>
+                                                      handleLeaveWaitList(
+                                                        String(table.id)
+                                                      )
+                                                    }
+                                                    disabled={
+                                                      leaveWaitListMutation.isPending
+                                                    }
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="bg-gradient-to-r from-slate-600/30 to-slate-500/30 border border-slate-400/50 text-slate-300 hover:from-slate-500/40 hover:to-slate-400/40 hover:border-slate-300 hover:text-slate-200 transition-all duration-300 shadow-lg hover:shadow-slate-500/25 backdrop-blur-sm min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto"
+                                                  >
+                                                    {leaveWaitListMutation.isPending ? (
+                                                      <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-slate-300 border-t-transparent rounded-full animate-spin mr-2" />
+                                                    ) : null}
+                                                    Leave
+                                                  </Button>
+                                                )}
+                                            </>
+                                          ) : (waitlistData?.onWaitlist && (String(waitlistData.entry?.table_id || waitlistData.entry?.tableId || waitlistData.tableInfo?.tableId) === String(table.id))) ? (
+                                            <div className="flex flex-col space-y-2 w-full">
+                                              <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 sm:p-3">
+                                                <div className="flex items-center justify-between mb-1">
+                                                  <span className="text-xs sm:text-sm font-semibold text-amber-400">On Waitlist</span>
+                                                  <Badge className="bg-amber-500 text-black text-xs">#{waitlistData.position}</Badge>
+                                                </div>
+                                                <p className="text-[0.65rem] sm:text-xs text-slate-300">
+                                                  {waitlistData.entry?.tableType}
+                                                </p>
+                                              </div>
+                                              <Button
+                                                onClick={() => {
+                                                  if (waitlistData?.entry?.id) {
+                                                    cancelWaitlistMutation.mutate(waitlistData.entry.id);
+                                                  }
+                                                }}
+                                                disabled={cancelWaitlistMutation.isPending}
+                                                size="sm"
+                                                variant="outline"
+                                                className="bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full"
+                                              >
+                                                {cancelWaitlistMutation.isPending ? (
+                                                  <>
+                                                    <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin mr-2" />
+                                                    Leaving...
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <X className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                                                    Leave Waitlist
+                                                  </>
+                                                )}
+                                              </Button>
+                                            </div>
+                                          ) : (
+                                            <Button
+                                              onClick={() =>
+                                                handleJoinWaitList(String(table.id))
+                                              }
+                                              disabled={
+                                                joinWaitListMutation.isPending ||
+                                                gameStatus.isInActiveGame
+                                              }
+                                              size="sm"
+                                              className="hover:opacity-90 text-white shadow-lg transition-all duration-300 border backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto"
+                                              style={getClubButtonStyle('primary')}
+                                            >
+                                              {joinWaitListMutation.isPending ? (
+                                                <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                                              ) : (
+                                                <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                                              )}
+                                              <span className="hidden sm:inline">Join Wait-List</span>
+                                              <span className="sm:hidden">Join</span>
+                                            </Button>
+                                          )}
+                                        </div>
+
+                                        <div className="flex items-center justify-between sm:justify-end gap-2 sm:space-x-2 flex-shrink-0">
+                                          <Badge
+                                            variant="secondary"
+                                            className="bg-slate-600 text-slate-300 text-xs sm:text-sm whitespace-nowrap"
+                                          >
+                                            {table.isActive ? "Active" : "Inactive"}
+                                          </Badge>
+                                          <Button
+                                            onClick={() => {
+                                              setSelectedTableViewTableId(
+                                                String(table.id)
+                                              );
+                                              setTableViewDialogOpen(true);
+                                            }}
+                                            size="sm"
+                                            variant="outline"
+                                            className="border-2 hover:opacity-80 transition-all duration-300 shadow-lg backdrop-blur-sm min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm px-3 sm:px-4"
+                                            style={getClubButtonStyle('secondary')}
+                                          >
+                                            <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+                                            View
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
 
                           {(!(tables as any) ||
                             (tables as any)?.length === 0) && (
@@ -5438,7 +5631,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           open={tableViewDialogOpen}
           onOpenChange={setTableViewDialogOpen}
         >
-          <DialogContent className="table-view-dialog max-w-[98vw] sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[85vw] w-full max-h-[98vh] sm:max-h-[95vh] h-[98vh] sm:h-auto p-0 sm:p-2 bg-slate-900 border-slate-700 overflow-hidden flex flex-col">
+          <DialogContent className="table-view-dialog fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-w-[98vw] sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[85vw] w-full max-h-[98vh] sm:max-h-[95vh] h-[98vh] sm:h-auto p-0 sm:p-2 bg-slate-900 border-slate-700 overflow-hidden flex flex-col">
             {selectedTableViewTableId && (
               <div className="flex-1 min-h-0 overflow-auto overflow-x-hidden">
                 <TableView
@@ -5530,8 +5723,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 }
 

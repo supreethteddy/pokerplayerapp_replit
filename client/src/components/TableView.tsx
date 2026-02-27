@@ -128,9 +128,9 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
   }
 
   return (
-    <div className="min-h-screen sm:min-h-0 bg-gradient-to-b from-slate-900 to-slate-800 text-white h-full sm:h-auto pt-2 sm:pt-4">
+    <div className="min-h-screen sm:min-h-0 bg-gradient-to-b from-slate-900 to-slate-800 text-white h-full sm:h-auto pt-1 sm:pt-2">
       {/* Header */}
-      <div className="p-3 sm:p-4 flex items-center justify-between gap-2">
+      <div className="p-2 sm:p-3 flex items-center justify-between gap-2">
         <Button
           variant="ghost"
           onClick={() => onClose ? onClose() : setLocation('/')}
@@ -153,7 +153,7 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
 
       {/* Waitlist Status Banner - Only show if not seated */}
       {isOnWaitlist && waitlistEntry && !isUserSeated && (
-        <div className="mx-3 sm:mx-4 mb-3 sm:mb-4 p-3 sm:p-4 bg-gradient-to-r from-amber-600/20 to-amber-500/20 border border-amber-500/50 rounded-lg">
+        <div className="mx-1 sm:mx-2 mb-2 sm:mb-3 p-2 sm:p-3 bg-gradient-to-r from-amber-600/20 to-amber-500/20 border border-amber-500/50 rounded-lg">
           <div className="flex items-center justify-between gap-2">
             <div className="flex-1 min-w-0">
               <h3 className="text-amber-200 font-semibold text-sm sm:text-base">You're on the waitlist!</h3>
@@ -170,13 +170,13 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
 
       {/* PlaytimeTracker for Seated Players */}
       {isUserSeated && user?.id && (
-        <div className="mx-3 sm:mx-4 mb-3 sm:mb-4">
+        <div className="mx-1 sm:mx-2 mb-2 sm:mb-3">
           <PlaytimeTracker playerId={user.id.toString()} gameStatus={gameStatus} />
         </div>
       )}
 
       {/* Main Table Area - Staff Portal Style */}
-      <div className="flex-1 flex flex-col items-center px-2 sm:px-4 py-4 sm:py-8">
+      <div className="flex-1 flex flex-col items-center px-1 sm:px-2 py-2 sm:py-4">
         <div className="relative w-full max-w-4xl">
           {/* Table - Round (Rummy) or Oval (Poker) */}
           <div className={`relative mx-auto mb-6 sm:mb-12 mt-4 sm:mt-8 ${isRummy ? 'aspect-square max-w-xs sm:max-w-sm' : 'aspect-[5/3] max-w-full sm:max-w-2xl'}`}>
@@ -189,9 +189,9 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
                 {Array.from({ length: currentTable.maxSeats || currentTable.maxPlayers || 9 }, (_, index) => {
                   const seatNumber = index + 1;
                   const totalSeats = currentTable.maxSeats || currentTable.maxPlayers || 9;
-                  const angle = (index * (2 * Math.PI / totalSeats)) - Math.PI / 2;
-                  const radiusX = isRummy ? 38 : 42;
-                  const radiusY = isRummy ? 38 : 32;
+                  const angle = (index * (2 * Math.PI / totalSeats)) - Math.PI / 2 + (Math.PI / totalSeats);
+                  const radiusX = isRummy ? 36 : 41;
+                  const radiusY = isRummy ? 36 : 31;
                   const x = 50 + radiusX * Math.cos(angle);
                   const y = 50 + radiusY * Math.sin(angle);
                   const isSelected = selectedSeat === seatNumber;
@@ -316,7 +316,7 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
         </div>
 
         {/* Table Info Cards - Staff Portal Style */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 mt-4 sm:mt-8 w-full max-w-4xl px-2 sm:px-0">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 mt-4 sm:mt-6 w-full max-w-4xl px-0">
           <Card className="bg-slate-800 border-slate-700">
             <CardContent className="p-2 sm:p-4 text-center">
               <Users className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400 mx-auto mb-1 sm:mb-2" />
@@ -360,7 +360,7 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
 
         {/* Seated Player Controls - Call Time & Session Info */}
         {isUserSeated && userSeatInfo && (
-          <div className="mt-4 sm:mt-8 w-full max-w-4xl px-2 sm:px-0">
+          <div className="mt-4 sm:mt-6 w-full max-w-4xl px-0">
             <Card className="bg-gradient-to-r from-blue-800 to-blue-900 border-blue-600">
               <CardContent className="p-3 sm:p-6">
                 <div className="flex items-center justify-between mb-3 sm:mb-4 gap-2">
@@ -425,7 +425,7 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
         {/* Waitlist Status Display */}
         {
           !isUserSeated && waitlistData?.onWaitlist && (
-            <div className="mt-4 sm:mt-8 w-full max-w-4xl px-2 sm:px-0">
+            <div className="mt-4 sm:mt-6 w-full max-w-4xl px-0">
               <Card className="bg-amber-500/10 border-amber-500/30">
                 <CardContent className="p-3 sm:p-6">
                   <div className="flex items-center justify-between mb-3 sm:mb-4 gap-2">
@@ -486,7 +486,7 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
         {/* Seat Selection and Join Controls */}
         {
           !isUserSeated && !waitlistData?.onWaitlist && (
-            <div className="mt-4 sm:mt-8 text-center px-2 sm:px-0">
+            <div className="mt-4 sm:mt-6 text-center px-0">
               {selectedSeat ? (
                 <div className="space-y-3 sm:space-y-4">
                   <div className="bg-slate-800 border border-emerald-500/50 rounded-lg p-3 sm:p-4 max-w-md mx-auto">
@@ -524,7 +524,7 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
         }
 
         {/* Info Text */}
-        <div className="mt-4 sm:mt-8 text-center text-slate-400 px-2 sm:px-0">
+        <div className="mt-4 sm:mt-6 text-center text-slate-400 px-0">
           <p className="text-xs sm:text-sm">
             {isRummy ? 'This is a local offline rummy game managed by club staff.' : 'This is a local offline poker game managed by casino staff.'}
           </p>
