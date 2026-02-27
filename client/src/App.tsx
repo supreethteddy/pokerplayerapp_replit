@@ -18,6 +18,9 @@ import NotificationBubbleManager from "./components/NotificationBubbleManager";
 import { useState, useEffect } from "react";
 
 import NotFound from "@/pages/not-found";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import HelpSupport from "./pages/HelpSupport";
+import ContactUs from "./pages/ContactUs";
 
 function AppContent() {
   // Use legacy authentication for user interface, but signup will create users in both systems
@@ -25,7 +28,7 @@ function AppContent() {
 
   // Use legacy authentication for smooth user experience
   const { user, loading, authChecked } = useUltraFastAuth();
-  
+
   // Toast hook for notifications
   const { toast } = useToast();
 
@@ -123,12 +126,12 @@ function AppContent() {
   // Welcome video for pure Supabase authentication
   if (showLoadingScreen) {
     return (
-      <LoadingScreen 
+      <LoadingScreen
         onComplete={() => {
           console.log('🎬 [APP] Loading screen completed - setting showLoadingScreen to false');
           console.log('🎬 [APP] Current user state:', !!user, 'authChecked:', authChecked);
           setShowLoadingScreen(false);
-        }} 
+        }}
       />
     );
   }
@@ -154,8 +157,8 @@ function AppContent() {
         </Route>
         <Route path="/table/:id">
           {(params) => user ? (
-            <TableView 
-              tableId={params.id} 
+            <TableView
+              tableId={params.id}
               onNavigate={(path) => window.location.href = path}
               onClose={() => window.history.back()}
             />
@@ -163,7 +166,11 @@ function AppContent() {
             <Redirect to="/" />
           )}
         </Route>
-        
+
+        <Route path="/privacy" component={PrivacyPolicy} />
+        <Route path="/help" component={HelpSupport} />
+        <Route path="/contact" component={ContactUs} />
+
         <Route component={NotFound} />
       </Switch>
     </div>

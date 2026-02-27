@@ -4569,6 +4569,43 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   </CardContent>
                 </Card>
 
+                {/* Legal & Support Section */}
+                <Card className="bg-slate-800 border-slate-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center">
+                      <Shield className="w-5 h-5 mr-2 text-blue-500" />
+                      Legal & Support
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="divide-y divide-slate-700">
+                      <Link href="/help" className="flex items-center justify-between p-4 hover:bg-slate-700/50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <HelpCircle className="w-5 h-5 text-amber-500" />
+                          <span className="text-sm font-medium text-white">Help & Support</span>
+                        </div>
+                        <ChevronLeft className="w-4 h-4 text-slate-500 rotate-180" />
+                      </Link>
+
+                      <Link href="/contact" className="flex items-center justify-between p-4 hover:bg-slate-700/50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <Phone className="w-5 h-5 text-emerald-500" />
+                          <span className="text-sm font-medium text-white">Contact Us</span>
+                        </div>
+                        <ChevronLeft className="w-4 h-4 text-slate-500 rotate-180" />
+                      </Link>
+
+                      <Link href="/privacy" className="flex items-center justify-between p-4 hover:bg-slate-700/50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <Shield className="w-5 h-5 text-blue-500" />
+                          <span className="text-sm font-medium text-white">Privacy Policy</span>
+                        </div>
+                        <ChevronLeft className="w-4 h-4 text-slate-500 rotate-180" />
+                      </Link>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 {/* Waitlist Status */}
                 {waitlistData && waitlistData.entries && waitlistData.entries.length > 0 && (
                   <Card className="bg-slate-800 border-slate-700">
