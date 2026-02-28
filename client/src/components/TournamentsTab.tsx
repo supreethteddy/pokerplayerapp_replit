@@ -349,6 +349,27 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
                           <Users className="w-4 h-4 mr-2 text-blue-400" />
                           {tournament.registeredPlayers}/{tournament.maxPlayers} players
                         </div>
+                        {/* Current round and blinds for live poker tournaments (updates in real time via Supabase) */}
+                        {(tournament.status === "active" || tournament.status === "running") &&
+                         tournament.gameType === "poker" &&
+                         (tournament.currentRound != null || tournament.currentSb != null || tournament.currentBb != null) && (
+                          <div className="col-span-2 flex flex-wrap items-center gap-3 mt-1 pt-2 border-t border-slate-600">
+                            {tournament.currentRound != null && (
+                              <div className="flex items-center text-amber-300 text-sm font-medium">
+                                <span className="text-slate-400 mr-1">Round</span>
+                                <span>{tournament.currentRound}</span>
+                              </div>
+                            )}
+                            {(tournament.currentSb != null || tournament.currentBb != null) && (
+                              <div className="flex items-center text-amber-300 text-sm font-medium">
+                                <span className="text-slate-400 mr-1">Blinds</span>
+                                <span>
+                                  {tournament.currentSb ?? "–"} / {tournament.currentBb ?? "–"}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Late registration countdown for active tournaments */}

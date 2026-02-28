@@ -828,36 +828,59 @@ function TournamentLevelTracker({ tournament }: { tournament: any }) {
 
   const lateRegOpen = lateRegMinutes > 0 && elapsedMinutes <= lateRegMinutes;
 
+  const currentRound = tournament.currentRound ?? structure.current_round ?? null;
+  const currentSb = tournament.currentSb ?? structure.current_sb ?? null;
+  const currentBb = tournament.currentBb ?? structure.current_bb ?? null;
+  const hasBlinds = currentRound != null || currentSb != null || currentBb != null;
+
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-4 pt-0">
-      <div className="bg-emerald-900/30 rounded-lg p-3 text-center border border-emerald-700/40">
-        <p className="text-[0.65rem] text-emerald-400 uppercase tracking-wide">Current Level</p>
-        <p className="text-xl font-bold text-white">{currentLevel} / {numberOfLevels}</p>
-      </div>
-      <div className={`rounded-lg p-3 text-center border ${onBreak ? 'bg-amber-900/30 border-amber-700/40' : 'bg-blue-900/30 border-blue-700/40'}`}>
-        <p className={`text-[0.65rem] uppercase tracking-wide ${onBreak ? 'text-amber-400' : 'text-blue-400'}`}>
-          {onBreak ? 'Break Time Left' : 'Time Left in Level'}
-        </p>
-        <p className={`text-xl font-bold font-mono ${onBreak ? 'text-amber-300' : 'text-white'}`}>
-          {onBreak
-            ? `${breakTimeRemaining} min`
-            : `${remMin.toString().padStart(2, '0')}:${remSec.toString().padStart(2, '0')}`
-          }
-        </p>
-      </div>
-      <div className="bg-purple-900/30 rounded-lg p-3 text-center border border-purple-700/40">
-        <p className="text-[0.65rem] text-purple-400 uppercase tracking-wide">Level Duration</p>
-        <p className="text-xl font-bold text-white">{minutesPerLevel} min</p>
-      </div>
-      <div className="bg-slate-800 rounded-lg p-3 text-center border border-slate-700">
-        <p className="text-[0.65rem] text-slate-400 uppercase tracking-wide">Features</p>
-        <div className="flex flex-wrap justify-center gap-1 mt-1">
-          {structure.allow_rebuys && <Badge className="bg-green-500/20 text-green-300 border-green-500/30 text-[0.55rem] px-1 py-0">Rebuy</Badge>}
-          {structure.allow_reentry && <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30 text-[0.55rem] px-1 py-0">Re-entry</Badge>}
-          {structure.allow_addon && <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-[0.55rem] px-1 py-0">Add-on</Badge>}
-          {lateRegOpen && <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/30 text-[0.55rem] px-1 py-0">Late Reg Open</Badge>}
+    <div className="p-4 pt-0 space-y-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="bg-emerald-900/30 rounded-lg p-3 text-center border border-emerald-700/40">
+          <p className="text-[0.65rem] text-emerald-400 uppercase tracking-wide">Current Level</p>
+          <p className="text-xl font-bold text-white">{currentLevel} / {numberOfLevels}</p>
+        </div>
+        <div className={`rounded-lg p-3 text-center border ${onBreak ? 'bg-amber-900/30 border-amber-700/40' : 'bg-blue-900/30 border-blue-700/40'}`}>
+          <p className={`text-[0.65rem] uppercase tracking-wide ${onBreak ? 'text-amber-400' : 'text-blue-400'}`}>
+            {onBreak ? 'Break Time Left' : 'Time Left in Level'}
+          </p>
+          <p className={`text-xl font-bold font-mono ${onBreak ? 'text-amber-300' : 'text-white'}`}>
+            {onBreak
+              ? `${breakTimeRemaining} min`
+              : `${remMin.toString().padStart(2, '0')}:${remSec.toString().padStart(2, '0')}`
+            }
+          </p>
+        </div>
+        <div className="bg-purple-900/30 rounded-lg p-3 text-center border border-purple-700/40">
+          <p className="text-[0.65rem] text-purple-400 uppercase tracking-wide">Level Duration</p>
+          <p className="text-xl font-bold text-white">{minutesPerLevel} min</p>
+        </div>
+        <div className="bg-slate-800 rounded-lg p-3 text-center border border-slate-700">
+          <p className="text-[0.65rem] text-slate-400 uppercase tracking-wide">Features</p>
+          <div className="flex flex-wrap justify-center gap-1 mt-1">
+            {structure.allow_rebuys && <Badge className="bg-green-500/20 text-green-300 border-green-500/30 text-[0.55rem] px-1 py-0">Rebuy</Badge>}
+            {structure.allow_reentry && <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30 text-[0.55rem] px-1 py-0">Re-entry</Badge>}
+            {structure.allow_addon && <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-[0.55rem] px-1 py-0">Add-on</Badge>}
+            {lateRegOpen && <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/30 text-[0.55rem] px-1 py-0">Late Reg Open</Badge>}
+          </div>
         </div>
       </div>
+      {hasBlinds && (
+        <div className="flex flex-wrap items-center gap-4 rounded-lg p-3 bg-amber-900/20 border border-amber-600/40">
+          {currentRound != null && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[0.65rem] text-amber-400 uppercase tracking-wide">Round</span>
+              <span className="text-lg font-bold text-amber-200">{currentRound}</span>
+            </div>
+          )}
+          {(currentSb != null || currentBb != null) && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[0.65rem] text-amber-400 uppercase tracking-wide">Blinds</span>
+              <span className="text-lg font-bold text-amber-200">{currentSb ?? '–'} / {currentBb ?? '–'}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
