@@ -94,6 +94,7 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
       {
         partySize: 1,
         tableType: currentTable?.gameVariant || currentTable?.type || 'Cash Game',
+        gameType: currentTable?.tableType === 'RUMMY' ? 'RUMMY' : 'POKER',
         requestedSeat: seatNumber // Send as requestedSeat (backend expects this field name)
       },
       {

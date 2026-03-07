@@ -395,13 +395,14 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: vipData, isLoading } = useQuery({
+  const { data: vipData, isLoading, isError: vipError } = useQuery({
     queryKey: ["/api/player-vip/points", userId],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/player-vip/points");
       return res.json();
     },
     staleTime: 60000,
+    retry: 1,
   });
 
   const { data: vipProducts = [] } = useQuery({
@@ -438,7 +439,9 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
     },
   });
 
-  const [showStore, setShowStore] = useState(false);
+  // null = VIP card, 'store' = store list, product object = product detail
+  const [storeView, setStoreView] = useState<null | 'store' | any>(null);
+  const [activeImgIdx, setActiveImgIdx] = useState(0);
 
   if (isLoading) {
     return (
@@ -449,13 +452,28 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
     );
   }
 
+  if (vipError) {
+    return (
+      <Card className="bg-slate-800 border-slate-700">
+        <CardHeader><CardTitle className="text-white flex items-center"><Star className="w-5 h-5 mr-2 text-yellow-500" />VIP Points</CardTitle></CardHeader>
+        <CardContent>
+          <div className="text-center py-4 text-slate-400 text-sm">
+            Unable to load VIP points. Please try again later.
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const d = vipData as any;
-  const availablePoints = d?.availablePoints || 0;
-  const earnedPoints = d?.earnedPoints || 0;
+  const rawPoints = typeof d?.availablePoints === 'number' ? d.availablePoints : 0;
+  const rawEarned = typeof d?.earnedPoints === 'number' ? d.earnedPoints : 0;
+  // Round to nearest whole number for display
+  const displayPoints = Math.round(rawPoints);
+  const displayEarned = Math.round(rawEarned);
   const pointsSpent = d?.pointsSpent || 0;
   const tier = d?.tier || 'Bronze';
   const tierColor = d?.tierColor || '#CD7F32';
-  const breakdown = d?.breakdown;
   const nextTier = d?.nextTier;
   const products = Array.isArray(vipProducts) ? vipProducts : (vipProducts?.products || vipProducts?.data || []);
   const purchases = Array.isArray(purchaseHistory) ? purchaseHistory : (purchaseHistory?.purchases || purchaseHistory?.data || []);
@@ -466,165 +484,277 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
     return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
   };
 
-  return (
-    <>
-      <Card className="bg-slate-800 border-slate-700">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center justify-between">
-            <span className="flex items-center"><Star className="w-5 h-5 mr-2 text-yellow-500" />VIP Points</span>
-            <Badge style={{ backgroundColor: tierColor + '33', color: tierColor, borderColor: tierColor }} className="text-xs border">{tier}</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Points Summary */}
-          <div className="text-center p-4 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-lg">
-            <div className="text-3xl font-bold text-yellow-400">{availablePoints}</div>
-            <div className="text-slate-300 text-sm">Available Points</div>
-            {pointsSpent > 0 && <div className="text-xs text-slate-400 mt-1">Earned: {earnedPoints} · Spent: {pointsSpent}</div>}
+  // ── Product Detail Screen ──────────────────────────────────────────────────
+  if (storeView && storeView !== 'store') {
+    const product = storeView;
+    const images: string[] = [
+      ...(product.images || []).map((i: any) => i.url || i).filter(Boolean),
+      ...(product.imageUrl ? [product.imageUrl] : []),
+    ].filter((v, i, a) => a.indexOf(v) === i);
+    const canAfford = rawPoints >= product.points;
+    const outOfStock = product.stock !== null && product.stock !== undefined && product.stock <= 0;
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 py-3 bg-slate-900 border-b border-slate-800 flex-shrink-0">
+          <button
+            onClick={() => { setStoreView('store'); setActiveImgIdx(0); }}
+            className="flex items-center gap-1 text-yellow-400 font-semibold text-sm"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+            VIP Store
+          </button>
+          <span className="text-slate-500 text-sm">/ Product Details</span>
+          <div className="ml-auto">
+            <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs border">{displayPoints} pts available</Badge>
           </div>
+        </div>
 
-          {/* Next Tier Progress */}
-          {nextTier && (
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs text-slate-400">
-                <span>{tier}</span>
-                <span>{nextTier.name} ({nextTier.pointsRequired} pts)</span>
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto">
+          {/* Image Gallery */}
+          {images.length > 0 ? (
+            <div className="bg-slate-900">
+              <div className="relative w-full aspect-square max-h-72 overflow-hidden bg-slate-800">
+                <img src={images[activeImgIdx]} alt={product.title} className="w-full h-full object-cover" />
+                {images.length > 1 && (
+                  <>
+                    <button
+                      onClick={() => setActiveImgIdx(i => Math.max(0, i - 1))}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 rounded-full p-1"
+                      disabled={activeImgIdx === 0}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <button
+                      onClick={() => setActiveImgIdx(i => Math.min(images.length - 1, i + 1))}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 rounded-full p-1"
+                      disabled={activeImgIdx === images.length - 1}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                    </button>
+                    {/* Dots */}
+                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                      {images.map((_: string, i: number) => (
+                        <button key={i} onClick={() => setActiveImgIdx(i)} className={`w-2 h-2 rounded-full transition-all ${i === activeImgIdx ? 'bg-yellow-400 w-4' : 'bg-white/50'}`} />
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
-              <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full transition-all" style={{ width: `${Math.min(100, (earnedPoints / nextTier.pointsRequired) * 100)}%` }} />
-              </div>
-              <div className="text-xs text-slate-500 text-center">{nextTier.pointsToNext} points to {nextTier.name}</div>
+              {/* Thumbnail strip */}
+              {images.length > 1 && (
+                <div className="flex gap-2 p-3 overflow-x-auto">
+                  {images.map((img: string, i: number) => (
+                    <button key={i} onClick={() => setActiveImgIdx(i)} className={`flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${i === activeImgIdx ? 'border-yellow-400' : 'border-transparent'}`}>
+                      <img src={img} alt="" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="w-full aspect-square max-h-64 bg-slate-800 flex items-center justify-center">
+              <Star className="w-16 h-16 text-yellow-500/30" />
             </div>
           )}
 
-          {/* Breakdown */}
-          {breakdown && (
-            <div className="space-y-2 bg-slate-900/50 p-3 rounded-lg">
-              <div className="text-white font-semibold text-sm">Points Breakdown</div>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between text-slate-300">
-                  <span>Table Sessions</span>
-                  <span className="text-slate-400">{breakdown.tableHours?.toFixed(1)}h</span>
-                </div>
-                <div className="flex justify-between text-slate-300">
-                  <span>Tournament Sessions</span>
-                  <span className="text-slate-400">{breakdown.tournamentHours?.toFixed(1)}h</span>
-                </div>
-                <div className="flex justify-between text-slate-300 border-t border-slate-700 pt-1">
-                  <span>Hours Score ({(breakdown.weightHours * 100).toFixed(0)}% weight)</span>
-                  <span className="text-yellow-400">+{breakdown.hoursContribution}</span>
-                </div>
-                <div className="flex justify-between text-slate-300">
-                  <span>Money Score (₹{breakdown.totalMoneySpent?.toLocaleString()} · {(breakdown.weightMoney * 100).toFixed(0)}% weight)</span>
-                  <span className="text-yellow-400">+{breakdown.moneyContribution}</span>
-                </div>
+          {/* Product Info */}
+          <div className="p-4 space-y-4">
+            <div>
+              <h2 className="text-xl font-bold text-white">{product.title}</h2>
+              <div className="flex items-center gap-3 mt-2">
+                <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 border text-base px-3 py-1">
+                  {product.points} VIP pts
+                </Badge>
+                {outOfStock ? (
+                  <span className="text-sm text-red-400 font-medium">Out of Stock</span>
+                ) : product.stock !== null && product.stock !== undefined ? (
+                  <span className="text-sm text-slate-400">{product.stock} left in stock</span>
+                ) : null}
               </div>
             </div>
-          )}
 
-          {/* Formula */}
-          <div className="text-xs text-slate-400 p-2 bg-slate-900 rounded">
-            <strong>Formula:</strong> VIP Points = (40% × Hours Played) + (60% × Money Spent ÷ 100)
+            {product.description && (
+              <div className="bg-slate-800 rounded-lg p-4">
+                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Description</div>
+                <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-line">{product.description}</p>
+              </div>
+            )}
+
+            {/* Points info */}
+            <div className="bg-slate-800 rounded-lg p-4 space-y-2">
+              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Your Points</div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-300 text-sm">Available</span>
+                <span className="text-yellow-400 font-bold">{displayPoints} pts</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-300 text-sm">Required</span>
+                <span className={canAfford ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>{product.points} pts</span>
+              </div>
+              {!canAfford && (
+                <div className="text-xs text-red-400 mt-1">
+                  You need {product.points - displayPoints} more points to redeem this product.
+                </div>
+              )}
+            </div>
           </div>
+        </div>
 
-          {/* VIP Store Button */}
-          {hasProducts && (
+        {/* Sticky Buy Button */}
+        <div className="flex-shrink-0 p-4 bg-slate-900 border-t border-slate-800">
+          {outOfStock ? (
+            <div className="w-full text-center text-red-400 font-semibold py-3">Out of Stock</div>
+          ) : (
             <Button
-              onClick={() => setShowStore(true)}
-              className="w-full bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white"
+              className={`w-full py-6 text-base font-bold ${canAfford ? 'bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white' : 'bg-slate-700 text-slate-400 cursor-not-allowed'}`}
+              disabled={!canAfford || purchaseMutation.isPending}
+              onClick={() => {
+                if (!canAfford) return;
+                if (confirm(`Redeem "${product.title}" for ${product.points} VIP points?`)) {
+                  purchaseMutation.mutate(product.id);
+                }
+              }}
             >
-              <Star className="w-4 h-4 mr-2" /> VIP Store ({products.length} products)
+              {purchaseMutation.isPending ? 'Processing...' : canAfford ? `Redeem for ${product.points} pts` : 'Not Enough Points'}
             </Button>
           )}
+        </div>
+      </div>
+    );
+  }
 
-          {/* Recent Purchases */}
-          {purchases.length > 0 && (
-            <div className="space-y-2">
-              <div className="text-white font-semibold text-sm">Recent Purchases</div>
-              <div className="space-y-1 max-h-32 overflow-y-auto">
-                {purchases.slice(0, 5).map((p: any) => (
-                  <div key={p.id} className="flex justify-between items-center text-xs bg-slate-900/50 p-2 rounded">
-                    <span className="text-slate-300">{p.productTitle}</span>
-                    <span className="text-yellow-400">-{p.pointsSpent} pts · {formatDate(p.createdAt)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+  // ── Store List Screen ──────────────────────────────────────────────────────
+  if (storeView === 'store') {
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 py-3 bg-slate-900 border-b border-slate-800 flex-shrink-0">
+          <button
+            onClick={() => setStoreView(null)}
+            className="flex items-center gap-1 text-yellow-400 font-semibold text-sm"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+            VIP Points
+          </button>
+          <span className="flex-1 text-center text-white font-semibold">VIP Store</span>
+          <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 border text-xs">{displayPoints} pts</Badge>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {products.length === 0 && (
+            <div className="text-center text-slate-400 py-12">No products available yet</div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* VIP Store Modal */}
-      {showStore && (
-        <Dialog open={showStore} onOpenChange={setShowStore}>
-          <DialogContent className="w-[95vw] max-w-lg max-h-[85vh] bg-slate-900 border-slate-700 overflow-hidden flex flex-col">
-            <DialogHeader>
-              <DialogTitle className="text-white flex items-center">
-                <Star className="w-5 h-5 mr-2 text-yellow-500" />
-                VIP Store
-                <Badge className="ml-2 bg-yellow-500/20 text-yellow-400 border-yellow-500/30">{availablePoints} pts</Badge>
-              </DialogTitle>
-            </DialogHeader>
-            <div className="overflow-y-auto flex-1 space-y-3 pr-1">
-              {products.map((product: any) => {
-                const canAfford = availablePoints >= product.points;
-                const outOfStock = product.stock !== null && product.stock !== undefined && product.stock <= 0;
-                const mainImage = product.images?.[0]?.url || product.imageUrl;
-                return (
-                  <div key={product.id} className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                    <div className="flex gap-3">
-                      {mainImage && (
-                        <img src={mainImage} alt={product.title} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-white font-semibold text-sm truncate">{product.title}</div>
-                        {product.description && <div className="text-xs text-slate-400 mt-0.5 line-clamp-2">{product.description}</div>}
-                        <div className="flex items-center justify-between mt-2">
-                          <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs">{product.points} pts</Badge>
-                          {outOfStock ? (
-                            <span className="text-xs text-red-400">Out of Stock</span>
-                          ) : (
-                            <Button
-                              size="sm"
-                              disabled={!canAfford || purchaseMutation.isPending}
-                              onClick={() => { if (confirm(`Buy "${product.title}" for ${product.points} VIP points?`)) purchaseMutation.mutate(product.id); }}
-                              className={canAfford ? 'bg-yellow-600 hover:bg-yellow-700 text-white text-xs' : 'bg-gray-700 text-gray-400 text-xs'}
-                            >
-                              {purchaseMutation.isPending ? '...' : canAfford ? 'Buy' : 'Not enough pts'}
-                            </Button>
-                          )}
-                        </div>
-                        {product.stock !== null && product.stock !== undefined && product.stock > 0 && (
-                          <div className="text-xs text-slate-500 mt-1">{product.stock} left in stock</div>
-                        )}
-                      </div>
+          {products.map((product: any) => {
+            const canAfford = rawPoints >= product.points;
+            const outOfStock = product.stock !== null && product.stock !== undefined && product.stock <= 0;
+            const mainImage = (product.images?.[0]?.url) || product.imageUrl;
+            return (
+              <button
+                key={product.id}
+                onClick={() => { setStoreView(product); setActiveImgIdx(0); }}
+                className="w-full text-left bg-slate-800 rounded-xl border border-slate-700 overflow-hidden active:scale-[0.99] transition-transform"
+              >
+                <div className="flex gap-3 p-3">
+                  {mainImage ? (
+                    <img src={mainImage} alt={product.title} className="w-20 h-20 rounded-lg object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-lg bg-slate-700 flex items-center justify-center flex-shrink-0">
+                      <Star className="w-8 h-8 text-yellow-500/40" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0 py-1">
+                    <div className="text-white font-semibold">{product.title}</div>
+                    {product.description && <div className="text-xs text-slate-400 mt-0.5 line-clamp-2">{product.description}</div>}
+                    <div className="flex items-center gap-2 mt-2">
+                      <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 border text-xs">{product.points} pts</Badge>
+                      {outOfStock
+                        ? <span className="text-xs text-red-400">Out of Stock</span>
+                        : !canAfford
+                          ? <span className="text-xs text-slate-500">Need {product.points - displayPoints} more pts</span>
+                          : <span className="text-xs text-green-400">✓ You can redeem</span>
+                      }
                     </div>
                   </div>
-                );
-              })}
-              {products.length === 0 && (
-                <div className="text-center text-slate-400 py-8">No VIP products available</div>
-              )}
-
-              {/* Purchase History in Store */}
-              {purchases.length > 0 && (
-                <div className="mt-4 pt-3 border-t border-slate-700">
-                  <div className="text-white font-semibold text-sm mb-2">Your Purchases</div>
-                  <div className="space-y-1">
-                    {purchases.map((p: any) => (
-                      <div key={p.id} className="flex justify-between items-center text-xs bg-slate-800/50 p-2 rounded">
-                        <span className="text-slate-300">{p.productTitle}</span>
-                        <span className="text-slate-400">{p.pointsSpent} pts · {formatDate(p.createdAt)}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-slate-500 flex-shrink-0 self-center" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                 </div>
-              )}
+              </button>
+            );
+          })}
+
+          {/* Purchase History */}
+          {purchases.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <div className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Your Purchases</div>
+              {purchases.map((p: any) => (
+                <div key={p.id} className="flex justify-between items-center text-xs bg-slate-800 p-3 rounded-lg">
+                  <span className="text-slate-300">{p.productTitle}</span>
+                  <span className="text-slate-400 text-right">{p.pointsSpent} pts<br />{formatDate(p.createdAt)}</span>
+                </div>
+              ))}
             </div>
-          </DialogContent>
-        </Dialog>
-      )}
-    </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── VIP Points Card (default) ──────────────────────────────────────────────
+  return (
+    <Card className="bg-slate-800 border-slate-700">
+      <CardHeader>
+        <CardTitle className="text-white flex items-center justify-between">
+          <span className="flex items-center"><Star className="w-5 h-5 mr-2 text-yellow-500" />VIP Points</span>
+          <Badge style={{ backgroundColor: tierColor + '33', color: tierColor, borderColor: tierColor }} className="text-xs border">{tier}</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Points */}
+        <div className="text-center p-5 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-xl">
+          <div className="text-5xl font-bold text-yellow-400">{displayPoints}</div>
+          <div className="text-slate-300 text-sm mt-1">VIP Points</div>
+          {pointsSpent > 0 && (
+            <div className="text-xs text-slate-400 mt-1">Earned: {displayEarned} · Spent: {Math.round(pointsSpent)}</div>
+          )}
+          {displayEarned === 0 && (
+            <div className="text-xs text-slate-500 mt-2">Play sessions to earn VIP points</div>
+          )}
+        </div>
+
+        {/* Tier Progress */}
+        {nextTier && (
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs text-slate-400">
+              <span>{tier}</span>
+              <span>{nextTier.name} ({nextTier.pointsRequired} pts)</span>
+            </div>
+            <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full transition-all"
+                style={{ width: `${Math.min(100, (rawEarned / nextTier.pointsRequired) * 100)}%` }}
+              />
+            </div>
+            <div className="text-xs text-slate-500 text-center">{Math.round(nextTier.pointsToNext)} points to {nextTier.name}</div>
+          </div>
+        )}
+
+        {/* Formula */}
+        <div className="text-xs text-slate-400 p-2 bg-slate-900 rounded">
+          <strong>Formula:</strong> VIP Points = (40% × Hours Played) + (60% × Money Spent ÷ 100)
+        </div>
+
+        {/* VIP Store Button */}
+        {hasProducts && (
+          <Button
+            onClick={() => setStoreView('store')}
+            className="w-full bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white"
+          >
+            <Star className="w-4 h-4 mr-2" /> VIP Store ({products.length} {products.length === 1 ? 'product' : 'products'})
+          </Button>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
