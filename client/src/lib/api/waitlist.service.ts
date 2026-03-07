@@ -39,6 +39,8 @@ export interface WaitlistEntry {
  */
 export interface JoinWaitlistDto {
   tableType?: string;
+  /** Game type: POKER or RUMMY. Ensures staff can only assign to matching table. */
+  gameType?: 'POKER' | 'RUMMY';
   partySize?: number;
   requestedSeat?: number; // Requested seat number (1-10)
 }
