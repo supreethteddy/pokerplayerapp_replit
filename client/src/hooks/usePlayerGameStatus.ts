@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useUltraFastAuth } from './useUltraFastAuth';
 import { useGameStatusSync } from './useGameStatusSync';
 import { waitlistService } from '../lib/api/waitlist.service';
+import { apiRequest } from '../lib/queryClient';
 
 interface GameStatusInfo {
   isInActiveGame: boolean;
@@ -17,6 +18,7 @@ interface GameStatusInfo {
   waitlistEntries: any[];
   canJoinWaitlists: boolean;
   restrictionMessage?: string;
+  isInActiveTournament: boolean;
   
   // ADD: Session fallback data for immediate synchronization
   seatedSessionFallback?: {
@@ -52,6 +54,20 @@ export function usePlayerGameStatus(): GameStatusInfo {
     staleTime: 5000,
   });
 
+  // Check if player is actively in a running tournament
+  const { data: activeTournamentData } = useQuery({
+    queryKey: ['/api/player-tournaments/active-session', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return { inActiveTournament: false, tournamentName: null, tournamentId: null };
+      const res = await apiRequest('GET', '/api/player-tournaments/active-session');
+      if (!res.ok) return { inActiveTournament: false, tournamentName: null, tournamentId: null };
+      return res.json();
+    },
+    enabled: !!user?.id,
+    staleTime: 10000,
+    refetchInterval: 15000,
+  });
+
   // Process the game status
   let isInActiveGame = false;
   let isInInactiveGame = false;
@@ -59,6 +75,7 @@ export function usePlayerGameStatus(): GameStatusInfo {
   let canJoinWaitlists = true;
   let restrictionMessage: string | undefined = undefined;
   let seatedSessionFallback: GameStatusInfo['seatedSessionFallback'] = undefined;
+  const isInActiveTournament = activeTournamentData?.inActiveTournament === true;
 
   console.log('🎯 [GAME STATUS] Raw waitlistStatusData:', waitlistStatusData);
 
@@ -106,6 +123,11 @@ export function usePlayerGameStatus(): GameStatusInfo {
     canJoinWaitlists = false; // Already on a waitlist
 
     console.log('🎯 [GAME STATUS] Player is ON WAITLIST:', activeGameInfo);
+  } else if (isInActiveTournament) {
+    // Player is actively playing in a tournament — block table joins
+    canJoinWaitlists = false;
+    restrictionMessage = `You are currently playing in tournament "${activeTournamentData?.tournamentName || 'a tournament'}". You cannot join a table while in an active tournament.`;
+    console.log('🏆 [GAME STATUS] Player is IN ACTIVE TOURNAMENT - blocking table joins');
   } else {
     console.log('ℹ️ [GAME STATUS] Player has NO active session or waitlist entry');
   }
@@ -117,6 +139,7 @@ export function usePlayerGameStatus(): GameStatusInfo {
     waitlistEntries: [], // Legacy support
     canJoinWaitlists,
     restrictionMessage,
+    isInActiveTournament,
     seatedSessionFallback // Include fallback session data for immediate sync
   };
 }

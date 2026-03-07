@@ -90,6 +90,16 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
 
   // Join waitlist with backend API
   const handleJoinWaitlist = (seatNumber: number) => {
+    // Block if player is actively in a tournament
+    if (gameStatus.isInActiveTournament) {
+      toast({
+        title: "🏆 Tournament In Progress",
+        description: gameStatus.restrictionMessage || "You cannot join a table while playing in an active tournament.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     joinWaitlistMutation.mutate(
       {
         partySize: 1,
