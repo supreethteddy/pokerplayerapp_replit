@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import {
   Timer,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import { useRealtimeTournaments } from "@/hooks/useRealtimeTournaments";
+import { usePlayerGameStatus } from "@/hooks/usePlayerGameStatus";
 
 interface TournamentsTabProps {
   user: any;
@@ -116,15 +116,13 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setTick] = useState(0);
+  const gameStatus = usePlayerGameStatus();
 
   // Force re-render every second for live countdown
   useEffect(() => {
     const interval = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(interval);
   }, []);
-
-  // Real-time updates when admin starts/ends session, pauses, completes tournament or eliminates player
-  useRealtimeTournaments(user?.id, user?.clubId);
 
   // Fetch upcoming tournaments (refetch every 10s so pause/end/session updates appear without refresh)
   const { data: tournamentsData, isLoading: tournamentsLoading } = useQuery<{
@@ -141,8 +139,8 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
       return await response.json();
     },
     refetchOnWindowFocus: true,
-    refetchInterval: 10000,
-    staleTime: 3000,
+    refetchInterval: 5000,
+    staleTime: 0,
   });
 
   // Fetch my registrations
@@ -167,6 +165,16 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
       if (!kycApproved) {
         throw new Error(
           "Please complete KYC verification to register for tournaments"
+        );
+      }
+      if (gameStatus.isInActiveTournament) {
+        throw new Error(
+          gameStatus.restrictionMessage || "You are already playing in an active tournament. Please finish it before joining another."
+        );
+      }
+      if (gameStatus.isInActiveGame) {
+        throw new Error(
+          "You are currently seated at a table. Please finish your table session before joining a tournament."
         );
       }
       const response = await apiRequest(
@@ -400,9 +408,10 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
                             </Button>
                           ) : regState.canRegister ? (
                             <Button
-                              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                               onClick={() => registerMutation.mutate(tournament.id)}
-                              disabled={!kycApproved || registerMutation.isPending}
+                              disabled={!kycApproved || registerMutation.isPending || gameStatus.isInActiveTournament || gameStatus.isInActiveGame}
+                              title={gameStatus.isInActiveTournament ? "Already in an active tournament" : gameStatus.isInActiveGame ? "Seated at a table" : undefined}
                             >
                               <CheckCircle className="w-4 h-4 mr-2" />
                               {registerMutation.isPending

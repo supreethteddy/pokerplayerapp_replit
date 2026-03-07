@@ -1467,7 +1467,18 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   useRealtimeBuyIn(user?.id);
   useRealtimeNotifications(user?.id);
   useRealtimeCreditRequests(user?.id);
-  useRealtimeTournaments(user?.id, user?.clubId);
+  // Stable blind-update toast callback (empty deps — toast ref is stable)
+  const onTournamentBlindsUpdated = useCallback(
+    (payload: { currentRound: number; currentSb: number; currentBb: number; name: string }) => {
+      toast({
+        title: `🏆 Blind Level ${payload.currentRound}`,
+        description: `${payload.name}: SB ${payload.currentSb} / BB ${payload.currentBb}`,
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useRealtimeTournaments(user?.id, user?.clubId, onTournamentBlindsUpdated);
   useRealtimeProfileRequests(user?.id);
   useRealtimeOffers();
 
@@ -1905,6 +1916,16 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   };
 
   const handleJoinWaitList = (tableId: string) => {
+    // Block if player is in an active tournament
+    if (gameStatus.isInActiveTournament) {
+      toast({
+        title: "🏆 Tournament In Progress",
+        description: gameStatus.restrictionMessage || "You cannot join a table while playing in an active tournament.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Check if player is already on a waitlist
     if (waitlistData?.onWaitlist && waitlistData?.entry) {
       // Show warning that previous waitlist will be removed
@@ -3740,7 +3761,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                               }
                                               disabled={
                                                 joinWaitListMutation.isPending ||
-                                                gameStatus.isInActiveGame
+                                                gameStatus.isInActiveGame ||
+                                                gameStatus.isInActiveTournament
                                               }
                                               size="sm"
                                               className="hover:opacity-90 text-white shadow-lg transition-all duration-300 border backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto"
@@ -3959,7 +3981,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                               }
                                               disabled={
                                                 joinWaitListMutation.isPending ||
-                                                gameStatus.isInActiveGame
+                                                gameStatus.isInActiveGame ||
+                                                gameStatus.isInActiveTournament
                                               }
                                               size="sm"
                                               className="hover:opacity-90 text-white shadow-lg transition-all duration-300 border backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] sm:min-h-[36px] text-xs sm:text-sm w-full sm:w-auto"
