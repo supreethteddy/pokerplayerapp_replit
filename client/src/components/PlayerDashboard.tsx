@@ -64,6 +64,9 @@ import {
   Lock,
   Timer,
   Edit3,
+  Shield,
+  HelpCircle,
+  ChevronLeft,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect, useCallback } from "react";
@@ -95,6 +98,7 @@ import { usePlayerGameStatus } from "@/hooks/usePlayerGameStatus";
 import { whitelabelConfig } from "@/lib/whitelabeling";
 import { fetchClubBranding, applyClubBranding, getGradientClasses, getGradientStyle, type ClubBranding } from "@/lib/clubBranding";
 import { usePlayerBalance } from "@/hooks/usePlayerBalance";
+import { parseSafeDate } from "@/lib/utils";
 
 // Scrollable Offers Display Component
 const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null }) => {
@@ -263,10 +267,10 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
                     <div className="flex items-center text-sm text-slate-400 mb-4">
                       <Calendar className="w-4 h-4 mr-2" />
                       {offer.start_date &&
-                        new Date(offer.start_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                        parseSafeDate(offer.start_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
                       {offer.start_date && offer.end_date && " - "}
                       {offer.end_date &&
-                        new Date(offer.end_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                        parseSafeDate(offer.end_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
                     </div>
                   )}
 
@@ -359,7 +363,7 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
                   <div>
                     <p className="text-slate-400 text-sm mb-1">Start Date</p>
                     <p className="text-white">
-                      {new Date(selectedOffer.start_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                      {parseSafeDate(selectedOffer.start_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
                     </p>
                   </div>
                 )}
@@ -367,7 +371,7 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
                   <div>
                     <p className="text-slate-400 text-sm mb-1">End Date</p>
                     <p className="text-white">
-                      {new Date(selectedOffer.end_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                      {parseSafeDate(selectedOffer.end_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
                     </p>
                   </div>
                 )}
@@ -481,7 +485,7 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
-    return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+    return parseSafeDate(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
   };
 
   // ── Product Detail Screen ──────────────────────────────────────────────────
@@ -774,7 +778,7 @@ function getTournamentLateRegInfo(tournament: any): {
   if (lateRegMinutes <= 0) {
     return { isActive: true, lateRegAllowed: false, lateRegOpen: false, lateRegExpired: true, remainingSeconds: 0 };
   }
-  const sessionStart = new Date(tournament.sessionStartedAt).getTime();
+  const sessionStart = parseSafeDate(tournament.sessionStartedAt).getTime();
   const lateRegEndTime = sessionStart + lateRegMinutes * 60 * 1000;
   const remaining = Math.max(0, Math.floor((lateRegEndTime - Date.now()) / 1000));
   return {
@@ -826,10 +830,10 @@ function TournamentSessionTimer({ tournament, large, isExited, exitedAt }: { tou
 
   useEffect(() => {
     if (!tournament.sessionStartedAt) return;
-    const startTime = new Date(tournament.sessionStartedAt).getTime();
+    const startTime = parseSafeDate(tournament.sessionStartedAt).getTime();
     const totalPausedSecs = parseInt(tournament.totalPausedSeconds) || 0;
-    const pausedAtTime = tournament.pausedAt ? new Date(tournament.pausedAt).getTime() : null;
-    const exitTime = exitedAt ? new Date(exitedAt).getTime() : null;
+    const pausedAtTime = tournament.pausedAt ? parseSafeDate(tournament.pausedAt).getTime() : null;
+    const exitTime = exitedAt ? parseSafeDate(exitedAt).getTime() : null;
 
     const update = () => {
       if (sessionEnded && exitTime) {
@@ -888,9 +892,9 @@ function TournamentLevelTracker({ tournament }: { tournament: any }) {
 
   useEffect(() => {
     if (!tournament.sessionStartedAt) return;
-    const startTime = new Date(tournament.sessionStartedAt).getTime();
+    const startTime = parseSafeDate(tournament.sessionStartedAt).getTime();
     const totalPausedSecs = parseInt(tournament.totalPausedSeconds) || 0;
-    const pausedAtTime = tournament.pausedAt ? new Date(tournament.pausedAt).getTime() : null;
+    const pausedAtTime = tournament.pausedAt ? parseSafeDate(tournament.pausedAt).getTime() : null;
 
     const update = () => {
       if (isPaused && pausedAtTime) {
@@ -1082,7 +1086,7 @@ function TournamentSessionContent({ tournament, user, queryClient }: { tournamen
         </div>
         {isPaused && !isExited && (
           <p className="text-center text-yellow-400/70 text-xs mt-1">
-            Tournament paused{tournament.pausedAt ? ` since ${new Date(tournament.pausedAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}` : ''}
+            Tournament paused{tournament.pausedAt ? ` since ${parseSafeDate(tournament.pausedAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}` : ''}
           </p>
         )}
       </div>
@@ -2769,7 +2773,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     if (!dateString) return "No date available";
 
     try {
-      const date = new Date(dateString);
+      const date = parseSafeDate(dateString);
 
       // Check if the date is valid
       if (isNaN(date.getTime())) {
@@ -2857,7 +2861,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     if (!docs || docs.length === 0) return "missing";
 
     const latestDoc = docs.reduce((latest, current) => {
-      return new Date(current.createdAt!) > new Date(latest.createdAt!)
+      return parseSafeDate(current.createdAt!) > parseSafeDate(latest.createdAt!)
         ? current
         : latest;
     });
@@ -3385,7 +3389,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </p>
                                 <p className="text-sm font-medium text-white">
                                   {session.sessionStartTime
-                                    ? new Date(
+                                    ? parseSafeDate(
                                       session.sessionStartTime
                                     ).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })
                                     : "Just now"}
@@ -3544,7 +3548,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             <p><strong>Table Type:</strong> {waitlistData.entry.tableType}</p>
                             <p><strong>Party Size:</strong> {waitlistData.entry.partySize}</p>
                             <p><strong>Status:</strong> <span className="text-amber-400">{waitlistData.entry.status}</span></p>
-                            <p className="text-xs text-slate-400 mt-2">Joined: {new Date(waitlistData.entry.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</p>
+                            <p className="text-xs text-slate-400 mt-2">Joined: {parseSafeDate(waitlistData.entry.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</p>
                             {waitlistData.totalInQueue > 1 && (
                               <p className="text-xs text-slate-400">{waitlistData.totalInQueue} players in queue</p>
                             )}
@@ -4154,7 +4158,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                   </p>
                                   <p className="text-xs sm:text-sm font-semibold text-emerald-500">
                                     {tournament.startDate
-                                      ? new Date(
+                                      ? parseSafeDate(
                                         tournament.startDate
                                       ).toLocaleTimeString('en-IN', {
                                         hour: "2-digit",
@@ -4572,7 +4576,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             {nameStatus.status === 'pending' && nameStatus.request && (
                               <div className="text-xs text-yellow-300/70 bg-yellow-500/10 rounded px-2 py-1">
                                 Requested: <span className="font-medium text-yellow-200">{nameStatus.request.requestedValue}</span>
-                                <span className="text-slate-400 ml-1">({new Date(nameStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
+                                <span className="text-slate-400 ml-1">({parseSafeDate(nameStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
                               </div>
                             )}
                             {nameStatus.status === 'rejected' && nameStatus.request && (
@@ -4614,7 +4618,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             {emailStatus.status === 'pending' && emailStatus.request && (
                               <div className="text-xs text-yellow-300/70 bg-yellow-500/10 rounded px-2 py-1">
                                 Requested: <span className="font-medium text-yellow-200">{emailStatus.request.requestedValue}</span>
-                                <span className="text-slate-400 ml-1">({new Date(emailStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
+                                <span className="text-slate-400 ml-1">({parseSafeDate(emailStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
                               </div>
                             )}
                             {emailStatus.status === 'rejected' && emailStatus.request && (
@@ -4656,7 +4660,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             {phoneStatus.status === 'pending' && phoneStatus.request && (
                               <div className="text-xs text-yellow-300/70 bg-yellow-500/10 rounded px-2 py-1">
                                 Requested: <span className="font-medium text-yellow-200">{phoneStatus.request.requestedValue}</span>
-                                <span className="text-slate-400 ml-1">({new Date(phoneStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
+                                <span className="text-slate-400 ml-1">({parseSafeDate(phoneStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
                               </div>
                             )}
                             {phoneStatus.status === 'rejected' && phoneStatus.request && (
@@ -4699,7 +4703,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         </span>
                         <span className="text-sm text-white font-medium">
                           {user?.created_at || user?.createdAt
-                            ? new Date(user.created_at || user.createdAt).toLocaleDateString('en-IN', {
+                            ? parseSafeDate(user.created_at || user.createdAt).toLocaleDateString('en-IN', {
                               year: 'numeric',
                               month: 'long',
                               day: 'numeric',
@@ -4825,7 +4829,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                               </p>
                             )}
                             <p className="text-xs text-slate-500 mt-2">
-                              Joined: {new Date(entry.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                              Joined: {parseSafeDate(entry.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
                             </p>
                           </div>
                         ))}
@@ -4928,7 +4932,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                               {govIdStatus.status === 'pending' && govIdStatus.request && (
                                 <div className="text-xs text-yellow-300/70 bg-yellow-500/10 rounded px-2 py-1">
                                   New document submitted for review
-                                  <span className="text-slate-400 ml-1">({new Date(govIdStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
+                                  <span className="text-slate-400 ml-1">({parseSafeDate(govIdStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
                                 </div>
                               )}
                               {govIdStatus.status === 'rejected' && govIdStatus.request && (
@@ -4989,7 +4993,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                               {panStatus.status === 'pending' && panStatus.request && (
                                 <div className="text-xs text-yellow-300/70 bg-yellow-500/10 rounded px-2 py-1">
                                   New document submitted for review
-                                  <span className="text-slate-400 ml-1">({new Date(panStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
+                                  <span className="text-slate-400 ml-1">({parseSafeDate(panStatus.request.createdAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })})</span>
                                 </div>
                               )}
                               {panStatus.status === 'rejected' && panStatus.request && (
@@ -5197,11 +5201,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                         {transaction.type}
                                       </p>
                                       <p className="text-xs text-slate-400">
-                                        {new Date(
+                                        {parseSafeDate(
                                           transaction.createdAt || transaction.created_at
                                         ).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}{" "}
                                         at{" "}
-                                        {new Date(
+                                        {parseSafeDate(
                                           transaction.createdAt || transaction.created_at
                                         ).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}
                                       </p>
@@ -5496,7 +5500,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             >
                               <div className="flex items-center justify-between mb-1">
                                 <span className="text-xs text-slate-400">
-                                  {new Date(
+                                  {parseSafeDate(
                                     item.created_at,
                                   ).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
                                 </span>
@@ -5653,7 +5657,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                       <p className="text-xs text-slate-400">Start Time</p>
                       <p className="font-semibold">
                         {selectedTournament.startDate
-                          ? new Date(
+                          ? parseSafeDate(
                             selectedTournament.startDate
                           ).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
                           : "TBA"}

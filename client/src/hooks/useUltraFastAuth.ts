@@ -1,31 +1,66 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { API_BASE_URL } from '@/lib/api/config';
 import type { PlayerProfileUpdatedDetail } from '@/hooks/useRealtimeProfileRequests';
 
+// Global state to sync across hook instances
+let globalUser: any = null;
+let globalAuthChecked = false;
+const listeners = new Set<() => void>();
+
+const notifyListeners = () => {
+  listeners.forEach(listener => listener());
+};
+
 export function useUltraFastAuth() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUserState] = useState<any>(globalUser);
   const [loading, setLoading] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
+  const [authChecked, setAuthCheckedState] = useState(globalAuthChecked);
   const { toast } = useToast();
+
+  const setUser = useCallback((newUser: any) => {
+    globalUser = newUser;
+    setUserState(newUser);
+    notifyListeners();
+  }, []);
+
+  const setAuthChecked = useCallback((checked: boolean) => {
+    globalAuthChecked = checked;
+    setAuthCheckedState(checked);
+    notifyListeners();
+  }, []);
+
+  // Listen for global state changes
+  useEffect(() => {
+    const handleGlobalChange = () => {
+      setUserState(globalUser);
+      setAuthCheckedState(globalAuthChecked);
+    };
+
+    listeners.add(handleGlobalChange);
+    return () => {
+      listeners.delete(handleGlobalChange);
+    };
+  }, []);
 
   // Initialize authentication state on mount
   useEffect(() => {
     console.log('🚀 [ULTRA-FAST AUTH] Initializing...');
-    
+
     // Check for any existing authentication state
     const checkAuthState = async () => {
       try {
         // Check for any stored user data or sessions
-        const storedUser = sessionStorage.getItem('authenticated_user');
+        // Try sessionStorage first, then localStorage as fallback (iOS Capacitor resilience)
+        const storedUser = sessionStorage.getItem('authenticated_user') || localStorage.getItem('authenticated_user');
         if (storedUser) {
           try {
             const userData = JSON.parse(storedUser);
-            
+
             // CRITICAL: Validate stored data integrity
-            const storedClubCode = sessionStorage.getItem('clubCode');
-            const storedPlayerId = sessionStorage.getItem('playerId');
-            
+            const storedClubCode = sessionStorage.getItem('clubCode') || localStorage.getItem('clubCode');
+            const storedPlayerId = sessionStorage.getItem('playerId') || localStorage.getItem('playerId');
+
             // Check if club code doesn't match (corrupted data)
             if (storedClubCode && userData.clubCode && storedClubCode !== userData.clubCode) {
               console.error('❌ [AUTH] Corrupted session detected! Club code mismatch:', storedClubCode, '!=', userData.clubCode);
@@ -35,7 +70,7 @@ export function useUltraFastAuth() {
               setAuthChecked(true);
               return;
             }
-            
+
             // Check if player ID is a timestamp (corrupted)
             if (storedPlayerId && !storedPlayerId.includes('-')) {
               console.error('❌ [AUTH] Corrupted session detected! Player ID is not a UUID:', storedPlayerId);
@@ -45,12 +80,17 @@ export function useUltraFastAuth() {
               setAuthChecked(true);
               return;
             }
-            
+
+            // Ensure both storages are in sync (iOS fix)
+            sessionStorage.setItem('authenticated_user', JSON.stringify(userData));
+            localStorage.setItem('authenticated_user', JSON.stringify(userData));
+
             setUser(userData);
             console.log('🎯 [ULTRA-FAST AUTH] Found stored user session');
           } catch (e) {
             console.error('❌ [AUTH] Failed to parse stored user:', e);
             sessionStorage.removeItem('authenticated_user');
+            localStorage.removeItem('authenticated_user');
           }
         }
       } catch (error) {
@@ -89,6 +129,10 @@ export function useUltraFastAuth() {
         // Keep sessionStorage in sync
         sessionStorage.setItem('authenticated_user', JSON.stringify(updated));
 
+        // Update global user
+        globalUser = updated;
+        notifyListeners();
+
         return updated;
       });
     };
@@ -101,6 +145,7 @@ export function useUltraFastAuth() {
     setUser(null);
     setAuthChecked(true);
     sessionStorage.removeItem('authenticated_user');
+    localStorage.removeItem('authenticated_user');
     sessionStorage.removeItem('kyc_redirect');
     sessionStorage.removeItem('kyc_flow_active');
   };
@@ -140,25 +185,25 @@ export function useUltraFastAuth() {
       console.log('🔍 [LOGIN] PAN Card from response:', result.player?.panCard);
       console.log('🔍 [LOGIN] Created At from response:', result.player?.createdAt);
       console.log('🔍 [LOGIN] Must reset password (raw):', result.mustResetPassword || result.player?.must_reset_password);
-      
+
       // Check if password reset is required (handle both TRUE/FALSE and true/false)
       const mustResetPasswordRaw = result.mustResetPassword || result.player?.must_reset_password || result.player?.mustResetPassword;
-      const mustResetPassword = mustResetPasswordRaw === true || 
-                                mustResetPasswordRaw === 'true' || 
-                                mustResetPasswordRaw === 'TRUE' ||
-                                mustResetPasswordRaw === 1;
-      
+      const mustResetPassword = mustResetPasswordRaw === true ||
+        mustResetPasswordRaw === 'true' ||
+        mustResetPasswordRaw === 'TRUE' ||
+        mustResetPasswordRaw === 1;
+
       console.log('🔍 [LOGIN] Must reset password (parsed):', mustResetPassword);
-      
+
       if (mustResetPassword) {
         console.log('🔐 [LOGIN] Password reset required - returning flag');
-        return { 
-          success: false, 
+        return {
+          success: false,
           mustResetPassword: true,
           error: 'Password reset required'
         };
       }
-      
+
       // Split name into firstName and lastName if backend returns full name
       const fullName = result.player?.name || '';
       const nameParts = fullName.trim().split(' ');
@@ -189,31 +234,38 @@ export function useUltraFastAuth() {
         creditApproved: !!result.player?.creditApproved,
         emailVerified: !!result.player?.emailVerified,
       };
-      
+
       console.log('✅ [LOGIN] User data to store:', userData);
       console.log('✅ [LOGIN] Club ID to store:', userData.clubId);
 
       setUser(userData);
       setAuthChecked(true);
 
-      // Store session
+      // Store session in BOTH sessionStorage and localStorage for iOS Capacitor resilience
       sessionStorage.setItem('authenticated_user', JSON.stringify(userData));
+      localStorage.setItem('authenticated_user', JSON.stringify(userData));
       sessionStorage.setItem('just_signed_in', 'true');
-      
+      localStorage.setItem('just_signed_in', 'true');
+
       // Store player and club IDs for API requests
       console.log('💾 [LOGIN] Storing playerId:', userData.id);
       console.log('💾 [LOGIN] Storing clubId:', userData.clubId);
       console.log('💾 [LOGIN] Storing clubCode:', userData.clubCode);
-      
+
       sessionStorage.setItem('playerId', String(userData.id));
       sessionStorage.setItem('clubId', userData.clubId);
       sessionStorage.setItem('clubCode', userData.clubCode);
-      
+      // Also store in localStorage for iOS Capacitor
+      localStorage.setItem('playerId', String(userData.id));
+      localStorage.setItem('clubId', userData.clubId);
+      localStorage.setItem('clubCode', userData.clubCode);
+
       console.log('✅ [LOGIN] Session storage updated');
       console.log('✅ [LOGIN] Verify - sessionStorage.clubId:', sessionStorage.getItem('clubId'));
-      
+
       if (result.token) {
         sessionStorage.setItem('auth_token', result.token);
+        localStorage.setItem('auth_token', result.token);
       }
 
       // Check KYC status
@@ -222,9 +274,10 @@ export function useUltraFastAuth() {
         sessionStorage.removeItem('kyc_flow_active');
       }
 
-      setTimeout(() => {
-        window.location.reload();
-      }, 300);
+      // NOTE: Do NOT use window.location.reload() here.
+      // On iOS Capacitor, reload() can lose sessionStorage, causing the
+      // "Connecting your account" infinite loop. React state is already
+      // updated above via setUser/setAuthChecked, so the UI will re-render.
 
       console.log('✅ [AUTH] Sign in successful:', userData.email);
 
@@ -319,15 +372,21 @@ export function useUltraFastAuth() {
       setUser(newUser);
       setAuthChecked(true);
       sessionStorage.setItem('authenticated_user', JSON.stringify(newUser));
+      localStorage.setItem('authenticated_user', JSON.stringify(newUser));
       sessionStorage.setItem('just_signed_in', 'true');
-      
-      // Store player and club IDs for API requests
+      localStorage.setItem('just_signed_in', 'true');
+
+      // Store player and club IDs for API requests (both storages for iOS)
       sessionStorage.setItem('playerId', String(newUser.id));
       sessionStorage.setItem('clubId', newUser.clubId);
       sessionStorage.setItem('clubCode', newUser.clubCode);
-      
+      localStorage.setItem('playerId', String(newUser.id));
+      localStorage.setItem('clubId', newUser.clubId);
+      localStorage.setItem('clubCode', newUser.clubCode);
+
       if (result.token) {
         sessionStorage.setItem('auth_token', result.token);
+        localStorage.setItem('auth_token', result.token);
       }
 
       // Redirect to KYC if required
@@ -337,9 +396,9 @@ export function useUltraFastAuth() {
         setTimeout(() => {
           window.location.href = '/kyc';
         }, 1000);
-      } else {
-        setTimeout(() => window.location.reload(), 300);
       }
+      // NOTE: Do NOT use window.location.reload() here for iOS Capacitor compatibility.
+      // React state is already updated via setUser/setAuthChecked above.
 
       return { success: true, user: newUser };
     } catch (error: any) {
@@ -379,6 +438,11 @@ export function useUltraFastAuth() {
 
       // Clear all authentication state
       sessionStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('playerId');
+      localStorage.removeItem('clubId');
+      localStorage.removeItem('clubCode');
+      localStorage.removeItem('just_signed_in');
       await handleSignOut();
 
     } catch (error: any) {
@@ -391,6 +455,11 @@ export function useUltraFastAuth() {
       });
 
       sessionStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('playerId');
+      localStorage.removeItem('clubId');
+      localStorage.removeItem('clubCode');
+      localStorage.removeItem('just_signed_in');
       await handleSignOut();
     }
   };

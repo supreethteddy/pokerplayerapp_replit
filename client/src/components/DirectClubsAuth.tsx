@@ -481,8 +481,8 @@ export default function DirectClubsAuth() {
                 <button
                   onClick={() => setActiveTab("signin")}
                   className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm font-medium border-b-2 transition-colors min-h-[44px] sm:min-h-[48px] flex items-center justify-center ${activeTab === "signin"
-                      ? "border-blue-500 text-blue-400"
-                      : "border-transparent text-gray-400 hover:text-white"
+                    ? "border-blue-500 text-blue-400"
+                    : "border-transparent text-gray-400 hover:text-white"
                     }`}
                 >
                   Log In
@@ -490,8 +490,8 @@ export default function DirectClubsAuth() {
                 <button
                   onClick={() => setActiveTab("signup")}
                   className={`flex-1 py-2.5 sm:py-3 px-3 sm:px-4 text-xs sm:text-sm font-medium border-b-2 transition-colors min-h-[44px] sm:min-h-[48px] flex items-center justify-center ${activeTab === "signup"
-                      ? "border-blue-500 text-blue-400"
-                      : "border-transparent text-gray-400 hover:text-white"
+                    ? "border-blue-500 text-blue-400"
+                    : "border-transparent text-gray-400 hover:text-white"
                     }`}
                 >
                   Sign Up
@@ -783,7 +783,7 @@ export default function DirectClubsAuth() {
                       sessionStorage.removeItem('club_id');
                       sessionStorage.removeItem('club_name');
                       sessionStorage.removeItem('club_branding');
-                      window.location.reload();
+                      window.location.href = '/';
                     }}
                   >
                     Change Club

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { X, Bell, AlertTriangle, Info, CheckCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
+import { parseSafeDate } from "@/lib/utils";
 
 interface NotificationPopupProps {
   userId: number;
@@ -32,9 +33,9 @@ export default function NotificationPopup({ userId, onChatNotificationClick }: N
       const dismissedNotifications = JSON.parse(localStorage.getItem('dismissedNotifications') || '[]');
       
       // Filter out notifications older than 24 hours
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const twentyFourHoursAgo = parseSafeDate(Date.now() - 24 * 60 * 60 * 1000);
       const recentNotifications = notifications.filter((notif: any) => 
-        new Date(notif.created_at) > twentyFourHoursAgo
+        parseSafeDate(notif.created_at) > twentyFourHoursAgo
       );
 
       // Show new notifications as pop-ups (only if not already seen and not dismissed)
@@ -181,7 +182,7 @@ export default function NotificationPopup({ userId, onChatNotificationClick }: N
             
             <div className="flex items-center justify-between text-xs text-white/70">
               <span>{notification.sender_name || notification.sent_by_name || 'System'}</span>
-              <span>{new Date(notification.created_at || notification.sent_at).toLocaleTimeString()}</span>
+              <span>{parseSafeDate(notification.created_at || notification.sent_at).toLocaleTimeString()}</span>
             </div>
           </CardContent>
         </Card>

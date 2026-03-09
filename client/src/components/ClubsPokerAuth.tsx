@@ -110,8 +110,8 @@ export default function ClubsPokerAuth() {
             <button
               onClick={() => setActiveTab('signin')}
               className={`flex-1 py-3 px-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'signin'
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-gray-400 hover:text-white'
+                ? 'border-blue-500 text-blue-400'
+                : 'border-transparent text-gray-400 hover:text-white'
                 }`}
             >
               Log In
@@ -119,8 +119,8 @@ export default function ClubsPokerAuth() {
             <button
               onClick={() => setActiveTab('signup')}
               className={`flex-1 py-3 px-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'signup'
-                  ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-gray-400 hover:text-white'
+                ? 'border-blue-500 text-blue-400'
+                : 'border-transparent text-gray-400 hover:text-white'
                 }`}
             >
               Sign Up
@@ -252,7 +252,7 @@ export default function ClubsPokerAuth() {
                   sessionStorage.removeItem('clubId');
                   localStorage.removeItem('clubCode');
                   sessionStorage.removeItem('clubCode');
-                  window.location.reload();
+                  window.location.href = '/';
                 }}
               >
                 Change Club
