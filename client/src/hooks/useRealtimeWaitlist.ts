@@ -1,56 +1,46 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { io } from 'socket.io-client';
 
-/**
- * Hook to subscribe to real-time waitlist updates via Supabase Realtime
- * Automatically updates React Query cache when waitlist changes
- */
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3333/api';
+const websocketBase = API_BASE_URL.endsWith('/api')
+  ? API_BASE_URL.slice(0, -4)
+  : API_BASE_URL.replace(/\/$/, '');
+
 export function useRealtimeWaitlist(playerId: number | string | null | undefined) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!playerId) return;
 
-    // Subscribe to real-time changes on waitlist table
-    // Note: Using 'waitlist' table (not 'seat_requests' which may not exist)
-    const channel = supabase
-      .channel(`player-waitlist-${playerId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // INSERT, UPDATE, DELETE
-          schema: 'public',
-          table: 'waitlist_entries',
-          filter: `player_id=eq.${playerId}`,
-        },
-        (payload) => {
-          console.log('🎯 [REALTIME] Waitlist change detected:', payload.eventType, payload.new || payload.old);
-          
-          // Invalidate waitlist queries to refetch
-          queryClient.invalidateQueries({ queryKey: ['/api/seat-requests', playerId] });
-          queryClient.invalidateQueries({ queryKey: ['waitlist', 'status'] });
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ [REALTIME] Subscribed to waitlist for player:', playerId);
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ [REALTIME] Waitlist subscription error');
-        }
-      });
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
+    const socket = io(`${websocketBase}/realtime`, {
+      auth: { playerId: String(playerId), token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 2000,
+      reconnectionAttempts: Infinity,
+    });
+
+    const invalidate = () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/seat-requests', playerId] });
+      queryClient.invalidateQueries({ queryKey: ['waitlist', 'status'] });
+    };
+
+    socket.on('waitlist:position-updated', (data: any) => {
+      if (!data?.playerId || String(data.playerId) !== String(playerId)) return;
+      console.log('🎯 [SOCKET] Waitlist position updated:', data);
+      invalidate();
+    });
+
+    socket.on('waitlist:status-changed', (data: any) => {
+      if (!data?.playerId || String(data.playerId) !== String(playerId)) return;
+      console.log('🎯 [SOCKET] Waitlist status changed:', data);
+      invalidate();
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      socket.disconnect();
     };
   }, [playerId, queryClient]);
 }
-
-
-
-
-
-
-
-
-

@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { io } from 'socket.io-client';
 import { useToast } from '@/hooks/use-toast';
 
-/**
- * Real-time KYC status updates hook
- * Subscribes to player table changes for KYC status updates
- * When admin approves KYC, player gets notified immediately
- */
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3333/api';
+const websocketBase = API_BASE_URL.endsWith('/api')
+  ? API_BASE_URL.slice(0, -4)
+  : API_BASE_URL.replace(/\/$/, '');
+
 export function useRealtimeKycStatus(playerId: number | string | null | undefined) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -15,78 +15,50 @@ export function useRealtimeKycStatus(playerId: number | string | null | undefine
   useEffect(() => {
     if (!playerId) return;
 
-    console.log('🔐 [REALTIME KYC] Subscribing to KYC status updates for player:', playerId);
+    console.log('🔐 [SOCKET KYC] Subscribing to KYC status updates for player:', playerId);
 
-    const channel = supabase
-      .channel(`player-kyc-${playerId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'players',
-          filter: `id=eq.${playerId}`,
-        },
-        (payload) => {
-          console.log('🔐 [REALTIME KYC] Player data updated:', payload);
-          
-          const newData = payload.new as any;
-          const oldData = payload.old as any;
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
+    const socket = io(`${websocketBase}/realtime`, {
+      auth: { playerId: String(playerId), token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 2000,
+      reconnectionAttempts: Infinity,
+    });
 
-          // Check if KYC status changed
-          if (newData.kyc_status !== oldData.kyc_status) {
-            console.log('🎉 [REALTIME KYC] KYC Status changed:', {
-              old: oldData.kyc_status,
-              new: newData.kyc_status
-            });
+    socket.on('kyc:status-changed', (data: any) => {
+      if (!data?.playerId || String(data.playerId) !== String(playerId)) return;
 
-            // Show success notification if KYC was approved
-            if (newData.kyc_status === 'approved' || newData.kyc_status === 'verified') {
-              toast({
-                title: '🎉 KYC Approved!',
-                description: 'Your KYC verification has been approved! You can now access all features.',
-                duration: 8000,
-              });
-            } else if (newData.kyc_status === 'rejected') {
-              toast({
-                title: '❌ KYC Rejected',
-                description: 'Your KYC verification was rejected. Please contact support or resubmit documents.',
-                variant: 'destructive',
-                duration: 8000,
-              });
-            }
+      const kycStatus: string = data.kycStatus || '';
+      console.log('🔐 [SOCKET KYC] Status changed:', kycStatus);
 
-            // Invalidate queries to refetch with new KYC status
-            queryClient.invalidateQueries({ queryKey: ['/api/auth/player/me'] });
-            queryClient.invalidateQueries({ queryKey: ['player', 'profile'] });
-            
-            // Force refetch of player data to update UI
-            queryClient.refetchQueries({ queryKey: ['/api/auth/player/me'] });
-          }
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ [REALTIME KYC] Successfully subscribed to KYC updates');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ [REALTIME KYC] Channel subscription error');
-        } else if (status === 'TIMED_OUT') {
-          console.error('⏱️ [REALTIME KYC] Channel subscription timed out');
-        } else {
-          console.log('🔐 [REALTIME KYC] Channel status:', status);
-        }
-      });
+      if (kycStatus === 'approved' || kycStatus === 'verified') {
+        toast({
+          title: '🎉 KYC Approved!',
+          description: 'Your KYC verification has been approved! You can now access all features.',
+          duration: 8000,
+        });
+      } else if (kycStatus === 'rejected') {
+        toast({
+          title: '❌ KYC Rejected',
+          description: 'Your KYC verification was rejected. Please contact support or resubmit documents.',
+          variant: 'destructive',
+          duration: 8000,
+        });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/player/me'] });
+      queryClient.invalidateQueries({ queryKey: ['player', 'profile'] });
+      queryClient.refetchQueries({ queryKey: ['/api/auth/player/me'] });
+    });
+
+    socket.on('connect', () => {
+      console.log('✅ [SOCKET KYC] Connected');
+    });
 
     return () => {
-      console.log('🔌 [REALTIME KYC] Unsubscribing from KYC updates');
-      supabase.removeChannel(channel);
+      console.log('🔌 [SOCKET KYC] Disconnecting');
+      socket.disconnect();
     };
   }, [playerId, queryClient, toast]);
 }
-
-
-
-
-
-
-

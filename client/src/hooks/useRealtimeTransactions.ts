@@ -1,57 +1,40 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { io } from 'socket.io-client';
 
-/**
- * Hook to subscribe to real-time transaction updates via Supabase Realtime
- * Automatically updates React Query cache when new transactions are created
- */
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3333/api';
+const websocketBase = API_BASE_URL.endsWith('/api')
+  ? API_BASE_URL.slice(0, -4)
+  : API_BASE_URL.replace(/\/$/, '');
+
 export function useRealtimeTransactions(playerId: number | string | null | undefined) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!playerId) return;
 
-    // Subscribe to real-time changes on transactions table (if it exists in Supabase)
-    // Note: This assumes transactions are stored in Supabase. If they're in the Nest backend,
-    // you might need to use Pusher or a different mechanism
-    const channel = supabase
-      .channel(`player-transactions-${playerId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT', // New transactions
-          schema: 'public',
-          table: 'transactions', // Adjust table name if different
-          filter: `player_id=eq.${playerId}`,
-        },
-        (payload) => {
-          console.log('💳 [REALTIME] New transaction detected:', payload.new);
-          
-          // Invalidate transaction queries to refetch
-          queryClient.invalidateQueries({ queryKey: ['player', 'transactions'] });
-          queryClient.invalidateQueries({ queryKey: ['transactions', playerId] });
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ [REALTIME] Subscribed to transactions for player:', playerId);
-        } else if (status === 'CHANNEL_ERROR') {
-          console.warn('⚠️ [REALTIME] Transactions table might not exist or Realtime not enabled');
-        }
-      });
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
+    const socket = io(`${websocketBase}/realtime`, {
+      auth: { playerId: String(playerId), token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 2000,
+      reconnectionAttempts: Infinity,
+    });
+
+    const invalidate = () => {
+      queryClient.invalidateQueries({ queryKey: ['player', 'transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions', playerId] });
+    };
+
+    socket.on('transaction:new', (data: any) => {
+      if (!data?.playerId || String(data.playerId) !== String(playerId)) return;
+      console.log('💳 [SOCKET] New transaction detected for player:', playerId);
+      invalidate();
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      socket.disconnect();
     };
   }, [playerId, queryClient]);
 }
-
-
-
-
-
-
-
-
-

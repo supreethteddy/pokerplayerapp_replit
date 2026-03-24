@@ -32,7 +32,8 @@ export default function KYCVerification() {
   const [panCard, setPanCard] = useState("");
   const [clubBranding, setClubBranding] = useState<ClubBranding | null>(null);
   const [uploadedDocs, setUploadedDocs] = useState<{
-    government_id?: { name: string; preview: string };
+    aadhaar_front?: { name: string; preview: string };
+    aadhaar_back?: { name: string; preview: string };
     pan_card?: { name: string; preview: string };
     profile_photo?: { name: string; preview: string };
   }>({});
@@ -204,10 +205,12 @@ export default function KYCVerification() {
       }
 
       // Step 2: Tell the backend to record the document URL (no Storage call from backend)
+      const _kycToken = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
       const recordRes = await fetch(`${API_BASE_URL}/player-documents/record`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(_kycToken ? { 'Authorization': `Bearer ${_kycToken}` } : {}),
           'x-player-id': playerId,
           'x-club-id': clubId,
         },
@@ -255,11 +258,11 @@ export default function KYCVerification() {
   const handlePanCardSubmit = () => {
     const trimmedPan = panCard.trim().toUpperCase();
     
-    // Require PAN number and both Aadhaar + PAN docs before submit
-    if (!uploadedDocs.government_id || !uploadedDocs.pan_card) {
+    // Require PAN number and Aadhaar front + back + PAN docs before submit
+    if (!uploadedDocs.aadhaar_front || !uploadedDocs.aadhaar_back || !uploadedDocs.pan_card) {
       toast({
         title: "Documents Required",
-        description: "Please upload both your Aadhaar card and PAN card before submitting KYC.",
+        description: "Please upload Aadhaar Front, Aadhaar Back, and PAN card before submitting KYC.",
         variant: "destructive",
       });
       return;
@@ -422,7 +425,7 @@ export default function KYCVerification() {
               <ul className="text-sm text-slate-400 space-y-1 ml-4">
                 <li className="flex items-center text-xs sm:text-sm">
                   <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-2 flex-shrink-0" style={{ color: clubBranding?.skinColor || '#10b981' }} />
-                  Government-issued Photo ID (Aadhaar, Passport, Driver's License)
+                  Aadhaar Front + Aadhaar Back (both are required)
                 </li>
                 <li className="flex items-center text-xs sm:text-sm">
                   <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-2 flex-shrink-0" style={{ color: clubBranding?.skinColor || '#10b981' }} />
@@ -468,36 +471,75 @@ export default function KYCVerification() {
               <div className="space-y-2">
                 <label className="text-sm text-slate-300 font-medium flex items-center">
                   <FileText className="w-4 h-4 mr-2" />
-                  Aadhaar Card (Front & Back)
+                  Aadhaar Front
                 </label>
                 <Button
                   variant="outline"
                   className="w-full hover:opacity-90 text-white min-h-[44px] sm:min-h-[48px] text-sm sm:text-base"
                   style={getClubButtonStyle('secondary')}
                   disabled={uploadKycDocumentMutation.isPending}
-                  onClick={() => document.getElementById("aadhaar-upload")?.click()}
+                  onClick={() => document.getElementById("aadhaar-front-upload")?.click()}
                 >
                   <Upload className="w-4 h-4 mr-2" />
-                  {uploadKycDocumentMutation.isPending ? "Uploading..." : "Upload Aadhaar"}
+                  {uploadKycDocumentMutation.isPending ? "Uploading..." : "Upload Aadhaar Front"}
                 </Button>
                 <input
-                  id="aadhaar-upload"
+                  id="aadhaar-front-upload"
                   type="file"
                   accept=".jpg,.jpeg,.png,.pdf"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                      handleKycDocumentUpload("government_id", file);
+                      handleKycDocumentUpload("aadhaar_front", file);
                       e.target.value = "";
                     }
                   }}
                 />
-                {uploadedDocs.government_id && (
+                {uploadedDocs.aadhaar_front && (
                   <div className="mt-2 p-3 bg-green-900/20 border border-green-700/50 rounded-lg">
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-green-400" />
-                      <span className="text-sm text-green-300">{uploadedDocs.government_id.name}</span>
+                      <span className="text-sm text-green-300">{uploadedDocs.aadhaar_front.name}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Aadhaar Back */}
+              <div className="space-y-2">
+                <label className="text-sm text-slate-300 font-medium flex items-center">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Aadhaar Back
+                </label>
+                <Button
+                  variant="outline"
+                  className="w-full hover:opacity-90 text-white min-h-[44px] sm:min-h-[48px] text-sm sm:text-base"
+                  style={getClubButtonStyle('secondary')}
+                  disabled={uploadKycDocumentMutation.isPending}
+                  onClick={() => document.getElementById("aadhaar-back-upload")?.click()}
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  {uploadKycDocumentMutation.isPending ? "Uploading..." : "Upload Aadhaar Back"}
+                </Button>
+                <input
+                  id="aadhaar-back-upload"
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleKycDocumentUpload("aadhaar_back", file);
+                      e.target.value = "";
+                    }
+                  }}
+                />
+                {uploadedDocs.aadhaar_back && (
+                  <div className="mt-2 p-3 bg-green-900/20 border border-green-700/50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-400" />
+                      <span className="text-sm text-green-300">{uploadedDocs.aadhaar_back.name}</span>
                     </div>
                   </div>
                 )}
@@ -584,11 +626,12 @@ export default function KYCVerification() {
 
             {/* Submit KYC Button - Mobile Responsive */}
             <div className="pt-4 border-t border-slate-600">
-              {(!uploadedDocs.government_id || !uploadedDocs.pan_card || !panCard.trim()) && (
+              {(!uploadedDocs.aadhaar_front || !uploadedDocs.aadhaar_back || !uploadedDocs.pan_card || !panCard.trim()) && (
                 <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg mb-3">
                   <p className="text-xs sm:text-sm text-red-300 font-medium mb-1">Required before submission:</p>
                   <ul className="text-xs text-red-400/80 space-y-0.5 ml-3">
-                    {!uploadedDocs.government_id && <li>• Upload Aadhaar Card document</li>}
+                    {!uploadedDocs.aadhaar_front && <li>• Upload Aadhaar Front document</li>}
+                    {!uploadedDocs.aadhaar_back && <li>• Upload Aadhaar Back document</li>}
                     {!uploadedDocs.pan_card && <li>• Upload PAN Card document</li>}
                     {!panCard.trim() && <li>• Enter PAN Card number</li>}
                   </ul>
@@ -601,7 +644,8 @@ export default function KYCVerification() {
                 disabled={
                   submitPanCardMutation.isPending ||
                   !panCard.trim() ||
-                  !uploadedDocs.government_id ||
+                  !uploadedDocs.aadhaar_front ||
+                  !uploadedDocs.aadhaar_back ||
                   !uploadedDocs.pan_card
                 }
               >
@@ -610,10 +654,10 @@ export default function KYCVerification() {
                     <Clock className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
                     Submitting KYC...
                   </>
-                ) : !uploadedDocs.government_id || !uploadedDocs.pan_card ? (
+                ) : !uploadedDocs.aadhaar_front || !uploadedDocs.aadhaar_back || !uploadedDocs.pan_card ? (
                   <>
                     <Upload className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                    Upload Aadhaar & PAN First
+                    Upload Aadhaar Front, Aadhaar Back & PAN First
                   </>
                 ) : !panCard.trim() ? (
                   <>
@@ -628,7 +672,7 @@ export default function KYCVerification() {
                 )}
               </Button>
               <p className="text-xs sm:text-sm text-slate-500 text-center mt-2 px-2">
-                Upload both Aadhaar and PAN documents, then enter your PAN number to submit
+                Upload Aadhaar Front, Aadhaar Back, and PAN document, then enter your PAN number to submit
               </p>
             </div>
           </CardContent>

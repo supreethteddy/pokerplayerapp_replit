@@ -103,7 +103,11 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
         : API_BASE_URL.replace(/\/$/, ''));
 
     const socket = io(`${websocketBase}/realtime`, {
-      auth: { clubId, playerId: user.id },
+      auth: {
+        clubId,
+        playerId: user.id,
+        token: localStorage.getItem('auth_token') || localStorage.getItem('playerToken'),
+      },
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,

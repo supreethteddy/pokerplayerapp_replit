@@ -9,7 +9,7 @@ class DocumentsService extends BaseAPIService {
    * Upload KYC document (with or without file)
    */
   async uploadKYCDocument(data: {
-    type: 'id_proof' | 'address_proof' | 'photo' | 'pan_card' | 'other';
+    type: 'id_proof' | 'address_proof' | 'photo' | 'pan_card' | 'aadhaar_front' | 'aadhaar_back' | 'other';
     name: string;
     url?: string;
   }): Promise<{
@@ -69,10 +69,12 @@ class DocumentsService extends BaseAPIService {
 
     // Use fetch directly for file upload
     const { playerId, clubId } = this.getPlayerSession();
+    const token = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
     const response = await fetch(`${this.baseUrl}/player-documents/upload`, {
       method: 'POST',
       body: formData,
       headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         'x-player-id': playerId || '',
         'x-club-id': clubId || '',
       },

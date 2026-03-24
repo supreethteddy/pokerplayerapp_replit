@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { usePlayerBalance } from "@/hooks/usePlayerBalance";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
+import { io } from "socket.io-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,21 +44,23 @@ export default function CreditRequestCard() {
   const creditLimit = parseFloat((balance as any)?.creditLimit || '0');
   const availableCredit = parseFloat((balance as any)?.availableCredit || '0');
 
-  // Supabase real-time: instant updates when credit request is approved/rejected
+  // Socket.IO: instant updates when credit request is approved/rejected
   useEffect(() => {
     if (!user?.id) return;
-    const channel = supabase
-      .channel(`credit-requests-${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'credit_requests', filter: `player_id=eq.${user.id}` },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['credit-requests', user.id] });
-          queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
-        }
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3333/api';
+    const wsBase = API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL.replace(/\/$/, '');
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
+    const socket = io(`${wsBase}/realtime`, {
+      auth: { playerId: String(user.id), token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+    });
+    socket.on('credit:status-changed', (data: any) => {
+      if (data?.playerId && String(data.playerId) !== String(user.id)) return;
+      queryClient.invalidateQueries({ queryKey: ['credit-requests', user.id] });
+      queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
+    });
+    return () => { socket.disconnect(); };
   }, [user?.id, queryClient]);
 
   // Fetch credit requests for player (initial load, real-time handles updates)

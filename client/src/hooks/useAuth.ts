@@ -102,11 +102,13 @@ export function useAuth() {
       }
       
       // Fetch player profile using correct endpoint
+      const token = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
       const response = await fetch('/api/auth/player/me', {
         credentials: 'include',
         cache: 'no-cache',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           'x-player-id': storedPlayerId,
           'x-club-id': storedClubId
         }

@@ -1228,8 +1228,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     queryFn: async () => {
       if (!baseUser?.id) return null;
       try {
+        const _pt = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
         const response = await fetch(`${API_BASE_URL}/auth/player/me`, {
           headers: {
+            ...(_pt ? { 'Authorization': `Bearer ${_pt}` } : {}),
             'x-player-id': baseUser.id.toString(),
             'x-club-id': (baseUser as any).clubId || '',
           },
@@ -1729,8 +1731,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       queryFn: async () => {
         if (!user?.id) return [];
         try {
+          const _pt2 = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
           const response = await fetch(`${API_BASE_URL}/player-documents/my`, {
             headers: {
+              ...(_pt2 ? { 'Authorization': `Bearer ${_pt2}` } : {}),
               'x-player-id': user.id.toString(),
               'x-club-id': (user as any).clubId || '',
             },
@@ -2070,16 +2074,27 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         const clubId = sessionStorage.getItem('clubId') || localStorage.getItem('clubId');
         if (!playerId || !clubId) throw new Error('Missing player or club ID');
 
-        const docTypeMap: Record<string, string> = { government_id: 'government_id', pan_card: 'pan_card', profile_photo: 'profile_photo' };
+        const docTypeMap: Record<string, string> = {
+          government_id: 'government_id',
+          aadhaar_front: 'aadhaar_front',
+          aadhaar_back: 'aadhaar_back',
+          pan_card: 'pan_card',
+          profile_photo: 'profile_photo'
+        };
         const docType = docTypeMap[fieldName] || fieldName;
         const formData = new FormData();
         formData.append('file', changeRequestFile);
         formData.append('documentType', docType);
         formData.append('fileName', changeRequestFile.name);
 
+        const _pt3 = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
         const uploadRes = await fetch(`${API_BASE_URL}/player-documents/upload`, {
           method: 'POST',
-          headers: { 'x-player-id': playerId, 'x-club-id': clubId },
+          headers: {
+            ...(_pt3 ? { 'Authorization': `Bearer ${_pt3}` } : {}),
+            'x-player-id': playerId,
+            'x-club-id': clubId,
+          },
           body: formData,
         });
         const uploadData = await uploadRes.json();
@@ -2665,10 +2680,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       if (!user?.id) return [];
 
       const limit = showTransactions === "all" ? 100 : 10; // Fetch 100 if 'all', otherwise 10
+      const _pt4 = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
       const response = await fetch(
         `${API_BASE_URL}/auth/player/transactions?limit=${limit}`,
         {
           headers: {
+            ...(_pt4 ? { 'Authorization': `Bearer ${_pt4}` } : {}),
             'x-player-id': user.id.toString(),
             'x-club-id': (user as any).clubId || '',
           },
@@ -2755,8 +2772,10 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   // Format document types for display
   const formatDocumentType = (type: string) => {
     const typeMap: Record<string, string> = {
-      government_id: "Government ID",
-      id_document: "Government ID",
+      government_id: "Aadhaar (Legacy)",
+      aadhaar_front: "Aadhaar Front",
+      aadhaar_back: "Aadhaar Back",
+      id_document: "Aadhaar Document",
       address_proof: "Address Proof",
       utility_bill: "Address Proof",
       pan_card: "PAN Card",
@@ -2846,13 +2865,28 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const getKycDocumentStatus = (documentType: string) => {
     // Map display types to actual database types
     const typeMap: { [key: string]: string } = {
-      id: "government_id",
+      id: "aadhaar_pair",
       utility: "utility_bill",
       photo: "profile_photo",
       pan: "pan_card",
     };
 
     const actualType = typeMap[documentType] || documentType;
+
+    // Aadhaar now requires front + back (legacy government_id still accepted).
+    if (actualType === "aadhaar_pair") {
+      const hasLegacyGovId = (kycDocuments || []).some(
+        (d) => d.documentType === "government_id" && d.fileUrl
+      );
+      const hasFront = (kycDocuments || []).some(
+        (d) => d.documentType === "aadhaar_front" && d.fileUrl
+      );
+      const hasBack = (kycDocuments || []).some(
+        (d) => d.documentType === "aadhaar_back" && d.fileUrl
+      );
+      if (hasLegacyGovId || (hasFront && hasBack)) return "uploaded";
+      return "missing";
+    }
 
     // Find the latest document for this type (by createdAt date), using both Supabase and local URLs
     const docs = kycDocuments?.filter(
@@ -2866,8 +2900,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         : latest;
     });
 
-    // For govt_id and pan_card, if document exists, show as "uploaded" instead of "pending"
-    if ((actualType === "government_id" || actualType === "pan_card") && latestDoc.status === "pending") {
+    // For required docs, if document exists, show as "uploaded" instead of "pending"
+    if ((actualType === "pan_card") && latestDoc.status === "pending") {
       return "uploaded";
     }
 
@@ -4887,29 +4921,41 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                             ? `Found ${kycDocuments.length} documents`
                             : "No documents found"}
                         </div>
-                        {/* Govt ID */}
+                        {/* Aadhaar Documents */}
                         {(() => {
                           const govIdStatus = getFieldChangeStatus('government_id');
+                          const aadhaarDocs = Array.isArray(kycDocuments)
+                            ? kycDocuments.filter(
+                                d =>
+                                  (d.documentType === "aadhaar_front" ||
+                                    d.documentType === "aadhaar_back" ||
+                                    d.documentType === "government_id") &&
+                                  d.fileUrl
+                              )
+                            : [];
                           return (
                             <div className="p-3 bg-slate-700 rounded-lg space-y-2">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-3 flex-1">
                                   {getKycStatusIcon(getKycDocumentStatus("id"))}
                                   <div className="flex-1">
-                                    <p className="text-sm font-medium text-white">Govt ID</p>
+                                    <p className="text-sm font-medium text-white">Aadhaar (Front & Back)</p>
                                     <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus("id")}</p>
-                                    {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === "government_id" && d.fileUrl).length > 0 && (
+                                    {aadhaarDocs.length > 0 && (
                                       <p className="text-xs text-emerald-500 mt-1">
-                                        {kycDocuments.filter(d => d.documentType === "government_id" && d.fileUrl)[0]?.fileName}
+                                        {aadhaarDocs.map(d => d.fileName).filter(Boolean).join(" / ")}
                                       </p>
                                     )}
                                   </div>
                                 </div>
                                 <div className="flex flex-col items-stretch space-y-2">
-                                  {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === "government_id" && d.fileUrl).length > 0 && (
+                                  {aadhaarDocs.length > 0 && (
                                     <Button size="sm" variant="outline" className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
                                       onClick={() => {
-                                        const doc = kycDocuments.filter(d => d.documentType === "government_id" && d.fileUrl)[0];
+                                        const doc =
+                                          aadhaarDocs.find(d => d.documentType === "aadhaar_front") ||
+                                          aadhaarDocs.find(d => d.documentType === "aadhaar_back") ||
+                                          aadhaarDocs.find(d => d.documentType === "government_id");
                                         if (doc?.fileUrl) window.open(doc.fileUrl, "_blank");
                                       }}>
                                       <Eye className="w-3 h-3 mr-1" /> View Document
@@ -4921,7 +4967,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     </span>
                                   ) : (
                                     <Button size="sm" variant="outline"
-                                      onClick={() => openChangeRequestDialog('government_id', 'Govt ID (Aadhaar)', 'existing document', true)}
+                                      onClick={() => openChangeRequestDialog('government_id', 'Aadhaar (Front & Back)', 'existing document', true)}
                                       disabled={!!submittingProfileChange}
                                       className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full">
                                       <AlertTriangle className="w-4 h-4 mr-1" /> Request Change

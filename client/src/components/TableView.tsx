@@ -49,8 +49,10 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
     if (!tableId || !user?.clubId) return;
     try {
       const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3333/api';
+      const token = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
       const res = await fetch(`${API_BASE}/auth/player/tables/${tableId}`, {
         headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           'x-club-id': String(user.clubId),
           'x-player-id': String(user.id || ''),
         },

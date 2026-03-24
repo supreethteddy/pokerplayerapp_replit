@@ -1,6 +1,11 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { io } from 'socket.io-client';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3333/api';
+const websocketBase = API_BASE_URL.endsWith('/api')
+  ? API_BASE_URL.slice(0, -4)
+  : API_BASE_URL.replace(/\/$/, '');
 
 // Dispatched when an admin approves a field update — useUltraFastAuth listens and patches user state immediately.
 export type PlayerProfileUpdatedDetail = { fieldName: string; newValue: string };
@@ -11,35 +16,33 @@ export function useRealtimeProfileRequests(playerId: number | string | null | un
   useEffect(() => {
     if (!playerId) return;
 
-    const channel = supabase
-      .channel(`profile-requests-${playerId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'player_profile_change_requests',
-          filter: `player_id=eq.${playerId}`,
-        },
-        (payload: any) => {
-          // Always refresh the requests list
-          queryClient.invalidateQueries({ queryKey: ['/api/auth/player/profile-change-requests'] });
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
+    const socket = io(`${websocketBase}/realtime`, {
+      auth: { playerId: String(playerId), token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 2000,
+      reconnectionAttempts: Infinity,
+    });
 
-          // If the request was just approved, immediately patch the player profile in memory
-          const record = payload?.new;
-          if (record?.status === 'approved' && record?.field_name && record?.requested_value != null) {
-            window.dispatchEvent(
-              new CustomEvent<PlayerProfileUpdatedDetail>('player-profile-updated', {
-                detail: { fieldName: record.field_name, newValue: String(record.requested_value) },
-              })
-            );
-          }
-        }
-      )
-      .subscribe();
+    socket.on('profile-request:updated', (data: any) => {
+      if (data?.playerId && String(data.playerId) !== String(playerId)) return;
+      console.log('📝 [SOCKET] Profile request updated:', data?.status);
+
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/player/profile-change-requests'] });
+
+      // If approved, dispatch a DOM event so useUltraFastAuth can patch the player state immediately
+      if (data?.status === 'approved' && data?.fieldName && data?.newValue != null) {
+        window.dispatchEvent(
+          new CustomEvent<PlayerProfileUpdatedDetail>('player-profile-updated', {
+            detail: { fieldName: data.fieldName, newValue: String(data.newValue) },
+          })
+        );
+      }
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      socket.disconnect();
     };
   }, [playerId, queryClient]);
 }

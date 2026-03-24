@@ -204,7 +204,11 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
         : API_BASE_URL.replace(/\/$/, ""));
 
     const socket = io(`${websocketBase}/realtime`, {
-      auth: { clubId: storedClubId, playerId },
+      auth: {
+        clubId: storedClubId,
+        playerId,
+        token: localStorage.getItem('auth_token') || localStorage.getItem('playerToken'),
+      },
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionDelay: 1000,

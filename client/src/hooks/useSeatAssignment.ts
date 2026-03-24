@@ -38,7 +38,11 @@ export function useSeatAssignment(playerId: string | number) {
         : API_BASE_URL.replace(/\/$/, ''));
 
     const socket = io(`${websocketBase}/realtime`, {
-      auth: { clubId, playerId },
+      auth: {
+        clubId,
+        playerId,
+        token: localStorage.getItem('auth_token') || localStorage.getItem('playerToken'),
+      },
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,

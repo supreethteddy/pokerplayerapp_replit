@@ -1,64 +1,53 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { io } from 'socket.io-client';
 
-/**
- * Hook to subscribe to real-time buy-in request status changes via Supabase Realtime.
- * When staff approves/rejects a buy-in request, the player sees it instantly.
- * Also listens for financial_transactions changes to update balance in real-time.
- */
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3333/api';
+const websocketBase = API_BASE_URL.endsWith('/api')
+  ? API_BASE_URL.slice(0, -4)
+  : API_BASE_URL.replace(/\/$/, '');
+
 export function useRealtimeBuyIn(playerId: number | string | null | undefined) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!playerId) return;
 
-    const channel = supabase
-      .channel(`buyin-status-${playerId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'buyin_requests',
-          filter: `player_id=eq.${playerId}`,
-        },
-        (payload) => {
-          const newStatus = payload.new?.status;
-          console.log('🔔 [REALTIME] Buy-in request updated:', newStatus, payload.new);
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
+    const socket = io(`${websocketBase}/realtime`, {
+      auth: { playerId: String(playerId), token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 2000,
+      reconnectionAttempts: Infinity,
+    });
 
-          // Invalidate buy-in requests and balance queries
-          queryClient.invalidateQueries({ queryKey: ['buyin-requests', String(playerId)] });
-          queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
-          queryClient.invalidateQueries({ queryKey: [`/api/auth/player/transactions`] });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'financial_transactions',
-          filter: `player_id=eq.${playerId}`,
-        },
-        (payload) => {
-          console.log('💰 [REALTIME] New transaction for player:', payload.new?.type, payload.new?.amount);
+    const invalidateBalance = () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/auth/player/transactions`] });
+    };
 
-          // Invalidate balance and transaction queries immediately
-          queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
-          queryClient.invalidateQueries({ queryKey: [`/api/auth/player/transactions`] });
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ [REALTIME] Subscribed to buy-in updates for player:', playerId);
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ [REALTIME] Buy-in subscription error for player:', playerId);
-        }
-      });
+    socket.on('buyin:status-changed', (data: any) => {
+      if (!data?.playerId || String(data.playerId) !== String(playerId)) return;
+      console.log('🔔 [SOCKET] Buy-in request status changed:', data?.request?.status);
+      queryClient.invalidateQueries({ queryKey: ['buyin-requests', String(playerId)] });
+      invalidateBalance();
+    });
+
+    socket.on('transaction:new', (data: any) => {
+      if (!data?.playerId || String(data.playerId) !== String(playerId)) return;
+      console.log('💰 [SOCKET] New transaction for player');
+      invalidateBalance();
+    });
+
+    socket.on('balance:updated', (data: any) => {
+      if (!data?.playerId || String(data.playerId) !== String(playerId)) return;
+      console.log('💰 [SOCKET] Balance updated for player');
+      invalidateBalance();
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      socket.disconnect();
     };
   }, [playerId, queryClient]);
 }

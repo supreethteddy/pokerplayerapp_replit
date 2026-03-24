@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { io } from 'socket.io-client';
 
-/**
- * Hook to subscribe to real-time notifications via Supabase Realtime
- * Automatically updates React Query cache when new notifications arrive
- */
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3333/api';
+const websocketBase = API_BASE_URL.endsWith('/api')
+  ? API_BASE_URL.slice(0, -4)
+  : API_BASE_URL.replace(/\/$/, '');
+
 export function useRealtimeNotifications(playerId: number | string | null | undefined) {
   const queryClient = useQueryClient();
 
@@ -15,53 +16,39 @@ export function useRealtimeNotifications(playerId: number | string | null | unde
     // Initial fetch
     const fetchNotifications = async () => {
       try {
-        const response = await fetch(`/api/push-notifications/${playerId}`);
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
+        const response = await fetch(`${API_BASE_URL}/push-notifications/${playerId}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         if (response.ok) {
           const data = await response.json();
           queryClient.setQueryData(['/api/push-notifications', playerId], data);
         }
-      } catch (error) {
-        // Silently skip if endpoint not available (404 or parsing errors)
-        // This is expected if the backend doesn't have push notifications endpoint yet
+      } catch {
+        // Silently skip if endpoint not available
       }
     };
 
     fetchNotifications();
 
-    // Subscribe to real-time changes on push_notifications table
-    const channel = supabase
-      .channel(`player-notifications-${playerId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // INSERT, UPDATE, DELETE
-          schema: 'public',
-          table: 'push_notifications',
-          filter: `player_id=eq.${playerId}`,
-        },
-        (payload) => {
-          console.log('🔔 [REALTIME] Notification change detected:', payload.eventType, payload.new || payload.old);
-          
-          // Invalidate and refetch to get latest data
-          queryClient.invalidateQueries({ queryKey: ['/api/push-notifications', playerId] });
-          
-          // Also invalidate the bell badge count
-          queryClient.invalidateQueries({ queryKey: [`/api/push-notifications/${playerId}`] });
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ [REALTIME] Subscribed to notifications for player:', playerId);
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ [REALTIME] Notification subscription error');
-        }
-      });
+    const token = localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
+    const socket = io(`${websocketBase}/realtime`, {
+      auth: { playerId: String(playerId), token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 2000,
+      reconnectionAttempts: Infinity,
+    });
+
+    socket.on('notification:new', (data: any) => {
+      if (data?.playerId && String(data.playerId) !== String(playerId)) return;
+      console.log('🔔 [SOCKET] New notification for player:', playerId);
+      queryClient.invalidateQueries({ queryKey: ['/api/push-notifications', playerId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/push-notifications/${playerId}`] });
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      socket.disconnect();
     };
   }, [playerId, queryClient]);
 }
-
-
-

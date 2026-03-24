@@ -89,7 +89,11 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
           : import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, ''));
 
       const socket = io(`${websocketBase}/realtime`, {
-        auth: { clubId, playerId },
+        auth: {
+          clubId,
+          playerId,
+          token: localStorage.getItem('auth_token') || localStorage.getItem('playerToken'),
+        },
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionDelay: 1000,
@@ -128,9 +132,11 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
     queryFn: async () => {
       // Custom queryFn to avoid playerId being added to URL path
       const clubId = localStorage.getItem('clubId') || sessionStorage.getItem('clubId') || '';
+      const token = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
       const response = await fetch(`${API_BASE_URL}/player-playtime/current`, {
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           'x-player-id': playerId || '',
           'x-club-id': clubId,
         },

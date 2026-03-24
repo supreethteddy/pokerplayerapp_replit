@@ -35,6 +35,17 @@ function getApiBaseUrl(): string {
 export const API_BASE_URL = getApiBaseUrl();
 
 /**
+ * Storage keys for player session
+ */
+export const STORAGE_KEYS = {
+  PLAYER_ID: 'playerId',
+  CLUB_ID: 'clubId',
+  CLUB_CODE: 'clubCode',
+  PLAYER_TOKEN: 'playerToken',
+  PLAYER_DATA: 'playerData',
+} as const;
+
+/**
  * API endpoints for player portal
  */
 export const API_ENDPOINTS = {
@@ -79,36 +90,36 @@ export const API_ENDPOINTS = {
 } as const;
 
 /**
- * Get authentication headers for API requests
+ * Get authentication headers for API requests.
+ * Always includes Authorization: Bearer <token> when a token is present.
+ * Legacy x-player-id / x-club-id are also included for backward-compat
+ * with controllers that still read them (jwt-context.middleware.ts populates
+ * them server-side from the JWT, but sending them doesn't hurt).
  */
 export function getAuthHeaders(playerId?: string, clubId?: string): HeadersInit {
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  
+
+  // JWT – stored by useUltraFastAuth on login
+  const token =
+    sessionStorage.getItem('auth_token') ||
+    localStorage.getItem('auth_token') ||
+    localStorage.getItem(STORAGE_KEYS.PLAYER_TOKEN);
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   if (playerId) {
     headers['x-player-id'] = playerId;
   }
-  
+
   if (clubId) {
     headers['x-club-id'] = clubId;
   }
-  
+
   return headers;
 }
-
-/**
- * Storage keys for player session
- */
-export const STORAGE_KEYS = {
-  PLAYER_ID: 'playerId',
-  CLUB_ID: 'clubId',
-  CLUB_CODE: 'clubCode',
-  PLAYER_TOKEN: 'playerToken',
-  PLAYER_DATA: 'playerData',
-} as const;
-
-
 
 
 
