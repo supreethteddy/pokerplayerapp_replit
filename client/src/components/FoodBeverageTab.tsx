@@ -143,6 +143,14 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
       }
     });
 
+    // New-style FNB order event from backend EventsService
+    socket.on('fnb:order-updated', (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/player/fnb/orders'] });
+      if (data?.order?.status) {
+        toast({ title: "Order Update", description: `Your order is now ${data.order.status}` });
+      }
+    });
+
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
@@ -162,7 +170,6 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
       const response = await apiRequest("GET", "/api/auth/player/fnb/menu");
       return await response.json();
     },
-    refetchInterval: 120000,
     refetchOnWindowFocus: true,
     staleTime: 30000,
     retry: 3,
@@ -177,7 +184,6 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
       const response = await apiRequest('GET', '/api/auth/player/fnb/orders');
       return await response.json();
     },
-    refetchInterval: 120000,
     refetchOnWindowFocus: true,
   });
 
@@ -192,6 +198,7 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
       setTableNumber('');
       setShowOrderDialog(false);
       setShowThankYouDialog(true);
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/player/fnb/orders'] });
       
       toast({
         title: "Order Placed!",
@@ -582,7 +589,7 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pt-2 border-t border-slate-700 mt-2 text-xs sm:text-sm">
                         <span className="text-slate-400">
                           Placed:{' '}
-                          {new Date(order.createdAt).toLocaleTimeString()}
+                          {new Date(order.createdAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })}
                         </span>
                         <span className="font-semibold" style={{ color: clubBranding?.skinColor || '#10b981' }}>
                           {(() => {
@@ -627,7 +634,7 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
                             Order #{order.orderNumber}
                           </div>
                           <div className="text-xs text-slate-500">
-                            {new Date(order.createdAt).toLocaleString()}
+                            {new Date(order.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
                           </div>
                         </div>
                         <Badge

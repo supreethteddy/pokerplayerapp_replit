@@ -65,7 +65,6 @@ export function usePlayerGameStatus(): GameStatusInfo {
     },
     enabled: !!user?.id,
     staleTime: 10000,
-    refetchInterval: 15000,
   });
 
   // Process the game status

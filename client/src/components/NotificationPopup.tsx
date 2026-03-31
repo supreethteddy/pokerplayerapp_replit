@@ -5,6 +5,7 @@ import { X, Bell, AlertTriangle, Info, CheckCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
 import { parseSafeDate } from "@/lib/utils";
+import { apiRequest } from '@/lib/queryClient';
 
 interface NotificationPopupProps {
   userId: number;
@@ -21,7 +22,7 @@ export default function NotificationPopup({ userId, onChatNotificationClick }: N
 
   // Fetch notifications (now updated automatically via Realtime)
   const { data: notifications } = useQuery({
-    queryKey: ['/api/push-notifications', userId],
+    queryKey: ['/api/auth/player/push-notifications', userId],
     // No refetchInterval - Supabase Realtime handles updates automatically!
     refetchOnWindowFocus: true,
     staleTime: 0 // Always fetch fresh data
@@ -80,9 +81,8 @@ export default function NotificationPopup({ userId, onChatNotificationClick }: N
     setVisibleNotifications(prev => prev.filter(notif => notif.id !== notificationId));
     
     // Mark as read on server and add to permanent shown list
-    fetch(`/api/push-notifications/${notificationId}/read`, {
-      method: 'PATCH'
-    }).catch(console.error);
+    apiRequest('PUT', `/api/auth/player/push-notifications/${notificationId}/read`)
+      .catch(console.error);
     
     // Store in localStorage to prevent re-showing across sessions
     const dismissedNotifications = JSON.parse(localStorage.getItem('dismissedNotifications') || '[]');
@@ -182,7 +182,7 @@ export default function NotificationPopup({ userId, onChatNotificationClick }: N
             
             <div className="flex items-center justify-between text-xs text-white/70">
               <span>{notification.sender_name || notification.sent_by_name || 'System'}</span>
-              <span>{parseSafeDate(notification.created_at || notification.sent_at).toLocaleTimeString()}</span>
+              <span>{parseSafeDate(notification.created_at || notification.sent_at).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })}</span>
             </div>
           </CardContent>
         </Card>

@@ -36,7 +36,9 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
     // No polling - Supabase real-time handles updates
   });
 
-  const pendingBuyIn = buyInRequests?.find((r: any) => r.status === 'pending');
+  const pendingBuyIn = buyInRequests?.find(
+    (r: any) => String(r?.status || '').toLowerCase() === 'pending'
+  );
 
   // Submit buy-in REQUEST to staff
   const tableBuyInMutation = useMutation({

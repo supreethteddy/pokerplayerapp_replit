@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useUltraFastAuth } from '@/hooks/useUltraFastAuth';
 import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
+import { apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -99,7 +100,7 @@ const formatTimeAgo = (dateString: string) => {
   } else if (diffInHours < 24) {
     return `${diffInHours}h ago`;
   } else {
-    return date.toLocaleDateString();
+    return date.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
   }
 };
 
@@ -121,9 +122,9 @@ export const NotificationHistoryTab: React.FC = () => {
 
   // Fetch 24-hour notification history (now updated automatically via Realtime)
   const { data: notifications = [], isLoading, refetch } = useQuery({
-    queryKey: ['/api/push-notifications', user?.id],
+    queryKey: ['/api/auth/player/push-notifications', user?.id],
     queryFn: async () => {
-      const response = await fetch(`/api/push-notifications/${user?.id}`);
+      const response = await apiRequest('GET', '/api/auth/player/push-notifications');
       if (!response.ok) throw new Error('Failed to fetch notifications');
       return response.json();
     },

@@ -301,14 +301,9 @@ export const NotificationBubbleManager: React.FC = () => {
       }
     };
 
-    // Initial fetch
+    // Initial fetch only — real-time updates come via WebSocket (useRealtimeNotifications)
     fetchNotifications();
-
-    // Poll every 5 seconds for optimized performance
-    const interval = setInterval(fetchNotifications, 5000);
-
-    return () => clearInterval(interval);
-  }, [user?.id, permission, notifications]);
+  }, [user?.id, permission]);
 
   const dismissNotification = async (id: number) => {
     console.log('🎈 [BUBBLE] Dismissing notification:', id);

@@ -11,13 +11,33 @@ export function useRealtimeOffers() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    const clubId =
+      localStorage.getItem('clubId') ||
+      sessionStorage.getItem('clubId') ||
+      localStorage.getItem('club_id') ||
+      sessionStorage.getItem('club_id');
+    if (!clubId) return;
+
+    const playerId =
+      localStorage.getItem('playerId') ||
+      sessionStorage.getItem('playerId') ||
+      localStorage.getItem('userId') ||
+      sessionStorage.getItem('userId');
+
     const token = localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
     const socket = io(`${websocketBase}/realtime`, {
-      auth: { token },
+      auth: { token, clubId: String(clubId), playerId: playerId ? String(playerId) : undefined },
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 2000,
       reconnectionAttempts: Infinity,
+    });
+
+    socket.on('connect', () => {
+      socket.emit('subscribe:club', {
+        clubId: String(clubId),
+        ...(playerId ? { playerId: String(playerId) } : {}),
+      });
     });
 
     socket.on('offers:updated', () => {

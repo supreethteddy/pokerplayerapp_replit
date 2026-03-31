@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { io } from "socket.io-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Users, Clock, DollarSign, UserPlus, Plus, X } from "lucide-react";
@@ -43,7 +44,7 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
   const currentTable = tablesArray.find((table: any) => String(table.id) === String(tableId)) as any;
   const isRummy = currentTable?.tableType === 'RUMMY' || currentTable?.isRummy === true;
 
-  // Fetch real-time seated players for this table (polls every 5s)
+  // Fetch real-time seated players — driven by WebSocket, no polling
   const [seatedPlayers, setSeatedPlayers] = useState<any[]>([]);
   const fetchSeatedPlayers = useCallback(async () => {
     if (!tableId || !user?.clubId) return;
@@ -69,10 +70,26 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
   }, [tableId, user?.clubId, user?.id]);
 
   useEffect(() => {
+    if (!tableId || !user?.clubId) return;
     fetchSeatedPlayers();
-    const interval = setInterval(fetchSeatedPlayers, 5000);
-    return () => clearInterval(interval);
-  }, [fetchSeatedPlayers]);
+
+    // Listen to table/waitlist socket events — no polling
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3333/api';
+    const wsBase = API_BASE.endsWith('/api') ? API_BASE.slice(0, -4) : API_BASE.replace(/\/$/, '');
+    const token = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
+    const clubId = String(user.clubId);
+    const socket = io(`${wsBase}/realtime`, {
+      auth: { clubId, playerId: String(user.id || ''), token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+    });
+    socket.on('connect', () => socket.emit('subscribe:club', { clubId, playerId: String(user.id || '') }));
+    socket.on('table:status-changed', fetchSeatedPlayers);
+    socket.on('tables:updated', fetchSeatedPlayers);
+    socket.on('waitlist:status-changed', fetchSeatedPlayers);
+    socket.on('waitlist:position-updated', fetchSeatedPlayers);
+    return () => { socket.disconnect(); };
+  }, [fetchSeatedPlayers, tableId, user?.clubId, user?.id]);
 
   const seatedPlayersArray = seatedPlayers;
   const potData = { pot: String(seatedPlayers.reduce((sum: number, p: any) => sum + (p.buyInAmount || 0), 0)) };
@@ -459,7 +476,7 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
                     </div>
                   </div>
                   <div className="text-xs text-slate-400 mb-4">
-                    Joined: {waitlistEntry?.createdAt ? new Date(waitlistEntry.createdAt).toLocaleString() : 'N/A'}
+                    Joined: {waitlistEntry?.createdAt ? new Date(waitlistEntry.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'N/A'}
                   </div>
                   <Button
                     onClick={() => {

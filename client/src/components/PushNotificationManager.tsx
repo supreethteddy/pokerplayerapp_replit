@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useUltraFastAuth } from '@/hooks/useUltraFastAuth';
 import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
+import { apiRequest } from '@/lib/queryClient';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { X, Bell, AlertCircle, Info, Zap } from 'lucide-react';
@@ -188,14 +189,14 @@ export const PushNotificationManager: React.FC = () => {
     }
   }, []);
 
-  // Poll for new notifications
+  // Notifications are driven by useRealtimeNotifications (WebSocket).
+  // This effect still runs an initial fetch so popups show on load, but no polling.
   useEffect(() => {
     if (!user?.id) return;
 
     const fetchNotifications = async () => {
       try {
-        console.log(`🔔 [NOTIFICATION DEBUG] Fetching notifications for user ${user.id}`);
-        const response = await fetch(`/api/push-notifications/${user.id}`);
+        const response = await apiRequest('GET', '/api/auth/player/push-notifications');
         if (response.ok) {
           const data = await response.json();
           console.log(`🔔 [NOTIFICATION DEBUG] Received ${data.length} notifications for user ${user.id}:`, {
@@ -275,14 +276,9 @@ export const PushNotificationManager: React.FC = () => {
       }
     };
 
-    // Initial fetch
+    // Initial fetch only — real-time updates come via WebSocket (useRealtimeNotifications)
     fetchNotifications();
-
-    // Poll every 5 seconds for real-time updates (better balance of performance and responsiveness)
-    const interval = setInterval(fetchNotifications, 5000);
-
-    return () => clearInterval(interval);
-  }, [user?.id, permission, notifications]);
+  }, [user?.id, permission]);
 
   const dismissNotification = (id: number) => {
     setNotifications(prev => prev.filter(n => n.id !== id));

@@ -12,6 +12,7 @@ import { useRealtimeCreditRequests } from "@/hooks/useRealtimeCreditRequests";
 import { useRealtimeTournaments } from "@/hooks/useRealtimeTournaments";
 import { useRealtimeProfileRequests } from "@/hooks/useRealtimeProfileRequests";
 import { useRealtimeOffers } from "@/hooks/useRealtimeOffers";
+import { useRealtimeVip } from "@/hooks/useRealtimeVip";
 import {
   Dialog,
   DialogContent,
@@ -1030,7 +1031,6 @@ function TournamentSessionContent({ tournament, user, queryClient }: { tournamen
       return res.json();
     },
     enabled: !!tournament.id && !!user?.id,
-    refetchInterval: 5000,
     staleTime: 2000,
   });
 
@@ -1362,7 +1362,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             queryClient.invalidateQueries({ queryKey: ["/api/tables"] }),
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.availableTables }),
             queryClient.invalidateQueries({ queryKey: ["/api/seat-requests"] }),
-            queryClient.invalidateQueries({ queryKey: ["/api/table-seats"] }),
+            queryClient.invalidateQueries({ queryKey: ["/api/player-playtime/current"] }),
             queryClient.invalidateQueries({ queryKey: ["/api/table-statuses"] }),
             queryClient.invalidateQueries({ queryKey: ["/api/player-tournaments/upcoming"] }),
             queryClient.invalidateQueries({ queryKey: ["/api/player-tournaments/my-registrations"] }),
@@ -1388,7 +1388,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             queryClient.invalidateQueries({ queryKey: ["/api/balance"] }),
             queryClient.invalidateQueries({ queryKey: ["/api/auth/player/balance"] }),
             queryClient.invalidateQueries({ queryKey: ["/api/auth/player/transactions"] }),
-            queryClient.invalidateQueries({ queryKey: ["/api/credit-requests"] }),
+            queryClient.invalidateQueries({ queryKey: ["/api/auth/player/credit-requests"] }),
           ]);
           break;
         case "profile":
@@ -1403,7 +1403,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           await queryClient.invalidateQueries({ queryKey: ["/api/auth/player/feedback/history"] });
           break;
         case "notifications":
-          await queryClient.invalidateQueries({ queryKey: ["/api/push-notifications"] });
+          await queryClient.invalidateQueries({ queryKey: ["/api/auth/player/push-notifications"] });
           break;
         default:
           break;
@@ -1487,6 +1487,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   useRealtimeTournaments(user?.id, user?.clubId, onTournamentBlindsUpdated);
   useRealtimeProfileRequests(user?.id);
   useRealtimeOffers();
+  useRealtimeVip(user?.id);
 
   // Map backend table data to dashboard format
   const tables = (tablesData?.tables || []).map((table: any) => {
@@ -1535,7 +1536,26 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   });
 
   const { data: seatedSessions, isLoading: seatedLoading } = useQuery<any[]>({
-    queryKey: ["/api/table-seats", user?.id],
+    queryKey: ["/api/player-playtime/current", user?.id, "seated-sessions"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/player-playtime/current");
+      if (!response.ok) return [];
+      const payload = await response.json();
+      if (!payload?.hasActiveSession || !payload?.session) return [];
+      const s = payload.session;
+      const stakeMatch = String(s?.stakes || '').match(/₹?\s*([\d,\.]+)\s*\/\s*₹?\s*([\d,\.]+)/);
+      return [{
+        id: s.id,
+        tableId: s.tableId,
+        tableName: s.tableName,
+        gameType: s.gameType,
+        seatNumber: gameStatus?.activeGameInfo?.seatNumber || gameStatus?.seatedSessionFallback?.seatNumber || null,
+        sessionStartTime: s.sessionStartTime || s.startedAt,
+        sessionBuyIn: Number(s.currentChips ?? s.buyInAmount ?? 0),
+        minBuyIn: stakeMatch ? Number(String(stakeMatch[1]).replace(/,/g, '')) : 0,
+        maxBuyIn: stakeMatch ? Number(String(stakeMatch[2]).replace(/,/g, '')) : 0,
+      }];
+    },
     enabled: !!user?.id,
     refetchOnWindowFocus: true,
     staleTime: 5000,
@@ -1668,6 +1688,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     gcTime: 30000,
     structuralSharing: true,
   });
+  const activeSessionTableId = gameStatus?.activeGameInfo?.tableId || gameStatus?.seatedSessionFallback?.tableId;
+  const activeSessionTable = tables.find((t: any) => String(t.id) === String(activeSessionTableId));
+  const liveSessionTableBalance = Number((accountBalance as any)?.tableBalance || 0);
 
   // Open tournament details dialog
   const handleViewTournamentDetails = (tournament: any) => {
@@ -1981,12 +2004,22 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Fetch credit requests for player
   const { data: creditRequests, isLoading: creditRequestsLoading } = useQuery({
-    queryKey: [`/api/credit-requests/${user?.id}`],
+    queryKey: ["/api/auth/player/credit-requests", user?.id],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/auth/player/credit-requests");
+      if (!response.ok) return [];
+      return response.json();
+    },
     enabled: !!user?.id,
   });
 
   const { data: notifications, isLoading: notificationsLoading } = useQuery({
-    queryKey: [`/api/push-notifications/${user?.id}`],
+    queryKey: ["/api/auth/player/push-notifications", user?.id],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/auth/player/push-notifications");
+      if (!response.ok) return [];
+      return response.json();
+    },
     enabled: !!user?.id,
     refetchOnWindowFocus: true,
     staleTime: 20000,
@@ -2473,16 +2506,15 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       requestedAmount: number;
       requestNote: string;
     }) => {
-      const response = await apiRequest("POST", "/api/credit-requests", {
-        playerId,
-        requestedAmount,
-        requestNote,
+      const response = await apiRequest("POST", "/api/auth/player/credit-request", {
+        amount: requestedAmount,
+        notes: requestNote,
       });
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: [`/api/credit-requests/${user?.id}`],
+        queryKey: ["/api/auth/player/credit-requests", user?.id],
       });
       queryClient.invalidateQueries({ queryKey: ["/api/players/supabase"] });
       setCreditAmount("");
@@ -3569,7 +3601,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                     </CardHeader>
                     <CardContent>
                       {/* Global Waitlist Status - Shows table TYPE (not specific table) */}
-                      {waitlistData?.onWaitlist && waitlistData?.entry && (
+                      {waitlistData?.onWaitlist && waitlistData?.entry && !waitlistData?.isSeated && (
                         <div className="mb-4 bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
@@ -3757,7 +3789,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                                   </Button>
                                                 )}
                                             </>
-                                          ) : (waitlistData?.onWaitlist && (String(waitlistData.entry?.table_id || waitlistData.entry?.tableId || waitlistData.tableInfo?.tableId) === String(table.id))) ? (
+                                          ) : (waitlistData?.onWaitlist && !waitlistData?.isSeated && (String(waitlistData.entry?.table_id || waitlistData.entry?.tableId || waitlistData.tableInfo?.tableId) === String(table.id))) ? (
                                             <div className="flex flex-col space-y-2 w-full">
                                               <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 sm:p-3">
                                                 <div className="flex items-center justify-between mb-1">
@@ -3977,7 +4009,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                                   </Button>
                                                 )}
                                             </>
-                                          ) : (waitlistData?.onWaitlist && (String(waitlistData.entry?.table_id || waitlistData.entry?.tableId || waitlistData.tableInfo?.tableId) === String(table.id))) ? (
+                                          ) : (waitlistData?.onWaitlist && !waitlistData?.isSeated && (String(waitlistData.entry?.table_id || waitlistData.entry?.tableId || waitlistData.tableInfo?.tableId) === String(table.id))) ? (
                                             <div className="flex flex-col space-y-2 w-full">
                                               <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 sm:p-3">
                                                 <div className="flex items-center justify-between mb-1">
@@ -4471,6 +4503,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   <PlaytimeTracker
                     playerId={user?.id?.toString() || ""}
                     gameStatus={gameStatus}
+                    liveTableBalance={liveSessionTableBalance}
+                    activeTableStakes={activeSessionTable?.stakes}
                   />
                 )}
               </div>
@@ -4720,13 +4754,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                         </span>
                       </div>
 
-                      {(user as any)?.playerId && (
+                      {(user as any)?.nickname && (
                         <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
                           <span className="text-sm text-slate-300">
-                            Player ID / Nickname
+                            Nickname
                           </span>
                           <span className="text-sm text-white font-medium">
-                            {(user as any)?.playerId}
+                            {(user as any)?.nickname}
                           </span>
                         </div>
                       )}
@@ -5645,29 +5679,31 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         <Dialog open={chatDialogOpen} onOpenChange={setChatDialogOpen}>
           <DialogContent
             forceMount
-            className="w-[95vw] sm:max-w-2xl max-h-[85vh] sm:max-h-[80vh] bg-slate-800 border-slate-700 p-3 sm:p-6"
+            className="w-[95vw] sm:max-w-2xl max-h-[85vh] sm:max-h-[80vh] bg-slate-800 border-slate-700 flex flex-col gap-0 overflow-hidden p-0 sm:p-0"
           >
-            <DialogHeader className="pb-3 sm:pb-4">
+            <DialogHeader className="px-4 pt-4 pb-3 shrink-0 border-b border-slate-700 text-left space-y-0">
               <DialogTitle className="text-white flex items-center text-base sm:text-lg">
                 <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-emerald-400" />
                 Guest Relations Support
               </DialogTitle>
             </DialogHeader>
 
-            {/* Chat System Integration - Direct PostgreSQL connection to Staff Portal */}
-            {user?.id && (
-              <PlayerChatSystem
-                playerId={user.id}
-                playerName={
-                  `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
-                  user?.email ||
-                  "Player"
-                }
-                isInDialog={true}
-                clubBranding={clubBranding}
-                onClose={() => setChatDialogOpen(false)}
-              />
-            )}
+            {/* Inner column must own vertical scroll; outer DialogContent overflow-y-auto breaks flex-1 chat layout */}
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden px-3 pb-3 pt-2 sm:px-4 sm:pb-4">
+              {user?.id && (
+                <PlayerChatSystem
+                  playerId={user.id}
+                  playerName={
+                    `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
+                    user?.email ||
+                    "Player"
+                  }
+                  isInDialog={true}
+                  clubBranding={clubBranding}
+                  onClose={() => setChatDialogOpen(false)}
+                />
+              )}
+            </div>
           </DialogContent>
         </Dialog>
 

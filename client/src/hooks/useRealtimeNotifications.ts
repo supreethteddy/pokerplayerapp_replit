@@ -12,17 +12,32 @@ export function useRealtimeNotifications(playerId: number | string | null | unde
 
   useEffect(() => {
     if (!playerId) return;
+    const clubId =
+      localStorage.getItem('clubId') ||
+      sessionStorage.getItem('clubId') ||
+      localStorage.getItem('club_id') ||
+      sessionStorage.getItem('club_id');
+    if (!clubId) return;
 
     // Initial fetch
     const fetchNotifications = async () => {
       try {
         const token = localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
-        const response = await fetch(`${API_BASE_URL}/push-notifications/${playerId}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        const clubId =
+          localStorage.getItem('clubId') ||
+          sessionStorage.getItem('clubId') ||
+          localStorage.getItem('club_id') ||
+          sessionStorage.getItem('club_id');
+        const response = await fetch(`${API_BASE_URL}/auth/player/push-notifications`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(clubId ? { 'x-club-id': clubId } : {}),
+            'x-player-id': String(playerId),
+          },
         });
         if (response.ok) {
           const data = await response.json();
-          queryClient.setQueryData(['/api/push-notifications', playerId], data);
+          queryClient.setQueryData(['/api/auth/player/push-notifications', playerId], data);
         }
       } catch {
         // Silently skip if endpoint not available
@@ -33,18 +48,23 @@ export function useRealtimeNotifications(playerId: number | string | null | unde
 
     const token = localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
     const socket = io(`${websocketBase}/realtime`, {
-      auth: { playerId: String(playerId), token },
+      auth: { playerId: String(playerId), clubId: String(clubId), token },
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 2000,
       reconnectionAttempts: Infinity,
     });
 
+    socket.on('connect', () => {
+      socket.emit('subscribe:player', { playerId: String(playerId), clubId: String(clubId) });
+      socket.emit('subscribe:club', { clubId: String(clubId), playerId: String(playerId) });
+    });
+
     socket.on('notification:new', (data: any) => {
       if (data?.playerId && String(data.playerId) !== String(playerId)) return;
       console.log('🔔 [SOCKET] New notification for player:', playerId);
-      queryClient.invalidateQueries({ queryKey: ['/api/push-notifications', playerId] });
-      queryClient.invalidateQueries({ queryKey: [`/api/push-notifications/${playerId}`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/player/push-notifications', playerId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/player/push-notifications'] });
     });
 
     return () => {

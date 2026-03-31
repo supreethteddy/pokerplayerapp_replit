@@ -50,14 +50,23 @@ interface LiveSession {
   call_time_ends: string | null;
   cashout_window_active: boolean;
   cashout_window_ends: string | null;
+
+  // Buy-out status notifications (server-driven)
+  buyOutRequestId?: string | null;
+  buyOutStatus?: string | null;
+  buyOutRejected?: boolean;
+  buyOutRejectionReason?: string | null;
+  buyOutProcessedAt?: string | null;
 }
 
 interface PlaytimeTrackerProps {
   playerId: string;
   gameStatus?: any; // Add game status for fallback session data
+  liveTableBalance?: number;
+  activeTableStakes?: string;
 }
 
-export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) {
+export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, activeTableStakes }: PlaytimeTrackerProps) {
   // Feature-flag: completely hide the timer UI while preserving codepaths
   if (HIDE_SESSION_TIMER) {
     return null;
@@ -120,6 +129,20 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
         invalidateAllGameQueries();
       });
 
+      // Buy-out status updates should reflect instantly in live session modal.
+      socket.on('buyout:status-changed', (data: any) => {
+        if (!data?.playerId || String(data.playerId) !== String(playerId)) return;
+        const status = String(data?.request?.status || '').toLowerCase();
+        queryClient.invalidateQueries({ queryKey: ['/api/player-playtime/current', playerId] });
+        if (status === 'rejected') {
+          toast({
+            title: "Buy-out Request Rejected",
+            description: data?.request?.rejectionReason || "Staff rejected your buy-out request.",
+            variant: "destructive",
+          });
+        }
+      });
+
       return () => {
         socket.disconnect();
       };
@@ -146,7 +169,6 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
       }
       return await response.json();
     },
-    refetchInterval: 60000,
     staleTime: 5000,
     enabled: !!playerId,
   });
@@ -292,6 +314,10 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
   const sessionDuration = getSessionDuration();
   const timeUntilMinPlay = getTimeUntilMinPlay();
   const phaseStatus = getPhaseStatus();
+  const resolvedTableBalance = Number(
+    liveTableBalance ?? session?.currentChips ?? session?.buyInAmount ?? 0
+  );
+  const resolvedStakes = activeTableStakes || session?.stakes || '₹0/₹0';
 
 
   // Enhanced condition checking: Show PlaytimeTracker if we have a session OR if fallback indicates player is seated
@@ -361,7 +387,7 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
             {/* Balance Info */}
             <div className="flex justify-center">
               <div className="bg-slate-800/50 p-2 sm:p-3 rounded text-center w-full max-w-xs">
-                <div className="text-sm sm:text-lg font-semibold text-white">₹{(session?.buyInAmount || 1000).toLocaleString()}</div>
+                <div className="text-sm sm:text-lg font-semibold text-white">₹{resolvedTableBalance.toLocaleString()}</div>
                 <div className="text-xs text-slate-400">Buy-in</div>
               </div>
             </div>
@@ -370,13 +396,22 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
             <div className="bg-slate-800/50 p-2 sm:p-3 rounded">
               <div className="text-center">
                 <div className="text-xs sm:text-sm text-slate-400">Table: {session?.tableName || fallbackSession?.tableName || 'Unknown'}</div>
-                <div className="text-xs sm:text-sm text-slate-300">{session?.gameType || fallbackSession?.gameType || 'Texas Hold\'em'} • {session?.stakes || '₹1000.00/10000.00'}</div>
+                  <div className="text-xs sm:text-sm text-slate-300">{session?.gameType || fallbackSession?.gameType || 'Texas Hold\'em'} • {resolvedStakes}</div>
               </div>
             </div>
 
             {/* Rummy tables: simplified exit UI — no call time or min play restrictions */}
             {(session?.gameType === 'RUMMY' || session?.gameType === 'rummy') ? (
               <>
+                {session?.buyOutRejected && (
+                  <div className="bg-red-900/25 border border-red-500/40 p-3 rounded-lg">
+                    <div className="text-sm font-semibold text-red-300">Buy-out Request Rejected</div>
+                    <div className="text-xs text-red-200 mt-1">
+                      {session?.buyOutRejectionReason || 'Your request was rejected by staff.'}
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-emerald-900/20 border border-emerald-500/30 p-3 rounded-lg text-center">
                   <div className="text-sm font-medium text-emerald-300 mb-1">Rummy Session</div>
                   <div className="text-xs text-emerald-400">You can exit the table anytime</div>
@@ -419,6 +454,15 @@ export function PlaytimeTracker({ playerId, gameStatus }: PlaytimeTrackerProps) 
               </>
             ) : (
               <>
+                {session?.buyOutRejected && (
+                  <div className="bg-red-900/25 border border-red-500/40 p-3 rounded-lg">
+                    <div className="text-sm font-semibold text-red-300">Buy-out Request Rejected</div>
+                    <div className="text-xs text-red-200 mt-1">
+                      {session?.buyOutRejectionReason || 'Your request was rejected by staff.'}
+                    </div>
+                  </div>
+                )}
+
                 {/* Poker: full call time / min play flow */}
                 <div className="bg-blue-900/20 border border-blue-500/30 p-2 sm:p-3 rounded-lg">
                   <div className="text-center">

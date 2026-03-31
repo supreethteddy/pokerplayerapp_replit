@@ -7,10 +7,15 @@ const websocketBase = API_BASE_URL.endsWith('/api')
   ? API_BASE_URL.slice(0, -4)
   : API_BASE_URL.replace(/\/$/, '');
 
-export function useRealtimeTables() {
+/**
+ * Refreshes VIP points, products, and purchase history when staff or another client changes the VIP store.
+ */
+export function useRealtimeVip(playerId: number | string | null | undefined) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    if (!playerId) return;
+
     const clubId =
       localStorage.getItem('clubId') ||
       sessionStorage.getItem('clubId') ||
@@ -18,15 +23,9 @@ export function useRealtimeTables() {
       sessionStorage.getItem('club_id');
     if (!clubId) return;
 
-    const playerId =
-      localStorage.getItem('playerId') ||
-      sessionStorage.getItem('playerId') ||
-      localStorage.getItem('userId') ||
-      sessionStorage.getItem('userId');
-
     const token = localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
     const socket = io(`${websocketBase}/realtime`, {
-      auth: { token, clubId: String(clubId), playerId: playerId ? String(playerId) : undefined },
+      auth: { playerId: String(playerId), clubId: String(clubId), token },
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 2000,
@@ -34,29 +33,23 @@ export function useRealtimeTables() {
     });
 
     socket.on('connect', () => {
-      socket.emit('subscribe:club', {
-        clubId: String(clubId),
-        ...(playerId ? { playerId: String(playerId) } : {}),
-      });
+      socket.emit('subscribe:player', { playerId: String(playerId), clubId: String(clubId) });
+      socket.emit('subscribe:club', { clubId: String(clubId), playerId: String(playerId) });
     });
 
     const invalidate = () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/tables'] });
-      queryClient.invalidateQueries({ queryKey: ['tables', 'available'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/player-vip/points'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/player-vip/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/player-vip/purchases'] });
     };
 
-    socket.on('table:status-changed', () => {
-      console.log('🎲 [SOCKET] Table status changed');
-      invalidate();
-    });
-
-    socket.on('tables:updated', () => {
-      console.log('🎲 [SOCKET] Tables updated');
+    socket.on('vip:store-updated', (data: any) => {
+      if (data?.playerId && String(data.playerId) !== String(playerId)) return;
       invalidate();
     });
 
     return () => {
       socket.disconnect();
     };
-  }, [queryClient]);
+  }, [playerId, queryClient]);
 }

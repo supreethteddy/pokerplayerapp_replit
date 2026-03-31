@@ -31,15 +31,17 @@ export default function OfferCarousel({ onOfferClick }: OfferCarouselProps) {
   // Enable real-time offers via Supabase Realtime
   useRealtimeOffers();
 
-  // Fetch staff offers (now updated automatically via Realtime)
+  // Fetch player-visible offers (not staff admin offers)
   const { data: offers, isLoading, error } = useQuery({
-    queryKey: ['/api/staff-offers'],
+    queryKey: ['/api/player-offers/active'],
     // No refetchInterval - Supabase Realtime handles updates automatically!
     retry: 1,
   });
 
-  // Use only real staff offers from database - identical to offers tab logic
-  const displayOffers = (offers && Array.isArray(offers)) ? offers : [];
+  // Use only player-visible offers payload from backend
+  const displayOffers = Array.isArray((offers as any)?.offers)
+    ? (offers as any).offers
+    : (Array.isArray(offers) ? offers : []);
 
   // Transform to carousel format with new offers schema
   const displayItems = displayOffers.length > 0 ? 

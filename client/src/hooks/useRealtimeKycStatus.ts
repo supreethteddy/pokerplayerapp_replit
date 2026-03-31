@@ -14,16 +14,27 @@ export function useRealtimeKycStatus(playerId: number | string | null | undefine
 
   useEffect(() => {
     if (!playerId) return;
+    const clubId =
+      localStorage.getItem('clubId') ||
+      sessionStorage.getItem('clubId') ||
+      localStorage.getItem('club_id') ||
+      sessionStorage.getItem('club_id');
+    if (!clubId) return;
 
     console.log('🔐 [SOCKET KYC] Subscribing to KYC status updates for player:', playerId);
 
     const token = localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
     const socket = io(`${websocketBase}/realtime`, {
-      auth: { playerId: String(playerId), token },
+      auth: { playerId: String(playerId), clubId: String(clubId), token },
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 2000,
       reconnectionAttempts: Infinity,
+    });
+
+    socket.on('connect', () => {
+      socket.emit('subscribe:player', { playerId: String(playerId), clubId: String(clubId) });
+      socket.emit('subscribe:club', { clubId: String(clubId), playerId: String(playerId) });
     });
 
     socket.on('kyc:status-changed', (data: any) => {

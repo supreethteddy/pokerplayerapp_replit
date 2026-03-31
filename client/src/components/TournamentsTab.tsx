@@ -139,7 +139,6 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
       return await response.json();
     },
     refetchOnWindowFocus: true,
-    refetchInterval: 5000,
     staleTime: 0,
   });
 

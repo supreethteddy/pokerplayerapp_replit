@@ -18,10 +18,9 @@ export default function DualBalanceDisplay({ className = "" }: DualBalanceDispla
   // Credit request mutation
   const creditRequestMutation = useMutation({
     mutationFn: async (amount: number) => {
-      return apiRequest("POST", "/api/credit-requests", {
-        playerId: user?.id,
-        requestedAmount: amount,
-        reason: "Credit request from player portal"
+      return apiRequest("POST", "/api/auth/player/credit-request", {
+        amount,
+        notes: "Credit request from player portal"
       });
     },
     onSuccess: () => {
@@ -29,7 +28,7 @@ export default function DualBalanceDisplay({ className = "" }: DualBalanceDispla
         title: "Credit Request Sent",
         description: "Your credit request has been sent to the cashier for approval.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/credit-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/player/credit-requests"] });
     },
     onError: (error: any) => {
       toast({

@@ -60,6 +60,7 @@ export function useRealtimeTournaments(
     });
 
     socket.on('connect', () => {
+      socket.emit('subscribe:player', { playerId: String(playerId), clubId });
       if (clubId) socket.emit('subscribe:club', { clubId, playerId: String(playerId) });
     });
 

@@ -153,7 +153,7 @@ export default function HealthMonitor() {
         </div>
         
         <div className="mt-2 text-xs text-slate-400">
-          Last check: {new Date(health.lastCheck).toLocaleTimeString()}
+          Last check: {new Date(health.lastCheck).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}
         </div>
       </div>
 

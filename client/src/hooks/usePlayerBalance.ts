@@ -96,6 +96,7 @@ export function usePlayerBalance(playerId: string) {
     socket.on('connect', () => {
       console.log('✅ [BALANCE] Connected to WebSocket');
       socket.emit('subscribe:player', { playerId, clubId });
+      socket.emit('subscribe:club', { clubId, playerId });
     });
 
     // Listen for balance update events
@@ -124,6 +125,30 @@ export function usePlayerBalance(playerId: string) {
     socket.on('balance_updated', (data: any) => {
       console.log('💰 [REAL-TIME BALANCE] Direct player update:', data);
       queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
+    });
+
+    // Current canonical events from backend EventsService
+    socket.on('balance:updated', (data: any) => {
+      if (data?.playerId && data.playerId.toString() !== playerId) return;
+      queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
+    });
+
+    socket.on('transaction:new', (data: any) => {
+      if (data?.playerId && data.playerId.toString() !== playerId) return;
+      queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/auth/player/transactions`] });
+    });
+
+    socket.on('buyin:status-changed', (data: any) => {
+      if (data?.playerId && data.playerId.toString() !== playerId) return;
+      queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/auth/player/transactions`] });
+    });
+
+    socket.on('buyout:status-changed', (data: any) => {
+      if (data?.playerId && data.playerId.toString() !== playerId) return;
+      queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/auth/player/transactions`] });
     });
 
     socket.on('cash_out_request_submitted', (data: any) => {

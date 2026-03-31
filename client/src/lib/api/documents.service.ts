@@ -9,7 +9,7 @@ class DocumentsService extends BaseAPIService {
    * Upload KYC document (with or without file)
    */
   async uploadKYCDocument(data: {
-    type: 'id_proof' | 'address_proof' | 'photo' | 'pan_card' | 'aadhaar_front' | 'aadhaar_back' | 'other';
+    type: 'id_proof' | 'address_proof' | 'photo' | 'pan_card' | 'aadhaar_front' | 'aadhaar_back' | 'government_id' | 'other';
     name: string;
     url?: string;
   }): Promise<{
@@ -62,6 +62,11 @@ class DocumentsService extends BaseAPIService {
     document: any;
     totalDocuments: number;
   }> {
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!allowedMimeTypes.includes(file?.type || '')) {
+      throw new Error('Only JPG, PNG, WEBP, and PDF files are allowed');
+    }
+
     const formData = new FormData();
     formData.append('file', file);
     if (data?.type) formData.append('type', data.type);
