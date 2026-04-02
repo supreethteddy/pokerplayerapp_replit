@@ -100,11 +100,21 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
 
   // Check if user is on waitlist for THIS specific table
   const waitlistEntry = (waitlistData as any).entry || (Array.isArray((waitlistData as any).entries) ? (waitlistData as any).entries.find((e: any) => String(e.tableId) === String(tableId)) : null);
-  const isOnWaitlist = waitlistData.onWaitlist && (waitlistData.tableInfo?.tableId === tableId || (waitlistEntry && String(waitlistEntry.tableId) === String(tableId)) || !waitlistData.tableInfo);
-  // (Note: If tableInfo is missing, we assume position is valid for this table for legacy support or simpler state)
+  const isOnWaitlist =
+    Boolean(waitlistData.onWaitlist) &&
+    (String(waitlistData.tableInfo?.tableId || '') === String(tableId) ||
+      (waitlistEntry != null && String(waitlistEntry.tableId) === String(tableId)));
 
   // isOnWaitlist and waitlistEntry are used below
-  const isUserSeated = gameStatus.isInActiveGame && gameStatus.activeGameInfo?.tableId === tableId;
+  const isSeatedViaGameStatus = gameStatus.isInActiveGame && String(gameStatus.activeGameInfo?.tableId) === String(tableId);
+  const isSeatedViaWaitlistStatus =
+    waitlistData?.isSeated &&
+    (
+      String(waitlistData?.tableInfo?.tableId || '') === String(tableId) ||
+      String((waitlistData as any)?.entry?.tableNumber || '') === String(currentTable?.tableNumber || '')
+    );
+  const isSeatedViaTableRoster = seatedPlayersArray.some((p: any) => String(p?.playerId || '') === String(user?.id || ''));
+  const isUserSeated = Boolean(isSeatedViaGameStatus || isSeatedViaWaitlistStatus || isSeatedViaTableRoster);
   const userSeatInfo = gameStatus.activeGameInfo || gameStatus.seatedSessionFallback;
 
   // Join waitlist with backend API
@@ -239,7 +249,7 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
                       {/* ELEGANT SEAT BUTTON */}
                       <div
                         className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 flex items-center justify-center shadow-lg transition-all duration-300 select-none min-w-[44px] min-h-[44px] sm:min-w-[40px] sm:min-h-[40px] ${isOccupied
-                          ? 'bg-gradient-to-br from-blue-600 to-blue-700 border-blue-500 cursor-not-allowed'
+                          ? 'bg-gradient-to-br from-blue-600 to-blue-700 border-blue-500 cursor-pointer hover:scale-105'
                           : isSelected
                             ? 'border-emerald-400 shadow-emerald-500/50 scale-110 bg-gradient-to-br from-emerald-600 to-emerald-700 animate-pulse cursor-pointer'
                             : 'bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 hover:border-emerald-400 hover:shadow-emerald-400/50 hover:scale-105 cursor-pointer active:scale-95'
@@ -247,10 +257,8 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          if (!isOccupied) {
-                            setSelectedSeat(seatNumber);
-                            setShowJoinDialog(true);
-                          }
+                          setSelectedSeat(seatNumber);
+                          setShowJoinDialog(true);
                         }}
                         style={{
                           pointerEvents: 'auto',
@@ -452,9 +460,9 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
           </div>
         )}
 
-        {/* Waitlist Status Display */}
+        {/* Waitlist Status Display — only for this table; hide once seated */}
         {
-          !isUserSeated && waitlistData?.onWaitlist && (
+          !isUserSeated && isOnWaitlist && (
             <div className="mt-4 sm:mt-6 w-full max-w-4xl px-0">
               <Card className="bg-amber-500/10 border-amber-500/30">
                 <CardContent className="p-3 sm:p-6">
@@ -515,10 +523,23 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
 
         {/* Seat Selection and Join Controls */}
         {
-          !isUserSeated && !waitlistData?.onWaitlist && (
+          !isUserSeated && !isOnWaitlist && (
             <div className="mt-4 sm:mt-6 text-center px-0">
               {selectedSeat ? (
                 <div className="space-y-3 sm:space-y-4">
+                  {(() => {
+                    const occupyingPlayer = seatedPlayersArray.find((p: any) => Number(p.seatNumber) === Number(selectedSeat));
+                    if (!occupyingPlayer) return null;
+                    return (
+                      <div className="max-w-md mx-auto bg-blue-500/10 border border-blue-400/30 rounded-lg p-3 text-left">
+                        <div className="text-blue-300 text-xs sm:text-sm font-semibold">Seat currently occupied</div>
+                        <div className="text-slate-200 text-xs sm:text-sm">
+                          {occupyingPlayer.playerName || occupyingPlayer.name || 'Player'} is seated here now.
+                          Your request will stay in waitlist and staff can assign this seat when it becomes free.
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <div className="bg-slate-800 border border-emerald-500/50 rounded-lg p-3 sm:p-4 max-w-md mx-auto">
                     <h3 className="text-emerald-400 font-semibold mb-2 text-sm sm:text-base">Seat {selectedSeat} Selected</h3>
                     <p className="text-slate-300 text-xs sm:text-sm mb-2 break-words">Reserve this seat position for {currentTable?.name}</p>

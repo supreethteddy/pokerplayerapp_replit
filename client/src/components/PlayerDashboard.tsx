@@ -1690,6 +1690,13 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   });
   const activeSessionTableId = gameStatus?.activeGameInfo?.tableId || gameStatus?.seatedSessionFallback?.tableId;
   const activeSessionTable = tables.find((t: any) => String(t.id) === String(activeSessionTableId));
+  const hasLiveSeatedSession = Array.isArray(seatedSessions) && seatedSessions.length > 0;
+  const shouldShowWaitlistCards = Boolean(
+    waitlistData?.onWaitlist &&
+    !waitlistData?.isSeated &&
+    !gameStatus?.isInActiveGame &&
+    !hasLiveSeatedSession
+  );
   const liveSessionTableBalance = Number((accountBalance as any)?.tableBalance || 0);
 
   // Open tournament details dialog
@@ -3601,7 +3608,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                     </CardHeader>
                     <CardContent>
                       {/* Global Waitlist Status - Shows table TYPE (not specific table) */}
-                      {waitlistData?.onWaitlist && waitlistData?.entry && !waitlistData?.isSeated && (
+                      {shouldShowWaitlistCards && waitlistData?.entry && (
                         <div className="mb-4 bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
@@ -3789,7 +3796,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                                   </Button>
                                                 )}
                                             </>
-                                          ) : (waitlistData?.onWaitlist && !waitlistData?.isSeated && (String(waitlistData.entry?.table_id || waitlistData.entry?.tableId || waitlistData.tableInfo?.tableId) === String(table.id))) ? (
+                                          ) : (shouldShowWaitlistCards && (String(waitlistData.entry?.table_id || waitlistData.entry?.tableId || waitlistData.tableInfo?.tableId) === String(table.id))) ? (
                                             <div className="flex flex-col space-y-2 w-full">
                                               <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 sm:p-3">
                                                 <div className="flex items-center justify-between mb-1">
@@ -4009,7 +4016,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                                   </Button>
                                                 )}
                                             </>
-                                          ) : (waitlistData?.onWaitlist && !waitlistData?.isSeated && (String(waitlistData.entry?.table_id || waitlistData.entry?.tableId || waitlistData.tableInfo?.tableId) === String(table.id))) ? (
+                                          ) : (shouldShowWaitlistCards && (String(waitlistData.entry?.table_id || waitlistData.entry?.tableId || waitlistData.tableInfo?.tableId) === String(table.id))) ? (
                                             <div className="flex flex-col space-y-2 w-full">
                                               <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2 sm:p-3">
                                                 <div className="flex items-center justify-between mb-1">
