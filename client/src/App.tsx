@@ -15,6 +15,7 @@ import TableView from "./components/TableView";
 // Removed non-player routes/components
 import LoadingScreen from "./components/LoadingScreen";
 import NotificationBubbleManager from "./components/NotificationBubbleManager";
+import { PushNotificationService } from "./services/PushNotificationService";
 import { useState, useEffect } from "react";
 
 import NotFound from "@/pages/not-found";
@@ -82,6 +83,14 @@ function AppContent() {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [toast]);
+
+  // Handle Push Notification initialization
+  useEffect(() => {
+    if (user && authChecked && !loading) {
+      console.log('📱 [APP] Initializing Push Notifications for user:', user.id);
+      PushNotificationService.init(user.id);
+    }
+  }, [user, authChecked, loading]);
 
   // Debug logging for routing
   console.log('🔍 [APP ROUTING] user:', !!user, 'loading:', loading, 'authChecked:', authChecked);
