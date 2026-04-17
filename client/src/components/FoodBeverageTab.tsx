@@ -89,6 +89,8 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
   const [tableNumber, setTableNumber] = useState('');
   const [showThankYouDialog, setShowThankYouDialog] = useState(false);
   const [viewMode, setViewMode] = useState<'menu' | 'orders'>('menu');
+  const [historyPage, setHistoryPage] = useState(1);
+  const HISTORY_PAGE_SIZE = 10;
 
   // Real-time updates via WebSocket
   useEffect(() => {
@@ -143,12 +145,41 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
       }
     });
 
+    const playFnbAlert = () => {
+      try {
+        const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+        if (!Ctx) return;
+        const ctx = new Ctx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "square";
+        osc.frequency.value = 880;
+        gain.gain.value = 0.35;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        setTimeout(() => {
+          osc.stop();
+          ctx.close().catch(() => undefined);
+        }, 280);
+      } catch {
+        /* ignore */
+      }
+    };
+
     // New-style FNB order event from backend EventsService
     socket.on('fnb:order-updated', (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/player/fnb/orders'] });
-      if (data?.order?.status) {
-        toast({ title: "Order Update", description: `Your order is now ${data.order.status}` });
-      }
+      playFnbAlert();
+      const st = data?.order?.status;
+      const num = data?.order?.orderNumber;
+      const station = data?.order?.stationName;
+      toast({
+        title: "Food & beverage update",
+        description: st
+          ? `Order${num ? ` #${num}` : ""} is now ${st}${station ? ` · ${station}` : ""}.`
+          : "Your orders list was updated.",
+      });
     });
 
     return () => {
@@ -175,16 +206,34 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
     retry: 3,
   });
 
+  type OrdersApiResponse = {
+    success: boolean;
+    activeOrders?: PlayerFnbOrder[];
+    history?: {
+      orders: PlayerFnbOrder[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    };
+    orders?: PlayerFnbOrder[];
+  };
+
   const {
     data: ordersResponse,
     isLoading: ordersLoading,
-  } = useQuery<{ success: boolean; orders: PlayerFnbOrder[] }>({
-    queryKey: ['/api/auth/player/fnb/orders'],
+  } = useQuery<OrdersApiResponse>({
+    queryKey: ['/api/auth/player/fnb/orders', historyPage],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/auth/player/fnb/orders');
+      const qs = new URLSearchParams({
+        historyPage: String(historyPage),
+        historyLimit: String(HISTORY_PAGE_SIZE),
+      });
+      const response = await apiRequest('GET', `/api/auth/player/fnb/orders?${qs.toString()}`);
       return await response.json();
     },
     refetchOnWindowFocus: true,
+    staleTime: 0,
   });
 
   // Place order mutation
@@ -199,7 +248,8 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
       setShowOrderDialog(false);
       setShowThankYouDialog(true);
       queryClient.invalidateQueries({ queryKey: ['/api/auth/player/fnb/orders'] });
-      
+      setHistoryPage(1);
+
       toast({
         title: "Order Placed!",
         description: "Your order has been sent to the kitchen.",
@@ -292,13 +342,23 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
       return;
     }
 
+    const tn = tableNumber.trim();
+    if (!tn) {
+      toast({
+        title: "Table number required",
+        description: "Enter your table number so staff can deliver your order.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     placeOrderMutation.mutate({
       playerId: user?.id,
       playerName: `${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
       items: cart,
       totalAmount: calculateTotal(),
       notes: orderNotes.trim() || null,
-      tableNumber: tableNumber.trim() || null
+      tableNumber: tn,
     });
   };
 
@@ -320,12 +380,11 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
     }
 
     return (
-      <img 
-        src={src} 
+      <img
+        src={src}
         alt={alt}
         className={className}
         loading="lazy"
-        style={{ maxWidth: '200px', objectFit: 'cover' }}
         onError={(e) => {
           e.currentTarget.style.display = 'none';
         }}
@@ -335,11 +394,28 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
 
   const items = menuItems?.menuItems || menuItems?.items || [];
   const totalCartItems = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const orders: PlayerFnbOrder[] = ordersResponse?.orders || [];
-  const activeOrders = orders.filter(
-    (o) => o.status === 'pending' || o.status === 'processing' || o.status === 'ready',
-  );
-  const pastOrders = orders;
+
+  const flatOrders: PlayerFnbOrder[] = ordersResponse?.orders || [];
+  const liveStatuses: FnbOrderStatus[] = ['pending', 'processing', 'ready'];
+
+  const activeOrders: PlayerFnbOrder[] = Array.isArray(ordersResponse?.activeOrders)
+    ? (ordersResponse!.activeOrders as PlayerFnbOrder[])
+    : flatOrders.filter((o) => liveStatuses.includes(o.status));
+
+  const historyOrders: PlayerFnbOrder[] = Array.isArray(ordersResponse?.history?.orders)
+    ? ordersResponse!.history!.orders
+    : flatOrders.filter((o) => !liveStatuses.includes(o.status));
+
+  const historyTotalPages = Math.max(1, ordersResponse?.history?.totalPages ?? 1);
+  const historyTotal = ordersResponse?.history?.total ?? historyOrders.length;
+
+  const hasAnyOrders = activeOrders.length > 0 || historyOrders.length > 0;
+
+  React.useEffect(() => {
+    if (historyPage > historyTotalPages) {
+      setHistoryPage(historyTotalPages);
+    }
+  }, [historyPage, historyTotalPages]);
 
   if (itemsLoading && viewMode === 'menu') {
     return (
@@ -532,7 +608,7 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
             </div>
           )}
 
-          {!ordersLoading && orders.length === 0 && (
+          {!ordersLoading && !hasAnyOrders && (
             <Card className="bg-slate-800 border-slate-700">
               <CardContent className="p-4 sm:p-6 text-center space-y-2">
                 <UtensilsCrossed className="w-8 h-8 sm:w-10 sm:h-10 mx-auto mb-2 text-slate-500" />
@@ -550,8 +626,9 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
           {activeOrders.length > 0 && (
             <div className="space-y-2 sm:space-y-3">
               <h3 className="text-sm sm:text-base font-semibold" style={{ color: clubBranding?.skinColor || '#10b981' }}>
-                Current Orders
+                Live orders
               </h3>
+              <p className="text-xs text-slate-500 -mt-1 mb-1">Pending, preparing, or ready for delivery</p>
               <div className="space-y-2 sm:space-y-3">
                 {activeOrders.map((order) => (
                   <Card
@@ -562,7 +639,7 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="text-xs text-slate-400">
-                            Order #{order.orderNumber}
+                            Order #{order.orderNumber || '—'}
                           </div>
                           <div className="text-xs sm:text-sm text-slate-300">
                             Table: {order.tableNumber || 'N/A'}
@@ -616,13 +693,16 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
             </div>
           )}
 
-          {pastOrders.length > 0 && (
+          {historyOrders.length > 0 && (
             <div className="space-y-2 sm:space-y-3">
               <h3 className="text-sm sm:text-base font-semibold text-slate-300">
-                Order History
+                Order history
               </h3>
+              <p className="text-xs text-slate-500 -mt-1 mb-1">
+                Delivered, cancelled, and rejected orders ({historyTotal} total)
+              </p>
               <div className="space-y-2 sm:space-y-3">
-                {pastOrders.map((order) => (
+                {historyOrders.map((order) => (
                   <Card
                     key={order.id}
                     className="bg-slate-800 border-slate-700"
@@ -631,7 +711,7 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="text-xs text-slate-400">
-                            Order #{order.orderNumber}
+                            Order #{order.orderNumber || '—'}
                           </div>
                           <div className="text-xs text-slate-500">
                             {new Date(order.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
@@ -677,6 +757,33 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
         </Card>
                 ))}
               </div>
+              {historyTotalPages > 1 && (
+                <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={historyPage <= 1 || ordersLoading}
+                    className="min-h-[40px] border-slate-600 text-slate-200"
+                    onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-xs sm:text-sm text-slate-400 px-2">
+                    Page {historyPage} of {historyTotalPages}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={historyPage >= historyTotalPages || ordersLoading}
+                    className="min-h-[40px] border-slate-600 text-slate-200"
+                    onClick={() => setHistoryPage((p) => Math.min(historyTotalPages, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -716,8 +823,9 @@ export default function FoodBeverageTab({ user, clubBranding }: FoodBeverageTabP
             
             {/* Table Number */}
             <div className="space-y-2">
-              <label className="text-xs sm:text-sm text-slate-300">Table Number (Optional)</label>
+              <label className="text-xs sm:text-sm text-slate-300">Table number (required)</label>
               <Input
+                required
                 value={tableNumber}
                 onChange={(e) => setTableNumber(e.target.value)}
                 placeholder="Enter your table number"

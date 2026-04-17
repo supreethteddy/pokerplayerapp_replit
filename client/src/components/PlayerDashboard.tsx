@@ -44,6 +44,7 @@ import {
   XCircle,
   AlertCircle,
   Eye,
+  Download,
   AlertTriangle,
   Phone,
   Gift,
@@ -70,7 +71,7 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import type {
   Table as TableType,
   SeatRequest,
@@ -100,6 +101,11 @@ import { whitelabelConfig } from "@/lib/whitelabeling";
 import { fetchClubBranding, applyClubBranding, getGradientClasses, getGradientStyle, type ClubBranding } from "@/lib/clubBranding";
 import { usePlayerBalance } from "@/hooks/usePlayerBalance";
 import { parseSafeDate } from "@/lib/utils";
+import {
+  countUnreadPlayerPushNotifications,
+  PLAYER_PUSH_NOTIFICATION_UI_EVENT,
+} from "@/lib/playerPushNotifications";
+import { HIDE_SESSION_TIMER } from "@/lib/featureFlags";
 
 // Scrollable Offers Display Component
 const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null }) => {
@@ -137,29 +143,8 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
   console.log('🎁 [OFFERS UI] error:', error);
   console.log('🎁 [OFFERS UI] isLoading:', isLoading);
 
-  // Handle error state gracefully
-  if (error) {
-    return (
-      <div className="space-y-4">
-        <Card className="bg-slate-800 border-slate-700">
-          <CardHeader>
-            <CardTitle className="text-white flex items-center">
-              <Gift className="w-5 h-5 mr-2 text-emerald-500" />
-              Special Offers
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-slate-400 text-center py-8">
-              <Gift className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No offers available at the moment</p>
-              <p className="text-sm mt-2">
-                Check back later for special promotions!
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
+  if (error || (!isLoading && displayOffers.length === 0)) {
+    return null;
   }
 
   return (
@@ -174,21 +159,6 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
         </CardHeader>
       </Card>
 
-      {/* Show message when no offers available */}
-      {displayOffers.length === 0 && !isLoading && (
-        <Card className="bg-slate-800 border-slate-700">
-          <CardContent className="p-8">
-            <div className="text-slate-400 text-center">
-              <Gift className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No special offers available at the moment</p>
-              <p className="text-sm mt-2">
-                Check back later for exclusive promotions!
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Scrollable offers container */}
       <div className="max-h-[600px] overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
         {Array.isArray(displayOffers) &&
@@ -202,24 +172,25 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
             >
               <CardContent className="p-0">
                 {/* Staff portal media or fallback */}
-                <div className="relative">
+                <div className="relative max-w-full overflow-hidden">
                   {offer.video_url ? (
-                    <div className="aspect-video rounded-t-lg overflow-hidden bg-slate-900">
+                    <div className="flex aspect-video max-h-[min(52vw,300px)] sm:max-h-80 w-full items-center justify-center rounded-t-lg bg-black">
                       <video
-                        className="w-full h-full object-cover"
+                        className="max-h-full max-w-full object-contain"
                         poster={offer.image_url}
                         controls
+                        playsInline
                         preload="metadata"
                       >
                         <source src={offer.video_url} type="video/mp4" />
                       </video>
                     </div>
                   ) : offer.image_url ? (
-                    <div className="aspect-video rounded-t-lg overflow-hidden bg-slate-900">
+                    <div className="flex aspect-video max-h-[min(52vw,300px)] sm:max-h-80 w-full items-center justify-center rounded-t-lg bg-black">
                       <img
                         src={offer.image_url}
                         alt={offer.title}
-                        className="w-full h-full object-cover"
+                        className="max-h-full max-w-full object-contain"
                       />
                     </div>
                   ) : (
@@ -275,6 +246,20 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
                     </div>
                   )}
 
+                  {offer.expires_at && (
+                    <div className="flex items-center text-sm text-amber-200/90 mb-4">
+                      <Calendar className="w-4 h-4 mr-2 shrink-0" />
+                      <span>
+                        Expires{' '}
+                        {parseSafeDate(offer.expires_at).toLocaleString('en-IN', {
+                          timeZone: 'Asia/Kolkata',
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Action button */}
                   <Button
                     className="w-full hover:opacity-90"
@@ -313,22 +298,23 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
             <div className="space-y-4">
               {/* Media */}
               {selectedOffer.video_url ? (
-                <div className="aspect-video rounded-lg overflow-hidden bg-slate-900">
+                <div className="flex justify-center rounded-lg bg-black/40 p-2">
                   <video
-                    className="w-full h-full object-cover"
+                    className="max-h-[min(70vh,520px)] w-full max-w-full object-contain"
                     poster={selectedOffer.image_url}
                     controls
+                    playsInline
                     preload="metadata"
                   >
                     <source src={selectedOffer.video_url} type="video/mp4" />
                   </video>
                 </div>
               ) : selectedOffer.image_url ? (
-                <div className="aspect-video rounded-lg overflow-hidden bg-slate-900">
+                <div className="flex justify-center rounded-lg bg-black/40 p-2">
                   <img
                     src={selectedOffer.image_url}
                     alt={selectedOffer.title}
-                    className="w-full h-full object-cover"
+                    className="max-h-[min(70vh,520px)] w-full max-w-full object-contain"
                   />
                 </div>
               ) : (
@@ -373,6 +359,18 @@ const ScrollableOffersDisplay = ({ branding }: { branding?: ClubBranding | null 
                     <p className="text-slate-400 text-sm mb-1">End Date</p>
                     <p className="text-white">
                       {parseSafeDate(selectedOffer.end_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                    </p>
+                  </div>
+                )}
+                {selectedOffer.expires_at && (
+                  <div>
+                    <p className="text-slate-400 text-sm mb-1">Expires</p>
+                    <p className="text-amber-200">
+                      {parseSafeDate(selectedOffer.expires_at).toLocaleString('en-IN', {
+                        timeZone: 'Asia/Kolkata',
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
                     </p>
                   </div>
                 )}
@@ -1280,6 +1278,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const [changeRequestValue, setChangeRequestValue] = useState('');
   const [changeRequestFile, setChangeRequestFile] = useState<File | null>(null);
   const [uploadingChangeDoc, setUploadingChangeDoc] = useState(false);
+  /** Aadhaar change: PDF (single `government_id`) or images (`aadhaar_front` + `aadhaar_back`) */
+  const [aadhaarChangeMode, setAadhaarChangeMode] = useState<'' | 'pdf' | 'image'>('');
+  const [changeRequestAadhaarPdf, setChangeRequestAadhaarPdf] = useState<File | null>(null);
+  const [changeRequestAadhaarFront, setChangeRequestAadhaarFront] = useState<File | null>(null);
+  const [changeRequestAadhaarBack, setChangeRequestAadhaarBack] = useState<File | null>(null);
 
   // GRE Chat state variables
   const [chatMessage, setChatMessage] = useState("");
@@ -1388,6 +1391,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             queryClient.invalidateQueries({ queryKey: ["/api/balance"] }),
             queryClient.invalidateQueries({ queryKey: ["/api/auth/player/balance"] }),
             queryClient.invalidateQueries({ queryKey: ["/api/auth/player/transactions"] }),
+            queryClient.invalidateQueries({ queryKey: ["player", "transactions"] }),
             queryClient.invalidateQueries({ queryKey: ["/api/auth/player/credit-requests"] }),
           ]);
           break;
@@ -1519,7 +1523,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       currentPlayers: table.currentSeats || 0,
       pot: 0,
       avgStack: 0,
-      isActive: table.status === 'AVAILABLE',
+      isActive: table.status === 'AVAILABLE' || table.status === 'OCCUPIED',
     };
   });
 
@@ -1543,7 +1547,14 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
       const payload = await response.json();
       if (!payload?.hasActiveSession || !payload?.session) return [];
       const s = payload.session;
-      const stakeMatch = String(s?.stakes || '').match(/₹?\s*([\d,\.]+)\s*\/\s*₹?\s*([\d,\.]+)/);
+      const rawStakes = String(s?.stakes || '');
+      const stakeMatch = rawStakes.match(/₹?\s*([\d,\.]+)\s*\/\s*₹?\s*([\d,\.]+)/);
+      const fromRegexMin = stakeMatch ? Number(String(stakeMatch[1]).replace(/,/g, '')) : NaN;
+      const fromRegexMax = stakeMatch ? Number(String(stakeMatch[2]).replace(/,/g, '')) : NaN;
+      const apiMin = Number(s?.minBuyIn);
+      const apiMax = Number(s?.maxBuyIn);
+      const minBuyIn = Number.isFinite(apiMin) ? apiMin : Number.isFinite(fromRegexMin) ? fromRegexMin : 0;
+      const maxBuyIn = Number.isFinite(apiMax) ? apiMax : Number.isFinite(fromRegexMax) ? fromRegexMax : 0;
       return [{
         id: s.id,
         tableId: s.tableId,
@@ -1552,13 +1563,14 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         seatNumber: gameStatus?.activeGameInfo?.seatNumber || gameStatus?.seatedSessionFallback?.seatNumber || null,
         sessionStartTime: s.sessionStartTime || s.startedAt,
         sessionBuyIn: Number(s.currentChips ?? s.buyInAmount ?? 0),
-        minBuyIn: stakeMatch ? Number(String(stakeMatch[1]).replace(/,/g, '')) : 0,
-        maxBuyIn: stakeMatch ? Number(String(stakeMatch[2]).replace(/,/g, '')) : 0,
+        minBuyIn,
+        maxBuyIn,
+        stakesDisplay: rawStakes.trim() || null,
       }];
     },
     enabled: !!user?.id,
     refetchOnWindowFocus: true,
-    staleTime: 5000,
+    staleTime: 0,
     gcTime: 15000,
     structuralSharing: true,
   });
@@ -1691,6 +1703,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const activeSessionTableId = gameStatus?.activeGameInfo?.tableId || gameStatus?.seatedSessionFallback?.tableId;
   const activeSessionTable = tables.find((t: any) => String(t.id) === String(activeSessionTableId));
   const hasLiveSeatedSession = Array.isArray(seatedSessions) && seatedSessions.length > 0;
+  const showSessionNavTab =
+    !HIDE_SESSION_TIMER &&
+    Boolean(gameStatus?.isInActiveGame || hasLiveSeatedSession);
   const shouldShowWaitlistCards = Boolean(
     waitlistData?.onWaitlist &&
     !waitlistData?.isSeated &&
@@ -1698,6 +1713,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     !hasLiveSeatedSession
   );
   const liveSessionTableBalance = Number((accountBalance as any)?.tableBalance || 0);
+
+  useEffect(() => {
+    if (!showSessionNavTab && activeTab === "session") {
+      setActiveTab("game");
+    }
+  }, [showSessionNavTab, activeTab]);
 
   // Open tournament details dialog
   const handleViewTournamentDetails = (tournament: any) => {
@@ -1763,6 +1784,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         try {
           const _pt2 = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
           const response = await fetch(`${API_BASE_URL}/player-documents/my`, {
+            cache: 'no-store',
             headers: {
               ...(_pt2 ? { 'Authorization': `Bearer ${_pt2}` } : {}),
               'x-player-id': user.id.toString(),
@@ -1789,14 +1811,25 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             mimeType: doc.mimeType,
           }));
 
-          console.log('📄 [KYC DOCS] Mapped documents:', mappedDocs);
-          return mappedDocs;
+          const byType = new Map<string, (typeof mappedDocs)[0]>();
+          for (const d of mappedDocs) {
+            const t = String(d.documentType || '');
+            const prev = byType.get(t);
+            const tPrev = prev?.createdAt ? parseSafeDate(prev.createdAt).getTime() : 0;
+            const tCur = d.createdAt ? parseSafeDate(d.createdAt).getTime() : 0;
+            if (!prev || tCur >= tPrev) byType.set(t, d);
+          }
+          const deduped = Array.from(byType.values());
+          console.log('📄 [KYC DOCS] Mapped documents:', deduped);
+          return deduped;
         } catch (error) {
           console.error('Error fetching KYC documents:', error);
           return [];
         }
       },
       enabled: !!user?.id,
+      staleTime: 0,
+      refetchOnMount: 'always',
     }
   );
 
@@ -2034,6 +2067,22 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     structuralSharing: true,
   });
 
+  const [pushNotifUiBump, setPushNotifUiBump] = useState(0);
+  useEffect(() => {
+    const bump = () => setPushNotifUiBump((n) => n + 1);
+    window.addEventListener(PLAYER_PUSH_NOTIFICATION_UI_EVENT, bump);
+    window.addEventListener("storage", bump);
+    return () => {
+      window.removeEventListener(PLAYER_PUSH_NOTIFICATION_UI_EVENT, bump);
+      window.removeEventListener("storage", bump);
+    };
+  }, []);
+
+  const unreadPushNotificationCount = useMemo(
+    () => countUnreadPlayerPushNotifications(notifications),
+    [notifications, pushNotifUiBump],
+  );
+
   // Helper to submit a per-field profile change request
   const submitProfileChangeRequest = async (
     fieldName: string,
@@ -2097,23 +2146,88 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const openChangeRequestDialog = (fieldName: string, fieldLabel: string, currentValue: string, isDocument = false) => {
     setChangeRequestValue(isDocument ? '' : currentValue);
     setChangeRequestFile(null);
+    setAadhaarChangeMode('');
+    setChangeRequestAadhaarPdf(null);
+    setChangeRequestAadhaarFront(null);
+    setChangeRequestAadhaarBack(null);
     setChangeRequestDialog({ open: true, fieldName, fieldLabel, currentValue, isDocument });
+  };
+
+  const buildAadhaarSnapshotJson = (docs: KycDocument[] | undefined): string => {
+    if (!Array.isArray(docs)) return '{}';
+    const government_id =
+      docs.find(d => d.documentType === 'government_id' && d.fileUrl)?.fileUrl ?? null;
+    const aadhaar_front =
+      docs.find(d => d.documentType === 'aadhaar_front' && d.fileUrl)?.fileUrl ?? null;
+    const aadhaar_back =
+      docs.find(d => d.documentType === 'aadhaar_back' && d.fileUrl)?.fileUrl ?? null;
+    return JSON.stringify({ government_id, aadhaar_front, aadhaar_back });
+  };
+
+  const uploadChangeRequestDocument = async (
+    file: File,
+    docType: string,
+    forChangeRequest = true,
+  ): Promise<string> => {
+    const playerId = user?.id;
+    const clubId = sessionStorage.getItem('clubId') || localStorage.getItem('clubId');
+    if (!playerId || !clubId) throw new Error('Missing player or club ID');
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('documentType', docType);
+    formData.append('fileName', file.name);
+    formData.append('forChangeRequest', forChangeRequest ? 'true' : 'false');
+    const _pt3 = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
+    const uploadRes = await fetch(`${API_BASE_URL}/player-documents/upload`, {
+      method: 'POST',
+      headers: {
+        ...(_pt3 ? { 'Authorization': `Bearer ${_pt3}` } : {}),
+        'x-player-id': playerId,
+        'x-club-id': clubId,
+      },
+      body: formData,
+    });
+    const uploadData = await uploadRes.json();
+    if (!uploadRes.ok) {
+      throw new Error(uploadData?.message || uploadRes.statusText || 'Upload failed');
+    }
+    return uploadData?.document?.url || uploadData?.document?.fileUrl || '';
   };
 
   const handleChangeRequestSubmit = async () => {
     const { fieldName, currentValue, isDocument } = changeRequestDialog;
 
     if (isDocument) {
-      if (!changeRequestFile) {
+      const isAadhaar = fieldName === 'government_id';
+
+      if (isAadhaar) {
+        if (!aadhaarChangeMode) {
+          toast({
+            title: "Choose format",
+            description: "Select PDF (single file) or Images (front and back).",
+            variant: "destructive",
+          });
+          return;
+        }
+        if (aadhaarChangeMode === 'pdf' && !changeRequestAadhaarPdf) {
+          toast({ title: "File required", description: "Please upload your Aadhaar PDF.", variant: "destructive" });
+          return;
+        }
+        if (aadhaarChangeMode === 'image' && (!changeRequestAadhaarFront || !changeRequestAadhaarBack)) {
+          toast({
+            title: "Both sides required",
+            description: "Please upload Aadhaar front and back images.",
+            variant: "destructive",
+          });
+          return;
+        }
+      } else if (!changeRequestFile) {
         toast({ title: "File Required", description: "Please upload the new document", variant: "destructive" });
         return;
       }
+
       setUploadingChangeDoc(true);
       try {
-        const playerId = user?.id;
-        const clubId = sessionStorage.getItem('clubId') || localStorage.getItem('clubId');
-        if (!playerId || !clubId) throw new Error('Missing player or club ID');
-
         const docTypeMap: Record<string, string> = {
           government_id: 'government_id',
           aadhaar_front: 'aadhaar_front',
@@ -2121,26 +2235,41 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           pan_card: 'pan_card',
           profile_photo: 'profile_photo'
         };
-        const docType = docTypeMap[fieldName] || fieldName;
-        const formData = new FormData();
-        formData.append('file', changeRequestFile);
-        formData.append('documentType', docType);
-        formData.append('fileName', changeRequestFile.name);
 
-        const _pt3 = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
-        const uploadRes = await fetch(`${API_BASE_URL}/player-documents/upload`, {
-          method: 'POST',
-          headers: {
-            ...(_pt3 ? { 'Authorization': `Bearer ${_pt3}` } : {}),
-            'x-player-id': playerId,
-            'x-club-id': clubId,
-          },
-          body: formData,
-        });
-        const uploadData = await uploadRes.json();
-        const docUrl = uploadData?.document?.url || uploadData?.document?.fileUrl || '';
+        if (isAadhaar && aadhaarChangeMode === 'pdf' && changeRequestAadhaarPdf) {
+          const snapshot = buildAadhaarSnapshotJson(kycDocuments);
+          const docUrl = await uploadChangeRequestDocument(changeRequestAadhaarPdf, 'government_id');
+          if (!docUrl) throw new Error('Upload did not return a document URL');
+          await submitProfileChangeRequest(
+            'aadhaar',
+            JSON.stringify({ mode: 'pdf', government_id: docUrl }),
+            snapshot,
+          );
+        } else if (isAadhaar && aadhaarChangeMode === 'image' && changeRequestAadhaarFront && changeRequestAadhaarBack) {
+          const snapshot = buildAadhaarSnapshotJson(kycDocuments);
+          const urlFront = await uploadChangeRequestDocument(changeRequestAadhaarFront, 'aadhaar_front');
+          const urlBack = await uploadChangeRequestDocument(changeRequestAadhaarBack, 'aadhaar_back');
+          if (!urlFront || !urlBack) throw new Error('Upload did not return document URLs');
+          await submitProfileChangeRequest(
+            'aadhaar',
+            JSON.stringify({ mode: 'image', aadhaar_front: urlFront, aadhaar_back: urlBack }),
+            snapshot,
+          );
+        } else {
+          const docType = docTypeMap[fieldName] || fieldName;
+          const file = changeRequestFile!;
+          const prevUrl =
+            Array.isArray(kycDocuments) && kycDocuments.length
+              ? kycDocuments.find(d => d.documentType === docType && d.fileUrl)?.fileUrl ?? null
+              : null;
+          const docUrl = await uploadChangeRequestDocument(file, docType);
+          await submitProfileChangeRequest(
+            fieldName,
+            docUrl || `New ${changeRequestDialog.fieldLabel} uploaded: ${file.name}`,
+            prevUrl,
+          );
+        }
 
-        await submitProfileChangeRequest(fieldName, docUrl || `New ${changeRequestDialog.fieldLabel} uploaded: ${changeRequestFile.name}`, currentValue || 'existing document');
         setChangeRequestDialog(prev => ({ ...prev, open: false }));
       } catch (error: any) {
         toast({ title: "Upload Failed", description: error.message || "Failed to upload document", variant: "destructive" });
@@ -2192,13 +2321,113 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     staleTime: 5000,
   });
 
+  const aadhaarRequestFieldNames = new Set([
+    'aadhaar',
+    'government_id',
+    'aadhaar_front',
+    'aadhaar_back',
+  ]);
+
+  const requestMatchesProfileField = (r: { fieldName: string }, fieldName: string) => {
+    if (r.fieldName === fieldName) return true;
+    if (fieldName === 'government_id' && aadhaarRequestFieldNames.has(r.fieldName)) return true;
+    if (
+      (fieldName === 'phone' || fieldName === 'phoneNumber') &&
+      (r.fieldName === 'phone' || r.fieldName === 'phoneNumber')
+    )
+      return true;
+    return false;
+  };
+
   const getFieldChangeStatus = (fieldName: string) => {
     const requests = profileChangeData?.requests || [];
-    const pending = requests.find(r => r.fieldName === fieldName && r.status === 'pending');
+    const pending = requests.find(r => r.status === 'pending' && requestMatchesProfileField(r, fieldName));
     if (pending) return { status: 'pending' as const, request: pending };
-    const rejected = requests.find(r => r.fieldName === fieldName && r.status === 'rejected');
+    const rejected = requests.find(r => r.status === 'rejected' && requestMatchesProfileField(r, fieldName));
     if (rejected) return { status: 'rejected' as const, request: rejected };
     return { status: 'none' as const, request: null };
+  };
+
+  const downloadUrlAsFile = useCallback(async (url: string, baseName: string) => {
+    const safeName = baseName.replace(/[^a-zA-Z0-9-_]/g, "_").slice(0, 80);
+    try {
+      const res = await fetch(url, { mode: "cors" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const mime = blob.type || "";
+      let ext = "bin";
+      if (mime.includes("pdf")) ext = "pdf";
+      else if (mime.includes("jpeg")) ext = "jpg";
+      else if (mime.includes("png")) ext = "png";
+      else if (mime.includes("webp")) ext = "webp";
+      else {
+        const fromUrl = url.split("?")[0].match(/\.(pdf|png|jpe?g|webp)$/i);
+        if (fromUrl) ext = fromUrl[1].toLowerCase().replace("jpeg", "jpg");
+      }
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = `${safeName}.${ext}`;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  }, []);
+
+  /** Pending snapshot: two images → front+back only; PDF-only → single government_id URL. */
+  const pickAadhaarSnapshotDownloadUrls = (json: string | null | undefined): string[] => {
+    if (!json || !json.trim()) return [];
+    const raw = json.trim();
+    if (raw.startsWith("http")) return [raw];
+    try {
+      const o = JSON.parse(raw) as {
+        government_id?: string | null;
+        aadhaar_front?: string | null;
+        aadhaar_back?: string | null;
+      };
+      const http = (u: string | null | undefined) =>
+        u && /^https?:\/\//i.test(String(u).trim()) ? String(u).trim() : "";
+      const front = http(o.aadhaar_front);
+      const back = http(o.aadhaar_back);
+      const gov = http(o.government_id);
+      if (front || back) return [front, back].filter(Boolean);
+      if (gov) return [gov];
+      return [];
+    } catch {
+      return [];
+    }
+  };
+
+  /** Live KYC: same rule — prefer front+back pair; else single PDF slot. */
+  const pickAadhaarLiveDownloadUrls = (docs: KycDocument[]): string[] => {
+    if (!Array.isArray(docs) || !docs.length) return [];
+    const http = (u: string | undefined) =>
+      u && /^https?:\/\//i.test(u.trim()) ? u.trim() : "";
+    const front = http(docs.find(d => d.documentType === "aadhaar_front")?.fileUrl);
+    const back = http(docs.find(d => d.documentType === "aadhaar_back")?.fileUrl);
+    const gov = http(docs.find(d => d.documentType === "government_id")?.fileUrl);
+    if (front || back) return [front, back].filter(Boolean);
+    if (gov) return [gov];
+    return [];
+  };
+
+  const downloadAadhaarUrls = async (urls: string[]) => {
+    if (!urls.length) return;
+    for (let i = 0; i < urls.length; i++) {
+      await downloadUrlAsFile(urls[i], `aadhaar${urls.length > 1 ? `_${i + 1}` : ""}`);
+      if (i < urls.length - 1) await new Promise(r => setTimeout(r, 450));
+    }
+    if (urls.length > 1) {
+      toast({
+        title: "Downloading Aadhaar",
+        description: "Front and back are saved as separate files.",
+        duration: 4000,
+      });
+    }
   };
 
   const dismissRejectedRequest = async (requestId: string) => {
@@ -3334,14 +3563,16 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             >
               <Coffee className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
             </TabsTrigger>
-            <TabsTrigger
-              value="session"
-              className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
-              data-active-style="true"
-              role="tab"
-            >
-              <Clock className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
-            </TabsTrigger>
+            {showSessionNavTab && (
+              <TabsTrigger
+                value="session"
+                className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
+                data-active-style="true"
+                role="tab"
+              >
+                <Clock className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
+              </TabsTrigger>
+            )}
             <TabsTrigger
               value="balance"
               className="flex-1 px-2 sm:px-3 lg:px-4 py-2 sm:py-2.5 lg:py-3 text-xs sm:text-sm font-medium rounded-md data-[state=active]:text-white hover:bg-slate-700 transition-colors text-slate-300 flex items-center justify-center min-w-0 min-h-[44px] sm:min-h-[48px]"
@@ -3374,14 +3605,12 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             >
               <div className="relative flex items-center justify-center">
                 <Bell className="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 flex-shrink-0" />
-                {notifications &&
-                  Array.isArray(notifications) &&
-                  notifications.length > 0 ? (
+                {unreadPushNotificationCount > 0 ? (
                   <span
                     className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 min-w-[14px] sm:min-w-[16px] h-3.5 sm:h-4 bg-red-500 rounded-full text-white font-bold flex items-center justify-center px-0.5 sm:px-1 text-[0.5rem] sm:text-[0.6rem]"
                     style={{ lineHeight: "1" }}
                   >
-                    {notifications.length > 99 ? "99+" : notifications.length}
+                    {unreadPushNotificationCount > 99 ? "99+" : unreadPushNotificationCount}
                   </span>
                 ) : null}
               </div>
@@ -3412,6 +3641,18 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   <span className="ml-2">Refresh</span>
                 </Button>
               </div>
+
+              {/* Staff-managed promotions first (carousel auto-rotates when multiple) */}
+              <OfferCarousel
+                onOfferClick={(offerId) => {
+                  console.log(
+                    "🎯 [OFFER CLICK] Switching to offers tab:",
+                    offerId
+                  );
+                  setActiveTab("offers");
+                }}
+              />
+
               {/* Active Table Sessions - Show where player is currently seated */}
               {Array.isArray(seatedSessions) && seatedSessions.length > 0 && (
                 <Card className="bg-gradient-to-r from-emerald-800 to-emerald-900 border-emerald-500 w-full max-w-full">
@@ -3487,8 +3728,17 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                   Stakes
                                 </p>
                                 <p className="text-base sm:text-lg font-semibold text-emerald-300">
-                                  ₹{session.minBuyIn?.toLocaleString()}/
-                                  {session.maxBuyIn?.toLocaleString()}
+                                  {(() => {
+                                    const lo = Number(session.minBuyIn);
+                                    const hi = Number(session.maxBuyIn);
+                                    if (Number.isFinite(lo) && Number.isFinite(hi) && (lo > 0 || hi > 0)) {
+                                      return `₹${lo.toLocaleString('en-IN')}/₹${hi.toLocaleString('en-IN')}`;
+                                    }
+                                    if (session.stakesDisplay && String(session.stakesDisplay).trim()) {
+                                      return session.stakesDisplay;
+                                    }
+                                    return '—';
+                                  })()}
                                 </p>
                               </div>
                             </div>
@@ -3511,18 +3761,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   </CardContent>
                 </Card>
               )}
-
-              {/* Staff-Managed Offer Carousel */}
-              <OfferCarousel
-                onOfferClick={(offerId) => {
-                  console.log(
-                    "🎯 [OFFER CLICK] Switching to offers tab:",
-                    offerId
-                  );
-                  // Switch to offers tab instead of navigating
-                  setActiveTab("offers");
-                }}
-              />
 
               <div className="w-full max-w-full space-y-3 sm:space-y-4">
                 {/* Toggle State for Cash Tables vs Tournaments - Improved Alignment */}
@@ -4462,7 +4700,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               <FoodBeverageTab user={user} clubBranding={clubBranding} />
             </TabsContent>
 
-            {/* Session Tab - Advanced Playtime Tracking */}
+            {/* Session Tab — live controls live in PlaytimeTracker (mounted once below); tab hidden when no live session */}
             <TabsContent value="session" className="space-y-4 sm:space-y-6">
               <div className="flex justify-end">
                 <Button
@@ -4480,25 +4718,23 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                   <span className="ml-2">Refresh</span>
                 </Button>
               </div>
-              <div className="max-w-4xl mx-auto">
-                {!gameStatus.isInActiveGame &&
-                  !(
-                    Array.isArray(seatedSessions) && seatedSessions.length > 0
-                  ) ? (
-                  <Card className="bg-slate-800 border-slate-700">
+              <div className="mx-auto max-w-4xl space-y-4">
+                {!showSessionNavTab ? (
+                  <Card className="border-slate-700 bg-slate-800">
                     <CardContent className="p-8">
                       <div className="text-center">
-                        <Clock className="w-12 h-12 mx-auto mb-4 text-slate-400 opacity-50" />
-                        <h3 className="text-lg font-semibold text-white mb-2">
-                          No Active Session
+                        <Clock className="mx-auto mb-4 h-12 w-12 text-slate-400 opacity-50" />
+                        <h3 className="mb-2 text-lg font-semibold text-white">
+                          No active table session
                         </h3>
-                        <p className="text-slate-400 mb-4">
-                          Join a table from the Tables tab to start tracking your playtime
+                        <p className="mb-4 text-slate-400">
+                          The Session tab appears when you are seated at a table. Join a game from
+                          Tables to track playtime and call time.
                         </p>
                         <Button
                           variant="outline"
                           className="hover:opacity-90"
-                          style={getClubButtonStyle('secondary')}
+                          style={getClubButtonStyle("secondary")}
                           onClick={() => setActiveTab("game")}
                         >
                           Go to Tables
@@ -4507,12 +4743,48 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                     </CardContent>
                   </Card>
                 ) : (
-                  <PlaytimeTracker
-                    playerId={user?.id?.toString() || ""}
-                    gameStatus={gameStatus}
-                    liveTableBalance={liveSessionTableBalance}
-                    activeTableStakes={activeSessionTable?.stakes}
-                  />
+                  <Card className="border-emerald-700/40 bg-slate-800/90">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="flex items-center gap-2 text-lg text-white">
+                        <Play className="h-5 w-5 text-emerald-400" />
+                        Live table session
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm text-slate-300">
+                      <p>
+                        Your session panel should open automatically. Use the{" "}
+                        <span className="font-semibold text-white">green play button</span> at the
+                        bottom-right anytime (from any tab) for call time and session details.
+                      </p>
+                      {(seatedSessions?.[0] || gameStatus?.activeGameInfo) && (
+                        <div className="rounded-lg border border-slate-600 bg-slate-900/60 p-3 text-xs sm:text-sm">
+                          {seatedSessions?.[0] ? (
+                            <>
+                              <p className="font-medium text-white">
+                                {seatedSessions[0].tableName}
+                              </p>
+                              <p className="text-slate-400">
+                                {seatedSessions[0].gameType} · Seat{" "}
+                                {seatedSessions[0].seatNumber ?? "—"}
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="font-medium text-white">
+                                {gameStatus?.activeGameInfo?.tableName}
+                              </p>
+                              <p className="text-slate-400">
+                                {gameStatus?.activeGameInfo?.gameType}
+                                {gameStatus?.activeGameInfo?.seatNumber != null
+                                  ? ` · Seat ${gameStatus?.activeGameInfo?.seatNumber}`
+                                  : ""}
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 )}
               </div>
             </TabsContent>
@@ -4713,7 +4985,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
                       {/* Phone Field */}
                       {(() => {
-                        const phoneStatus = getFieldChangeStatus('phone');
+                        const phoneStatus = getFieldChangeStatus('phoneNumber');
                         return (
                           <div className="p-3 bg-slate-700 rounded-lg space-y-2">
                             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
@@ -4727,8 +4999,8 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 </span>
                               ) : phoneStatus.status === 'none' ? (
                                 <Button size="sm" variant="outline" className="hover:opacity-90" style={getClubButtonStyle('secondary')} disabled={!!submittingProfileChange}
-                                  onClick={() => openChangeRequestDialog('phone', 'Phone', (user as any)?.phone || '')}>
-                                  {submittingProfileChange === "phone" ? "Sending..." : "Request Change"}
+                                  onClick={() => openChangeRequestDialog('phoneNumber', 'Phone', (user as any)?.phone || '')}>
+                                  {submittingProfileChange === "phoneNumber" ? "Sending..." : "Request Change"}
                                 </Button>
                               ) : null}
                             </div>
@@ -4980,26 +5252,27 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                 <div className="flex items-center space-x-3 flex-1">
                                   {getKycStatusIcon(getKycDocumentStatus("id"))}
                                   <div className="flex-1">
-                                    <p className="text-sm font-medium text-white">Aadhaar (Front & Back)</p>
+                                    <p className="text-sm font-medium text-white">Aadhaar</p>
                                     <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus("id")}</p>
-                                    {aadhaarDocs.length > 0 && (
-                                      <p className="text-xs text-emerald-500 mt-1">
-                                        {aadhaarDocs.map(d => d.fileName).filter(Boolean).join(" / ")}
-                                      </p>
-                                    )}
                                   </div>
                                 </div>
                                 <div className="flex flex-col items-stretch space-y-2">
-                                  {aadhaarDocs.length > 0 && (
+                                  {(aadhaarDocs.length > 0 ||
+                                    (govIdStatus.status === "pending" &&
+                                      pickAadhaarSnapshotDownloadUrls(govIdStatus.request?.currentValue).length > 0)) && (
                                     <Button size="sm" variant="outline" className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
-                                      onClick={() => {
-                                        const doc =
-                                          aadhaarDocs.find(d => d.documentType === "aadhaar_front") ||
-                                          aadhaarDocs.find(d => d.documentType === "aadhaar_back") ||
-                                          aadhaarDocs.find(d => d.documentType === "government_id");
-                                        if (doc?.fileUrl) window.open(doc.fileUrl, "_blank");
+                                      onClick={async () => {
+                                        if (govIdStatus.status === "pending" && govIdStatus.request) {
+                                          const fromSnap = pickAadhaarSnapshotDownloadUrls(govIdStatus.request.currentValue);
+                                          if (fromSnap.length) {
+                                            await downloadAadhaarUrls(fromSnap);
+                                            return;
+                                          }
+                                        }
+                                        const live = pickAadhaarLiveDownloadUrls(aadhaarDocs);
+                                        if (live.length) await downloadAadhaarUrls(live);
                                       }}>
-                                      <Eye className="w-3 h-3 mr-1" /> View Document
+                                      <Download className="w-3 h-3 mr-1" /> Download
                                     </Button>
                                   )}
                                   {govIdStatus.status === 'pending' ? (
@@ -5008,7 +5281,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                     </span>
                                   ) : (
                                     <Button size="sm" variant="outline"
-                                      onClick={() => openChangeRequestDialog('government_id', 'Aadhaar (Front & Back)', 'existing document', true)}
+                                      onClick={() => openChangeRequestDialog('government_id', 'Aadhaar', 'existing document', true)}
                                       disabled={!!submittingProfileChange}
                                       className="border-amber-600 text-amber-400 hover:bg-amber-600/20 w-full">
                                       <AlertTriangle className="w-4 h-4 mr-1" /> Request Change
@@ -5046,23 +5319,25 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                   <div className="flex-1">
                                     <p className="text-sm font-medium text-white">PAN Card</p>
                                     <p className="text-xs text-slate-400 capitalize">{getKycDocumentStatus("pan")}</p>
-                                    {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === "pan_card" && d.fileUrl).length > 0 && (
-                                      <p className="text-xs text-emerald-500 mt-1">
-                                        {kycDocuments.filter(d => d.documentType === "pan_card" && d.fileUrl)[0]?.fileName}
-                                      </p>
-                                    )}
                                   </div>
                                 </div>
                                 <div className="flex flex-col items-stretch space-y-2">
-                                  {Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === "pan_card" && d.fileUrl).length > 0 && (
+                                  {(Array.isArray(kycDocuments) && kycDocuments.filter(d => d.documentType === "pan_card" && d.fileUrl).length > 0) ||
+                                    (panStatus.status === "pending" &&
+                                      (panStatus.request?.currentValue || "").trim().startsWith("http")) ? (
                                     <Button size="sm" variant="outline" className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
-                                      onClick={() => {
+                                      onClick={async () => {
+                                        const pendingPanOld = (panStatus.request?.currentValue || "").trim();
+                                        if (panStatus.status === "pending" && pendingPanOld.startsWith("http")) {
+                                          await downloadUrlAsFile(pendingPanOld, "pan_card");
+                                          return;
+                                        }
                                         const doc = kycDocuments.filter(d => d.documentType === "pan_card" && d.fileUrl)[0];
-                                        if (doc?.fileUrl) window.open(doc.fileUrl, "_blank");
+                                        if (doc?.fileUrl) await downloadUrlAsFile(doc.fileUrl, "pan_card");
                                       }}>
-                                      <Eye className="w-3 h-3 mr-1" /> View Document
+                                      <Download className="w-3 h-3 mr-1" /> Download
                                     </Button>
-                                  )}
+                                  ) : null}
                                   {panStatus.status === 'pending' ? (
                                     <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded-lg text-xs font-semibold border border-yellow-500/30">
                                       <Clock className="w-3 h-3" /> Pending Review
@@ -5107,24 +5382,6 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                               <p className="text-xs text-slate-400 capitalize">
                                 {getKycDocumentStatus("photo")}
                               </p>
-                              {Array.isArray(kycDocuments) &&
-                                kycDocuments.filter(
-                                  (d) =>
-                                    d.documentType === "profile_photo" &&
-                                    d.fileUrl
-                                ).length > 0 && (
-                                  <div className="flex items-center space-x-2 mt-1">
-                                    <p className="text-xs text-emerald-500">
-                                      {Array.isArray(kycDocuments)
-                                        ? kycDocuments.filter(
-                                          (d) =>
-                                            d.documentType ===
-                                            "profile_photo" && d.fileUrl
-                                        )[0]?.fileName
-                                        : ""}
-                                    </p>
-                                  </div>
-                                )}
                             </div>
                           </div>
                           <div className="flex flex-col items-stretch space-y-2">
@@ -5139,7 +5396,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                   size="sm"
                                   variant="outline"
                                   className="text-xs border-slate-600 text-slate-400 hover:bg-slate-700 w-full"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     const doc = Array.isArray(kycDocuments)
                                       ? kycDocuments.filter(
                                         (d) =>
@@ -5147,31 +5404,22 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                                           "profile_photo" && d.fileUrl
                                       )[0]
                                       : null;
-                                    if (doc && doc.fileUrl) {
+                                    if (doc?.fileUrl) {
                                       try {
-                                        const documentUrl = doc.fileUrl;
-                                        console.log(
-                                          "Opening document:",
-                                          documentUrl
-                                        );
-                                        window.open(documentUrl, "_blank");
+                                        await downloadUrlAsFile(doc.fileUrl, "profile_photo");
                                       } catch (error) {
-                                        console.error(
-                                          "Error opening document:",
-                                          error
-                                        );
+                                        console.error("Error downloading document:", error);
                                         toast({
                                           title: "Error",
-                                          description:
-                                            "Unable to open document",
+                                          description: "Unable to download document",
                                           variant: "destructive",
                                         });
                                       }
                                     }
                                   }}
                                 >
-                                  <Eye className="w-3 h-3 mr-1" />
-                                  View Document
+                                  <Download className="w-3 h-3 mr-1" />
+                                  Download
                                 </Button>
                               )}
 
@@ -5682,11 +5930,21 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
           </div>
         </Tabs>
 
+        {showSessionNavTab && user?.id && (
+          <PlaytimeTracker
+            playerId={String(user.id)}
+            gameStatus={gameStatus}
+            liveTableBalance={liveSessionTableBalance}
+            activeTableStakes={activeSessionTable?.stakes}
+            dashboardActiveTab={activeTab}
+          />
+        )}
+
         {/* Full Chat Dialog that opens from "Open Chat" button */}
         <Dialog open={chatDialogOpen} onOpenChange={setChatDialogOpen}>
           <DialogContent
             forceMount
-            className="w-[95vw] sm:max-w-2xl max-h-[85vh] sm:max-h-[80vh] bg-slate-800 border-slate-700 flex flex-col gap-0 overflow-hidden p-0 sm:p-0"
+            className="w-[95vw] sm:max-w-2xl max-h-[85vh] sm:max-h-[80vh] min-h-0 min-w-0 w-full bg-slate-800 border-slate-700 flex flex-col gap-0 overflow-hidden p-0 sm:p-0"
           >
             <DialogHeader className="px-4 pt-4 pb-3 shrink-0 border-b border-slate-700 text-left space-y-0">
               <DialogTitle className="text-white flex items-center text-base sm:text-lg">
@@ -5696,7 +5954,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
             </DialogHeader>
 
             {/* Inner column must own vertical scroll; outer DialogContent overflow-y-auto breaks flex-1 chat layout */}
-            <div className="flex flex-col flex-1 min-h-0 overflow-hidden px-3 pb-3 pt-2 sm:px-4 sm:pb-4">
+            <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden px-3 pb-3 pt-2 sm:px-4 sm:pb-4">
               {user?.id && (
                 <PlayerChatSystem
                   playerId={user.id}
@@ -5706,6 +5964,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                     "Player"
                   }
                   isInDialog={true}
+                  dialogOpen={chatDialogOpen}
                   clubBranding={clubBranding}
                   onClose={() => setChatDialogOpen(false)}
                 />
@@ -5954,7 +6213,19 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         {/* Live Session Tracking removed - already in Session tab */}
 
         {/* Change Request Popup Dialog */}
-        <Dialog open={changeRequestDialog.open} onOpenChange={(open) => setChangeRequestDialog(prev => ({ ...prev, open }))}>
+        <Dialog
+          open={changeRequestDialog.open}
+          onOpenChange={(open) => {
+            setChangeRequestDialog((prev) => ({ ...prev, open }));
+            if (!open) {
+              setAadhaarChangeMode('');
+              setChangeRequestAadhaarPdf(null);
+              setChangeRequestAadhaarFront(null);
+              setChangeRequestAadhaarBack(null);
+              setChangeRequestFile(null);
+            }
+          }}
+        >
           <DialogContent className="max-w-md bg-slate-800 border-slate-700 text-white">
             <DialogHeader>
               <DialogTitle className="text-white text-lg flex items-center">
@@ -5971,30 +6242,142 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               )}
 
               {changeRequestDialog.isDocument ? (
-                <div className="space-y-3">
-                  <p className="text-sm text-slate-300">Upload the new {changeRequestDialog.fieldLabel} document</p>
-                  <div className="border-2 border-dashed border-slate-600 rounded-lg p-4 text-center">
-                    <input
-                      type="file"
-                      accept=".jpg,.jpeg,.png,.pdf"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        if (file && file.size > 5 * 1024 * 1024) {
-                          toast({ title: "File too large", description: "Max file size is 5MB", variant: "destructive" });
-                          return;
-                        }
-                        setChangeRequestFile(file);
-                      }}
-                      className="block w-full text-sm text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
-                    />
-                    {changeRequestFile && (
-                      <p className="text-xs text-emerald-400 mt-2 flex items-center justify-center gap-1">
-                        <CheckCircle className="w-3 h-3" /> {changeRequestFile.name}
-                      </p>
+                changeRequestDialog.fieldName === "government_id" ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-slate-300">
+                      Choose how to upload your new Aadhaar. Staff will review your request.
+                    </p>
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">Aadhaar format</Label>
+                      <select
+                        value={aadhaarChangeMode}
+                        onChange={(e) => {
+                          const v = e.target.value as "" | "pdf" | "image";
+                          setAadhaarChangeMode(v);
+                          setChangeRequestAadhaarPdf(null);
+                          setChangeRequestAadhaarFront(null);
+                          setChangeRequestAadhaarBack(null);
+                        }}
+                        className="h-11 w-full rounded-md border border-slate-600 bg-slate-700 px-3 text-sm text-white"
+                      >
+                        <option value="">Select PDF or Images…</option>
+                        <option value="pdf">PDF (single combined file)</option>
+                        <option value="image">Images (front + back)</option>
+                      </select>
+                    </div>
+                    {aadhaarChangeMode === "pdf" && (
+                      <div className="space-y-2">
+                        <Label className="text-slate-300">Aadhaar PDF</Label>
+                        <div className="rounded-lg border-2 border-dashed border-slate-600 p-4 text-center">
+                          <input
+                            type="file"
+                            accept=".pdf,application/pdf"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] || null;
+                              if (file && file.size > 5 * 1024 * 1024) {
+                                toast({ title: "File too large", description: "Max file size is 5MB", variant: "destructive" });
+                                return;
+                              }
+                              if (file && !String(file.type || "").includes("pdf")) {
+                                toast({ title: "PDF only", description: "Please choose a PDF file.", variant: "destructive" });
+                                return;
+                              }
+                              setChangeRequestAadhaarPdf(file);
+                            }}
+                            className="block w-full cursor-pointer text-sm text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-blue-500"
+                          />
+                          {changeRequestAadhaarPdf && (
+                            <p className="mt-2 flex items-center justify-center gap-1 text-xs text-emerald-400">
+                              <CheckCircle className="h-3 w-3" /> {changeRequestAadhaarPdf.name}
+                            </p>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500">One PDF, max 5MB</p>
+                      </div>
+                    )}
+                    {aadhaarChangeMode === "image" && (
+                      <div className="space-y-3">
+                        <p className="text-xs text-amber-200/90">Both front and back images are required.</p>
+                        <div className="space-y-2">
+                          <Label className="text-slate-300">Front</Label>
+                          <div className="rounded-lg border-2 border-dashed border-slate-600 p-3 text-center">
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/jpg,.jpg,.jpeg,.png"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] || null;
+                                if (file && file.size > 5 * 1024 * 1024) {
+                                  toast({ title: "File too large", description: "Max file size is 5MB", variant: "destructive" });
+                                  return;
+                                }
+                                if (file && !file.type.startsWith("image/")) {
+                                  toast({ title: "Images only", description: "Use JPG or PNG for front.", variant: "destructive" });
+                                  return;
+                                }
+                                setChangeRequestAadhaarFront(file);
+                              }}
+                              className="block w-full cursor-pointer text-sm text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-blue-500"
+                            />
+                            {changeRequestAadhaarFront && (
+                              <p className="mt-2 text-xs text-emerald-400">{changeRequestAadhaarFront.name}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-slate-300">Back</Label>
+                          <div className="rounded-lg border-2 border-dashed border-slate-600 p-3 text-center">
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/jpg,.jpg,.jpeg,.png"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] || null;
+                                if (file && file.size > 5 * 1024 * 1024) {
+                                  toast({ title: "File too large", description: "Max file size is 5MB", variant: "destructive" });
+                                  return;
+                                }
+                                if (file && !file.type.startsWith("image/")) {
+                                  toast({ title: "Images only", description: "Use JPG or PNG for back.", variant: "destructive" });
+                                  return;
+                                }
+                                setChangeRequestAadhaarBack(file);
+                              }}
+                              className="block w-full cursor-pointer text-sm text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-blue-500"
+                            />
+                            {changeRequestAadhaarBack && (
+                              <p className="mt-2 text-xs text-emerald-400">{changeRequestAadhaarBack.name}</p>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-500">JPG or PNG per side, max 5MB each</p>
+                      </div>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500">Supported: JPG, PNG, PDF (max 5MB)</p>
-                </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-slate-300">Upload the new {changeRequestDialog.fieldLabel} document</p>
+                    <div className="border-2 border-dashed border-slate-600 rounded-lg p-4 text-center">
+                      <input
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.pdf"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          if (file && file.size > 5 * 1024 * 1024) {
+                            toast({ title: "File too large", description: "Max file size is 5MB", variant: "destructive" });
+                            return;
+                          }
+                          setChangeRequestFile(file);
+                        }}
+                        className="block w-full text-sm text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
+                      />
+                      {changeRequestFile && (
+                        <p className="text-xs text-emerald-400 mt-2 flex items-center justify-center gap-1">
+                          <CheckCircle className="w-3 h-3" /> {changeRequestFile.name}
+                        </p>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500">Supported: JPG, PNG, PDF (max 5MB)</p>
+                  </div>
+                )
               ) : (
                 <div className="space-y-2">
                   <label className="text-sm text-slate-300 block">
@@ -6021,7 +6404,16 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
               </Button>
               <Button
                 onClick={handleChangeRequestSubmit}
-                disabled={!!submittingProfileChange || uploadingChangeDoc || (changeRequestDialog.isDocument ? !changeRequestFile : !changeRequestValue.trim())}
+                disabled={(() => {
+                  if (submittingProfileChange || uploadingChangeDoc) return true;
+                  if (!changeRequestDialog.isDocument) return !changeRequestValue.trim();
+                  if (changeRequestDialog.fieldName === "government_id") {
+                    if (!aadhaarChangeMode) return true;
+                    if (aadhaarChangeMode === "pdf") return !changeRequestAadhaarPdf;
+                    return !changeRequestAadhaarFront || !changeRequestAadhaarBack;
+                  }
+                  return !changeRequestFile;
+                })()}
                 className="flex-1 bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50"
               >
                 {submittingProfileChange || uploadingChangeDoc ? "Submitting..." : "Submit Request"}

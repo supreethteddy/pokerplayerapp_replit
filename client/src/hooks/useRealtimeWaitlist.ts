@@ -41,6 +41,8 @@ export function useRealtimeWaitlist(playerId: number | string | null | undefined
       // Keep both waitlist query shapes in sync (legacy + game-status hook).
       queryClient.invalidateQueries({ queryKey: ['/api/auth/player/waitlist', playerId] });
       queryClient.invalidateQueries({ queryKey: ['/api/auth/player/waitlist'] });
+      void queryClient.refetchQueries({ queryKey: ['/api/auth/player/waitlist', String(playerId)], type: 'all' });
+      void queryClient.refetchQueries({ queryKey: ['/api/auth/player/balance'], type: 'all' });
     };
 
     socket.on('waitlist:position-updated', (data: any) => {

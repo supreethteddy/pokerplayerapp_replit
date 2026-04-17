@@ -39,24 +39,26 @@ export function usePlayerGameStatus(): GameStatusInfo {
 
   // UNIFIED FAST REFRESH INTERVALS (3 seconds) for immediate synchronization
   // Get player's waitlist status with aggressive refresh during active gaming
+  const playerCacheId = user?.id != null ? String(user.id) : '';
+
   const { data: waitlistStatusData } = useQuery({
-    queryKey: ['/api/auth/player/waitlist', user?.id],
+    queryKey: ['/api/auth/player/waitlist', playerCacheId],
     queryFn: async () => {
       if (!user?.id) return null;
       return await waitlistService.getWaitlistStatus();
     },
     enabled: !!user?.id,
-    staleTime: 5000,
+    staleTime: 0,
   });
 
   const { data: tables = [] } = useQuery({
     queryKey: ['/api/tables'],
-    staleTime: 5000,
+    staleTime: 0,
   });
 
   // Check if player is actively in a running tournament
   const { data: activeTournamentData } = useQuery({
-    queryKey: ['/api/player-tournaments/active-session', user?.id],
+    queryKey: ['/api/player-tournaments/active-session', playerCacheId],
     queryFn: async () => {
       if (!user?.id) return { inActiveTournament: false, tournamentName: null, tournamentId: null };
       const res = await apiRequest('GET', '/api/player-tournaments/active-session');

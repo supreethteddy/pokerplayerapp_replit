@@ -54,6 +54,14 @@ export function usePlayerBalance(playerId: string) {
       }
 
       const data = await response.json();
+      const assigned = (data as any)?.assignedClubId;
+      if (assigned && typeof assigned === 'string' && assigned.trim()) {
+        const a = assigned.trim();
+        if (a !== clubId) {
+          localStorage.setItem(STORAGE_KEYS.CLUB_ID, a);
+          sessionStorage.setItem(STORAGE_KEYS.CLUB_ID, a);
+        }
+      }
       console.log('✅ [BALANCE HOOK] Balance data:', data);
       return data;
     },
@@ -119,6 +127,7 @@ export function usePlayerBalance(playerId: string) {
         console.log('💳 [REAL-TIME BALANCE] Transaction update:', data);
         queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
         queryClient.invalidateQueries({ queryKey: [`/api/auth/player/transactions`] });
+        queryClient.invalidateQueries({ queryKey: ['player', 'transactions'] });
       }
     });
 
@@ -131,24 +140,34 @@ export function usePlayerBalance(playerId: string) {
     socket.on('balance:updated', (data: any) => {
       if (data?.playerId && data.playerId.toString() !== playerId) return;
       queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
+      queryClient.invalidateQueries({ queryKey: ['player', 'transactions'] });
     });
 
     socket.on('transaction:new', (data: any) => {
       if (data?.playerId && data.playerId.toString() !== playerId) return;
       queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
       queryClient.invalidateQueries({ queryKey: [`/api/auth/player/transactions`] });
+      queryClient.invalidateQueries({ queryKey: ['player', 'transactions'] });
     });
 
     socket.on('buyin:status-changed', (data: any) => {
       if (data?.playerId && data.playerId.toString() !== playerId) return;
       queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
       queryClient.invalidateQueries({ queryKey: [`/api/auth/player/transactions`] });
+      queryClient.invalidateQueries({ queryKey: ['player', 'transactions'] });
     });
 
     socket.on('buyout:status-changed', (data: any) => {
       if (data?.playerId && data.playerId.toString() !== playerId) return;
       queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
       queryClient.invalidateQueries({ queryKey: [`/api/auth/player/transactions`] });
+      queryClient.invalidateQueries({ queryKey: ['player', 'transactions'] });
+    });
+
+    socket.on('credit:facility-changed', (data: any) => {
+      if (data?.playerId && data.playerId.toString() !== playerId) return;
+      queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
+      queryClient.invalidateQueries({ queryKey: ['credit-requests'] });
     });
 
     socket.on('cash_out_request_submitted', (data: any) => {

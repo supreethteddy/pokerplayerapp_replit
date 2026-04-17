@@ -38,6 +38,11 @@ export function useRealtimeCreditRequests(playerId: number | string | null | und
       queryClient.invalidateQueries({ queryKey: ['/api/auth/player/credit-requests', playerId] });
       queryClient.invalidateQueries({ queryKey: ['/api/auth/player/credit-requests'] });
       queryClient.invalidateQueries({ queryKey: ['credit-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['credit-requests', playerId] });
+      // Staff-approved credit may post to table while seated — refresh wallet / table breakdown
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/player/balance'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/player/transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['player', 'transactions'] });
     };
 
     socket.on('credit:status-changed', (data: any) => {
@@ -48,6 +53,11 @@ export function useRealtimeCreditRequests(playerId: number | string | null | und
 
     // Backward/forward compatible alias.
     socket.on('credit:request-updated', (data: any) => {
+      if (!data?.playerId || String(data.playerId) !== String(playerId)) return;
+      invalidateCredit();
+    });
+
+    socket.on('credit:facility-changed', (data: any) => {
       if (!data?.playerId || String(data.playerId) !== String(playerId)) return;
       invalidateCredit();
     });

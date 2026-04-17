@@ -88,11 +88,17 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
     socket.on('tables:updated', fetchSeatedPlayers);
     socket.on('waitlist:status-changed', fetchSeatedPlayers);
     socket.on('waitlist:position-updated', fetchSeatedPlayers);
+    socket.on('transaction:new', fetchSeatedPlayers);
+    socket.on('balance:updated', fetchSeatedPlayers);
+    socket.on('buyin:updated', fetchSeatedPlayers);
     return () => { socket.disconnect(); };
   }, [fetchSeatedPlayers, tableId, user?.clubId, user?.id]);
 
   const seatedPlayersArray = seatedPlayers;
-  const potData = { pot: String(seatedPlayers.reduce((sum: number, p: any) => sum + (p.buyInAmount || 0), 0)) };
+  const totalChipsOnTable = seatedPlayers.reduce((sum: number, p: any) => sum + (Number(p.buyInAmount) || 0), 0);
+  const potData = { pot: String(totalChipsOnTable) };
+  const mySeatRow = seatedPlayersArray.find((p: any) => String(p?.playerId || '') === String(user?.id || ''));
+  const myLiveTableBalance = Number(mySeatRow?.buyInAmount) || 0;
 
   // Fetch waitlist status
   const { data: waitlistDataRaw, isLoading: _waitlistLoading } = useWaitlistStatus();
@@ -134,7 +140,8 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
         partySize: 1,
         tableType: currentTable?.gameVariant || currentTable?.type || 'Cash Game',
         gameType: currentTable?.tableType === 'RUMMY' ? 'RUMMY' : 'POKER',
-        requestedSeat: seatNumber // Send as requestedSeat (backend expects this field name)
+        requestedSeat: seatNumber,
+        targetTableId: currentTable?.id != null ? String(currentTable.id) : undefined,
       },
       {
         onSuccess: () => {
@@ -211,7 +218,12 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
       {/* PlaytimeTracker for Seated Players */}
       {isUserSeated && user?.id && (
         <div className="mx-1 sm:mx-2 mb-2 sm:mb-3">
-          <PlaytimeTracker playerId={user.id.toString()} gameStatus={gameStatus} />
+          <PlaytimeTracker
+            playerId={user.id.toString()}
+            gameStatus={gameStatus}
+            liveTableBalance={myLiveTableBalance}
+            activeTableStakes={currentTable.stakes || (currentTable.minBuyIn && currentTable.maxBuyIn ? `₹${currentTable.minBuyIn}-₹${currentTable.maxBuyIn}` : undefined)}
+          />
         </div>
       )}
 
@@ -302,13 +314,9 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
                 >
                   {/* Table Value / Entry Fee Card */}
                   <div className={`border-2 px-2 sm:px-4 py-1 sm:py-2 rounded-lg text-center shadow-xl mb-1 sm:mb-2 ${isRummy ? 'bg-gradient-to-br from-rose-700 via-rose-600 to-red-600 border-rose-400/80' : 'bg-gradient-to-br from-yellow-600 via-amber-500 to-orange-500 border-yellow-400/80'}`}>
-                    <div className="text-yellow-200 text-[10px] sm:text-xs font-semibold">{isRummy ? 'Entry Fee' : 'Table Value'}</div>
+                    <div className="text-yellow-200 text-[10px] sm:text-xs font-semibold">{isRummy ? 'Chips on table' : 'Table Value'}</div>
                     <div className="text-white text-sm sm:text-lg font-bold">
-                      {isRummy
-                        ? (seatedPlayersArray.length > 0
-                          ? `₹${(seatedPlayersArray.length * (Number(currentTable.entryFee) || 0)).toLocaleString()}`
-                          : (currentTable.entryFee ? `₹${Number(currentTable.entryFee).toLocaleString()}` : '—'))
-                        : `₹${potData?.pot ? parseFloat(potData.pot).toLocaleString() : '0'}`}
+                      ₹{totalChipsOnTable > 0 ? totalChipsOnTable.toLocaleString() : '0'}
                     </div>
                   </div>
 

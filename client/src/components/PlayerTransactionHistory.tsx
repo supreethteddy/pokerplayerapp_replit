@@ -1,6 +1,7 @@
 import React from 'react';
 import { usePlayerTransactions } from '@/hooks/usePlayerAPI';
 import { TransactionType, TransactionStatus } from '@/lib/api';
+import { sanitizeTransactionNotesForDisplay } from '@/lib/sanitizeTransactionNotes';
 
 interface PlayerTransactionHistoryProps {
   playerId: string;
@@ -149,12 +150,12 @@ export function PlayerTransactionHistory({ playerId, limit = 10 }: PlayerTransac
                 </div>
                 {transaction.description && (
                   <div className="text-[11px] text-slate-500 mt-1 italic truncate">
-                    {transaction.description}
+                    {sanitizeTransactionNotesForDisplay(transaction.description)}
                   </div>
                 )}
                 {transaction.notes && (
                   <div className="text-[11px] text-slate-500 mt-0.5 truncate">
-                    {transaction.notes}
+                    {sanitizeTransactionNotesForDisplay(transaction.notes)}
                   </div>
                 )}
                 <div className="text-[10px] mt-1">

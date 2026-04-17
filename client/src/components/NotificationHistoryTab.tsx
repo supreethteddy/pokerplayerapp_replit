@@ -1,37 +1,36 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useUltraFastAuth } from '@/hooks/useUltraFastAuth';
 import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
 import { apiRequest } from '@/lib/queryClient';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  Bell, 
-  AlertCircle, 
-  Info, 
-  Zap, 
-  LogIn, 
-  Clock, 
-  Trophy, 
-  CreditCard, 
+import {
+  Bell,
+  Info,
+  Zap,
+  LogIn,
+  Clock,
+  Trophy,
+  CreditCard,
   RotateCcw,
-  Calendar
+  Calendar,
+  Trash2,
+  Mail,
+  MailOpen,
 } from 'lucide-react';
-
-interface NotificationHistoryItem {
-  id: number;
-  title: string;
-  message: string;
-  message_type: string;
-  priority: string;
-  sender_name: string;
-  sender_role: string;
-  media_url?: string;
-  created_at: string;
-  read_at?: string;
-}
+import { getPushNotificationImageUrl, getPushNotificationVideoUrl } from '@/lib/pushNotificationMedia';
+import {
+  hidePromotionFromHomeCarousel,
+  unhidePromotionFromHomeCarousel,
+} from '@/lib/promotionHomeCarousel';
+import {
+  PLAYER_PUSH_NOTIFICATION_UI_EVENT,
+  isPlayerPushUnread,
+} from '@/lib/playerPushNotifications';
 
 // Notification type to color and icon mapping
 const getNotificationConfig = (messageType: string) => {
@@ -89,8 +88,10 @@ const getNotificationConfig = (messageType: string) => {
   return configs[messageType] || configs.general;
 };
 
-const formatTimeAgo = (dateString: string) => {
+const formatTimeAgo = (dateString: string | undefined) => {
+  if (!dateString) return '—';
   const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return '—';
   const now = new Date();
   const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
   
@@ -106,12 +107,13 @@ const formatTimeAgo = (dateString: string) => {
 
 export const NotificationHistoryTab: React.FC = () => {
   const { user } = useUltraFastAuth();
-  const [selectedNotification, setSelectedNotification] = useState<NotificationHistoryItem | null>(null);
-  const [deletedIds, setDeletedIds] = useState<Set<number>>(() => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(() => {
     try {
       const raw = localStorage.getItem('deletedNotifications') || '[]';
       const parsed = JSON.parse(raw) as (number | string)[];
-      return new Set(parsed.map((v) => Number(v)).filter((n) => !Number.isNaN(n)));
+      return new Set(parsed.map((v) => String(v)));
     } catch {
       return new Set();
     }
@@ -132,24 +134,57 @@ export const NotificationHistoryTab: React.FC = () => {
     // No refetchInterval - Supabase Realtime handles updates automatically!
   });
 
-  const markAsRead = async (notificationId: number) => {
-    try {
-      // For now, just mark as read locally since the backend doesn't have this endpoint yet
-      console.log('Marking notification as read:', notificationId);
-      refetch();
-    } catch (error) {
-      console.error('❌ [NOTIFICATION HISTORY] Failed to mark as read:', error);
-    }
-  };
+  const markReadMutation = useMutation({
+    mutationFn: (notificationId: string) =>
+      apiRequest(
+        'PUT',
+        `/api/auth/player/push-notifications/${encodeURIComponent(notificationId)}/read`,
+      ),
+    onSuccess: (_data, notificationId) => {
+      hidePromotionFromHomeCarousel(String(notificationId));
+      queryClient.invalidateQueries({
+        queryKey: ['/api/auth/player/push-notifications', user?.id],
+      });
+    },
+    onError: (e: Error) => {
+      toast({
+        title: 'Could not mark read',
+        description: e.message,
+        variant: 'destructive',
+      });
+    },
+  });
 
-  const deleteNotification = (notificationId: number) => {
+  const markUnreadMutation = useMutation({
+    mutationFn: (notificationId: string) =>
+      apiRequest(
+        'PUT',
+        `/api/auth/player/push-notifications/${encodeURIComponent(notificationId)}/unread`,
+      ),
+    onSuccess: (_data, notificationId) => {
+      unhidePromotionFromHomeCarousel(String(notificationId));
+      queryClient.invalidateQueries({
+        queryKey: ['/api/auth/player/push-notifications', user?.id],
+      });
+    },
+    onError: (e: Error) => {
+      toast({
+        title: 'Could not mark unread',
+        description: e.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const deleteNotification = (notificationId: string) => {
     setDeletedIds((prev) => {
       const next = new Set(prev);
       next.add(notificationId);
       localStorage.setItem(
         'deletedNotifications',
-        JSON.stringify(Array.from(next.values()))
+        JSON.stringify(Array.from(next.values())),
       );
+      window.dispatchEvent(new CustomEvent(PLAYER_PUSH_NOTIFICATION_UI_EVENT));
       return next;
     });
   };
@@ -178,15 +213,19 @@ export const NotificationHistoryTab: React.FC = () => {
 
   // Apply local delete + sort: unread first, then newest first
   const visibleNotifications = (notifications || [])
-    .filter((notification: any) => !deletedIds.has(notification.id))
+    .filter((notification: any) => !deletedIds.has(String(notification.id)))
     .sort((a: any, b: any) => {
-      const aUnread = a.deliveryStatus !== 'read';
-      const bUnread = b.deliveryStatus !== 'read';
+      const aUnread = isPlayerPushUnread(a);
+      const bUnread = isPlayerPushUnread(b);
       if (aUnread !== bUnread) {
         return aUnread ? -1 : 1; // unread first
       }
-      const aTime = new Date(a.createdAt || a.sentAt || a.created_at).getTime();
-      const bTime = new Date(b.createdAt || b.sentAt || b.created_at).getTime();
+      const aTime = new Date(
+        a.createdAt || a.sentAt || a.created_at || a.sent_at || 0,
+      ).getTime();
+      const bTime = new Date(
+        b.createdAt || b.sentAt || b.created_at || b.sent_at || 0,
+      ).getTime();
       return bTime - aTime; // newest first
     });
 
@@ -198,7 +237,10 @@ export const NotificationHistoryTab: React.FC = () => {
           Notifications (24h)
         </h2>
         <Badge variant="secondary" className="bg-slate-700">
-          {visibleNotifications.length} total
+          {visibleNotifications.filter((n: any) => isPlayerPushUnread(n)).length} unread
+          {visibleNotifications.length > 0
+            ? ` · ${visibleNotifications.length} total`
+            : ''}
         </Badge>
       </div>
 
@@ -213,82 +255,118 @@ export const NotificationHistoryTab: React.FC = () => {
         <ScrollArea className="h-[600px]">
           <div className="space-y-3">
             {visibleNotifications.map((notification: any) => {
+              const nid = String(notification.id);
               const typeKey = notification.messageType || notification.message_type || notification.targetAudience || 'general';
               const config = getNotificationConfig(typeKey);
               const IconComponent = config.icon;
-              const isUnread = notification.deliveryStatus !== 'read';
+              const isUnread = isPlayerPushUnread(notification);
+              const imageSrc = getPushNotificationImageUrl(notification);
+              const videoSrc = getPushNotificationVideoUrl(notification);
+              const bodyText =
+                notification.message ||
+                notification.details ||
+                '';
 
               return (
-                <Card 
-                  key={notification.id} 
-                  className={`bg-slate-800 border-slate-700 transition-all hover:bg-slate-750 cursor-pointer ${
+                <Card
+                  key={nid}
+                  className={`bg-slate-800 border-slate-700 transition-all hover:bg-slate-750 ${
                     isUnread ? 'ring-1 ring-blue-500/30 shadow-blue-500/10 shadow-lg' : ''
                   }`}
-                  onClick={() => {
-                    if (isUnread) markAsRead(notification.id);
-                    setSelectedNotification(notification);
-                  }}
                 >
-                  <CardContent className="p-4">
-                    <div className="flex items-start space-x-3">
-                      <div className={`p-2 rounded-full ${config.bgColor} ${config.iconColor} flex-shrink-0`}>
-                        <IconComponent className="w-4 h-4" />
+                  <CardContent className="p-0">
+                    {(videoSrc || imageSrc) && (
+                      <div className="relative aspect-video w-full overflow-hidden rounded-t-lg border-b border-slate-700 bg-black">
+                        {videoSrc ? (
+                          <video
+                            src={videoSrc}
+                            controls
+                            className="absolute inset-0 h-full w-full object-cover"
+                            playsInline
+                          />
+                        ) : (
+                          <img
+                            src={imageSrc!}
+                            alt=""
+                            className="absolute inset-0 h-full w-full object-cover"
+                            loading="lazy"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        )}
                       </div>
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <h4 className={`text-sm font-semibold ${isUnread ? 'text-white' : 'text-gray-300'} truncate`}>
-                            {notification.title}
-                          </h4>
-                          <div className="flex items-center gap-2">
+                    )}
+
+                    <div className="space-y-2 p-4">
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-full ${config.bgColor} ${config.iconColor} flex-shrink-0`}>
+                          <IconComponent className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-1 flex flex-wrap items-center gap-2">
+                            <h4 className={`text-sm font-semibold ${isUnread ? 'text-white' : 'text-gray-300'}`}>
+                              {notification.title}
+                            </h4>
                             <Badge className={`text-xs ${config.badgeColor}`}>
-                              {String(typeKey || 'general').replace('_', ' ')}
+                              {String(typeKey || 'general').replace(/_/g, ' ')}
                             </Badge>
                             {isUnread && (
-                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              <span className="inline-flex h-2 w-2 rounded-full bg-blue-500" title="Unread" />
                             )}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 text-gray-400 hover:text-red-400 hover:bg-red-900/20"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteNotification(notification.id);
-                              }}
-                            >
-                              <RotateCcw className="w-3 h-3 rotate-90" />
-                            </Button>
                           </div>
+                          {bodyText ? (
+                            <p className={`text-sm leading-relaxed ${isUnread ? 'text-gray-200' : 'text-gray-400'}`}>
+                              {bodyText}
+                            </p>
+                          ) : null}
                         </div>
-                        
-                        <p className={`text-sm ${isUnread ? 'text-gray-200' : 'text-gray-400'} mb-2 leading-relaxed line-clamp-2`}>
-                          {notification.message}
-                        </p>
-                        
-                        <div className="flex items-center justify-between text-xs text-gray-500">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {formatTimeAgo(notification.createdAt || notification.sentAt)}
-                          </span>
-                          <span className="flex items-center gap-2">
-                            <span>
-                              {notification.sentByName || notification.senderName || 'System'} ({notification.sentByRole || notification.senderRole || 'admin'})
-                            </span>
-                          </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-700 pt-3 text-xs text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {formatTimeAgo(
+                            notification.createdAt ||
+                              notification.sentAt ||
+                              notification.created_at ||
+                              notification.sent_at,
+                          )}
+                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 border-slate-600 text-gray-200 hover:bg-slate-700"
+                            disabled={!isUnread || markReadMutation.isPending}
+                            onClick={() => markReadMutation.mutate(nid)}
+                          >
+                            <MailOpen className="mr-1 h-3 w-3" />
+                            Mark read
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 border-slate-600 text-gray-200 hover:bg-slate-700"
+                            disabled={isUnread || markUnreadMutation.isPending}
+                            onClick={() => markUnreadMutation.mutate(nid)}
+                          >
+                            <Mail className="mr-1 h-3 w-3" />
+                            Mark unread
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-gray-400 hover:text-red-400 hover:bg-red-900/20"
+                            onClick={() => deleteNotification(nid)}
+                            title="Hide from this device"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
                         </div>
-                        
-                        {notification.mediaUrl && (
-                          <div className="mt-2">
-                            <img 
-                              src={notification.mediaUrl} 
-                              alt="Notification media"
-                              className="max-w-full h-auto rounded-md max-h-20 object-cover"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = 'none';
-                              }}
-                            />
-                          </div>
-                        )}
                       </div>
                     </div>
                   </CardContent>

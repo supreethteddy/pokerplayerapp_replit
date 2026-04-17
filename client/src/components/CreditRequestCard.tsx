@@ -1,16 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { usePlayerBalance } from "@/hooks/usePlayerBalance";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { io } from "socket.io-client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Skeleton } from "@/components/ui/skeleton";
-import { CreditCard, Plus, Clock, CheckCircle, XCircle, AlertCircle, DollarSign } from "lucide-react";
+import { Plus, Clock, CheckCircle, XCircle, DollarSign } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -41,8 +40,15 @@ export default function CreditRequestCard() {
   // Get balance to check credit status
   const { balance } = usePlayerBalance(user?.id?.toString() || "");
   const creditEnabled = (balance as any)?.creditEnabled || false;
-  const creditLimit = parseFloat((balance as any)?.creditLimit || '0');
-  const availableCredit = parseFloat((balance as any)?.availableCredit || '0');
+  const totalCredit = parseFloat(
+    String((balance as any)?.totalCredit ?? (balance as any)?.creditLimit ?? '0'),
+  );
+  const creditRemaining = parseFloat(
+    String((balance as any)?.creditRemaining ?? (balance as any)?.availableCredit ?? '0'),
+  );
+
+  const isRequestPending = (status: string) =>
+    String(status || '').toLowerCase() === 'pending';
 
   // Socket.IO: instant updates when credit request is approved/rejected
   useEffect(() => {
@@ -50,15 +56,37 @@ export default function CreditRequestCard() {
     const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3333/api';
     const wsBase = API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL.replace(/\/$/, '');
     const token = localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
+    const clubId =
+      localStorage.getItem('clubId') ||
+      sessionStorage.getItem('clubId') ||
+      localStorage.getItem('club_id') ||
+      sessionStorage.getItem('club_id');
     const socket = io(`${wsBase}/realtime`, {
-      auth: { playerId: String(user.id), token },
+      auth: { playerId: String(user.id), clubId: clubId || undefined, token },
       transports: ['websocket', 'polling'],
       reconnection: true,
     });
-    socket.on('credit:status-changed', (data: any) => {
-      if (data?.playerId && String(data.playerId) !== String(user.id)) return;
+    socket.on('connect', () => {
+      if (clubId) {
+        socket.emit('subscribe:player', { playerId: String(user.id), clubId });
+        socket.emit('subscribe:club', { clubId, playerId: String(user.id) });
+      }
+    });
+    const bump = () => {
       queryClient.invalidateQueries({ queryKey: ['credit-requests', user.id] });
       queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
+    };
+    socket.on('credit:status-changed', (data: any) => {
+      if (data?.playerId && String(data.playerId) !== String(user.id)) return;
+      bump();
+    });
+    socket.on('credit:request-updated', (data: any) => {
+      if (data?.playerId && String(data.playerId) !== String(user.id)) return;
+      bump();
+    });
+    socket.on('credit:facility-changed', (data: any) => {
+      if (data?.playerId && String(data.playerId) !== String(user.id)) return;
+      bump();
     });
     return () => { socket.disconnect(); };
   }, [user?.id, queryClient]);
@@ -71,7 +99,23 @@ export default function CreditRequestCard() {
       return response.json();
     },
     enabled: !!user?.id && creditEnabled,
+    staleTime: 3000,
   });
+
+  const hasPendingCreditRequest = useMemo(
+    () => !!(creditRequests || []).some((r) => isRequestPending(r.status)),
+    [creditRequests],
+  );
+
+  const sortedCreditRequests = useMemo(() => {
+    if (!creditRequests?.length) return [];
+    return [...creditRequests].sort((a, b) => {
+      const ap = isRequestPending(a.status) ? 0 : 1;
+      const bp = isRequestPending(b.status) ? 0 : 1;
+      if (ap !== bp) return ap - bp;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, [creditRequests]);
 
   // Submit credit request mutation
   const submitCreditRequestMutation = useMutation({
@@ -84,6 +128,7 @@ export default function CreditRequestCard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['credit-requests', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/player/balance'] });
       queryClient.invalidateQueries({ queryKey: ['/api/players/supabase'] });
       setCreditAmount("");
       setCreditNote("");
@@ -101,8 +146,12 @@ export default function CreditRequestCard() {
         const msg = error.message;
         
         // Extract the actual error message (after status code)
-        if (msg.includes("A pending credit request already exists")) {
-          errorMessage = "You already have a pending credit request. Please wait for approval before submitting another request.";
+        if (
+          msg.includes("A pending credit request already exists") ||
+          msg.includes("already have a pending credit request")
+        ) {
+          errorMessage =
+            "You already have a pending credit request. Wait until staff approves or rejects it before sending another.";
         } else if (msg.includes("Credit facility is not enabled")) {
           errorMessage = "Credit facility is not enabled for your account. Please contact club management.";
         } else if (msg.includes("KYC verification")) {
@@ -127,6 +176,14 @@ export default function CreditRequestCard() {
   });
 
   const handleCreditRequest = () => {
+    if (hasPendingCreditRequest) {
+      toast({
+        title: "Pending request",
+        description: "Wait until your current credit request is approved or rejected before sending another.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!creditAmount || parseFloat(creditAmount) <= 0) {
       toast({
         title: "Invalid Amount",
@@ -138,10 +195,10 @@ export default function CreditRequestCard() {
 
     const requestedAmount = parseFloat(creditAmount);
     
-    if (requestedAmount > availableCredit) {
+    if (requestedAmount > creditRemaining) {
       toast({
-        title: "Amount Exceeds Available Credit",
-        description: `You can only request up to ₹${availableCredit.toLocaleString()}. Your available credit is ₹${availableCredit.toLocaleString()}.`,
+        title: "Amount exceeds credit remaining",
+        description: `You can only request up to ₹${creditRemaining.toLocaleString()} (credit remaining on your line).`,
         variant: "destructive",
       });
       return;
@@ -203,55 +260,39 @@ export default function CreditRequestCard() {
   };
 
   // Don't show credit card if user is not credit enabled
-  if (!creditEnabled || creditLimit <= 0) {
+  if (!creditEnabled || totalCredit <= 0) {
     return null;
   }
 
+  const requestBlocked = hasPendingCreditRequest || creditRemaining <= 0;
+
   return (
     <Card className="bg-slate-800 border-slate-700">
-      <CardHeader>
-        <CardTitle className="text-white flex items-center justify-between">
-          <div className="flex items-center">
-            <CreditCard className="w-5 h-5 mr-2 text-blue-500" />
-            Credit System
+      <CardContent className="pt-6 space-y-4">
+        {hasPendingCreditRequest && (
+          <div className="flex items-center justify-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+            <Clock className="w-4 h-4 shrink-0" />
+            Awaiting approval on your last credit request
           </div>
-          <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30">
-            Credit Approved
-          </Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Credit Info Display */}
-        <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm text-slate-300">Credit Limit:</span>
-            <span className="text-sm font-bold text-blue-400">₹{creditLimit.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm text-slate-300">Available Credit:</span>
-            <span className="text-sm font-bold text-green-400">₹{availableCredit.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-slate-300">Credit Used:</span>
-            <span className="text-sm font-bold text-yellow-400">₹{(creditLimit - availableCredit).toLocaleString()}</span>
-          </div>
-        </div>
+        )}
 
-        {/* Credit Request Form */}
+        {/* Credit Request Form — balances live in Wallet & credit line above */}
         {!showCreditForm ? (
           <div className="text-center">
             <Button
               onClick={() => setShowCreditForm(true)}
               className="bg-blue-600 hover:bg-blue-700 text-white"
-              disabled={availableCredit <= 0}
+              disabled={requestBlocked}
             >
               <Plus className="w-4 h-4 mr-2" />
               Request Credit
             </Button>
-            <p className="text-sm text-slate-400 mt-2">
-              {availableCredit > 0 
-                ? `You can request up to ₹${availableCredit.toLocaleString()} in credit.`
-                : 'You have reached your credit limit.'}
+            <p className="mt-3 text-center text-base font-semibold text-slate-200">
+              {hasPendingCreditRequest
+                ? "You already have a pending request. Wait until staff approves or rejects it before sending another."
+                : creditRemaining > 0
+                  ? `You can request up to ₹${creditRemaining.toLocaleString()} (credit remaining).`
+                  : "You have no credit remaining on your line."}
             </p>
           </div>
         ) : (
@@ -265,13 +306,13 @@ export default function CreditRequestCard() {
                 type="number"
                 value={creditAmount}
                 onChange={(e) => setCreditAmount(e.target.value)}
-                placeholder={`Enter amount (max: ₹${availableCredit.toLocaleString()})`}
+                placeholder={`Enter amount (max: ₹${creditRemaining.toLocaleString()})`}
                 className="bg-slate-700 border-slate-600 text-white"
                 min="1"
-                max={availableCredit}
+                max={creditRemaining}
               />
               <p className="text-xs text-slate-400 mt-1">
-                Available credit: ₹{availableCredit.toLocaleString()}
+                Credit remaining: ₹{creditRemaining.toLocaleString()}
               </p>
             </div>
             
@@ -292,7 +333,7 @@ export default function CreditRequestCard() {
             <div className="flex space-x-2">
               <Button
                 onClick={handleCreditRequest}
-                disabled={submitCreditRequestMutation.isPending}
+                disabled={submitCreditRequestMutation.isPending || hasPendingCreditRequest}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1"
               >
                 {submitCreditRequestMutation.isPending ? (
@@ -317,18 +358,13 @@ export default function CreditRequestCard() {
           </div>
         )}
 
-        {/* Credit Request History */}
-        {creditRequestsLoading ? (
-          <div className="space-y-3">
-            <Skeleton className="h-16 bg-slate-700" />
-            <Skeleton className="h-16 bg-slate-700" />
-          </div>
-        ) : creditRequests && creditRequests.length > 0 ? (
+        {/* Past credit requests only when there is history (no empty-state card). */}
+        {!creditRequestsLoading && creditRequests && creditRequests.length > 0 && (
           <div className="space-y-3">
             <h4 className="text-sm font-medium text-slate-300 border-b border-slate-600 pb-2">
-              Recent Credit Requests
+              Past credit requests
             </h4>
-            {creditRequests.slice(0, 3).map((request) => (
+            {sortedCreditRequests.slice(0, 5).map((request) => (
               <div key={request.id} className="bg-slate-700 rounded-lg p-3">
                 <div className="flex justify-between items-start mb-2">
                   <div>
@@ -341,13 +377,13 @@ export default function CreditRequestCard() {
                   </div>
                   {getStatusBadge(request.status)}
                 </div>
-                
+
                 {request.requestNote && (
                   <p className="text-xs text-slate-400 mb-2">
                     {request.requestNote}
                   </p>
                 )}
-                
+
                 {request.adminNote && (
                   <div className="bg-slate-600 rounded p-2 mt-2">
                     <p className="text-xs text-slate-300">
@@ -355,7 +391,7 @@ export default function CreditRequestCard() {
                     </p>
                   </div>
                 )}
-                
+
                 {request.rejectedReason && (
                   <div className="bg-red-500/10 rounded p-2 mt-2">
                     <p className="text-xs text-red-300">
@@ -365,11 +401,6 @@ export default function CreditRequestCard() {
                 )}
               </div>
             ))}
-          </div>
-        ) : (
-          <div className="text-center py-4">
-            <AlertCircle className="w-8 h-8 text-slate-500 mx-auto mb-2" />
-            <p className="text-sm text-slate-400">No credit requests yet</p>
           </div>
         )}
       </CardContent>

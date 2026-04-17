@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useUltraFastAuth } from "./hooks/useUltraFastAuth";
+import { usePlayerPushRegistration } from "./hooks/usePlayerPushRegistration";
 import { useToast } from "@/hooks/use-toast";
 
 import AuthWrapper from "./components/AuthWrapper";
@@ -28,6 +29,8 @@ function AppContent() {
 
   // Use legacy authentication for smooth user experience
   const { user, loading, authChecked } = useUltraFastAuth();
+
+  usePlayerPushRegistration(user?.id, user?.clubId);
 
   // Toast hook for notifications
   const { toast } = useToast();

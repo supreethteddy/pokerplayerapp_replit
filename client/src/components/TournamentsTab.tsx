@@ -350,7 +350,7 @@ export default function TournamentsTab({ user, kycApproved }: TournamentsTabProp
                         </div>
                         <div className="flex items-center text-slate-300 text-sm">
                           <Trophy className="w-4 h-4 mr-2 text-yellow-400" />
-                          Prize: ₹{tournament.prizePool?.toLocaleString()}
+                          {`Prize: ₹${(tournament.prizePool ?? 0).toLocaleString()}`}
                         </div>
                         <div className="flex items-center text-slate-300 text-sm col-span-2">
                           <Users className="w-4 h-4 mr-2 text-blue-400" />

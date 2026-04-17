@@ -42,7 +42,7 @@ export function useRealtimeTables() {
 
     const invalidate = () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tables'] });
-      queryClient.invalidateQueries({ queryKey: ['tables', 'available'] });
+      queryClient.invalidateQueries({ queryKey: ['tables'] });
     };
 
     socket.on('table:status-changed', () => {

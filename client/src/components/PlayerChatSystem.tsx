@@ -8,6 +8,8 @@ interface PlayerChatSystemProps {
   playerId: string;
   playerName: string;
   isInDialog?: boolean;
+  /** When false, the GRE dialog is closed (parent `Dialog` open state). Used to reset tab when reopened. */
+  dialogOpen?: boolean;
   onClose?: () => void;
 }
 
@@ -203,11 +205,20 @@ function dedupeNearDuplicateChatRows(list: ChatMessage[]): ChatMessage[] {
   return out;
 }
 
-const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerName, isInDialog = false, onClose }) => {
+const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({
+  playerId,
+  playerName,
+  isInDialog = false,
+  dialogOpen = true,
+  onClose,
+}) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isConnected, setIsConnected] = useState(true);
-  const [sessionStatus, setSessionStatus] = useState<'none' | 'pending' | 'active' | 'recent'>('none');
+  const [sessionStatus, setSessionStatus] = useState<'none' | 'pending' | 'active' | 'recent' | 'closed'>('none');
+  const [startingChat, setStartingChat] = useState(false);
+  /** Hint on Chat History tab until the player opens it (e.g. after staff closed the ticket). */
+  const [historyClosedBadge, setHistoryClosedBadge] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   const socketRef = useRef<Socket | null>(null);
@@ -279,8 +290,13 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
       const anyStaffReply = loaded.some((m) => m.isFromStaff);
 
       if (st === 'closed') {
-        setSessionStatus('none');
-      } else if (st === 'resolved') {
+        setSessionStatus('closed');
+        setHistoryClosedBadge(true);
+        return;
+      }
+      setHistoryClosedBadge(false);
+
+      if (st === 'resolved') {
         setSessionStatus('recent');
       } else if (st === 'in_progress') {
         setSessionStatus('active');
@@ -299,6 +315,7 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
       console.error('[PLAYER CHAT] Failed to load messages:', error);
       setMessages([]);
       setSessionStatus('none');
+      setHistoryClosedBadge(false);
     }
   }, []);
 
@@ -322,6 +339,20 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
       setPastSessionsLoading(false);
     }
   }, [playerId]);
+
+  const startNewChat = useCallback(async () => {
+    setStartingChat(true);
+    try {
+      await apiRequest('POST', '/api/player-chat/start-session', {});
+      await loadChatHistory();
+      await loadPastSessions(1);
+      setHistoryClosedBadge(false);
+    } catch (e) {
+      console.error('[PLAYER CHAT] start-session failed:', e);
+    } finally {
+      setStartingChat(false);
+    }
+  }, [loadChatHistory, loadPastSessions]);
 
   // Load messages for a specific past session
   const loadSessionMessages = useCallback(async (sessionId: string, page: number = 1) => {
@@ -445,7 +476,7 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
         if (!isInDialog) {
           setHasUnread(true);
         }
-        setSessionStatus("active");
+        setSessionStatus((prev) => (prev === "closed" ? prev : "active"));
       } catch (e) {
         console.error("[PLAYER CHAT] Error handling chat:new-message:", e);
       }
@@ -453,13 +484,8 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
 
     socket.on("chat:session-updated", (data: any) => {
       if (!data || data.playerId !== playerId) return;
-      const rawStatus = (data.session?.status || "").toString().toLowerCase();
-      if (rawStatus === "closed") setSessionStatus("none");
-      else if (rawStatus === "resolved") setSessionStatus("recent");
-      else if (rawStatus === "in_progress") setSessionStatus("active");
-      else if (rawStatus === "open") {
-        void loadChatHistory();
-      }
+      void loadChatHistory();
+      void loadPastSessions(1);
     });
 
     loadChatHistory();
@@ -468,7 +494,7 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
       try { socket.emit("unsubscribe:player", { playerId }); } catch (e) { /* ignore */ }
       socket.disconnect();
     };
-  }, [playerId, playerName, isInDialog, loadChatHistory]);
+  }, [playerId, playerName, isInDialog, loadChatHistory, loadPastSessions]);
 
   // Load messages whenever dialog opens
   useEffect(() => {
@@ -476,6 +502,13 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
       loadChatHistory();
     }
   }, [isInDialog, playerId, loadChatHistory]);
+
+  // Re-open GRE dialog → Active Chat first (read-only closed ticket + “Open new chat” lives here).
+  useEffect(() => {
+    if (!dialogOpen) return;
+    setChatTab('active');
+    setViewingSession(null);
+  }, [dialogOpen]);
 
   // Polling removed — WebSocket chat:new-message drives live message delivery.
 
@@ -488,6 +521,9 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
 
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
+    if (sessionStatus === 'recent' || sessionStatus === 'closed') {
+      return;
+    }
 
     const messageText = newMessage.trim();
     const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -532,6 +568,7 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
       case 'pending': return 'text-yellow-500';
       case 'active': return 'text-green-500';
       case 'recent': return 'text-blue-500';
+      case 'closed': return 'text-orange-400';
       default: return 'text-gray-500';
     }
   };
@@ -559,34 +596,46 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
 
   if (isInDialog) {
     return (
-      <div className="flex flex-col flex-1 min-h-0 h-[min(560px,calc(85vh-7rem))] max-h-full">
-        {/* Tab Bar */}
-        <div className="flex bg-slate-900 border-b border-slate-600">
+      <div className="flex h-[600px] max-h-[80vh] w-full min-w-0 flex-1 min-h-0 flex-col">
+        {/* Tab bar — original horizontal tabs; min-w-0 + basis-0 stops flex collapse inside the dialog */}
+        <div className="flex w-full min-w-0 shrink-0 border-b border-slate-600 bg-slate-900">
           <button
+            type="button"
             onClick={() => { setChatTab('active'); setViewingSession(null); }}
-            className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
+            className={`flex min-w-0 flex-1 basis-0 items-stretch px-4 py-2.5 text-sm font-medium transition-colors ${
               chatTab === 'active'
-                ? 'text-emerald-400 border-b-2 border-emerald-400 bg-slate-800'
+                ? 'border-b-2 border-emerald-400 bg-slate-800 text-emerald-400'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <div className="flex items-center justify-center gap-2">
-              <MessageCircle size={14} />
-              Active Chat
+            <div className="flex w-full min-w-0 items-center justify-center gap-2">
+              <MessageCircle size={14} className="shrink-0" />
+              <span className="truncate">Active Chat</span>
             </div>
           </button>
           <button
-            onClick={() => setChatTab('history')}
-            className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors ${
+            type="button"
+            onClick={() => {
+              setChatTab('history');
+              setHistoryClosedBadge(false);
+            }}
+            className={`relative flex min-w-0 flex-1 basis-0 items-stretch px-4 py-2.5 text-sm font-medium transition-colors ${
               chatTab === 'history'
-                ? 'text-emerald-400 border-b-2 border-emerald-400 bg-slate-800'
+                ? 'border-b-2 border-emerald-400 bg-slate-800 text-emerald-400'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <div className="flex items-center justify-center gap-2">
-              <Clock size={14} />
-              Chat History
+            <div className="flex w-full min-w-0 items-center justify-center gap-2">
+              <Clock size={14} className="shrink-0" />
+              <span className="truncate">Chat History</span>
             </div>
+            {historyClosedBadge && chatTab !== 'history' && (
+              <span
+                className="absolute right-2 top-2 h-2 w-2 rounded-full bg-orange-400 ring-2 ring-slate-900"
+                title="Your last chat was closed — tap to view in history"
+                aria-hidden
+              />
+            )}
           </button>
         </div>
 
@@ -605,57 +654,73 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
                       ? "Pending"
                       : sessionStatus === "recent"
                         ? "Resolved"
-                        : sessionStatus.charAt(0).toUpperCase() + sessionStatus.slice(1)}
+                        : sessionStatus === "closed"
+                          ? "Closed"
+                          : sessionStatus.charAt(0).toUpperCase() + sessionStatus.slice(1)}
               </span>
               <div className={`w-3 h-3 rounded-full ${
                 sessionStatus === 'pending' ? 'bg-yellow-500' :
                 sessionStatus === 'active' ? 'bg-green-500' :
                 sessionStatus === 'recent' ? 'bg-blue-500' :
+                sessionStatus === 'closed' ? 'bg-orange-500' :
                 'bg-gray-500'
               }`} />
             </div>
 
-            {/* Messages — scroll only this pane (matches staff ChatWindow) */}
+            {sessionStatus === 'closed' && (
+              <div className="shrink-0 border-b border-orange-500/25 bg-orange-500/10 px-3 py-2 text-center text-xs text-orange-100">
+                You cannot send messages here. Start again with{" "}
+                <span className="font-semibold">Open new chat</span> below.
+              </div>
+            )}
+
+            {/* Messages — scroll only this pane */}
             <div
               ref={activeMessagesScrollRef}
-              className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 bg-slate-900 min-h-0 overscroll-contain"
+              className={`min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain bg-slate-900 p-4 sm:p-6 ${
+                sessionStatus === 'closed' ? 'opacity-95' : ''
+              }`}
               style={{
                 scrollbarWidth: 'thin',
                 scrollbarColor: '#64748b #0f172a',
               }}
             >
               {messages.length === 0 ? (
-                <div className="text-center text-slate-400 py-12">
+                <div className="py-12 text-center text-slate-400">
                   <MessageCircle size={48} className="mx-auto mb-4 opacity-50" />
-                  <p className="text-lg mb-2">No messages yet</p>
-                  <p className="text-sm opacity-75">Start a conversation with our Guest Relations team</p>
+                  <p className="mb-2 text-lg">No messages yet</p>
+                  <p className="text-sm opacity-75">
+                    {sessionStatus === 'closed'
+                      ? 'This ticket has no messages in the app.'
+                      : 'Start a conversation with our Guest Relations team'}
+                  </p>
                 </div>
               ) : (
                 messages.map((msg) => (
                   <div key={msg.id} className="flex w-full min-w-0">
                     <div
-                      className={`flex w-fit max-w-[85%] sm:max-w-sm min-w-0 shrink-0 flex-col gap-1 ${
+                      className={`flex w-fit max-w-[85%] shrink-0 flex-col gap-1 sm:max-w-sm ${
                         msg.isFromStaff ? 'mr-auto items-start' : 'ml-auto items-end'
-                      }`}
+                      } min-w-0`}
                     >
                       <span
-                        className={`text-[11px] text-slate-400 font-medium px-0.5 tracking-wide uppercase max-w-full truncate ${
+                        className={`max-w-full truncate px-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-400 ${
                           msg.isFromStaff ? 'text-left' : 'text-right'
                         }`}
                       >
                         {msg.sender_name}
                       </span>
                       <div
-                        className={`min-w-0 rounded-xl border px-3 pt-2.5 pb-2.5 ${
+                        className={`min-w-0 rounded-xl border px-3 pb-2.5 pt-2.5 ${
                           msg.isFromStaff
-                            ? 'bg-slate-700 text-slate-100 border-slate-600'
-                            : 'bg-blue-600 text-white border-blue-500/50'
+                            ? 'border-slate-600 bg-slate-700 text-slate-100'
+                            : 'border-blue-500/50 bg-blue-600 text-white'
                         }`}
                       >
-                        <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                        <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
                           {msg.message}
                         </div>
-                        <div className="mt-2 text-[11px] opacity-80 tabular-nums leading-normal">
+                        <div className="mt-2 text-[11px] tabular-nums leading-normal opacity-80">
                           {formatMessageTime(msg)}
                         </div>
                       </div>
@@ -666,37 +731,65 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
               <div ref={messagesEndRef} className="h-px shrink-0" aria-hidden />
             </div>
 
-            {/* Input */}
-            <div className="p-4 sm:p-6 border-t border-slate-600 bg-slate-800 flex-shrink-0">
-              <div className="flex gap-3 items-end">
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                  placeholder="Type your message..."
-                  className="flex-1 px-4 py-3 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-700 text-white placeholder-slate-400 min-h-[44px]"
-                />
+            {/* Footer: closed = read-only + open new chat; resolved = disabled composer; else live */}
+            {sessionStatus === 'closed' ? (
+              <div className="shrink-0 space-y-3 border-t border-slate-600 bg-slate-800 p-4 sm:p-6">
+                <p className="text-center text-xs text-slate-400">
+                  Past threads stay under <span className="font-medium text-slate-300">Chat History</span>.
+                </p>
                 <button
-                  onClick={sendMessage}
-                  disabled={!newMessage.trim()}
-                  className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg transition-colors font-medium min-h-[44px] min-w-[44px] flex items-center justify-center flex-shrink-0"
+                  type="button"
+                  onClick={() => void startNewChat()}
+                  disabled={startingChat}
+                  className="w-full rounded-lg bg-emerald-600 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Send size={18} />
+                  {startingChat ? 'Opening…' : 'Open new chat'}
                 </button>
               </div>
-              <div className="mt-3 text-xs text-slate-400">
-                {sessionStatus === "active" || sessionStatus === "pending"
-                  ? "Connected to Guest Relations"
-                  : "Chat ready"}
+            ) : (
+              <div className="shrink-0 border-t border-slate-600 bg-slate-800 p-4 sm:p-6">
+                <div className="flex items-end gap-3">
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={(e) =>
+                      e.key === 'Enter' &&
+                      sessionStatus !== 'recent' &&
+                      sendMessage()
+                    }
+                    placeholder={
+                      sessionStatus === 'recent'
+                        ? 'This chat was resolved — messaging is closed'
+                        : 'Type your message...'
+                    }
+                    disabled={sessionStatus === 'recent'}
+                    className="min-h-[44px] flex-1 rounded-lg border border-slate-600 bg-slate-700 px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
+                  />
+                  <button
+                    type="button"
+                    onClick={sendMessage}
+                    disabled={!newMessage.trim() || sessionStatus === 'recent'}
+                    className="flex h-[44px] min-h-[44px] min-w-[44px] flex-shrink-0 items-center justify-center rounded-lg bg-emerald-600 px-4 py-3 font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Send size={18} />
+                  </button>
+                </div>
+                <div className="mt-3 text-xs text-slate-400">
+                  {sessionStatus === 'recent'
+                    ? 'This conversation was resolved. Contact the club if you need more help.'
+                    : sessionStatus === 'active' || sessionStatus === 'pending'
+                      ? 'Connected to Guest Relations'
+                      : 'Chat ready'}
+                </div>
               </div>
-            </div>
+            )}
           </>
         )}
 
         {/* Chat History Tab */}
         {chatTab === 'history' && !viewingSession && (
-          <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="min-h-0 min-w-0 w-full flex-1 overflow-y-auto">
             {pastSessionsLoading ? (
               <div className="text-center text-slate-400 py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500 mx-auto mb-4"></div>
@@ -770,7 +863,7 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({ playerId, playerNam
 
         {/* Viewing a Past Session's Messages */}
         {chatTab === 'history' && viewingSession && (
-          <div className="flex-1 flex flex-col min-h-0">
+          <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col">
             {/* Session Header */}
             <div className="px-4 py-2.5 bg-slate-800 border-b border-slate-700 flex items-center gap-3">
               <button

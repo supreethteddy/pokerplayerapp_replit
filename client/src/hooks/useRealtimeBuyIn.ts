@@ -39,6 +39,8 @@ export function useRealtimeBuyIn(playerId: number | string | null | undefined) {
       queryClient.invalidateQueries({ queryKey: ['/api/balance'] });
       queryClient.invalidateQueries({ queryKey: [`/api/auth/player/balance`] });
       queryClient.invalidateQueries({ queryKey: [`/api/auth/player/transactions`] });
+      // PlayerTransactionHistory uses usePlayerTransactions → ['player', 'transactions', ...]
+      queryClient.invalidateQueries({ queryKey: ['player', 'transactions'] });
       queryClient.invalidateQueries({ queryKey: ['/api/player-playtime/current', playerId] });
       queryClient.invalidateQueries({ queryKey: ['/api/auth/player/waitlist', playerId] });
       queryClient.invalidateQueries({ queryKey: ['/api/auth/player/waitlist'] });

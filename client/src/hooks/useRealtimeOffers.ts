@@ -43,9 +43,16 @@ export function useRealtimeOffers() {
     socket.on('offers:updated', () => {
       console.log('🎁 [SOCKET] Offers updated');
       queryClient.invalidateQueries({ queryKey: ['/api/player-offers/active'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/player/push-notifications'] });
     });
 
+    // So offers drop shortly after expires_at without an admin action (no extra socket event at exact time).
+    const poll = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ['/api/player-offers/active'] });
+    }, 120_000);
+
     return () => {
+      clearInterval(poll);
       socket.disconnect();
     };
   }, [queryClient]);

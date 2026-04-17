@@ -43,6 +43,8 @@ export interface JoinWaitlistDto {
   gameType?: 'POKER' | 'RUMMY';
   partySize?: number;
   requestedSeat?: number; // Requested seat number (1-10)
+  /** Backend validates min buy-in against this table when provided */
+  targetTableId?: string;
 }
 
 /**

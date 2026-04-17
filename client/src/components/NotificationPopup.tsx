@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
 import { parseSafeDate } from "@/lib/utils";
 import { apiRequest } from '@/lib/queryClient';
+import { hidePromotionFromHomeCarousel } from '@/lib/promotionHomeCarousel';
 
 interface NotificationPopupProps {
   userId: number;
@@ -21,7 +22,7 @@ export default function NotificationPopup({ userId, onChatNotificationClick }: N
   useRealtimeNotifications(userId);
 
   // Fetch notifications (now updated automatically via Realtime)
-  const { data: notifications } = useQuery({
+  const { data: notifications } = useQuery<any[]>({
     queryKey: ['/api/auth/player/push-notifications', userId],
     // No refetchInterval - Supabase Realtime handles updates automatically!
     refetchOnWindowFocus: true,
@@ -29,7 +30,7 @@ export default function NotificationPopup({ userId, onChatNotificationClick }: N
   });
 
   useEffect(() => {
-    if (notifications && notifications.length > 0) {
+    if (Array.isArray(notifications) && notifications.length > 0) {
       // Get permanently dismissed notifications from localStorage
       const dismissedNotifications = JSON.parse(localStorage.getItem('dismissedNotifications') || '[]');
       
@@ -41,14 +42,18 @@ export default function NotificationPopup({ userId, onChatNotificationClick }: N
 
       // Show new notifications as pop-ups (only if not already seen and not dismissed)
       const newNotifications = recentNotifications.filter((notif: any) => 
-        !shownNotifications.has(notif.id) && 
+        !shownNotifications.has(String(notif.id)) && 
         notif.delivery_status !== 'read' &&
         !dismissedNotifications.includes(String(notif.id))
       );
 
       if (newNotifications.length > 0) {
         setVisibleNotifications(prev => [...prev, ...newNotifications]);
-        setShownNotifications(prev => new Set([...prev, ...newNotifications.map((n: any) => n.id)]));
+        setShownNotifications((prev) => {
+          const next = new Set(prev);
+          newNotifications.forEach((n: any) => next.add(String(n.id)));
+          return next;
+        });
         
         // Auto-dismiss notifications after 8 seconds (8000ms)
         newNotifications.forEach((notification: any) => {
@@ -81,6 +86,7 @@ export default function NotificationPopup({ userId, onChatNotificationClick }: N
     setVisibleNotifications(prev => prev.filter(notif => notif.id !== notificationId));
     
     // Mark as read on server and add to permanent shown list
+    hidePromotionFromHomeCarousel(String(notificationId));
     apiRequest('PUT', `/api/auth/player/push-notifications/${notificationId}/read`)
       .catch(console.error);
     

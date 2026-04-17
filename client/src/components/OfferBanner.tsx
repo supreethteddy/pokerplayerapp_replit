@@ -69,13 +69,7 @@ export default function OfferBanner({ onOfferClick }: OfferBannerProps) {
   }
 
   if (!activeBanners.length) {
-    return (
-      <Card className="bg-slate-800 border-slate-700 mb-4">
-        <CardContent className="p-6 text-center">
-          <p className="text-slate-400">No active offers available</p>
-        </CardContent>
-      </Card>
-    );
+    return null;
   }
 
   return (

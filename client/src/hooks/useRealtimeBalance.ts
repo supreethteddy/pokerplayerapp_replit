@@ -38,10 +38,22 @@ export function useRealtimeBalance(playerId: number | string | null | undefined)
       queryClient.invalidateQueries({ queryKey: ['player', 'balance'] });
       queryClient.invalidateQueries({ queryKey: ['/api/balance', playerId] });
       queryClient.invalidateQueries({ queryKey: ['/api/balance'] });
+      // usePlayerBalance + balance tab
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/player/balance'] });
+      // PlayerTransactionHistory → usePlayerTransactions(['player','transactions',…])
+      queryClient.invalidateQueries({ queryKey: ['player', 'transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/player/transactions'] });
       queryClient.invalidateQueries({ queryKey: ['/api/player-playtime/current', playerId] });
       queryClient.invalidateQueries({ queryKey: ['/api/auth/player/waitlist', playerId] });
       queryClient.invalidateQueries({ queryKey: ['/api/auth/player/waitlist'] });
       queryClient.invalidateQueries({ queryKey: ['/api/players/supabase'] });
+    };
+
+    const refetchSessionAndBalanceNow = () => {
+      void queryClient.refetchQueries({ queryKey: ['/api/auth/player/waitlist'], type: 'all' });
+      void queryClient.refetchQueries({ queryKey: ['/api/auth/player/waitlist', String(playerId)], type: 'all' });
+      void queryClient.refetchQueries({ queryKey: ['/api/auth/player/balance'], type: 'all' });
+      void queryClient.refetchQueries({ queryKey: ['/api/player-playtime/current'], type: 'all' });
     };
 
     socket.on('balance:updated', (data: any) => {
@@ -66,6 +78,7 @@ export function useRealtimeBalance(playerId: number | string | null | undefined)
       if (!data?.playerId || String(data.playerId) !== String(playerId)) return;
       console.log('💰 [SOCKET] Buy-out status changed - refreshing balance/session');
       invalidate();
+      refetchSessionAndBalanceNow();
     });
 
     return () => {

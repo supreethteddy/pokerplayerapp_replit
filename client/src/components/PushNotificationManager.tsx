@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { X, Bell, AlertCircle, Info, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getPushNotificationImageUrl } from '@/lib/pushNotificationMedia';
 
 type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
 
@@ -83,6 +84,10 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onD
   const priority = notification.priority || 'normal';
   const config = priorityConfig[priority];
   const IconComponent = config.icon;
+  const imageSrc =
+    notification.mediaUrl ||
+    (notification as any).imageUrl ||
+    (notification as any).image_url;
 
   return (
     <AnimatePresence>
@@ -133,12 +138,12 @@ const NotificationPopup: React.FC<NotificationPopupProps> = ({ notification, onD
                       </div>
                     </div>
                   </div>
-                  {notification.mediaUrl && (
+                  {imageSrc && (
                     <div className="mt-2">
-                      <img 
-                        src={notification.mediaUrl} 
-                        alt="Notification media"
-                        className="max-w-full h-auto rounded-md"
+                      <img
+                        src={imageSrc}
+                        alt=""
+                        className="max-w-full max-h-40 w-full rounded-md object-contain bg-black/30"
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = 'none';
                         }}
@@ -216,7 +221,8 @@ export const PushNotificationManager: React.FC = () => {
 
           // Show notifications from the last 24 hours (more reasonable timeframe)
           const recentNotifications = data.filter((notif: any) => {
-            const notifTime = new Date(notif.created_at).getTime();
+            const t = notif.created_at || notif.createdAt || notif.sent_at || notif.sentAt;
+            const notifTime = t ? new Date(t).getTime() : 0;
             const now = Date.now();
             return (now - notifTime) < 24 * 60 * 60 * 1000; // 24 hours
           });
@@ -227,13 +233,15 @@ export const PushNotificationManager: React.FC = () => {
               const newNotification: NotificationData = {
                 id: notif.id || 0,
                 title: notif.title || 'Notification',
-                message: notif.message || '',
+                message: notif.message || notif.details || '',
                 type: notif.type || 'info',
-                timestamp: new Date(notif.created_at || Date.now()),
+                timestamp: new Date(
+                  notif.created_at || notif.createdAt || notif.sent_at || notif.sentAt || Date.now(),
+                ),
                 priority: (notif.priority as NotificationPriority) || 'normal',
                 senderName: notif.sent_by_name || notif.sent_by || 'Unknown',
                 senderRole: notif.sent_by_role || 'System',
-                mediaUrl: notif.media_url
+                mediaUrl: getPushNotificationImageUrl(notif),
               };
 
               setNotifications(prev => [...prev, newNotification]);

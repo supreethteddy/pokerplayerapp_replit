@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, DollarSign, Play, Phone, X, Eye } from "lucide-react";
+import { Clock, Play } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useGameStatusSync } from "@/hooks/useGameStatusSync";
@@ -27,7 +27,8 @@ interface LiveSession {
   sessionStartTime: string;
 
   // STATE MACHINE PROPERTIES
-  sessionPhase: string; // 'MINIMUM_PLAY' | 'CALL_TIME_AVAILABLE' | 'CALL_TIME_ACTIVE' | 'CASH_OUT_WINDOW'
+  /** Matches API `sessionPhase`: `MINIMUM PLAY`, `CALL TIME AVAILABLE`, `CALL TIME ACTIVE`, `CASH OUT WINDOW`. */
+  sessionPhase: string;
   minPlayTimeCompleted: boolean;
   callTimeAvailable: boolean;
   callTimeActive: boolean;
@@ -57,6 +58,9 @@ interface LiveSession {
   buyOutRejected?: boolean;
   buyOutRejectionReason?: string | null;
   buyOutProcessedAt?: string | null;
+
+  /** Staff paused the table session (table notes); clock frozen server-side */
+  staffSessionPaused?: boolean;
 }
 
 interface PlaytimeTrackerProps {
@@ -64,13 +68,30 @@ interface PlaytimeTrackerProps {
   gameStatus?: any; // Add game status for fallback session data
   liveTableBalance?: number;
   activeTableStakes?: string;
+  /** Player dashboard tab id — when user switches to `session`, open the live session dialog */
+  dashboardActiveTab?: string;
 }
 
-export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, activeTableStakes }: PlaytimeTrackerProps) {
+function formatElapsedSeconds(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(s / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
+  const seconds = s % 60;
+  return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+}
+
+export function PlaytimeTracker({
+  playerId,
+  gameStatus,
+  liveTableBalance,
+  activeTableStakes,
+  dashboardActiveTab,
+}: PlaytimeTrackerProps) {
   // Feature-flag: completely hide the timer UI while preserving codepaths
   if (HIDE_SESSION_TIMER) {
     return null;
   }
+  const playtimeKeyId = playerId ? String(playerId) : '';
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [liveTimer, setLiveTimer] = useState("00:00:00");
   const { toast } = useToast();
@@ -82,10 +103,9 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
   // Use centralized synchronization for immediate updates
   const { invalidateAllGameQueries } = useGameStatusSync();
 
-  // Listen for real-time timing rule updates from staff portal via WebSocket
-  // Note: WebSocket connection is managed by useGameStatusSync hook
+  // Dedicated socket: staff pause/resume + timing (JWT sub must match playerId string)
   useEffect(() => {
-    if (!playerId) return;
+    if (!playtimeKeyId) return;
 
     const clubId = localStorage.getItem('clubId') || sessionStorage.getItem('clubId');
     if (!clubId) return;
@@ -100,7 +120,7 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
       const socket = io(`${websocketBase}/realtime`, {
         auth: {
           clubId,
-          playerId,
+          playerId: playtimeKeyId,
           token: localStorage.getItem('auth_token') || localStorage.getItem('playerToken'),
         },
         transports: ['websocket', 'polling'],
@@ -111,8 +131,11 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
       });
 
       socket.on('connect', () => {
-        socket.emit('subscribe:player', { playerId, clubId });
+        socket.emit('subscribe:club', { clubId, playerId: playtimeKeyId });
+        socket.emit('subscribe:player', { playerId: playtimeKeyId, clubId });
       });
+
+      // `table:status-changed` → instant cache patch + refetch in useGameStatusSync (avoid duplicate sockets).
 
       // Listen for timing rule updates with nanosecond-level sync
       socket.on('timing_rules_updated', (data: any) => {
@@ -131,9 +154,9 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
 
       // Buy-out status updates should reflect instantly in live session modal.
       socket.on('buyout:status-changed', (data: any) => {
-        if (!data?.playerId || String(data.playerId) !== String(playerId)) return;
+        if (!data?.playerId || String(data.playerId) !== playtimeKeyId) return;
         const status = String(data?.request?.status || '').toLowerCase();
-        queryClient.invalidateQueries({ queryKey: ['/api/player-playtime/current', playerId] });
+        queryClient.invalidateQueries({ queryKey: ['/api/player-playtime/current', playtimeKeyId] });
         if (status === 'rejected') {
           toast({
             title: "Buy-out Request Rejected",
@@ -147,11 +170,11 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
         socket.disconnect();
       };
     }).catch(console.error);
-  }, [playerId, toast, queryClient]);
+  }, [playtimeKeyId, toast, queryClient, invalidateAllGameQueries]);
 
   // Fetch live session data with UNIFIED FAST REFRESH (3 seconds) for immediate synchronization
   const { data: sessionResponse, isLoading, error } = useQuery<{ hasActiveSession: boolean, session: LiveSession | null }>({
-    queryKey: ['/api/player-playtime/current', playerId], // playerId is for cache key only
+    queryKey: ['/api/player-playtime/current', playtimeKeyId],
     queryFn: async () => {
       // Custom queryFn to avoid playerId being added to URL path
       const clubId = localStorage.getItem('clubId') || sessionStorage.getItem('clubId') || '';
@@ -160,7 +183,7 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-          'x-player-id': playerId || '',
+          'x-player-id': playtimeKeyId,
           'x-club-id': clubId,
         },
       });
@@ -169,8 +192,12 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
       }
       return await response.json();
     },
-    staleTime: 5000,
-    enabled: !!playerId,
+    // Keep at 0 so socket-driven refetches always pull fresh pause/resume (no multi-second "fresh" window).
+    staleTime: 0,
+    // Global defaults use staleTime: Infinity — keep this query eager after staff actions.
+    refetchOnMount: 'always',
+    refetchInterval: isDialogOpen ? 2000 : false,
+    enabled: !!playtimeKeyId,
   });
 
   const session = sessionResponse?.hasActiveSession ? sessionResponse.session : null;
@@ -190,8 +217,13 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
     shouldRender: (session || hasSeatedPlayerFromFallback)
   });
 
-  // Live timer update with setInterval
+  // Live timer: wall clock while running; frozen at server `sessionDuration` when staff paused
   useEffect(() => {
+    if (session?.staffSessionPaused && typeof session.sessionDuration === "number") {
+      setLiveTimer(formatElapsedSeconds(session.sessionDuration));
+      return;
+    }
+
     const startTime = session?.sessionStartTime || fallbackSession?.sessionStartTime;
     if (!startTime) {
       setLiveTimer("00:00:00");
@@ -201,7 +233,7 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
     const updateLiveTimer = () => {
       const start = new Date(startTime);
       const now = new Date();
-      const diff = Math.max(0, now.getTime() - start.getTime()); // Ensure non-negative
+      const diff = Math.max(0, now.getTime() - start.getTime());
 
       const hours = Math.floor(diff / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -211,12 +243,16 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
       setLiveTimer(timeString);
     };
 
-    // Update immediately and then every second
     updateLiveTimer();
     const interval = setInterval(updateLiveTimer, 1000);
 
     return () => clearInterval(interval);
-  }, [session?.sessionStartTime, fallbackSession?.sessionStartTime]);
+  }, [
+    session?.staffSessionPaused,
+    session?.sessionDuration,
+    session?.sessionStartTime,
+    fallbackSession?.sessionStartTime,
+  ]);
 
   // Note: Call Time and Cash Out mutations removed - using direct API calls instead
 
@@ -233,8 +269,24 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
     }
   }, [session?.isLive, isDialogOpen, hasAutoOpened]);
 
-  // Calculate session duration
+  const prevDashboardTabRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (dashboardActiveTab == null) {
+      prevDashboardTabRef.current = dashboardActiveTab;
+      return;
+    }
+    const prev = prevDashboardTabRef.current;
+    prevDashboardTabRef.current = dashboardActiveTab;
+    if (dashboardActiveTab !== "session" || prev === "session") return;
+    if (session || hasSeatedPlayerFromFallback) {
+      setIsDialogOpen(true);
+    }
+  }, [dashboardActiveTab, session, hasSeatedPlayerFromFallback]);
+
   const getSessionDuration = () => {
+    if (session?.staffSessionPaused && typeof session.sessionDuration === "number") {
+      return formatElapsedSeconds(session.sessionDuration);
+    }
     if (!session?.sessionStartTime) return "Session Starting...";
 
     const start = new Date(session?.sessionStartTime || new Date());
@@ -278,25 +330,25 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
     const dynamicCashWindow = session?.cashout_window_minutes || session?.cash_out_window || 2;
 
     switch (session?.sessionPhase) {
-      case 'MINIMUM_PLAY':
+      case 'MINIMUM PLAY':
         return {
           phase: 'Minimum Play Time',
           description: `Must play ${dynamicMinPlay} minutes minimum`,
           timeRemaining: getTimeUntilMinPlay()
         };
-      case 'CALL_TIME_AVAILABLE':
+      case 'CALL TIME AVAILABLE':
         return {
           phase: 'Call Time Available',
           description: 'Can request call time',
           timeRemaining: 0
         };
-      case 'CALL_TIME_ACTIVE':
+      case 'CALL TIME ACTIVE':
         return {
           phase: 'Call Time Active',
           description: `${dynamicCallTime}-minute countdown running`,
           timeRemaining: session?.callTimeRemaining || 0
         };
-      case 'CASH_OUT_WINDOW':
+      case 'CASH OUT WINDOW':
         return {
           phase: 'Cash Out Window',
           description: `${dynamicCashWindow}-minute window to cash out`,
@@ -357,20 +409,10 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="w-[95vw] max-w-md max-h-[90vh] bg-slate-900 border-slate-700 overflow-hidden flex flex-col">
           <DialogHeader className="flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <DialogTitle className="text-white flex items-center text-sm sm:text-base">
-                <Clock className="h-4 w-4 sm:h-5 sm:w-5 mr-2 text-emerald-500" />
-                Live Session - {session?.tableName || fallbackSession?.tableName || 'Poker Table'}
-              </DialogTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsDialogOpen(false)}
-                className="text-slate-400 hover:text-white flex-shrink-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+            <DialogTitle className="text-white flex items-center text-sm sm:text-base pr-2">
+              <Clock className="h-4 w-4 sm:h-5 sm:w-5 mr-2 text-emerald-500" />
+              Live Session - {session?.tableName || fallbackSession?.tableName || 'Poker Table'}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 overflow-y-auto flex-1 pr-2 -mr-2">
@@ -412,6 +454,13 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
                   </div>
                 )}
 
+                {session?.staffSessionPaused && (
+                  <div className="bg-amber-900/30 border border-amber-500/40 p-2 sm:p-3 rounded-lg text-center">
+                    <div className="text-sm font-semibold text-amber-200">Session paused by staff</div>
+                    <div className="text-xs text-amber-100/90 mt-1">Play will resume when staff resumes the table session.</div>
+                  </div>
+                )}
+
                 <div className="bg-emerald-900/20 border border-emerald-500/30 p-3 rounded-lg text-center">
                   <div className="text-sm font-medium text-emerald-300 mb-1">Rummy Session</div>
                   <div className="text-xs text-emerald-400">You can exit the table anytime</div>
@@ -425,7 +474,7 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
                           tableId: session?.tableId
                         });
                         if (response.ok) {
-                          queryClient.invalidateQueries({ queryKey: ['/api/player-playtime/current', playerId] });
+                          queryClient.invalidateQueries({ queryKey: ['/api/player-playtime/current', playtimeKeyId] });
                           toast({
                             title: "Exit Requested",
                             description: "Your exit request has been sent to the staff.",
@@ -436,13 +485,17 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
                         toast({ title: "Error", description: msg, variant: "destructive" });
                       }
                     }}
-                    disabled={session?.callTimeActive}
-                    className={`w-full py-3 text-sm ${!session?.callTimeActive
+                    disabled={session?.callTimeActive || !!session?.staffSessionPaused}
+                    className={`w-full py-3 text-sm ${!session?.callTimeActive && !session?.staffSessionPaused
                       ? 'bg-red-600 hover:bg-red-700 border-red-500 text-white'
                       : 'bg-gray-700 text-gray-400 cursor-not-allowed'
                       }`}
                   >
-                    {session?.callTimeActive ? 'Exit Request Pending...' : 'Request Exit'}
+                    {session?.staffSessionPaused
+                      ? 'Session paused — exit when staff resumes'
+                      : session?.callTimeActive
+                        ? 'Exit Request Pending...'
+                        : 'Request Exit'}
                   </Button>
                 </div>
 
@@ -464,6 +517,13 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
                 )}
 
                 {/* Poker: full call time / min play flow */}
+                {session?.staffSessionPaused && (
+                  <div className="bg-amber-900/30 border border-amber-500/40 p-2 sm:p-3 rounded-lg text-center">
+                    <div className="text-sm font-semibold text-amber-200">Session paused by staff</div>
+                    <div className="text-xs text-amber-100/90 mt-1">Play will resume when staff resumes the table session.</div>
+                  </div>
+                )}
+
                 <div className="bg-blue-900/20 border border-blue-500/30 p-2 sm:p-3 rounded-lg">
                   <div className="text-center">
                     <div className="text-xs sm:text-sm font-medium text-blue-300 mb-1">
@@ -507,10 +567,10 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
                   <div className={`p-2 rounded ${session?.callTimeActive ? 'bg-orange-900/50 border border-orange-500/50' : 'bg-slate-900/50 border border-slate-500/50'}`}>
                     <div className="flex items-center justify-between">
                       <span className={session?.callTimeActive ? 'text-orange-400' : 'text-slate-400'}>
-                        Active
+                        Call countdown
                       </span>
                       <span className={session?.callTimeActive ? 'text-orange-300' : 'text-slate-300'}>
-                        {session?.callTimeActive ? `${session?.callTimeRemaining}m` : '✗'}
+                        {session?.callTimeActive ? `${session?.callTimeRemaining}m` : '—'}
                       </span>
                     </div>
                   </div>
@@ -524,7 +584,7 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
                           tableId: session?.tableId
                         });
                         if (response.ok) {
-                          queryClient.invalidateQueries({ queryKey: ['/api/player-playtime/current', playerId] });
+                          queryClient.invalidateQueries({ queryKey: ['/api/player-playtime/current', playtimeKeyId] });
                           toast({
                             title: "Call Time Started",
                             description: `Your ${session?.call_time_duration || 60}-minute call time has begun.`,
@@ -535,8 +595,12 @@ export function PlaytimeTracker({ playerId, gameStatus, liveTableBalance, active
                         toast({ title: "Error", description: "Failed to start call time. Please try again.", variant: "destructive" });
                       }
                     }}
-                    disabled={!session?.callTimeAvailable || session?.callTimeActive}
-                    className={`w-full py-3 text-sm ${session?.callTimeAvailable && !session?.callTimeActive
+                    disabled={
+                      !session?.callTimeAvailable ||
+                      session?.callTimeActive ||
+                      !!session?.staffSessionPaused
+                    }
+                    className={`w-full py-3 text-sm ${session?.callTimeAvailable && !session?.callTimeActive && !session?.staffSessionPaused
                       ? 'bg-yellow-600 hover:bg-yellow-700 border-yellow-500 text-white'
                       : 'bg-gray-700 text-gray-400 cursor-not-allowed'
                       }`}

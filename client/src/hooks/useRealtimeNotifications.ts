@@ -67,6 +67,12 @@ export function useRealtimeNotifications(playerId: number | string | null | unde
       queryClient.invalidateQueries({ queryKey: ['/api/auth/player/push-notifications'] });
     });
 
+    socket.on('offers:updated', () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/player-offers/active'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/player/push-notifications', playerId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/player/push-notifications'] });
+    });
+
     return () => {
       socket.disconnect();
     };

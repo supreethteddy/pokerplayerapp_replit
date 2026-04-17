@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { X, Bell, AlertCircle, Info, Zap, LogIn, Clock, Trophy, CreditCard } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { API_BASE_URL } from '@/lib/api/config';
+import { getPushNotificationImageUrl } from '@/lib/pushNotificationMedia';
 
 type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
 
@@ -105,6 +106,8 @@ const NotificationBubble: React.FC<NotificationBubbleProps> = ({ notification, o
 
   const config = getNotificationTypeConfig(notification.message_type);
   const IconComponent = config.icon;
+  const imageSrc =
+    getPushNotificationImageUrl(notification as any) || notification.mediaUrl;
 
   return (
     <AnimatePresence>
@@ -152,12 +155,12 @@ const NotificationBubble: React.FC<NotificationBubbleProps> = ({ notification, o
                       {notification.message_type.replace('_', ' ')}
                     </span>
                   </div>
-                  {notification.mediaUrl && (
+                  {imageSrc && (
                     <div className="mt-2">
-                      <img 
-                        src={notification.mediaUrl} 
-                        alt="Notification media"
-                        className="max-w-full h-auto rounded-md"
+                      <img
+                        src={imageSrc}
+                        alt=""
+                        className="max-w-full max-h-40 w-full rounded-md object-contain bg-black/30"
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = 'none';
                         }}
@@ -257,7 +260,7 @@ export const NotificationBubbleManager: React.FC = () => {
                 priority: (notif.priority as NotificationPriority) || 'normal',
                 senderName: notif.sender_name || notif.sent_by_name || 'System',
                 senderRole: notif.sender_role || notif.sent_by_role || 'System',
-                mediaUrl: notif.media_url
+                mediaUrl: getPushNotificationImageUrl(notif) || notif.media_url
               };
 
               console.log('🎈 [BUBBLE] Showing new notification:', newNotification.title, newNotification.message_type);

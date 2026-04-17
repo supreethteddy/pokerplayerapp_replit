@@ -60,6 +60,8 @@ export const API_ENDPOINTS = {
     getBalance: '/auth/player/balance',
     getTransactions: '/auth/player/transactions',
     getStats: '/auth/player/stats',
+    /** POST — register native FCM token (Capacitor); body `{ token, platform? }` */
+    deviceToken: '/auth/player/device-token',
   },
   
   // Waitlist endpoints

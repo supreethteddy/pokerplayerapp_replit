@@ -101,8 +101,13 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
 
   const creditEnabled = (balance as any)?.creditEnabled || false;
   const creditLimit = parseFloat((balance as any)?.creditLimit || '0');
-  const creditUsed = parseFloat((balance as any)?.creditUsed || '0');
   const remainingCreditToRequest = parseFloat((balance as any)?.availableCredit || (balance as any)?.creditBalance || '0');
+  const creditUsedRaw = parseFloat(String((balance as any)?.creditUsed ?? 'NaN'));
+  const creditOnLine = Number.isFinite(creditUsedRaw)
+    ? Math.max(0, creditUsedRaw)
+    : Math.max(0, creditLimit - remainingCreditToRequest);
+  const creditRepaidRaw = parseFloat(String((balance as any)?.creditRepaidViaWallet ?? 'NaN'));
+  const creditRepaidViaWallet = Number.isFinite(creditRepaidRaw) ? Math.max(0, creditRepaidRaw) : 0;
   const currentCashBalance = parseFloat((balance as any)?.availableBalance || (balance as any)?.cashBalance || '0');
 
   const currentTableBalance = parseFloat((balance as any)?.tableBalance || '0');
@@ -206,73 +211,79 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
                 </div>
               )}
 
-              <div className="text-sm opacity-75 bg-black/20 rounded-full px-4 py-2 inline-block mt-3">
-                All your money is on the table
-              </div>
+              {currentTableBalance > 0 && (
+                <div className="text-sm opacity-75 bg-black/20 rounded-full px-4 py-2 inline-block mt-3">
+                  All your money is on the table
+                </div>
+              )}
             </div>
           </div>
         </>
       ) : (
         <>
-          {/* When NOT SEATED: Show wallet balance as primary */}
+          {/* Wallet (cash) — always its own card when not seated */}
           <div className={`rounded-lg p-6 text-white shadow-lg ${currentCashBalance < 0 ? 'bg-gradient-to-r from-red-600 to-red-700' : 'bg-gradient-to-r from-emerald-600 to-green-700'}`}>
             <div className="text-center">
               <h2 className="text-lg font-medium opacity-90 mb-2">Available Cash Balance</h2>
               <div className="text-5xl font-bold mb-2">₹{currentCashBalance.toLocaleString()}</div>
               {currentCashBalance < 0 && (
                 <div className="text-sm font-semibold bg-red-900/50 rounded-full px-4 py-2 mb-2">
-                  ⚠️ Negative Balance - Amount Owed to Cashier
+                  ⚠️ Negative Balance - Amount Owed to Club
                 </div>
               )}
               <div className="text-sm opacity-75 bg-black/20 rounded-full px-4 py-2 inline-block">
-                Visit cashier counter for cash-out
+                Visit cashier counter for payback
               </div>
             </div>
           </div>
 
-          {/* Credit Info - Only when NOT seated */}
+          {/* Credit facility — separate card when enabled */}
           {creditEnabled && creditLimit > 0 && (
             <div className="bg-gradient-to-r from-blue-600 to-purple-700 rounded-lg p-6 text-white shadow-lg">
               <div className="text-center">
-                <h2 className="text-lg font-medium opacity-90 mb-2">Credit System</h2>
-                <div className="grid grid-cols-2 gap-3 mb-3">
+                <h2 className="text-lg font-medium opacity-90 mb-3">Credit line</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3 text-left sm:text-center">
                   <div className="bg-black/20 rounded-lg p-3">
-                    <div className="text-xs opacity-75 mb-1">Credit Limit</div>
-                    <div className="text-2xl font-bold">₹{creditLimit.toLocaleString()}</div>
+                    <div className="text-xs opacity-75 mb-1">Total credit</div>
+                    <div className="text-xl sm:text-2xl font-bold">₹{creditLimit.toLocaleString()}</div>
                   </div>
                   <div className="bg-black/20 rounded-lg p-3">
-                    <div className="text-xs opacity-75 mb-1">Remaining</div>
-                    <div className="text-2xl font-bold">₹{remainingCreditToRequest.toLocaleString()}</div>
+                    <div className="text-xs opacity-75 mb-1">Credit used</div>
+                    <div className="text-xl sm:text-2xl font-bold text-rose-300">₹{creditRepaidViaWallet.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-black/20 rounded-lg p-3">
+                    <div className="text-xs opacity-75 mb-1">Credit on line</div>
+                    <div className="text-xl sm:text-2xl font-bold text-amber-200">₹{creditOnLine.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-black/20 rounded-lg p-3">
+                    <div className="text-xs opacity-75 mb-1">Credit remaining</div>
+                    <div className="text-xl sm:text-2xl font-bold text-emerald-200">₹{remainingCreditToRequest.toLocaleString()}</div>
                   </div>
                 </div>
-                <div className="text-sm opacity-75 bg-black/20 rounded-full px-4 py-2 inline-block">
-                  Credits auto-applied when you join a table
-                </div>
+                <p className="text-[11px] text-white/70 bg-black/15 rounded-lg px-3 py-2 mb-3">
+                  Credit used (red) counts your negative wallet toward the line. Credit on line is still drawn. Used + on line + remaining equals your total limit.
+                </p>
+                <p className="text-base font-semibold text-white/95 tracking-tight">
+                  You can request up to ₹{remainingCreditToRequest.toLocaleString()} (credit remaining).
+                </p>
               </div>
             </div>
           )}
 
-          {/* Total Balance Summary - only when NOT seated */}
-          <div className="bg-gradient-to-r from-slate-700 to-slate-800 rounded-lg p-4 text-white shadow-lg border border-slate-600">
-            <div className="text-center">
-              <h3 className="text-md font-medium opacity-90 mb-2">Total Balance Summary</h3>
-              <div className="text-3xl font-bold mb-2">
-                ₹{(currentCashBalance + creditUsed).toLocaleString()}
-              </div>
-              <div className="text-xs opacity-75 space-y-1">
-                <div>
-                  Wallet: ₹{currentCashBalance.toLocaleString()}
-                  {creditUsed > 0 && (
-                    <span className="ml-1 text-[10px] text-purple-300">
-                      + ₹{creditUsed.toLocaleString()} approved credit
-                    </span>
-                  )}
-                </div>
-                <div className="text-[10px] text-slate-400 mt-1">
-                  All balance moves to table when you sit down
-                </div>
-              </div>
-            </div>
+          <div className="rounded-lg border border-slate-700 bg-slate-800/60 px-4 py-3 text-xs text-slate-300 leading-relaxed">
+            {!creditEnabled || creditLimit <= 0 ? (
+              <p>
+                For cash table minimum buy-in, we only check your <strong>wallet</strong>. Add money at the cashier if you are short.
+              </p>
+            ) : currentCashBalance < 0 ? (
+              <p>
+                Your wallet is negative: you cannot join a table until you repay at cashier. Credit is not auto-added while joining.
+              </p>
+            ) : (
+              <p>
+                On join/seating, we use your <strong>wallet + credit remaining</strong>. Only free/remaining credit is added to the table on join; credit already on line stays on line.
+              </p>
+            )}
           </div>
         </>
       )}
