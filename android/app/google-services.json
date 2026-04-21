@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "4007205737",
+    "project_id": "pokercrm-62726",
+    "storage_bucket": "pokercrm-62726.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:4007205737:android:717db77a1be1d222a6bbf8",
+        "android_client_info": {
+          "package_name": "com.pokerplayer.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAWtMpQA4OGC4ybEKNm8lpLKy9EY7INbOs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
