@@ -218,6 +218,36 @@ export const NotificationBubbleManager: React.FC = () => {
     }
   };
 
+  // --------------------------------------------------------------------------
+  // Listen for FCM foreground notifications dispatched by usePlayerPushRegistration
+  // When the app is open, Android suppresses the OS notification and fires this
+  // custom event instead. We catch it here and show it as an in-app bubble.
+  // --------------------------------------------------------------------------
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const notif = (e as CustomEvent).detail;
+      if (!notif) return;
+
+      const newNotification: NotificationData = {
+        id: Date.now(), // use timestamp as unique id for display-only
+        title: notif.title || 'New Notification',
+        message: notif.body || notif.data?.body || '',
+        message_type: notif.data?.type || 'general',
+        timestamp: new Date(),
+        priority: (notif.data?.priority as NotificationPriority) || 'normal',
+        senderName: notif.data?.senderName || 'System',
+        senderRole: notif.data?.senderRole || '',
+        mediaUrl: notif.data?.mediaUrl,
+      };
+
+      console.log('📩 [FCM FOREGROUND] Showing bubble for:', newNotification.title);
+      setNotifications((prev) => [...prev, newNotification]);
+    };
+
+    window.addEventListener('fcm-foreground-notification', handler);
+    return () => window.removeEventListener('fcm-foreground-notification', handler);
+  }, []);
+
   // Poll for new notifications
   useEffect(() => {
     if (!user?.id) return;
