@@ -911,6 +911,10 @@ function TournamentLevelTracker({ tournament }: { tournament: any }) {
   if (typeof structure === 'string') {
     try { structure = JSON.parse(structure); } catch { structure = {}; }
   }
+  const isRummySession =
+    String(tournament?.gameType || '').toLowerCase() === 'rummy' ||
+    !!tournament?.rummyVariant ||
+    !!structure?.rummy_variant;
 
   const minutesPerLevel = parseInt(structure.minutes_per_level) || 15;
   const numberOfLevels = parseInt(structure.number_of_levels) || 15;
@@ -965,6 +969,63 @@ function TournamentLevelTracker({ tournament }: { tournament: any }) {
   const currentSb = tournament.currentSb ?? structure.current_sb ?? null;
   const currentBb = tournament.currentBb ?? structure.current_bb ?? null;
   const hasBlinds = currentRound != null || currentSb != null || currentBb != null;
+
+  if (isRummySession) {
+    const rummyVariant = tournament.rummyVariant || structure.rummy_variant || 'Rummy';
+    const numberOfDeals =
+      tournament.numberOfDeals ??
+      structure.number_of_deals ??
+      null;
+    const pointsPerDeal =
+      tournament.pointsPerDeal ??
+      structure.points_per_deal ??
+      null;
+    const dropPoints =
+      tournament.dropPoints ??
+      structure.drop_points ??
+      null;
+    const maxPoints =
+      tournament.maxPoints ??
+      structure.max_points ??
+      null;
+    const dealDuration =
+      tournament.dealDuration ??
+      structure.deal_duration ??
+      null;
+
+    return (
+      <div className="p-4 pt-0 space-y-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="bg-emerald-900/30 rounded-lg p-3 text-center border border-emerald-700/40">
+            <p className="text-[0.65rem] text-emerald-400 uppercase tracking-wide">Variant</p>
+            <p className="text-sm font-bold text-white">{rummyVariant}</p>
+          </div>
+          <div className="bg-blue-900/30 rounded-lg p-3 text-center border border-blue-700/40">
+            <p className="text-[0.65rem] text-blue-400 uppercase tracking-wide">Deals</p>
+            <p className="text-xl font-bold text-white">{numberOfDeals ?? 'N/A'}</p>
+          </div>
+          <div className="bg-purple-900/30 rounded-lg p-3 text-center border border-purple-700/40">
+            <p className="text-[0.65rem] text-purple-400 uppercase tracking-wide">Points / Deal</p>
+            <p className="text-xl font-bold text-white">{pointsPerDeal ?? 'N/A'}</p>
+          </div>
+          <div className="bg-slate-800 rounded-lg p-3 text-center border border-slate-700">
+            <p className="text-[0.65rem] text-slate-400 uppercase tracking-wide">Deal Duration</p>
+            <p className="text-xl font-bold text-white">{dealDuration ? `${dealDuration} min` : 'N/A'}</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-amber-900/20 rounded-lg p-3 border border-amber-600/40 text-center">
+            <p className="text-[0.65rem] text-amber-400 uppercase tracking-wide">Drop Points</p>
+            <p className="text-lg font-bold text-amber-200">{dropPoints ?? 'N/A'}</p>
+          </div>
+          <div className="bg-rose-900/20 rounded-lg p-3 border border-rose-600/40 text-center">
+            <p className="text-[0.65rem] text-rose-400 uppercase tracking-wide">Max Points</p>
+            <p className="text-lg font-bold text-rose-200">{maxPoints ?? 'N/A'}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 pt-0 space-y-2">
@@ -1053,6 +1114,10 @@ function TournamentSessionContent({ tournament, user, queryClient }: { tournamen
   if (typeof structure === 'string') {
     try { structure = JSON.parse(structure); } catch { structure = {}; }
   }
+  const isRummySession =
+    String(tournament?.gameType || '').toLowerCase() === 'rummy' ||
+    !!tournament?.rummyVariant ||
+    !!structure?.rummy_variant;
   const isPaused = !!tournament.pausedAt;
   const buyIn = parseFloat(tournament.buyIn || tournament.buy_in || 0);
   const lateRegMinutes = parseInt(structure.late_registration) || 0;
@@ -1158,7 +1223,46 @@ function TournamentSessionContent({ tournament, user, queryClient }: { tournamen
             <Info className="w-3.5 h-3.5" /> Tournament Info
           </h3>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-            {structure.tournament_type && (
+            {isRummySession ? (
+              <>
+                <span className="text-slate-400">Game</span>
+                <span className="text-white font-medium">Rummy</span>
+                <span className="text-slate-400">Variant</span>
+                <span className="text-white font-medium">{tournament.rummyVariant || structure.rummy_variant || 'Rummy'}</span>
+                {(tournament.numberOfDeals ?? structure.number_of_deals) != null && (
+                  <>
+                    <span className="text-slate-400">Deals</span>
+                    <span className="text-white font-medium">{tournament.numberOfDeals ?? structure.number_of_deals}</span>
+                  </>
+                )}
+                {(tournament.pointsPerDeal ?? structure.points_per_deal) != null && (
+                  <>
+                    <span className="text-slate-400">Points / Deal</span>
+                    <span className="text-white font-medium">{tournament.pointsPerDeal ?? structure.points_per_deal}</span>
+                  </>
+                )}
+                {(tournament.dropPoints ?? structure.drop_points) != null && (
+                  <>
+                    <span className="text-slate-400">Drop Points</span>
+                    <span className="text-white font-medium">{tournament.dropPoints ?? structure.drop_points}</span>
+                  </>
+                )}
+                {(tournament.maxPoints ?? structure.max_points) != null && (
+                  <>
+                    <span className="text-slate-400">Max Points</span>
+                    <span className="text-white font-medium">{tournament.maxPoints ?? structure.max_points}</span>
+                  </>
+                )}
+                {(tournament.dealDuration ?? structure.deal_duration) != null && (
+                  <>
+                    <span className="text-slate-400">Deal Duration</span>
+                    <span className="text-white font-medium">{tournament.dealDuration ?? structure.deal_duration} min</span>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                {structure.tournament_type && (
               <>
                 <span className="text-slate-400">Type</span>
                 <span className="text-white font-medium">{structure.tournament_type}</span>
@@ -1186,6 +1290,8 @@ function TournamentSessionContent({ tournament, user, queryClient }: { tournamen
               <>
                 <span className="text-slate-400">Payout</span>
                 <span className="text-white font-medium">{structure.payout_structure}</span>
+              </>
+            )}
               </>
             )}
             <span className="text-slate-400">Rebuys</span>
@@ -1690,6 +1796,22 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
     setSessionTournament(tournament);
     setTournamentSessionOpen(true);
   };
+
+  // Keep session modal tournament data live (pause/resume/status updates from staff).
+  useEffect(() => {
+    if (!tournamentSessionOpen || !sessionTournament?.id) return;
+    const latestTournament = tournaments.find((t: any) => t.id === sessionTournament.id);
+    if (!latestTournament) {
+      setTournamentSessionOpen(false);
+      setSessionTournament(null);
+      toast({
+        title: "Tournament Ended",
+        description: "This tournament has ended. Check results and wallet updates.",
+      });
+      return;
+    }
+    setSessionTournament((prev: any) => ({ ...(prev || {}), ...latestTournament }));
+  }, [tournamentSessionOpen, sessionTournament?.id, tournaments, toast]);
 
   // Fetch dual balance system data with smart refresh
   const { data: accountBalance, isLoading: balanceLoading } = useQuery({

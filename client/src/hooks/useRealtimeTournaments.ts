@@ -42,8 +42,15 @@ export function useRealtimeTournaments(
     const refetchTournamentQueries = () => {
       queryClient.refetchQueries({ queryKey: ['/api/player-tournaments/upcoming'], type: 'all' });
       queryClient.refetchQueries({ queryKey: ['/api/player-tournaments/my-registrations'], type: 'all' });
+      queryClient.refetchQueries({ queryKey: ['/api/player-tournaments/active-session'], type: 'all' });
       queryClient.invalidateQueries({ queryKey: ['tournament-player-status'] });
       queryClient.invalidateQueries({ queryKey: ['player-tournament-statuses'] });
+      // Tournament end/winner payout updates wallet via financial transactions.
+      // Refresh these queries so "Available Cash Balance" updates immediately.
+      queryClient.refetchQueries({ queryKey: ['/api/auth/player/balance'], type: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['/api/balance'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/player/transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['player', 'transactions'] });
     };
 
     const token = localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
