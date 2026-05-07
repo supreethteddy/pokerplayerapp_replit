@@ -33,7 +33,7 @@ export function PlayerBalanceDisplay({ playerId, showBreakdown = true }: PlayerB
       return response.json();
     },
     enabled: !!playerId,
-    // No polling - Supabase real-time handles updates
+    refetchOnWindowFocus: true,
   });
 
   const pendingBuyIn = buyInRequests?.find(

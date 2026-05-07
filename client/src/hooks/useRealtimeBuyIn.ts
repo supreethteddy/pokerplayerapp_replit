@@ -20,7 +20,12 @@ export function useRealtimeBuyIn(playerId: number | string | null | undefined) {
       sessionStorage.getItem('club_id');
     if (!clubId) return;
 
-    const token = localStorage.getItem('auth_token') || localStorage.getItem('playerToken');
+    // Check both sessionStorage and localStorage — useUltraFastAuth writes to both
+    const token =
+      sessionStorage.getItem('auth_token') ||
+      localStorage.getItem('auth_token') ||
+      sessionStorage.getItem('playerToken') ||
+      localStorage.getItem('playerToken');
     const socket = io(`${websocketBase}/realtime`, {
       auth: { playerId: String(playerId), clubId: String(clubId), token },
       transports: ['websocket', 'polling'],
@@ -29,9 +34,20 @@ export function useRealtimeBuyIn(playerId: number | string | null | undefined) {
       reconnectionAttempts: Infinity,
     });
 
-    socket.on('connect', () => {
+    const subscribeToEvents = () => {
       socket.emit('subscribe:player', { playerId: String(playerId), clubId: String(clubId) });
       socket.emit('subscribe:club', { clubId: String(clubId), playerId: String(playerId) });
+    };
+
+    socket.on('connect', () => {
+      subscribeToEvents();
+    });
+
+    // On reconnect, re-subscribe AND refetch buy-in status to catch any missed events
+    socket.on('reconnect', () => {
+      subscribeToEvents();
+      queryClient.invalidateQueries({ queryKey: ['buyin-requests', String(playerId)] });
+      queryClient.invalidateQueries({ queryKey: ['buyin-requests', playerId] });
     });
 
     const invalidateBalance = () => {
