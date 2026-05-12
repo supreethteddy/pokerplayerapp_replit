@@ -407,7 +407,7 @@ const PlayerChatSystem: React.FC<PlayerChatSystemProps> = ({
         playerId,
         token: localStorage.getItem('auth_token') || localStorage.getItem('playerToken'),
       },
-      transports: ["websocket", "polling"],
+      transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 10000,

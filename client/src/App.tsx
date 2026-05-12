@@ -48,6 +48,20 @@ function AppContent() {
     }
   }, [user, authChecked, loading]);
 
+  // Safety net: if token somehow expires (after 90 days), sign out cleanly
+  useEffect(() => {
+    const handler = () => {
+      console.warn('🔒 [APP] Player session expired — signing out');
+      sessionStorage.removeItem('auth_token');
+      sessionStorage.removeItem('authenticated_user');
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('authenticated_user');
+      window.location.reload();
+    };
+    window.addEventListener('player:session-expired', handler);
+    return () => window.removeEventListener('player:session-expired', handler);
+  }, []);
+
   // Welcome video for pure Supabase authentication (no Clerk sync needed)
   useEffect(() => {
     if (user && !loading && !hasShownLoadingScreen) {

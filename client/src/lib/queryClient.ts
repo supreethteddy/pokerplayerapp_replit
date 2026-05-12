@@ -87,8 +87,10 @@ export const getQueryFn: <T>(options: {
       headers: authHeaders,
     });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
+    if (res.status === 401) {
+      if (unauthorizedBehavior === "returnNull") return null;
+      // Fire global event — player app root listens and shows re-login screen
+      window.dispatchEvent(new CustomEvent('player:session-expired'));
     }
 
     // Frontend-only mode: Vite may return index.html with 200 status for unknown /api/* routes.
