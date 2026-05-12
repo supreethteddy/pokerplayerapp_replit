@@ -48,6 +48,7 @@ export function useRealtimeProfileRequests(playerId: number | string | null | un
       queryClient.invalidateQueries({ queryKey: ['/api/auth/player/profile-change-requests'] });
       queryClient.invalidateQueries({ queryKey: ['/api/documents/player'] });
       queryClient.invalidateQueries({ queryKey: ['/api/auth/player/me'] });
+      queryClient.invalidateQueries({ queryKey: ['player-profile'] });
 
       const st = data?.status;
       if (st === 'approved') {
