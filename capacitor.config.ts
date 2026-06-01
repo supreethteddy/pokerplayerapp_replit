@@ -33,6 +33,14 @@ const config: CapacitorConfig = {
     StatusBar: {
       style: "dark",
       backgroundColor: "#1e293b"
+    },
+    // ─── Push Notifications ─────────────────────────────────────────────────
+    // presentationOptions controls how foreground notifications are shown on iOS.
+    // 'badge' updates the app icon badge count.
+    // 'sound' plays the default notification sound.
+    // 'alert' shows the notification banner/alert UI.
+    PushNotifications: {
+      presentationOptions: ["badge", "sound", "alert"]
     }
   }
 };

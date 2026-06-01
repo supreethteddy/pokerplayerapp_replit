@@ -47,5 +47,15 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+
+	<!-- ─── Push Notification Requirements ─────────────────────────────────── -->
+	<!-- Allows the OS to wake the app in background to process silent/data notifications -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<!-- User-facing explanation for notification permission prompt (iOS 14+ best practice) -->
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>We send you real-time updates about your poker table, balance changes, and important announcements from the poker room.</string>
 </dict>
 </plist>
