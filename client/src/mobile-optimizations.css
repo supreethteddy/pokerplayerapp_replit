@@ -7,11 +7,13 @@
 
 html,
 body {
+  margin: 0;
+  padding: 0;
   -webkit-text-size-adjust: 100%;
   -ms-text-size-adjust: 100%;
   overflow-x: hidden;
   width: 100%;
-  max-width: 100vw;
+  max-width: 100%;
 }
 
 /* Prevent horizontal scrolling on all devices */
@@ -47,8 +49,8 @@ body {
 
   /* Ensure proper container sizing */
   .min-h-screen {
-    width: 100vw;
-    max-width: 100vw;
+    width: 100%;
+    max-width: 100%;
     overflow-x: hidden;
     padding: 0.75rem;
   }
@@ -212,10 +214,12 @@ body {
 
   /* Enhanced text readability */
   body {
+    margin: 0;
+    padding: 0;
     font-size: 14px;
     line-height: 1.5;
-    width: 100vw;
-    max-width: 100vw;
+    width: 100%;
+    max-width: 100%;
     overflow-x: hidden;
   }
 

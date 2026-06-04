@@ -1359,6 +1359,37 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   // Merge fresh profile data with existing user data
   const user = profileData ? { ...baseUser, ...profileData } : baseUser;
+
+  // Keep stored user session updated when fresh profile data is loaded
+  useEffect(() => {
+    if (profileData && baseUser) {
+      const updatedUser = { ...baseUser, ...profileData };
+      const storedUserStr = sessionStorage.getItem('authenticated_user') || localStorage.getItem('authenticated_user');
+      let needsUpdate = true;
+      if (storedUserStr) {
+        try {
+          const storedUser = JSON.parse(storedUserStr);
+          if (
+            storedUser.kycStatus === updatedUser.kycStatus &&
+            storedUser.balance === updatedUser.balance &&
+            storedUser.currentCredit === updatedUser.currentCredit &&
+            storedUser.creditLimit === updatedUser.creditLimit &&
+            storedUser.nickname === updatedUser.nickname &&
+            storedUser.email === updatedUser.email
+          ) {
+            needsUpdate = false;
+          }
+        } catch (e) {
+          // parse failed, update anyway
+        }
+      }
+      if (needsUpdate) {
+        console.log('💾 [PLAYER DASHBOARD] Dispatching session update with fresh profile data (KYC status:', updatedUser.kycStatus, ')');
+        window.dispatchEvent(new CustomEvent('player-session-updated', { detail: { user: updatedUser } }));
+      }
+    }
+  }, [profileData, baseUser]);
+
   const [callTime, setCallTime] = useState("02:45");
   const [location, setLocation] = useLocation();
 

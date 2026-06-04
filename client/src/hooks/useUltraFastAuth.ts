@@ -141,6 +141,21 @@ export function useUltraFastAuth() {
     return () => window.removeEventListener('player-profile-updated', handler);
   }, []);
 
+  // Listen for full session updates (e.g. KYC status, balance syncs)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { user: updatedUser } = (e as CustomEvent).detail;
+      if (updatedUser) {
+        setUser(updatedUser);
+        sessionStorage.setItem('authenticated_user', JSON.stringify(updatedUser));
+        localStorage.setItem('authenticated_user', JSON.stringify(updatedUser));
+      }
+    };
+
+    window.addEventListener('player-session-updated', handler);
+    return () => window.removeEventListener('player-session-updated', handler);
+  }, [setUser]);
+
   const handleSignOut = async () => {
     setUser(null);
     setAuthChecked(true);

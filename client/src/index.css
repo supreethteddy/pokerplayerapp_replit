@@ -21,9 +21,11 @@
 
 /* Global mobile optimization */
 html, body {
+  margin: 0;
+  padding: 0;
   overflow-x: hidden;
   width: 100%;
-  max-width: 100vw;
+  max-width: 100%;
 }
 
 /* Page content top padding utility - prevents header/card overlap on mobile */

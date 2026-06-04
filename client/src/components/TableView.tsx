@@ -175,7 +175,7 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
   }
 
   return (
-    <div className="min-h-screen sm:min-h-0 bg-gradient-to-b from-slate-900 to-slate-800 text-white h-full sm:h-auto pt-1 sm:pt-2">
+    <div className="min-h-screen sm:min-h-0 bg-gradient-to-b from-slate-900 to-slate-800 text-white h-full sm:h-auto pt-1 sm:pt-2 w-full flex flex-col items-stretch overflow-x-hidden">
       {/* Header */}
       <div className="p-2 sm:p-3 flex items-center justify-between gap-2">
         <Button
@@ -228,10 +228,10 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
       )}
 
       {/* Main Table Area - Staff Portal Style */}
-      <div className="flex-1 flex flex-col items-center px-1 sm:px-2 py-2 sm:py-4">
-        <div className="relative w-full max-w-4xl">
+      <div className="flex-1 flex flex-col items-center px-1 sm:px-2 py-2 sm:py-4 w-full">
+        <div className="relative w-full max-w-4xl flex flex-col items-center">
           {/* Table - Round (Rummy) or Oval (Poker) */}
-          <div className={`relative mx-auto mb-6 sm:mb-12 mt-4 sm:mt-8 ${isRummy ? 'aspect-square max-w-xs sm:max-w-sm' : 'aspect-[5/3] max-w-full sm:max-w-2xl'}`}>
+          <div className={`relative w-full mx-auto mb-6 sm:mb-12 mt-4 sm:mt-8 ${isRummy ? 'aspect-square max-w-xs sm:max-w-sm' : 'aspect-[5/3] max-w-full sm:max-w-2xl'}`}>
             {/* Table Border */}
             <div className={`absolute inset-0 p-2 shadow-2xl ${isRummy ? 'rounded-full bg-gradient-to-br from-rose-700 via-red-600 to-rose-700' : 'rounded-[50%] bg-gradient-to-br from-amber-600 via-yellow-500 to-amber-600'}`}>
               {/* Felt Surface */}
