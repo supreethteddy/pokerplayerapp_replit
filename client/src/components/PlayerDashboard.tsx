@@ -98,7 +98,7 @@ import { useSeatAssignment } from "@/hooks/useSeatAssignment";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3333/api';
 import { usePlayerGameStatus } from "@/hooks/usePlayerGameStatus";
 import { whitelabelConfig } from "@/lib/whitelabeling";
-import { fetchClubBranding, applyClubBranding, getGradientClasses, getGradientStyle, type ClubBranding } from "@/lib/clubBranding";
+import { fetchClubBranding, applyClubBranding, getGradientClasses, getGradientStyle, getCachedClubBranding, type ClubBranding } from "@/lib/clubBranding";
 import { usePlayerBalance } from "@/hooks/usePlayerBalance";
 import { parseSafeDate } from "@/lib/utils";
 import {
@@ -1393,8 +1393,9 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
   const [callTime, setCallTime] = useState("02:45");
   const [location, setLocation] = useLocation();
 
-  // Club branding state
-  const [clubBranding, setClubBranding] = useState<ClubBranding | null>(null);
+  // Club branding state — seed from localStorage cache so the club logo paints
+  // on the first render, no flash to the static whitelabel fallback.
+  const [clubBranding, setClubBranding] = useState<ClubBranding | null>(() => getCachedClubBranding());
 
   // Feedback system state
   const [feedbackMessage, setFeedbackMessage] = useState("");

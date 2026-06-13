@@ -20,7 +20,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { API_BASE_URL } from "@/lib/api/config";
 import { supabase } from "@/lib/supabase";
-import { fetchClubBranding, applyClubBranding, getGradientClasses, getGradientStyle, type ClubBranding } from "@/lib/clubBranding";
+import { fetchClubBranding, applyClubBranding, getGradientClasses, getGradientStyle, getCachedClubBranding, type ClubBranding } from "@/lib/clubBranding";
 
 const KYC_BUCKET = "kyc-docs";
 const DOC_IMAGE_MIME_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
@@ -34,7 +34,7 @@ export default function KYCVerification() {
   const [kycData, setKycData] = useState<any>(null);
   const [panCard, setPanCard] = useState("");
   const [aadhaarUploadMode, setAadhaarUploadMode] = useState<"" | "image" | "pdf">("");
-  const [clubBranding, setClubBranding] = useState<ClubBranding | null>(null);
+  const [clubBranding, setClubBranding] = useState<ClubBranding | null>(() => getCachedClubBranding());
   const [uploadedDocs, setUploadedDocs] = useState<{
     government_id?: { name: string; preview: string };
     aadhaar_front?: { name: string; preview: string };

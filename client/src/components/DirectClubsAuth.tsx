@@ -9,7 +9,7 @@ import { useUltraFastAuth } from "../hooks/useUltraFastAuth";
 import { useToast } from "@/hooks/use-toast";
 import { whitelabelConfig } from "@/lib/whitelabeling";
 import { API_BASE_URL } from "@/lib/api/config";
-import { fetchClubBranding, fetchClubBrandingByCode, createBrandingFromVerifyResponse, applyClubBranding, getGradientClasses, getGradientStyle, type ClubBranding } from "@/lib/clubBranding";
+import { fetchClubBranding, fetchClubBrandingByCode, createBrandingFromVerifyResponse, applyClubBranding, getGradientClasses, getGradientStyle, getCachedClubBranding, type ClubBranding } from "@/lib/clubBranding";
 
 export default function DirectClubsAuth() {
   const [activeTab, setActiveTab] = useState<"signin" | "signup">("signin");
@@ -29,7 +29,9 @@ export default function DirectClubsAuth() {
   const [clubCodeInput, setClubCodeInput] = useState("");
   const [clubCodeVerified, setClubCodeVerified] = useState(false);
   const [clubCodeError, setClubCodeError] = useState("");
-  const [clubBranding, setClubBranding] = useState<ClubBranding | null>(null);
+  // Seed from localStorage cache so the club logo paints on first render —
+  // avoids the flash to the static whitelabel logo before the fetch lands.
+  const [clubBranding, setClubBranding] = useState<ClubBranding | null>(() => getCachedClubBranding());
 
   // Terms & Conditions modal state
   const [showTermsModal, setShowTermsModal] = useState(false);
@@ -383,15 +385,22 @@ export default function DirectClubsAuth() {
     return () => clearInterval(interval);
   }, []); // Empty dependency array - only run on mount
 
+  // Only expose branding (theme, name, logo) to the UI AFTER the player has
+  // verified a club code. The cache is still loaded into `clubBranding` so the
+  // post-verification screen paints instantly, but until then the screen must
+  // stay neutral — otherwise the previous session's club name + gradient leak
+  // into the "Enter Club Code" view.
+  const effectiveBranding = clubCodeVerified ? clubBranding : null;
+
   // Get gradient classes and style
-  const gradientClasses = clubBranding ? getGradientClasses(clubBranding.gradient) : '';
-  const gradientStyle = clubBranding ? getGradientStyle(clubBranding.gradient) : {};
+  const gradientClasses = effectiveBranding ? getGradientClasses(effectiveBranding.gradient) : '';
+  const gradientStyle = effectiveBranding ? getGradientStyle(effectiveBranding.gradient) : {};
 
   // Helper function to get logo URL (prioritize database logo, fallback to default)
   const getLogoUrl = (): string | null => {
-    // Priority 1: Logo from database (clubBranding)
-    if (clubBranding?.logoUrl) {
-      return clubBranding.logoUrl;
+    // Priority 1: Logo from database (clubBranding) — only post-verification
+    if (effectiveBranding?.logoUrl) {
+      return effectiveBranding.logoUrl;
     }
     // Priority 2: Default logo from whitelabelConfig
     if (whitelabelConfig.logoUrl) {
@@ -425,44 +434,48 @@ export default function DirectClubsAuth() {
         )}
 
         <CardHeader className="text-center mb-4 sm:mb-6 lg:mb-8 px-4 sm:px-6 pt-4 sm:pt-6">
-          {/* Logo */}
-          <div className="flex justify-center mb-4 sm:mb-6">
-            {getLogoUrl() ? (
-              <img
-                src={getLogoUrl()!}
-                alt={clubBranding?.clubName || whitelabelConfig.companyName || 'Club'}
-                className="w-16 h-16 sm:w-20 sm:h-20 object-contain"
-                onError={(e) => {
-                  // Fallback to default logo if database logo fails to load
-                  const img = e.target as HTMLImageElement;
-                  const defaultLogo = whitelabelConfig.logoUrl;
-                  if (defaultLogo && img.src !== defaultLogo) {
-                    console.warn("⚠️ [AUTH LOGO] Database logo failed to load, using default logo");
-                    img.src = defaultLogo;
-                  } else {
-                    // If default also fails, show fallback icon
-                    img.style.display = 'none';
-                    const parent = img.parentElement;
-                    if (parent && !parent.querySelector('.logo-fallback')) {
-                      const fallback = document.createElement('div');
-                      fallback.className = 'logo-fallback w-12 h-12 sm:w-16 sm:h-16 bg-blue-600 rounded-full flex items-center justify-center';
-                      fallback.style.backgroundColor = clubBranding?.skinColor || '#3b82f6';
-                      fallback.innerHTML = `<span class="text-white font-bold text-xl sm:text-2xl">${clubBranding?.clubName?.[0] || 'C'}</span>`;
-                      parent.appendChild(fallback);
+          {/* Logo — only show once the player has verified a club code. The
+              pre-verification "Enter Club Code" screen has no logo because we
+              don't yet know which club's branding to display. */}
+          {clubCodeVerified && (
+            <div className="flex justify-center mb-4 sm:mb-6">
+              {getLogoUrl() ? (
+                <img
+                  src={getLogoUrl()!}
+                  alt={clubBranding?.clubName || whitelabelConfig.companyName || 'Club'}
+                  className="w-16 h-16 sm:w-20 sm:h-20 object-contain"
+                  onError={(e) => {
+                    // Fallback to default logo if database logo fails to load
+                    const img = e.target as HTMLImageElement;
+                    const defaultLogo = whitelabelConfig.logoUrl;
+                    if (defaultLogo && img.src !== defaultLogo) {
+                      console.warn("⚠️ [AUTH LOGO] Database logo failed to load, using default logo");
+                      img.src = defaultLogo;
+                    } else {
+                      // If default also fails, show fallback icon
+                      img.style.display = 'none';
+                      const parent = img.parentElement;
+                      if (parent && !parent.querySelector('.logo-fallback')) {
+                        const fallback = document.createElement('div');
+                        fallback.className = 'logo-fallback w-12 h-12 sm:w-16 sm:h-16 bg-blue-600 rounded-full flex items-center justify-center';
+                        fallback.style.backgroundColor = clubBranding?.skinColor || '#3b82f6';
+                        fallback.innerHTML = `<span class="text-white font-bold text-xl sm:text-2xl">${clubBranding?.clubName?.[0] || 'C'}</span>`;
+                        parent.appendChild(fallback);
+                      }
                     }
-                  }
-                }}
-              />
-            ) : (
-              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-600 rounded-full flex items-center justify-center" style={{ backgroundColor: clubBranding?.skinColor || '#3b82f6' }}>
-                <span className="text-white font-bold text-xl sm:text-2xl">
-                  {clubBranding?.clubName?.[0] || 'C'}
-                </span>
-              </div>
-            )}
-          </div>
+                  }}
+                />
+              ) : (
+                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-600 rounded-full flex items-center justify-center" style={{ backgroundColor: clubBranding?.skinColor || '#3b82f6' }}>
+                  <span className="text-white font-bold text-xl sm:text-2xl">
+                    {clubBranding?.clubName?.[0] || 'C'}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
           <h1 className="text-white text-lg sm:text-xl font-semibold mb-4 sm:mb-6">
-            {clubBranding?.clubName || 'CLUBS POKER'}
+            {effectiveBranding?.clubName || 'CLUBS POKER'}
           </h1>
 
           {!clubCodeVerified ? (
@@ -615,7 +628,7 @@ export default function DirectClubsAuth() {
                 type="submit"
                 disabled={loading}
                 className="w-full hover:opacity-90 text-white font-medium py-2.5 sm:py-3 h-11 sm:h-12 text-sm sm:text-base min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ backgroundColor: clubBranding?.skinColor || '#3b82f6' }}
+                style={{ backgroundColor: effectiveBranding?.skinColor || '#3b82f6' }}
               >
                 {loading ? "Verifying..." : "Verify Club Code"}
               </Button>

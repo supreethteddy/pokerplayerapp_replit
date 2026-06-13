@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { ChevronLeft } from "lucide-react";
 import { useLocation } from "wouter";
-import { fetchClubBranding, type ClubBranding, getGradientStyle } from "@/lib/clubBranding";
+import { fetchClubBranding, getCachedClubBranding, type ClubBranding, getGradientStyle } from "@/lib/clubBranding";
 
 interface InfoPageLayoutProps {
     title: string;
@@ -11,7 +11,7 @@ interface InfoPageLayoutProps {
 
 const InfoPageLayout: React.FC<InfoPageLayoutProps> = ({ title, children }) => {
     const [, setLocation] = useLocation();
-    const [branding, setBranding] = useState<ClubBranding | null>(null);
+    const [branding, setBranding] = useState<ClubBranding | null>(() => getCachedClubBranding());
 
     useEffect(() => {
         const loadBranding = async () => {
