@@ -11,6 +11,36 @@ import { PlaytimeTracker } from "./PlaytimeTracker";
 import { useAvailableTables, useJoinWaitlist, useWaitlistStatus, useCancelWaitlist, useTableDetails } from "@/hooks/usePlayerAPI";
 import { Badge } from "@/components/ui/badge";
 import { getCachedClubBranding, fetchClubBranding } from "@/lib/clubBranding";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+function getSeatPosition(
+  index: number,
+  totalSeats: number,
+  isRummy: boolean,
+  isMobile: boolean
+) {
+  const angle = (index * (2 * Math.PI / totalSeats)) - Math.PI / 2 + (Math.PI / totalSeats);
+
+  if (isRummy) {
+    const scale = totalSeats > 8 ? 0.88 : totalSeats > 6 ? 0.92 : 1;
+    const r = (isMobile ? 28 : 34) * scale;
+    return { x: 50 + r * Math.cos(angle), y: 50 + r * Math.sin(angle) };
+  }
+
+  // Poker oval: use the SAME % radius for x and y so seats follow the visual
+  // ellipse (aspect 5:3). Different rx/ry values cluster seats on the sides.
+  const seatScale =
+    totalSeats >= 10 ? 1.06 :
+    totalSeats >= 9 ? 1.03 :
+    totalSeats >= 8 ? 1.0 :
+    totalSeats >= 6 ? 0.96 : 0.92;
+  const radius = (isMobile ? 39 : 42) * seatScale;
+
+  return {
+    x: 50 + radius * Math.cos(angle),
+    y: 50 + radius * Math.sin(angle),
+  };
+}
 
 interface TableViewProps {
   tableId?: string;
@@ -36,6 +66,7 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
     }
   }, [clubBrandingProp]);
   const clubLogoUrl = clubBranding?.logoUrl || null;
+  const isMobile = useIsMobile();
 
   // Normalize tableId to string for comparison
   const tableId = propTableId ? String(propTableId) : "1";
@@ -193,7 +224,13 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
   }
 
   return (
-    <div className="min-h-screen sm:min-h-0 bg-gradient-to-b from-slate-900 to-slate-800 text-white h-full sm:h-auto pt-1 sm:pt-2 w-full flex flex-col items-stretch overflow-x-hidden">
+    <div
+      className={`bg-gradient-to-b from-slate-900 to-slate-800 text-white pt-1 sm:pt-2 w-full flex flex-col items-stretch overflow-hidden ${
+        onClose ? 'h-full min-h-0' : 'min-h-[100dvh]'
+      }`}
+    >
+      {/* Fixed top section — header, banners, table (no scroll) */}
+      <div className="shrink-0 w-full overflow-hidden">
       {/* Header */}
       <div className="p-2 sm:p-3 flex items-center justify-between gap-2">
         <Button
@@ -245,25 +282,27 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
         </div>
       )}
 
-      {/* Main Table Area - Staff Portal Style */}
-      <div className="flex-1 flex flex-col items-center px-1 sm:px-2 py-2 sm:py-4 w-full">
-        <div className="relative w-full max-w-4xl flex flex-col items-center">
+      {/* Table visualization — fixed, never scrolls independently */}
+      <div className="flex flex-col items-center px-1 sm:px-2 py-2 sm:py-3 w-full min-w-0">
+        <div className="relative w-full max-w-4xl flex flex-col items-center min-w-0">
           {/* Table - Round (Rummy) or Oval (Poker) */}
-          <div className={`relative w-full mx-auto mb-6 sm:mb-12 mt-4 sm:mt-8 ${isRummy ? 'aspect-square max-w-xs sm:max-w-sm' : 'aspect-[5/3] max-w-full sm:max-w-2xl'}`}>
+          <div
+            className={`relative w-full mx-auto mt-1 sm:mt-4 px-1 sm:px-2 pb-4 sm:pb-6 overflow-hidden ${
+              isRummy
+                ? 'aspect-square max-w-[min(100%,260px)] sm:max-w-sm'
+                : 'aspect-[5/3] max-w-[min(100%,360px)] sm:max-w-xl md:max-w-2xl'
+            }`}
+          >
             {/* Table Border */}
-            <div className={`absolute inset-0 p-2 shadow-2xl ${isRummy ? 'rounded-full bg-gradient-to-br from-rose-700 via-red-600 to-rose-700' : 'rounded-[50%] bg-gradient-to-br from-amber-600 via-yellow-500 to-amber-600'}`}>
+            <div className={`absolute inset-0 p-1.5 sm:p-2 shadow-2xl ${isRummy ? 'rounded-full bg-gradient-to-br from-rose-700 via-red-600 to-rose-700' : 'rounded-[50%] bg-gradient-to-br from-amber-600 via-yellow-500 to-amber-600'}`}>
               {/* Felt Surface */}
-              <div className={`absolute inset-2 shadow-inner ${isRummy ? 'rounded-full bg-gradient-to-br from-rose-900 via-rose-800 to-rose-950' : 'rounded-[50%] bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-800'}`}>
+              <div className={`absolute inset-1.5 sm:inset-2 shadow-inner overflow-visible ${isRummy ? 'rounded-full bg-gradient-to-br from-rose-900 via-rose-800 to-rose-950' : 'rounded-[50%] bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-800'}`}>
 
                 {/* Dynamic Seat Positions */}
                 {Array.from({ length: currentTable.maxSeats || currentTable.maxPlayers || 9 }, (_, index) => {
                   const seatNumber = index + 1;
                   const totalSeats = currentTable.maxSeats || currentTable.maxPlayers || 9;
-                  const angle = (index * (2 * Math.PI / totalSeats)) - Math.PI / 2 + (Math.PI / totalSeats);
-                  const radiusX = isRummy ? 36 : 41;
-                  const radiusY = isRummy ? 36 : 31;
-                  const x = 50 + radiusX * Math.cos(angle);
-                  const y = 50 + radiusY * Math.sin(angle);
+                  const { x, y } = getSeatPosition(index, totalSeats, isRummy, isMobile);
                   const isSelected = selectedSeat === seatNumber;
 
                   const seatedPlayer = seatedPlayersArray.find((p: any) => Number(p.seatNumber) === seatNumber);
@@ -273,15 +312,17 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
                   return (
                     <div
                       key={seatNumber}
-                      className="absolute transform -translate-x-1/2 -translate-y-1/2 z-50"
+                      className="absolute z-50 flex flex-col items-center -translate-x-1/2 -translate-y-1/2"
                       style={{ left: `${x}%`, top: `${y}%` }}
                     >
-                      {/* ELEGANT SEAT BUTTON */}
-                      <div
-                        className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 flex items-center justify-center shadow-lg transition-all duration-300 select-none min-w-[44px] min-h-[44px] sm:min-w-[40px] sm:min-h-[40px] ${isOccupied
+                      {/* Seat button — table-seat-button overrides global 44px mobile min-size */}
+                      <button
+                        type="button"
+                        aria-label={isOccupied ? `Seat ${seatNumber} occupied` : `Join seat ${seatNumber}`}
+                        className={`table-seat-button w-8 h-8 sm:w-9 sm:h-9 rounded-full border flex items-center justify-center shadow-md transition-all duration-200 select-none touch-manipulation flex-shrink-0 ${isOccupied
                           ? 'bg-gradient-to-br from-blue-600 to-blue-700 border-blue-500 cursor-pointer hover:scale-105'
                           : isSelected
-                            ? 'border-emerald-400 shadow-emerald-500/50 scale-110 bg-gradient-to-br from-emerald-600 to-emerald-700 animate-pulse cursor-pointer'
+                            ? 'border-emerald-400 ring-1 ring-emerald-400/50 bg-gradient-to-br from-emerald-600 to-emerald-700 animate-pulse cursor-pointer'
                             : 'bg-gradient-to-br from-slate-700 to-slate-800 border-slate-600 hover:border-emerald-400 hover:shadow-emerald-400/50 hover:scale-105 cursor-pointer active:scale-95'
                           }`}
                         onClick={(e) => {
@@ -290,33 +331,33 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
                           setSelectedSeat(seatNumber);
                           setShowJoinDialog(true);
                         }}
-                        style={{
-                          pointerEvents: 'auto',
-                          touchAction: 'manipulation'
-                        }}
                       >
                         {isOccupied ? (
-                          <span className="text-white text-[10px] sm:text-xs font-bold">
+                          <span className="text-white text-[10px] sm:text-[11px] font-bold leading-none">
                             {seatedPlayer.initials || (seatedPlayer.nickname || seatedPlayer.name || seatedPlayer.playerName || 'P').charAt(0)}
                           </span>
+                        ) : isMobile ? (
+                          <span className={`text-[9px] sm:text-[10px] font-bold leading-none ${isSelected ? 'text-white' : 'text-emerald-400'}`}>
+                            {seatNumber}
+                          </span>
                         ) : (
-                          <Plus className={`w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400 font-bold transition-transform duration-300 ${isSelected ? 'rotate-45 scale-110' : 'hover:rotate-90 hover:scale-110'
+                          <Plus className={`w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-400 font-bold transition-transform duration-200 ${isSelected ? 'rotate-45' : 'hover:rotate-90'
                             }`} />
                         )}
-                      </div>
+                      </button>
 
-                      {/* Seat Label with Enhanced Info */}
-                      <div className={`absolute -bottom-6 sm:-bottom-8 left-1/2 transform -translate-x-1/2 text-center transition-colors ${isOccupied
+                      {/* Seat label — desktop only, compact */}
+                      <div className={`hidden sm:block absolute left-1/2 top-full mt-0.5 -translate-x-1/2 w-max max-w-[4rem] text-center pointer-events-none ${isOccupied
                         ? 'text-blue-400'
                         : isSelected
                           ? 'text-emerald-400'
                           : 'text-slate-300'
                         }`}>
-                        <div className="text-[10px] sm:text-xs font-medium">
+                        <div className="text-[9px] sm:text-[10px] font-medium truncate">
                           {isOccupied ? (seatedPlayer.playerName?.split(' ')[0] || seatedPlayer.nickname || seatedPlayer.name || 'Player') : `Seat ${seatNumber}`}
                         </div>
                         {isOccupied && playerBuyIn > 0 && (
-                          <div className="text-[8px] sm:text-[10px] text-slate-400 bg-slate-800/80 px-1 rounded mt-0.5 sm:mt-1">
+                          <div className="text-[7px] sm:text-[9px] text-slate-400 bg-slate-800/80 px-1 rounded mt-0.5 whitespace-nowrap">
                             ₹{playerBuyIn.toLocaleString()}
                           </div>
                         )}
@@ -327,22 +368,22 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
 
                 {/* Table Value Above Dealer */}
                 <div
-                  className="absolute transform -translate-x-1/2 -translate-y-1/2 z-40"
-                  style={{ left: '50%', top: '8%' }}
+                  className="absolute z-40 flex flex-col items-center -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                  style={{ left: '50%', top: isRummy ? (isMobile ? '14%' : '10%') : (isMobile ? '8%' : '6%') }}
                 >
                   {/* Table Value / Entry Fee Card */}
-                  <div className={`border-2 px-2 sm:px-4 py-1 sm:py-2 rounded-lg text-center shadow-xl mb-1 sm:mb-2 ${isRummy ? 'bg-gradient-to-br from-rose-700 via-rose-600 to-red-600 border-rose-400/80' : 'bg-gradient-to-br from-yellow-600 via-amber-500 to-orange-500 border-yellow-400/80'}`}>
-                    <div className="text-yellow-200 text-[10px] sm:text-xs font-semibold">{isRummy ? 'Chips on table' : 'Table Value'}</div>
-                    <div className="text-white text-sm sm:text-lg font-bold">
+                  <div className={`border px-1 sm:px-3 py-0.5 sm:py-1.5 rounded-md text-center shadow-lg mb-0.5 sm:mb-1.5 ${isRummy ? 'bg-gradient-to-br from-rose-700 via-rose-600 to-red-600 border-rose-400/80' : 'bg-gradient-to-br from-yellow-600 via-amber-500 to-orange-500 border-yellow-400/80'}`}>
+                    <div className="text-yellow-200 text-[8px] sm:text-[10px] font-semibold leading-tight">{isRummy ? 'Chips on table' : 'Table Value'}</div>
+                    <div className="text-white text-[10px] sm:text-base font-bold leading-tight whitespace-nowrap">
                       ₹{totalChipsOnTable > 0 ? totalChipsOnTable.toLocaleString() : '0'}
                     </div>
                   </div>
 
                   {/* Dealer Button Below */}
-                  <div className="w-6 h-6 sm:w-7 sm:h-7 bg-gradient-to-br from-yellow-600 to-yellow-700 rounded-full border-2 border-yellow-500 flex items-center justify-center shadow-xl mx-auto">
-                    <span className="text-[10px] sm:text-xs font-bold text-white">D</span>
+                  <div className="w-4 h-4 sm:w-6 sm:h-6 bg-gradient-to-br from-yellow-600 to-yellow-700 rounded-full border border-yellow-500 flex items-center justify-center shadow-lg">
+                    <span className="text-[8px] sm:text-[10px] font-bold text-white">D</span>
                   </div>
-                  <div className="text-[10px] sm:text-xs text-yellow-400 font-medium whitespace-nowrap text-center mt-0.5 sm:mt-1">
+                  <div className="hidden sm:block text-[10px] sm:text-xs text-yellow-400 font-medium whitespace-nowrap text-center mt-0.5 sm:mt-1">
                     Dealer
                   </div>
                 </div>
@@ -351,10 +392,10 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
                     a subtle translucent disc behind it (matches staff portal
                     table view). No white card. Fallback emojis keep their
                     coloured pill since they need contrast against the felt. */}
-                <div className="absolute inset-0 flex items-center justify-center">
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <div className="flex flex-col items-center">
                     {clubLogoUrl ? (
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/15 rounded-full border-2 border-white/25 flex items-center justify-center backdrop-blur-sm shadow-xl overflow-hidden">
+                      <div className="w-10 h-10 sm:w-16 sm:h-16 bg-white/15 rounded-full border border-white/25 flex items-center justify-center backdrop-blur-sm shadow-lg overflow-hidden">
                         <img
                           src={clubLogoUrl}
                           alt="Club Logo"
@@ -365,12 +406,12 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
                         />
                       </div>
                     ) : isRummy ? (
-                      <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-rose-500 to-red-600 rounded-full flex items-center justify-center border-4 border-white shadow-lg">
-                        <span className="text-white text-lg sm:text-2xl font-bold">🃏</span>
+                      <div className="w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-br from-rose-500 to-red-600 rounded-full flex items-center justify-center border-2 border-white shadow-lg">
+                        <span className="text-white text-base sm:text-xl font-bold">🃏</span>
                       </div>
                     ) : (
-                      <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-full flex items-center justify-center border-4 border-white shadow-lg">
-                        <span className="text-white text-lg sm:text-2xl font-bold">♠</span>
+                      <div className="w-8 h-8 sm:w-12 sm:h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-full flex items-center justify-center border-2 border-white shadow-lg">
+                        <span className="text-white text-sm sm:text-lg font-bold">♠</span>
                       </div>
                     )}
                     {isRummy && currentTable.rummyVariant && (
@@ -382,32 +423,36 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
             </div>
           </div>
         </div>
+      </div>
+      </div>
 
-        {/* Table Info Cards - Staff Portal Style */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 mt-4 sm:mt-6 w-full max-w-4xl px-0">
-          <Card className="bg-slate-800 border-slate-700">
-            <CardContent className="p-2 sm:p-4 text-center">
-              <Users className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400 mx-auto mb-1 sm:mb-2" />
-              <div className="text-slate-400 text-xs sm:text-sm">Players</div>
-              <div className="text-white text-base sm:text-xl font-bold">{seatedPlayersArray.length || 0}/{currentTable?.capacity || currentTable?.maxSeats || currentTable?.maxPlayers || 9}</div>
+      {/* Scrollable page content below the table */}
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-1 sm:px-2 pb-4 w-full">
+        {/* Table Info Cards - compact static grid, no internal scroll */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 mt-2 sm:mt-4 w-full max-w-4xl min-w-0 mx-auto px-1 sm:px-0">
+          <Card className="bg-slate-800 border-slate-700 min-w-0 overflow-hidden">
+            <CardContent className="p-2 sm:p-4 text-center min-w-0">
+              <Users className="w-5 h-5 sm:w-8 sm:h-8 text-blue-400 mx-auto mb-1" />
+              <div className="text-slate-400 text-[10px] sm:text-sm leading-tight">Players</div>
+              <div className="text-white text-sm sm:text-xl font-bold leading-tight tabular-nums">{seatedPlayersArray.length || 0}/{currentTable?.capacity || currentTable?.maxSeats || currentTable?.maxPlayers || 9}</div>
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-800 border-slate-700">
-            <CardContent className="p-2 sm:p-4 text-center">
-              <DollarSign className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-400 mx-auto mb-1 sm:mb-2" />
-              <div className="text-slate-400 text-xs sm:text-sm">{isRummy ? 'Entry / Stakes' : 'Buy-in Range'}</div>
-              <div className="text-white text-sm sm:text-lg font-bold break-words">
+          <Card className="bg-slate-800 border-slate-700 min-w-0 overflow-hidden">
+            <CardContent className="p-2 sm:p-4 text-center min-w-0">
+              <DollarSign className="w-5 h-5 sm:w-8 sm:h-8 text-emerald-400 mx-auto mb-1" />
+              <div className="text-slate-400 text-[10px] sm:text-sm leading-tight">{isRummy ? 'Entry / Stakes' : 'Buy-in Range'}</div>
+              <div className="text-white text-xs sm:text-lg font-bold leading-tight truncate" title={currentTable.stakes || (currentTable.minBuyIn && currentTable.maxBuyIn ? `₹${currentTable.minBuyIn}-₹${currentTable.maxBuyIn}` : 'N/A')}>
                 {currentTable.stakes || (currentTable.minBuyIn && currentTable.maxBuyIn ? `₹${currentTable.minBuyIn}-₹${currentTable.maxBuyIn}` : 'N/A')}
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-800 border-slate-700">
-            <CardContent className="p-2 sm:p-4 text-center">
-              <Clock className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400 mx-auto mb-1 sm:mb-2" />
-              <div className="text-slate-400 text-xs sm:text-sm">{isRummy ? 'Points Value' : 'Blinds'}</div>
-              <div className="text-white text-sm sm:text-lg font-bold">
+          <Card className="bg-slate-800 border-slate-700 min-w-0 overflow-hidden">
+            <CardContent className="p-2 sm:p-4 text-center min-w-0">
+              <Clock className="w-5 h-5 sm:w-8 sm:h-8 text-purple-400 mx-auto mb-1" />
+              <div className="text-slate-400 text-[10px] sm:text-sm leading-tight">{isRummy ? 'Points Value' : 'Blinds'}</div>
+              <div className="text-white text-xs sm:text-lg font-bold leading-tight whitespace-nowrap">
                 {isRummy
                   ? (currentTable.pointsValue ? `₹${Number(currentTable.pointsValue)}/pt` : '—')
                   : '₹10/₹20'}
@@ -415,11 +460,11 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-800 border-slate-700">
-            <CardContent className="p-2 sm:p-4 text-center">
-              <DollarSign className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-400 mx-auto mb-1 sm:mb-2" />
-              <div className="text-slate-400 text-xs sm:text-sm">Table Value</div>
-              <div className="text-emerald-400 text-sm sm:text-lg font-bold">
+          <Card className="bg-slate-800 border-slate-700 min-w-0 overflow-hidden">
+            <CardContent className="p-2 sm:p-4 text-center min-w-0">
+              <DollarSign className="w-5 h-5 sm:w-8 sm:h-8 text-yellow-400 mx-auto mb-1" />
+              <div className="text-slate-400 text-[10px] sm:text-sm leading-tight">Table Value</div>
+              <div className="text-emerald-400 text-xs sm:text-lg font-bold leading-tight whitespace-nowrap tabular-nums">
                 {Number(potData.pot) > 0 ? `₹${Number(potData.pot).toLocaleString()}` : '₹0'}
               </div>
             </CardContent>
@@ -605,9 +650,9 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
         }
 
         {/* Info Text */}
-        <div className="mt-4 sm:mt-6 text-center text-slate-400 px-0">
+        <div className="mt-4 sm:mt-6 text-center text-slate-400 px-0 max-w-4xl mx-auto">
           <p className="text-xs sm:text-sm">
-            {isRummy ? 'This is a local offline rummy game managed by club staff.' : 'This is a local offline poker game managed by casino staff.'}
+            {isRummy ? 'This is a local offline rummy game managed by club staff.' : 'This is a local offline poker game managed by club staff.'}
           </p>
           <p className="text-[0.65rem] sm:text-xs mt-2">Players are seated by super admin, admin, or manager only.</p>
         </div>

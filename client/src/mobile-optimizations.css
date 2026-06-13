@@ -183,6 +183,7 @@ body {
     overflow-x: hidden;
   }
 
+
   /* Enhanced notification areas */
   .notification-banner {
     padding: 0.75rem 1rem !important;
@@ -296,6 +297,18 @@ body {
   .list-item {
     padding: 0.75rem !important;
     margin-bottom: 0.5rem !important;
+  }
+
+  /* TableView seat buttons — override global 44px touch targets (must come last) */
+  button.table-seat-button,
+  button.table-seat-button:not([role="tab"]) {
+    min-height: 2rem !important;
+    min-width: 2rem !important;
+    width: 2rem !important;
+    height: 2rem !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    touch-action: manipulation;
   }
 }
 

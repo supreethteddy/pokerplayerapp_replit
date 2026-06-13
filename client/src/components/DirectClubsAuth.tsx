@@ -433,57 +433,57 @@ export default function DirectClubsAuth() {
           </div>
         )}
 
-        <CardHeader className="text-center mb-4 sm:mb-6 lg:mb-8 px-4 sm:px-6 pt-4 sm:pt-6">
-          {/* Logo — only show once the player has verified a club code. The
-              pre-verification "Enter Club Code" screen has no logo because we
-              don't yet know which club's branding to display. */}
-          {clubCodeVerified && (
-            <div className="flex justify-center mb-4 sm:mb-6">
-              {getLogoUrl() ? (
-                <img
-                  src={getLogoUrl()!}
-                  alt={clubBranding?.clubName || whitelabelConfig.companyName || 'Club'}
-                  className="w-16 h-16 sm:w-20 sm:h-20 object-contain"
-                  onError={(e) => {
-                    // Fallback to default logo if database logo fails to load
-                    const img = e.target as HTMLImageElement;
-                    const defaultLogo = whitelabelConfig.logoUrl;
-                    if (defaultLogo && img.src !== defaultLogo) {
-                      console.warn("⚠️ [AUTH LOGO] Database logo failed to load, using default logo");
-                      img.src = defaultLogo;
-                    } else {
-                      // If default also fails, show fallback icon
-                      img.style.display = 'none';
-                      const parent = img.parentElement;
-                      if (parent && !parent.querySelector('.logo-fallback')) {
-                        const fallback = document.createElement('div');
-                        fallback.className = 'logo-fallback w-12 h-12 sm:w-16 sm:h-16 bg-blue-600 rounded-full flex items-center justify-center';
-                        fallback.style.backgroundColor = clubBranding?.skinColor || '#3b82f6';
-                        fallback.innerHTML = `<span class="text-white font-bold text-xl sm:text-2xl">${clubBranding?.clubName?.[0] || 'C'}</span>`;
-                        parent.appendChild(fallback);
-                      }
-                    }
-                  }}
-                />
-              ) : (
-                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-600 rounded-full flex items-center justify-center" style={{ backgroundColor: clubBranding?.skinColor || '#3b82f6' }}>
-                  <span className="text-white font-bold text-xl sm:text-2xl">
-                    {clubBranding?.clubName?.[0] || 'C'}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-          <h1 className="text-white text-lg sm:text-xl font-semibold mb-4 sm:mb-6">
-            {effectiveBranding?.clubName || 'CLUBS POKER'}
-          </h1>
-
+        <CardHeader className={`text-center px-4 sm:px-6 pt-4 sm:pt-6 ${clubCodeVerified ? 'mb-4 sm:mb-6 lg:mb-8' : 'mb-2 sm:mb-3'}`}>
           {!clubCodeVerified ? (
-            <div className="text-gray-300 text-xs sm:text-sm mb-3 sm:mb-4 px-2 text-center">
-              Enter your club code to continue
-            </div>
+            <>
+              <h1 className="text-white text-lg sm:text-xl font-semibold mb-3 sm:mb-4">
+                {effectiveBranding?.clubName || 'CLUBS POKER'}
+              </h1>
+              <div className="text-gray-300 text-xs sm:text-sm mb-1 sm:mb-2 px-2 text-center">
+                Enter your club code to continue
+              </div>
+            </>
           ) : (
             <>
+              {/* Logo — only after club code is verified (hidden on verify-code step) */}
+              <div className="flex justify-center mb-4 sm:mb-6">
+                {getLogoUrl() ? (
+                  <img
+                    src={getLogoUrl()!}
+                    alt={clubBranding?.clubName || whitelabelConfig.companyName || 'Club'}
+                    className="w-16 h-16 sm:w-20 sm:h-20 object-contain"
+                    onError={(e) => {
+                      const img = e.target as HTMLImageElement;
+                      const defaultLogo = whitelabelConfig.logoUrl;
+                      if (defaultLogo && img.src !== defaultLogo) {
+                        console.warn("⚠️ [AUTH LOGO] Database logo failed to load, using default logo");
+                        img.src = defaultLogo;
+                      } else {
+                        img.style.display = 'none';
+                        const parent = img.parentElement;
+                        if (parent && !parent.querySelector('.logo-fallback')) {
+                          const fallback = document.createElement('div');
+                          fallback.className = 'logo-fallback w-12 h-12 sm:w-16 sm:h-16 bg-blue-600 rounded-full flex items-center justify-center';
+                          fallback.style.backgroundColor = clubBranding?.skinColor || '#3b82f6';
+                          fallback.innerHTML = `<span class="text-white font-bold text-xl sm:text-2xl">${clubBranding?.clubName?.[0] || 'C'}</span>`;
+                          parent.appendChild(fallback);
+                        }
+                      }
+                    }}
+                  />
+                ) : (
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-600 rounded-full flex items-center justify-center" style={{ backgroundColor: clubBranding?.skinColor || '#3b82f6' }}>
+                    <span className="text-white font-bold text-xl sm:text-2xl">
+                      {clubBranding?.clubName?.[0] || 'C'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <h1 className="text-white text-lg sm:text-xl font-semibold mb-4 sm:mb-6">
+                {effectiveBranding?.clubName || 'CLUBS POKER'}
+              </h1>
+
               <div className="flex items-center justify-center space-x-2 text-emerald-400 text-xs sm:text-sm mb-3 sm:mb-4 px-2">
                 <ShieldCheck className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                 <span className="break-words">Access granted for club code: {clubCodeInput}</span>

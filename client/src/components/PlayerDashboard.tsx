@@ -6352,7 +6352,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
         >
           <DialogContent className="table-view-dialog fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-w-[98vw] sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[85vw] w-full max-h-[98vh] sm:max-h-[95vh] h-[98vh] sm:h-auto p-0 sm:p-2 bg-slate-900 border-slate-700 overflow-hidden flex flex-col">
             {selectedTableViewTableId && (
-              <div className="flex-1 min-h-0 overflow-auto overflow-x-hidden">
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                 <TableView
                   tableId={selectedTableViewTableId}
                   clubBranding={clubBranding}
