@@ -19,7 +19,38 @@ export interface ClubBranding {
   termsAndConditions: string | null;
 }
 
-let cachedBranding: ClubBranding | null = null;
+const BRANDING_STORAGE_KEY = 'clubBrandingCache';
+
+// Hydrate the in-memory cache from localStorage on module load so the very
+// first render after a page refresh already has the correct logo/colors —
+// avoids the static-logo flash before the network fetch resolves.
+let cachedBranding: ClubBranding | null = (() => {
+  try {
+    const raw = localStorage.getItem(BRANDING_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as ClubBranding) : null;
+  } catch {
+    return null;
+  }
+})();
+
+const persistBranding = (branding: ClubBranding) => {
+  try {
+    localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(branding));
+  } catch {
+    // Best-effort: localStorage may be unavailable / quota-exceeded.
+  }
+};
+
+/**
+ * Read the cached branding synchronously. Components can call this during
+ * render to get a logo URL on the first paint, then call `fetchClubBranding`
+ * in an effect to refresh in the background.
+ */
+export function getCachedClubBranding(clubId?: string): ClubBranding | null {
+  if (!cachedBranding) return null;
+  if (clubId && cachedBranding.clubId !== clubId) return null;
+  return cachedBranding;
+}
 
 /**
  * Fetch club branding from backend by club ID
@@ -64,9 +95,10 @@ export async function fetchClubBranding(clubId: string): Promise<ClubBranding | 
       termsAndConditions: club.termsAndConditions || null,
     };
 
-    // Cache it
+    // Cache it (in-memory + localStorage so it survives a page reload)
     cachedBranding = branding;
-    
+    persistBranding(branding);
+
     return branding;
   } catch (error) {
     console.error('Error fetching club branding:', error);
@@ -142,9 +174,10 @@ export function createBrandingFromVerifyResponse(result: any, clubCode: string):
       termsAndConditions: result.termsAndConditions || result.terms_and_conditions || null,
     };
 
-    // Cache it
+    // Cache it (in-memory + localStorage so it survives a page reload)
     cachedBranding = branding;
-    
+    persistBranding(branding);
+
     return branding;
   } catch (error) {
     console.error('Error creating branding from verify response:', error);

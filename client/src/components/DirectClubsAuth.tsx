@@ -431,7 +431,7 @@ export default function DirectClubsAuth() {
               <img
                 src={getLogoUrl()!}
                 alt={clubBranding?.clubName || whitelabelConfig.companyName || 'Club'}
-                className="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover border-2 border-slate-700"
+                className="w-16 h-16 sm:w-20 sm:h-20 object-contain"
                 onError={(e) => {
                   // Fallback to default logo if database logo fails to load
                   const img = e.target as HTMLImageElement;

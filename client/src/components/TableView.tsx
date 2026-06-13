@@ -10,6 +10,7 @@ import { usePlayerGameStatus } from "@/hooks/usePlayerGameStatus";
 import { PlaytimeTracker } from "./PlaytimeTracker";
 import { useAvailableTables, useJoinWaitlist, useWaitlistStatus, useCancelWaitlist, useTableDetails } from "@/hooks/usePlayerAPI";
 import { Badge } from "@/components/ui/badge";
+import { getCachedClubBranding, fetchClubBranding } from "@/lib/clubBranding";
 
 interface TableViewProps {
   tableId?: string;
@@ -18,7 +19,24 @@ interface TableViewProps {
   clubBranding?: any;
 }
 
-export default function TableView({ tableId: propTableId, onNavigate, onClose, clubBranding: _clubBranding }: TableViewProps) {
+export default function TableView({ tableId: propTableId, onNavigate, onClose, clubBranding: clubBrandingProp }: TableViewProps) {
+  // Prefer branding passed by parent; otherwise use the localStorage-backed
+  // cache so the logo paints on first render even on direct navigation /
+  // hard reload.
+  const [clubBranding, setClubBranding] = useState<any>(() => clubBrandingProp || getCachedClubBranding());
+  useEffect(() => {
+    if (clubBrandingProp) {
+      setClubBranding(clubBrandingProp);
+      return;
+    }
+    // Refresh in the background so we don't ship a stale logo forever.
+    const cached = getCachedClubBranding();
+    if (cached?.clubId) {
+      fetchClubBranding(cached.clubId).then((b) => b && setClubBranding(b));
+    }
+  }, [clubBrandingProp]);
+  const clubLogoUrl = clubBranding?.logoUrl || null;
+
   // Normalize tableId to string for comparison
   const tableId = propTableId ? String(propTableId) : "1";
   const setLocation = onNavigate || ((path: string) => {
@@ -329,30 +347,34 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
                   </div>
                 </div>
 
-                {/* Center Logo */}
+                {/* Center Logo — club logo floats directly on the felt with
+                    a subtle translucent disc behind it (matches staff portal
+                    table view). No white card. Fallback emojis keep their
+                    coloured pill since they need contrast against the felt. */}
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="bg-white rounded-lg p-1 sm:p-2 shadow-xl">
-                    {isRummy ? (
-                      <div className="flex flex-col items-center">
-                        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-rose-500 to-red-600 rounded-full flex items-center justify-center border-4 border-white shadow-lg">
-                          <span className="text-white text-lg sm:text-2xl font-bold">🃏</span>
-                        </div>
-                        {currentTable.rummyVariant && (
-                          <span className="text-[9px] sm:text-[11px] text-rose-200 font-semibold mt-1 text-center max-w-[80px] truncate">{currentTable.rummyVariant}</span>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="bg-white rounded-lg p-1 sm:p-2 shadow-xl">
+                  <div className="flex flex-col items-center">
+                    {clubLogoUrl ? (
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/15 rounded-full border-2 border-white/25 flex items-center justify-center backdrop-blur-sm shadow-xl overflow-hidden">
                         <img
-                          src="/logo.png"
-                          alt="Table Logo"
-                          className="w-12 h-12 sm:w-16 sm:h-16 object-contain"
+                          src={clubLogoUrl}
+                          alt="Club Logo"
+                          className="w-full h-full object-contain p-2"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none';
-                            e.currentTarget.parentElement!.innerHTML = '<div class="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-full flex items-center justify-center border-4 border-white shadow-lg"><span class="text-white text-lg sm:text-2xl font-bold">♠</span></div>';
                           }}
                         />
                       </div>
+                    ) : isRummy ? (
+                      <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-rose-500 to-red-600 rounded-full flex items-center justify-center border-4 border-white shadow-lg">
+                        <span className="text-white text-lg sm:text-2xl font-bold">🃏</span>
+                      </div>
+                    ) : (
+                      <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-full flex items-center justify-center border-4 border-white shadow-lg">
+                        <span className="text-white text-lg sm:text-2xl font-bold">♠</span>
+                      </div>
+                    )}
+                    {isRummy && currentTable.rummyVariant && (
+                      <span className="text-[9px] sm:text-[11px] text-rose-200 font-semibold mt-1 text-center max-w-[80px] truncate">{currentTable.rummyVariant}</span>
                     )}
                   </div>
                 </div>

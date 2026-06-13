@@ -3621,11 +3621,11 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                 className="pointer-events-none mb-2 sm:mb-0"
                 id="whitelabel-logo-container"
               >
-                <div className="flex items-center bg-slate-900/80 backdrop-blur-sm p-1.5 sm:p-2 shadow-lg border border-slate-700/50 rounded">
+                <div className="flex items-center">
                   <img
                     src={getLogoUrl()!}
                     alt={getClubName()}
-                    className="rounded-lg h-6 sm:h-8 md:h-10 lg:h-12 w-auto object-contain max-w-[120px] sm:max-w-[150px] md:max-w-[180px] lg:max-w-[220px]"
+                    className="h-6 sm:h-8 md:h-10 lg:h-12 w-auto object-contain max-w-[120px] sm:max-w-[150px] md:max-w-[180px] lg:max-w-[220px]"
                     onError={(e) => {
                       // Fallback to default logo if database logo fails to load
                       const img = e.target as HTMLImageElement;
@@ -3953,7 +3953,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                       {/* Club Logo in Table Area */}
                       {getLogoUrl() && (
                         <div className="flex justify-center mb-4">
-                          <div className="flex items-center bg-slate-900/60 backdrop-blur-sm rounded-lg p-2 shadow-md border border-slate-700/30">
+                          <div className="flex items-center">
                             <img
                               src={getLogoUrl()!}
                               alt={getClubName()}
@@ -4519,7 +4519,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
                       {/* Club Logo in Tournament Area */}
                       {getLogoUrl() && (
                         <div className="flex justify-center mb-4">
-                          <div className="flex items-center bg-slate-900/60 backdrop-blur-sm rounded-lg p-2 shadow-md border border-slate-700/30">
+                          <div className="flex items-center">
                             <img
                               src={getLogoUrl()!}
                               alt={getClubName()}
