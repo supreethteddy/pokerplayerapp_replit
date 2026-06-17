@@ -26,10 +26,10 @@ const InfoPageLayout: React.FC<InfoPageLayoutProps> = ({ title, children }) => {
     }, []);
 
     return (
-        <div className="min-h-screen bg-slate-900 text-white pb-10">
+        <div className="min-h-[100dvh] bg-slate-900 text-white pb-safe">
             {/* Header */}
             <div
-                className="sticky top-0 z-50 px-4 py-4 flex items-center gap-4 bg-slate-900/80 backdrop-blur-md border-b border-slate-800"
+                className="app-header-safe pb-4 flex items-center gap-4 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-50"
                 style={getGradientStyle(branding, 'secondary')}
             >
                 <Button

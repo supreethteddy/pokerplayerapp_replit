@@ -369,12 +369,12 @@ export default function KYCVerification() {
 
   return (
     <div 
-      className={`min-h-screen pt-4 sm:pt-5 lg:pt-6 ${gradientClasses || 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900'}`}
+      className={`min-h-[100dvh] pb-safe ${gradientClasses || 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900'}`}
       style={Object.keys(gradientStyle).length > 0 ? gradientStyle : undefined}
     >
       {/* Header - Mobile Responsive */}
-      <div className="bg-slate-800/50 border-b border-slate-700 backdrop-blur-sm">
-        <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
+      <div className="bg-slate-800/50 border-b border-slate-700 backdrop-blur-sm app-header-safe pb-3 sm:pb-4">
+        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
           <div className="w-full sm:w-auto">
             <h1 className="text-lg sm:text-xl font-bold text-white">KYC Verification</h1>
             <p className="text-xs sm:text-sm text-slate-400">Complete your profile verification</p>

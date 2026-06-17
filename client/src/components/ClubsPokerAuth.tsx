@@ -85,7 +85,7 @@ export default function ClubsPokerAuth() {
   };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4">
+    <div className="min-h-[100dvh] safe-area-page bg-black flex items-center justify-center p-4">
       <Card className="w-full max-w-md bg-gray-900 border-gray-700 relative">
         {/* Close button */}
         <Button

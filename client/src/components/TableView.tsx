@@ -214,7 +214,7 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
 
   if (!currentTable) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white p-4 flex items-center justify-center">
+      <div className="min-h-[100dvh] safe-area-page bg-slate-900 text-white flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-4">Table not found</h2>
           <Button onClick={() => onClose ? onClose() : setLocation("/")}>Back to Dashboard</Button>
@@ -225,14 +225,14 @@ export default function TableView({ tableId: propTableId, onNavigate, onClose, c
 
   return (
     <div
-      className={`bg-gradient-to-b from-slate-900 to-slate-800 text-white pt-1 sm:pt-2 w-full flex flex-col items-stretch overflow-hidden ${
+      className={`bg-gradient-to-b from-slate-900 to-slate-800 text-white w-full flex flex-col items-stretch overflow-hidden ${
         onClose ? 'h-full min-h-0' : 'min-h-[100dvh]'
       }`}
     >
       {/* Fixed top section — header, banners, table (no scroll) */}
       <div className="shrink-0 w-full overflow-hidden">
       {/* Header */}
-      <div className="p-2 sm:p-3 flex items-center justify-between gap-2">
+      <div className="app-header-safe pb-2 sm:pb-3 flex items-center justify-between gap-2">
         <Button
           variant="ghost"
           onClick={() => onClose ? onClose() : setLocation('/')}

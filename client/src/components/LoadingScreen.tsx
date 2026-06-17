@@ -90,7 +90,7 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black z-50 flex items-center justify-center overflow-hidden">
+    <div className="fixed-screen-safe bg-black z-50 flex items-center justify-center overflow-hidden">
       <div className="relative w-full h-full">
         {/* Video element */}
         {showVideo && !videoError && (

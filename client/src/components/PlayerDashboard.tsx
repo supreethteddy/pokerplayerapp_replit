@@ -497,7 +497,7 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
     const canAfford = rawPoints >= product.points;
     const outOfStock = product.stock !== null && product.stock !== undefined && product.stock <= 0;
     return (
-      <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col">
+      <div className="fixed-screen-safe z-50 bg-slate-950 flex flex-col">
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 bg-slate-900 border-b border-slate-800 flex-shrink-0">
           <button
@@ -631,7 +631,7 @@ const VipPointsDisplay = ({ userId }: { userId: number }) => {
   // ── Store List Screen ──────────────────────────────────────────────────────
   if (storeView === 'store') {
     return (
-      <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col">
+      <div className="fixed-screen-safe z-50 bg-slate-950 flex flex-col">
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 bg-slate-900 border-b border-slate-800 flex-shrink-0">
           <button
@@ -3383,7 +3383,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   if (isKycPending && !isKycApproved) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="min-h-[100dvh] safe-area-page bg-slate-900 flex items-center justify-center p-4">
         <Card className="max-w-2xl w-full bg-slate-800 border-slate-700">
           <CardHeader>
             <CardTitle className="text-white flex items-center justify-center">
@@ -3456,7 +3456,7 @@ function PlayerDashboard({ user: userProp }: PlayerDashboardProps) {
 
   return (
     <div
-      className={`min-h-screen w-full overflow-x-hidden dashboard-container relative pt-4 sm:pt-5 lg:pt-6 ${gradientClasses || 'bg-slate-900'}`}
+      className={`min-h-[100dvh] w-full overflow-x-hidden dashboard-container relative ${gradientClasses || 'bg-slate-900'}`}
       style={Object.keys(gradientStyle).length > 0 ? gradientStyle : undefined}
     >
       {/* Active Game Status Banner */}
